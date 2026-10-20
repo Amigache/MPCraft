@@ -1,0 +1,43 @@
+.vertical {
+  background: var(--colour-bg);
+  cursor: col-resize;
+  flex: 0 0 5px;
+  position: relative;
+  width: 5px;
+}
+
+.horizontal {
+  background: var(--colour-bg);
+  cursor: row-resize;
+  flex: 0 0 5px;
+  height: 5px;
+  position: relative;
+  width: 100%;
+}
+
+.vertical::after,
+.horizontal::after {
+  background: var(--colour-border);
+  content: "";
+  position: absolute;
+  transition: background 120ms linear;
+}
+
+.vertical::after {
+  height: 100%;
+  left: 2px;
+  width: 1px;
+}
+
+.horizontal::after {
+  height: 1px;
+  top: 2px;
+  width: 100%;
+}
+
+.vertical:hover::after,
+.horizontal:hover::after,
+.vertical:focus-visible::after,
+.horizontal:focus-visible::after {
+  background: var(--colour-accent);
+}

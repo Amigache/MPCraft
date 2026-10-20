@@ -1,97 +1,76 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { call, listen, normaliseError } from "../../lib/ipc/bridge";
-import type { ConnectionStatus } from "../../lib/ipc/types";
+import { useConnection } from "../../lib/ipc/bridge";
+import styles from "./ConnectionPanel.module.css";
 
 /**
  * The connection controls.
  *
- * The status comes from the backend as an event, and the errors are surfaced by their stable
- * code rather than by their message.
+ * The target is a single string, the way the backend takes it: `serial:COM3:57600`,
+ * `udp:127.0.0.1:14550`, `tcp:192.168.1.10:5760`. The panel is opened from the File
+ * menu; the state of the link is always on the menu bar and in the status bar.
  */
 export function ConnectionPanel() {
+  const { status, error, connect, disconnect } = useConnection();
   const [target, setTarget] = useState("udp:127.0.0.1:14550");
-  const [status, setStatus] = useState<ConnectionStatus>("disconnected");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    const unlisten = listen<{ status: ConnectionStatus }>("link-state", (event) => {
-      setStatus(event.payload.status);
-    });
+  const open = status === "disconnected" || status === "failed";
 
-    return () => {
-      void unlisten.then((off) => off());
-    };
-  }, []);
-
-  const connect = async () => {
+  const run = async (action: () => Promise<void>) => {
     setBusy(true);
-    setError(null);
     try {
-      await call<unknown>("connect", { req: { target } });
-    } catch (cause) {
-      const error = normaliseError(cause);
-      setError(`${error.code}: ${error.message}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const disconnect = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await call<unknown>("disconnect");
-    } catch (cause) {
-      const error = normaliseError(cause);
-      setError(`${error.code}: ${error.message}`);
+      await action();
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="connection-panel">
-      <input
-        className="connection-panel__target"
-        value={target}
-        spellCheck={false}
-        aria-label="Connection target"
-        onChange={(event) => setTarget(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            void connect();
-          }
-        }}
-      />
+    <div className={styles.panel}>
+      <label className={styles.field}>
+        <span className={styles.label}>Target</span>
+        <input
+          className="input"
+          value={target}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="Connection target"
+          onChange={(event) => setTarget(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && open) {
+              void run(() => connect(target));
+            }
+          }}
+        />
+      </label>
 
-      {status === "disconnected" || status === "failed" ? (
+      <div className={styles.row}>
         <button
           type="button"
           className="button button--primary"
-          disabled={busy}
-          onClick={() => void connect()}
+          disabled={busy || !open}
+          onClick={() => void run(() => connect(target))}
         >
           Connect
         </button>
-      ) : (
         <button
           type="button"
           className="button"
-          disabled={busy}
-          onClick={() => void disconnect()}
+          disabled={busy || open}
+          onClick={() => void run(() => disconnect())}
         >
           Disconnect
         </button>
-      )}
-
-      <span className={`status status--${status}`}>{status}</span>
+        <span className={`${styles.status} ${styles[status] ?? ""}`}>
+          {status}
+        </span>
+      </div>
 
       {error ? (
-        <span className="connection-panel__error" role="alert">
-          {error}
-        </span>
+        <p className={styles.error} role="alert">
+          <span className={styles.code}>{error.code}</span> {error.message}
+        </p>
       ) : null}
     </div>
   );

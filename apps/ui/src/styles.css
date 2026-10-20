@@ -1,32 +1,70 @@
-/* MPCraft — the design tokens.
+/* MPCraft — the design tokens and the base sheet.
  *
  * A dark theme, because a ground station is used in a dim room and next to an aircraft.
+ *
+ * The rules this sheet follows:
+ *
+ *  - a 4 px spacing grid and nothing else;
+ *  - a type scale of 11 / 12 / 13 / 15 / 18 px;
+ *  - one accent colour, which marks what is live, what is selected and where the focus is;
+ *  - surfaces that are one step apart, never five;
+ *  - numbers in a monospaced face, so a value that changes does not move the layout.
+ *
+ * Everything that belongs to a single component lives in that component's CSS module.
+ * What is here is what every component shares: the reset, the primitives and the
+ * accessibility affordances.
  */
 
 :root {
   color-scheme: dark;
 
+  /* The surfaces: the window, the panels, the raised bits. One step apart. */
   --colour-bg: #0d1117;
   --colour-surface: #161b22;
   --colour-surface-raised: #1c2330;
   --colour-border: #2a3441;
+  --colour-border-strong: #3c4a5a;
+
   --colour-text: #e6edf3;
   --colour-text-dim: #8b949e;
-  --colour-accent: #00c896;
-  --colour-accent-dim: #0a7a5f;
-  --colour-danger: #f85149;
-  --colour-warning: #d29922;
+  --colour-text-faint: #6e7781;
 
+  /* One accent. It marks the live state, the active tab and the focus ring. */
+  --colour-accent: #00c896;
+  --colour-accent-dim: #0f7a5f;
+  --colour-accent-wash: rgba(0, 200, 150, 0.14);
+  --colour-danger: #f85149;
+  --colour-danger-wash: rgba(248, 81, 73, 0.14);
+  --colour-warning: #d29922;
+  --colour-warning-wash: rgba(210, 153, 34, 0.14);
+
+  /* The horizon. The sky and the ground of the attitude indicator. */
+  --colour-sky: #1d3550;
+  --colour-ground: #3a2f1c;
+
+  /* A 4 px grid. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
 
+  /* The type scale. */
+  --font-2xs: 11px;
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-md: 15px;
+  --font-lg: 18px;
+
+  --radius-sm: 4px;
   --radius: 6px;
+
   --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --focus-ring: 0 0 0 2px var(--colour-bg), 0 0 0 4px var(--colour-accent);
 }
 
 * {
@@ -44,107 +82,81 @@ body {
   background: var(--colour-bg);
   color: var(--colour-text);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: var(--font-sm);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* The shell ---------------------------------------------------------------- */
+/* The focus ring is the same everywhere, and it is always visible. */
 
-.app-shell {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  height: 100%;
-}
-
-.app-shell__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  background: var(--colour-surface);
-  border-bottom: 1px solid var(--colour-border);
-}
-
-.app-shell__brand {
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 0.02em;
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-
-.app-shell__version {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--colour-text-dim);
-  font-weight: 400;
-}
-
-.app-shell__body {
-  display: grid;
-  grid-template-rows: 1fr auto;
-  min-height: 0;
-}
-
-/* The connection panel ----------------------------------------------------- */
-
-.connection-panel {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-left: auto;
-}
-
-.connection-panel__target {
-  background: var(--colour-bg);
-  border: 1px solid var(--colour-border);
-  border-radius: var(--radius);
-  color: var(--colour-text);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  padding: var(--space-2) var(--space-3);
-  width: 260px;
-}
-
-.connection-panel__target:focus-visible {
+:focus-visible {
   outline: 2px solid var(--colour-accent);
   outline-offset: 1px;
 }
 
-.connection-panel__error {
-  color: var(--colour-danger);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+::selection {
+  background: var(--colour-accent-wash);
+}
+
+/* The scrollbars, which are thin and quiet. */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--colour-border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--colour-border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--colour-text-faint);
+  background-clip: content-box;
+}
+
+/* The primitives ------------------------------------------------------------ */
+
+.button {
+  align-items: center;
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  gap: var(--space-1);
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 var(--space-3);
   white-space: nowrap;
 }
 
-.button {
-  background: var(--colour-surface-raised);
-  border: 1px solid var(--colour-border);
-  border-radius: var(--radius);
-  color: var(--colour-text);
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  padding: var(--space-2) var(--space-4);
-}
-
 .button:hover:not(:disabled) {
-  border-color: var(--colour-accent-dim);
+  background: #232c3a;
+  border-color: var(--colour-border-strong);
 }
 
-.button:focus-visible {
-  outline: 2px solid var(--colour-accent);
-  outline-offset: 1px;
+.button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .button:disabled {
   cursor: default;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .button--primary {
@@ -159,189 +171,57 @@ body {
   color: #04231b;
 }
 
-.status {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: var(--space-1) var(--space-2);
-  border-radius: 999px;
-  border: 1px solid var(--colour-border);
-  color: var(--colour-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.status--connected {
-  color: var(--colour-accent);
-  border-color: var(--colour-accent-dim);
-}
-
-.status--connecting,
-.status--reconnecting {
-  color: var(--colour-warning);
-  border-color: var(--colour-warning);
-}
-
-.status--failed {
+.button--danger {
+  border-color: #6d2b28;
   color: var(--colour-danger);
+}
+
+.button--danger:hover:not(:disabled) {
+  background: var(--colour-danger-wash);
   border-color: var(--colour-danger);
 }
 
-/* The panels --------------------------------------------------------------- */
-
-.panel {
-  background: var(--colour-surface);
-  border: 1px solid var(--colour-border);
-  border-radius: var(--radius);
-  margin: var(--space-4) var(--space-5) 0;
-  padding: var(--space-4) var(--space-5);
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+.button--wide {
+  width: 100%;
 }
 
-.panel--flight {
-  overflow: auto;
-}
-
-.panel--messages {
-  margin: var(--space-4) var(--space-5) var(--space-5);
-  max-height: 180px;
-}
-
-.panel__header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.panel__header h2 {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  margin: 0;
-  text-transform: uppercase;
-  color: var(--colour-text-dim);
-}
-
-.panel__badge {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--colour-text-dim);
-  background: var(--colour-surface-raised);
-  border-radius: 999px;
-  padding: 2px var(--space-2);
-}
-
-/* The readouts ------------------------------------------------------------- */
-
-.readouts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--space-3);
-}
-
-.readout {
+.input,
+.select {
   background: var(--colour-bg);
   border: 1px solid var(--colour-border);
-  border-radius: var(--radius);
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  min-height: 26px;
+  padding: 0 var(--space-2);
 }
 
-.readout__label {
-  color: var(--colour-text-dim);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.input:hover,
+.select:hover {
+  border-color: var(--colour-border-strong);
 }
 
-.readout__value {
+.select {
+  cursor: pointer;
+  padding-right: var(--space-1);
+}
+
+/* The numbers are monospaced, so a value that changes does not move the layout. */
+
+.numeric {
   font-family: var(--font-mono);
-  font-size: 16px;
   font-variant-numeric: tabular-nums;
 }
 
-.readout__unit {
-  color: var(--colour-text-dim);
-  font-size: 11px;
-}
+/* The utilities ------------------------------------------------------------ */
 
-/* The attitude gauges ------------------------------------------------------ */
-
-.attitude {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-}
-
-.attitude__gauge {
-  background: var(--colour-bg);
-  border: 1px solid var(--colour-border);
-  border-radius: var(--radius);
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.attitude__dial {
-  background: linear-gradient(180deg, #1d3550 0 50%, #3a2f1c 50% 100%);
-  border: 1px solid var(--colour-border);
-  border-radius: var(--radius);
-  height: 64px;
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
   overflow: hidden;
-  position: relative;
-}
-
-.attitude__horizon {
-  background: linear-gradient(180deg, #1d3550 0 50%, #3a2f1c 50% 100%);
-  height: 200%;
-  left: -50%;
   position: absolute;
-  top: -50%;
-  width: 200%;
-  transition: transform 80ms linear;
-}
-
-.attitude__needle {
-  background: var(--colour-accent);
-  height: 2px;
-  left: 20%;
-  position: absolute;
-  right: 20%;
-  top: 50%;
-}
-
-.attitude__value {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The message console ------------------------------------------------------ */
-
-.messages__empty {
-  color: var(--colour-text-dim);
-  margin: 0;
-}
-
-.messages__list {
-  list-style: none;
-  margin: 0;
-  overflow: auto;
-  padding: 0;
-}
-
-.messages__item {
-  border-bottom: 1px solid var(--colour-border);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: var(--space-2) 0;
-}
-
-.messages__item:last-child {
-  border-bottom: none;
+  white-space: nowrap;
+  width: 1px;
 }

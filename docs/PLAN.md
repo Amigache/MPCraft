@@ -555,18 +555,56 @@ begins. Waiting for the vehicle to merely *appear* is not enough: it appears on 
 frame it sends, whatever that frame is, and a vehicle that sends telemetry before its
 heartbeat is still unidentified at that point.
 
-### The next step: Phase 1 - the first window
+### Phase 1 - the flight data window
 
-Phase 1 is the flight data view proper:
+Phase 1 is the flight data view proper, and it starts from a complaint: the interface did
+not resemble Mission Planner's. The **distribution and the elements** are Mission Planner's,
+because that is what an operator's hands already know; the **style** is modern, because
+that is what the rest of the world expects.
 
-- The **map**, with the live position, the track history and the plan drawn on it.
-- The **graphs**, which are the reason a ground station exists.
-- The **connection dialog** with a list of serial ports and baud rates.
-- The **flight mode control**, with the mode table of the vehicle family.
+The distribution was read out of upstream's WinForms designer rather than remembered:
 
-The application layer, the link layer and the mission model are all in place; what is left
-is the part that draws them.
+- the window has a **menu strip** at the top and a **status strip** at the bottom;
+- the **left column is 300 pixels and fixed**: the artificial horizon above, a **tabbed
+  panel** below;
+- the tabs are upstream's: **Quick**, **Actions**, **Messages**, **Gauges**, **Status**;
+- the **map** takes everything that is left.
 
+What is on the screen:
+
+- The **HUD**: a horizon that tilts with the roll and moves with the pitch, a pitch
+  ladder, a bank scale and a heading ribbon.
+- The **map**: the vehicle, the track history, the plan and the home position, with a
+  follow toggle and a zoom control.
+- The **Actions tab**: the mode selector, arm and disarm, the quick flight modes, the
+  waypoint actions and the plan transfer.
+- The **Gauges tab**: the ground speed, the altitude, the vertical speed and the heading.
+- The **Quick tab**: the tiles an operator glances at, and the choice of which ones.
+- The **Messages tab**: the vehicle's own `STATUSTEXT`, which the session now captures.
+
+### What the backend had to grow for it
+
+The interface asked for things the backend did not have:
+
+- **The vehicle's messages.** `STATUSTEXT` was never captured; the console showed the
+  notices of the link, not what the vehicle said. The session now keeps the last two
+  hundred of them, with their severity.
+- **The flight commands over the IPC boundary.** Arm, disarm, takeoff, the mode change,
+  the plan transfer, the current item, the jump and the clearing of a plan. They live in
+  `mpcraft-app`, not in the shell, so the rule that a command needs an open link is
+  written once and tested without a display server.
+- **The mode table.** It lives in `mpcraft-vehicle`, because the numbers are the contract
+  with the autopilot and not ours to choose.
+- **The state of the positioning.** The aggregator did not read `GPS_RAW_INT`, so the fix,
+  the satellites and the dilution of precision were unknown.
+
+### The next step: the graphs
+
+The graphs are the reason a ground station exists, and they are the last piece of the
+flight data window: uPlot over the telemetry history, with the presets of upstream's
+`mavgraphs.xml`.
+
+---
 
 ---
 

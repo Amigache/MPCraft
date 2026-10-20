@@ -36,6 +36,10 @@ mpcraft-settings = { path = "crates/mpcraft-settings" }
 mpcraft-app = { path = "crates/mpcraft-app" }
 mpcraft-cli = { path = "crates/mpcraft-cli" }
 
+# `num-traits` is what the generated MAVLink enums implement `FromPrimitive` on, so it is
+# how a wire value becomes an enumeration.
+num-traits = { version = "0.2", default-features = false }
+
 mavlink = { version = "0.20", default-features = false, features = [
     "std",
     "tokio",

@@ -27,7 +27,7 @@
 //! bounded by [`SessionOptions::poll_interval`]; the default of ten milliseconds is well
 //! below what a pilot would notice.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -57,6 +57,12 @@ const GCS_SYSTEM_ID: u8 = 255;
 /// Mission Planner uses the same value, and the vehicle checks that the items it receives
 /// are addressed to it.
 const GCS_COMPONENT_ID: u8 = 190;
+
+/// How many messages the session keeps.
+///
+/// A vehicle that talks a great deal must not grow the state without limit, and the
+/// console only ever shows the recent past.
+const MAX_MESSAGES: usize = 200;
 
 /// The tunables of a session.
 #[derive(Debug, Clone, Copy)]
@@ -151,6 +157,11 @@ pub struct SessionState {
     pub parameters: ParameterStore,
     /// The lines of board output captured outside of MAVLink frames.
     pub plaintext: Vec<String>,
+    /// The messages the vehicle has sent, most recent last.
+    ///
+    /// The list is bounded: a vehicle that talks a great deal must not grow the state
+    /// without limit.
+    pub messages: Vec<mpcraft_vehicle::VehicleMessage>,
     /// Whether the board's output looks like a DroneCAN bus.
     pub looks_like_can_bus: bool,
     /// Whether the link is still open.
@@ -172,6 +183,7 @@ struct SessionContext {
     loss: LossStats,
     capabilities: Option<u64>,
     parameters: ParameterStore,
+    messages: VecDeque<mpcraft_vehicle::VehicleMessage>,
 }
 
 impl SessionContext {
@@ -245,6 +257,25 @@ impl SessionContext {
         }
 
         self.aggregator.apply(&message);
+
+        // The messages the vehicle sends are what it says about itself: a pre-arm
+        // failure, a mode it refused, a waypoint it reached. They are the first thing an
+        // operator wants to read.
+        if let MavMessage::STATUSTEXT(text) = &message {
+            let line = text.text.to_str().unwrap_or_default().trim();
+
+            if !line.is_empty() {
+                self.messages.push_back(mpcraft_vehicle::VehicleMessage {
+                    severity: text.severity as u8,
+                    text: line.to_owned(),
+                    id: text.id,
+                });
+
+                while self.messages.len() > MAX_MESSAGES {
+                    self.messages.pop_front();
+                }
+            }
+        }
     }
 
     /// The snapshot of the current state.
@@ -256,6 +287,7 @@ impl SessionContext {
             capabilities: self.capabilities,
             parameters: self.parameters.clone(),
             plaintext: self.plaintext.lines(),
+            messages: self.messages.iter().cloned().collect(),
             looks_like_can_bus: self.plaintext.looks_like_can_bus(),
             connected,
         }
@@ -273,6 +305,7 @@ impl SessionState {
             capabilities: None,
             parameters: mpcraft_params::ParameterStore::new(),
             plaintext: Vec::new(),
+            messages: Vec::new(),
             looks_like_can_bus: false,
             connected: false,
         }

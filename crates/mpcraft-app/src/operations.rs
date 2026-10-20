@@ -1,0 +1,350 @@
+//! The operations the interface can ask of a vehicle.
+//!
+//! The operations live here rather than in the shell, so that the rule that a command
+//! needs an open link is written once and tested without a display server. The shell
+//! wires them to the interface and does nothing else.
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use mpcraft_link::{Session, VehicleId};
+use mpcraft_mission::{MissionType, Plan};
+
+use crate::error::{CommandError, CommandResult};
+use crate::supervisor::SessionSupervisor;
+
+/// How long to wait for the vehicle to answer a command.
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long to wait for a plan to be transferred.
+///
+/// A plan is many messages, and the vehicle asks for them one at a time, so the
+/// allowance is generous.
+const PLAN_TIMEOUT: Duration = Duration::from_secs(30);
+
+impl SessionSupervisor {
+    /// The session that is open, if there is one.
+    fn open_session(&self) -> CommandResult<Arc<Session>> {
+        self.session().ok_or_else(CommandError::not_connected)
+    }
+
+    /// Arms the vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn arm(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session.arm(vehicle, COMMAND_TIMEOUT).await?;
+        Ok(())
+    }
+
+    /// Disarms the vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn disarm(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session.disarm(vehicle, COMMAND_TIMEOUT).await?;
+        Ok(())
+    }
+
+    /// Takes off to an altitude, relative to the home position.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn takeoff(&self, vehicle: VehicleId, altitude: f32) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session.takeoff(vehicle, altitude, COMMAND_TIMEOUT).await?;
+        Ok(())
+    }
+
+    /// Changes the flight mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn set_mode(&self, vehicle: VehicleId, custom_mode: u32) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session
+            .set_mode(
+                vehicle,
+                custom_mode,
+                mpcraft_mavlink::MavModeFlag::empty(),
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Downloads the plan the vehicle holds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle does not answer.
+    pub async fn download_mission(
+        &self,
+        vehicle: VehicleId,
+        mission_type: MissionType,
+    ) -> CommandResult<Plan> {
+        let session = self.open_session()?;
+        Ok(session
+            .download_mission(vehicle, mission_type, PLAN_TIMEOUT)
+            .await?)
+    }
+
+    /// Uploads a plan to the vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the plan.
+    pub async fn upload_mission(&self, vehicle: VehicleId, plan: &Plan) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session.upload_mission(vehicle, plan, PLAN_TIMEOUT).await?;
+        Ok(())
+    }
+
+    /// Says which item of the plan the vehicle is executing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle does not answer.
+    pub async fn set_current_item(&self, vehicle: VehicleId, seq: u16) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session
+            .set_current_item(vehicle, seq, COMMAND_TIMEOUT)
+            .await?;
+        Ok(())
+    }
+
+    /// Empties one of the vehicle's plans.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses.
+    pub async fn clear_mission(
+        &self,
+        vehicle: VehicleId,
+        mission_type: MissionType,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session
+            .clear_mission(vehicle, mission_type, COMMAND_TIMEOUT)
+            .await?;
+        Ok(())
+    }
+
+    /// Makes the vehicle jump to an item of the plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn jump_to_item(&self, vehicle: VehicleId, seq: u16) -> CommandResult<()> {
+        let session = self.open_session()?;
+        session.jump_to_item(vehicle, seq, COMMAND_TIMEOUT).await?;
+        Ok(())
+    }
+}
+
+/// The flight modes the interface offers.
+///
+/// # Errors
+///
+/// Never fails.
+pub fn flight_modes() -> Vec<ModeInfo> {
+    mpcraft_vehicle::modes::COMMON_MODES
+        .iter()
+        .map(|entry| ModeInfo {
+            value: entry.value,
+            name: entry.name.to_owned(),
+        })
+        .collect()
+}
+
+/// A flight mode, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModeInfo {
+    /// The custom mode value the vehicle expects.
+    pub value: u32,
+    /// The name of the mode.
+    pub name: String,
+}
+
+/// The kind of plan, as the interface names it.
+///
+/// The wire has three kinds of plan, and the interface names them the way an operator
+/// does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlanKind {
+    /// The plan the vehicle flies.
+    Mission,
+    /// The geofence.
+    Fence,
+    /// The rally points.
+    Rally,
+}
+
+impl From<PlanKind> for MissionType {
+    fn from(kind: PlanKind) -> Self {
+        match kind {
+            PlanKind::Mission => Self::Mission,
+            PlanKind::Fence => Self::Fence,
+            PlanKind::Rally => Self::Rally,
+        }
+    }
+}
+
+/// The item of a plan, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanItem {
+    /// The position in the plan.
+    pub seq: u16,
+    /// The name of the command, for example `MAV_CMD_NAV_WAYPOINT`.
+    pub command: String,
+    /// The numeric command value.
+    pub command_value: u32,
+    /// The coordinate frame the position is expressed in.
+    pub frame: u32,
+    /// The four generic parameters.
+    pub params: [f32; 4],
+    /// The latitude, for a command that carries a position.
+    pub x: f64,
+    /// The longitude, for a command that carries a position.
+    pub y: f64,
+    /// The altitude.
+    pub z: f64,
+    /// Whether the item is the one being executed.
+    pub current: bool,
+    /// Whether the vehicle continues to the next item automatically.
+    pub autocontinue: bool,
+}
+
+/// A plan, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanInfo {
+    /// The kind of plan.
+    pub kind: PlanKind,
+    /// The items, in order.
+    pub items: Vec<PlanItem>,
+}
+
+impl From<&Plan> for PlanInfo {
+    fn from(plan: &Plan) -> Self {
+        let kind = match plan.mission_type {
+            MissionType::Mission => PlanKind::Mission,
+            MissionType::Fence => PlanKind::Fence,
+            MissionType::Rally => PlanKind::Rally,
+        };
+
+        let items = plan
+            .items
+            .iter()
+            .enumerate()
+            .map(|(seq, item)| PlanItem {
+                seq: seq as u16,
+                command: mpcraft_mission::mavcmd::command_name(item.command),
+                command_value: item.command as u32,
+                frame: item.frame,
+                params: item.params,
+                x: item.x,
+                y: item.y,
+                z: item.z,
+                current: item.current,
+                autocontinue: item.autocontinue,
+            })
+            .collect();
+
+        Self { kind, items }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The vehicle the tests address.
+    const VEHICLE: VehicleId = VehicleId::new(1, 1);
+
+    #[tokio::test]
+    async fn an_operation_without_a_link_says_so() {
+        let supervisor = SessionSupervisor::new();
+
+        let error = supervisor
+            .arm(VEHICLE)
+            .await
+            .expect_err("there is no link open");
+
+        assert_eq!(error.code, CommandError::CODE_NOT_CONNECTED);
+    }
+
+    #[tokio::test]
+    async fn every_operation_needs_a_link() {
+        let supervisor = SessionSupervisor::new();
+
+        let failures = [
+            supervisor.arm(VEHICLE).await.err(),
+            supervisor.disarm(VEHICLE).await.err(),
+            supervisor.takeoff(VEHICLE, 10.0).await.err(),
+            supervisor.set_mode(VEHICLE, 4).await.err(),
+            supervisor
+                .download_mission(VEHICLE, MissionType::Mission)
+                .await
+                .err(),
+            supervisor
+                .upload_mission(VEHICLE, &Plan::new(MissionType::Mission))
+                .await
+                .err(),
+            supervisor.set_current_item(VEHICLE, 0).await.err(),
+            supervisor
+                .clear_mission(VEHICLE, MissionType::Mission)
+                .await
+                .err(),
+            supervisor.jump_to_item(VEHICLE, 0).await.err(),
+        ];
+
+        for failure in failures.into_iter().flatten() {
+            assert_eq!(failure.code, CommandError::CODE_NOT_CONNECTED);
+        }
+    }
+
+    #[test]
+    fn the_flight_modes_are_the_ones_the_autopilot_uses() {
+        let modes = flight_modes();
+
+        assert!(modes
+            .iter()
+            .any(|mode| mode.name == "GUIDED" && mode.value == 4));
+        assert!(modes
+            .iter()
+            .any(|mode| mode.name == "RTL" && mode.value == 6));
+        assert!(modes
+            .iter()
+            .any(|mode| mode.name == "LAND" && mode.value == 8));
+    }
+
+    #[test]
+    fn a_plan_becomes_the_shape_the_interface_expects() {
+        let mut plan = Plan::new(MissionType::Fence);
+        plan.push(mpcraft_mission::MissionItem::new(
+            mpcraft_mavlink::MavCmd::MAV_CMD_NAV_FENCE_RETURN_POINT,
+        ));
+
+        let info = PlanInfo::from(&plan);
+
+        assert_eq!(info.kind, PlanKind::Fence);
+        assert_eq!(info.items.len(), 1);
+        assert_eq!(info.items[0].seq, 0);
+        assert_eq!(info.items[0].command, "MAV_CMD_NAV_FENCE_RETURN_POINT");
+    }
+}

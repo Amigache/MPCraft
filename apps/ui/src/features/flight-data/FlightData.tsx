@@ -1,188 +1,129 @@
-import { useEffect, useState } from "react";
-
-import { listen } from "../../lib/ipc/bridge";
-
-/** The telemetry the flight data view shows. */
-interface Telemetry {
-  position: { lat: number; lng: number; alt: number } | null;
-  attitude: { roll: number; pitch: number; yaw: number } | null;
-  velocity: { groundSpeed: number } | null;
-  battery: { voltage: number; current: number; remaining: number } | null;
-  mode: string | null;
-  armed: boolean | null;
-  distanceToHome: number | null;
-}
-
-/** The vehicles on the link. */
-interface Vehicle {
-  systemId: number;
-  componentId: number;
-  kind: string | null;
-}
-
-/** The loss statistics of the link. */
-interface Loss {
-  received: number;
-  lost: number;
-}
+import { Splitter } from "../../app/layout/Splitter";
+import { TabStrip } from "../../components/TabStrip";
+import { ActionsPanel } from "../../features/actions/ActionsPanel";
+import { FlightMap } from "../../features/map/FlightMap";
+import { GaugesPanel } from "../../features/gauges/GaugesPanel";
+import { Hud } from "../../features/hud/Hud";
+import { MessageConsole } from "../../features/messages/MessageConsole";
+import { QuickViewPanel } from "../../features/quick-view/QuickViewPanel";
+import { StatusPanel } from "../../features/status/StatusPanel";
+import {
+  MAX_HUD_HEIGHT,
+  MAX_LEFT_WIDTH,
+  MIN_HUD_HEIGHT,
+  MIN_LEFT_WIDTH,
+  TABS,
+  useUiStore,
+} from "../../lib/ui/uiStore";
+import styles from "./FlightData.module.css";
 
 /**
- * The flight data view.
+ * The flight data screen.
  *
- * Every value shown here comes from the backend: the frontend never derives a telemetry
- * value of its own.
+ * The distribution is upstream's: a column on the left, the width of which can be
+ * dragged, holding the attitude indicator above a set of tabs, and the map filling
+ * everything else.
  */
 export function FlightData() {
-  const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loss, setLoss] = useState<Loss>({ received: 0, lost: 0 });
-
-  useEffect(() => {
-    const unlisten = listen<{
-      status: string;
-      vehicles: Vehicle[];
-      telemetry: Telemetry;
-      loss: Loss;
-    }>("link-state", (event) => {
-      setTelemetry(event.payload.telemetry);
-      setVehicles(event.payload.vehicles);
-      setLoss(event.payload.loss);
-    });
-
-    return () => {
-      void unlisten.then((off) => off());
-    };
-  }, []);
+  const showLeftColumn = useUiStore((state) => state.showLeftColumn);
+  const leftColumnWidth = useUiStore((state) => state.leftColumnWidth);
+  const hudHeight = useUiStore((state) => state.hudHeight);
+  const activeTab = useUiStore((state) => state.activeTab);
+  const setActiveTab = useUiStore((state) => state.setActiveTab);
+  const setLeftColumnWidth = useUiStore((state) => state.setLeftColumnWidth);
+  const setHudHeight = useUiStore((state) => state.setHudHeight);
 
   return (
-    <section className="panel panel--flight">
-      <header className="panel__header">
-        <h2>Flight data</h2>
-        {vehicles.length > 0 ? (
-          <span className="panel__badge">
-            {vehicles.map((v) => `${v.systemId}/${v.componentId}${v.kind ? ` ${v.kind}` : ""}`).join(", ")}
-          </span>
-        ) : null}
-      </header>
+    <div className={styles.screen}>
+      {showLeftColumn ? (
+        <>
+          <aside
+            className={styles.left}
+            style={{ width: `${leftColumnWidth}px` }}
+            aria-label="Flight data"
+          >
+            <div className={styles.hud} style={{ height: `${hudHeight}px` }}>
+              <Hud />
+            </div>
 
-      <div className="readouts">
-        <Readout
-          label="Latitude"
-          value={telemetry?.position ? telemetry.position.lat.toFixed(7) : "—"}
-          unit="°"
-        />
-        <Readout
-          label="Longitude"
-          value={telemetry?.position ? telemetry.position.lng.toFixed(7) : "—"}
-          unit="°"
-        />
-        <Readout
-          label="Altitude"
-          value={telemetry?.position ? telemetry.position.alt.toFixed(1) : "—"}
-          unit="m"
-        />
-        <Readout
-          label="Speed"
-          value={
-            telemetry?.velocity ? telemetry.velocity.groundSpeed.toFixed(2) : "—"
-          }
-          unit="m/s"
-        />
-        <Readout
-          label="Distance to home"
-          value={
-            telemetry?.distanceToHome != null
-              ? telemetry.distanceToHome.toFixed(1)
-              : "—"
-          }
-          unit="m"
-        />
-      </div>
+            <Splitter
+              orientation="horizontal"
+              label="The height of the attitude indicator"
+              value={hudHeight}
+              min={MIN_HUD_HEIGHT}
+              max={MAX_HUD_HEIGHT}
+              onChange={setHudHeight}
+            />
 
-      <div className="attitude">
-        <AttitudeGauge
-          label="Roll"
-          value={telemetry?.attitude?.roll ?? null}
-        />
-        <AttitudeGauge
-          label="Pitch"
-          value={telemetry?.attitude?.pitch ?? null}
-        />
-        <AttitudeGauge label="Yaw" value={telemetry?.attitude?.yaw ?? null} />
-      </div>
+            <div className={styles.tabs}>
+              <TabStrip tabs={TABS} active={activeTab} onSelect={setActiveTab} />
 
-      <div className="readouts">
-        <Readout label="Mode" value={telemetry?.mode ?? "—"} />
-        <Readout
-          label="Armed"
-          value={
-            telemetry?.armed == null ? "—" : telemetry.armed ? "yes" : "no"
-          }
-        />
-        <Readout
-          label="Battery"
-          value={
-            telemetry?.battery
-              ? `${telemetry.battery.voltage.toFixed(2)} V · ${telemetry.battery.remaining.toFixed(0)} %`
-              : "—"
-          }
-        />
-        <Readout
-          label="Packets"
-          value={`${loss.received} received · ${loss.lost} lost`}
-        />
-      </div>
-    </section>
-  );
-}
+              {/*
+                Every panel stays mounted, so that the console keeps what it has
+                collected and the tiles keep their choice when the tab is changed.
+              */}
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-quick"
+                aria-labelledby="tab-quick"
+                hidden={activeTab !== "quick"}
+              >
+                <QuickViewPanel />
+              </div>
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-actions"
+                aria-labelledby="tab-actions"
+                hidden={activeTab !== "actions"}
+              >
+                <ActionsPanel />
+              </div>
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-messages"
+                aria-labelledby="tab-messages"
+                hidden={activeTab !== "messages"}
+              >
+                <MessageConsole />
+              </div>
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-gauges"
+                aria-labelledby="tab-gauges"
+                hidden={activeTab !== "gauges"}
+              >
+                <GaugesPanel />
+              </div>
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-status"
+                aria-labelledby="tab-status"
+                hidden={activeTab !== "status"}
+              >
+                <StatusPanel />
+              </div>
+            </div>
+          </aside>
 
-/** One labelled value. */
-function Readout({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-}) {
-  return (
-    <div className="readout">
-      <span className="readout__label">{label}</span>
-      <span className="readout__value">
-        {value}
-        {unit ? <span className="readout__unit"> {unit}</span> : null}
-      </span>
-    </div>
-  );
-}
+          <Splitter
+            orientation="vertical"
+            label="The width of the flight data column"
+            value={leftColumnWidth}
+            min={MIN_LEFT_WIDTH}
+            max={MAX_LEFT_WIDTH}
+            onChange={setLeftColumnWidth}
+          />
+        </>
+      ) : null}
 
-/** One attitude angle, drawn as a horizon line.
- *
- * The horizon tilts with the roll and moves with the pitch, which is how an attitude
- * indicator works.
- */
-function AttitudeGauge({
-  label,
-  value,
-}: {
-  label: string;
-  value: number | null;
-}) {
-  const roll = value ?? 0;
-  const tilt = label === "Yaw" ? 0 : roll;
-
-  return (
-    <div className="attitude__gauge">
-      <span className="readout__label">{label}</span>
-      <div className="attitude__dial">
-        <div
-          className="attitude__horizon"
-          style={{ transform: `rotate(${-tilt}deg) translateY(${label === "Pitch" ? (value ?? 0) * 1.6 : 0}px)` }}
-        />
-        <div className="attitude__needle" />
-      </div>
-      <span className="attitude__value">{value === null ? "—" : value.toFixed(1)}°</span>
+      <main className={styles.main}>
+        <FlightMap />
+      </main>
     </div>
   );
 }

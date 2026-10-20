@@ -10,9 +10,11 @@
 #![warn(missing_docs)]
 
 use mpcraft_app::{
-    AppState, CommandResult, ConnectRequest, ConnectResponse, ConnectionStatus, LinkSnapshot,
-    SessionState,
+    flight_modes, AppState, CommandError, CommandResult, ConnectRequest, ConnectResponse,
+    ConnectionStatus, LinkSnapshot, ModeInfo, PlanInfo, PlanKind, SessionState,
 };
+use mpcraft_link::VehicleId;
+use mpcraft_mission::{MissionType, Plan};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// The event that carries the state of the link and the telemetry.
@@ -86,6 +88,254 @@ async fn list_connection_profiles(state: State<'_, AppState>) -> CommandResult<V
         .collect())
 }
 
+/// The flight modes the interface offers.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn list_flight_modes() -> CommandResult<Vec<ModeInfo>> {
+    Ok(flight_modes())
+}
+
+/// The vehicle a command is for.
+///
+/// The system and component ids are optional: a request that names no vehicle is for
+/// the primary one on the link.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VehicleRequest {
+    /// The system id of the vehicle.
+    system_id: Option<u8>,
+    /// The component id of the vehicle.
+    component_id: Option<u8>,
+}
+
+/// Arms the vehicle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the command.
+#[tauri::command]
+async fn arm(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state.supervisor.arm(vehicle).await
+}
+
+/// Disarms the vehicle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the command.
+#[tauri::command]
+async fn disarm(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state.supervisor.disarm(vehicle).await
+}
+
+/// Takes off to an altitude, relative to the home position.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the command.
+#[tauri::command]
+async fn takeoff(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    altitude: f32,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state.supervisor.takeoff(vehicle, altitude).await
+}
+
+/// Changes the flight mode.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the command.
+#[tauri::command]
+async fn set_mode(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    custom_mode: u32,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state.supervisor.set_mode(vehicle, custom_mode).await
+}
+
+/// Downloads the plan the vehicle holds.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// does not answer.
+#[tauri::command]
+async fn download_mission(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    kind: PlanKind,
+) -> CommandResult<PlanInfo> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let plan = state
+        .supervisor
+        .download_mission(vehicle, mission_type_of(kind))
+        .await?;
+
+    Ok(PlanInfo::from(&plan))
+}
+
+/// Uploads a plan to the vehicle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the plan.
+#[tauri::command]
+async fn upload_mission(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    kind: PlanKind,
+    items: Vec<PlanItemRequest>,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let plan = plan_of(kind, &items)?;
+    state.supervisor.upload_mission(vehicle, &plan).await
+}
+
+/// Says which item of the plan the vehicle is executing.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// does not answer.
+#[tauri::command]
+async fn set_current_item(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    seq: u16,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state.supervisor.set_current_item(vehicle, seq).await
+}
+
+/// Empties one of the vehicle's plans.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses.
+#[tauri::command]
+async fn clear_mission(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    kind: PlanKind,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state
+        .supervisor
+        .clear_mission(vehicle, mission_type_of(kind))
+        .await
+}
+
+/// Makes the vehicle jump to an item of the plan.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the command.
+#[tauri::command]
+async fn jump_to_item(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    seq: u16,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state.supervisor.jump_to_item(vehicle, seq).await
+}
+
+/// One item of a plan, as the interface sends it.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanItemRequest {
+    /// The numeric command value.
+    command_value: u32,
+    /// The coordinate frame the position is expressed in.
+    frame: u32,
+    /// The four generic parameters.
+    params: [f32; 4],
+    /// The latitude, for a command that carries a position.
+    x: f64,
+    /// The longitude, for a command that carries a position.
+    y: f64,
+    /// The altitude.
+    z: f64,
+    /// Whether the item is the one being executed.
+    current: bool,
+    /// Whether the vehicle continues to the next item automatically.
+    autocontinue: bool,
+}
+
+/// The vehicle a command is for: the one it names, or the primary one on the link.
+fn resolve_vehicle(state: &AppState, req: &VehicleRequest) -> CommandResult<VehicleId> {
+    if let (Some(system_id), Some(component_id)) = (req.system_id, req.component_id) {
+        return Ok(VehicleId::new(system_id, component_id));
+    }
+
+    let primary = state
+        .supervisor
+        .state()
+        .and_then(|state| {
+            state
+                .vehicles
+                .iter()
+                .find(|vehicle| vehicle.primary)
+                .or_else(|| state.vehicles.first())
+                .map(|vehicle| vehicle.id)
+        })
+        .ok_or_else(|| CommandError::no_vehicle("there is no vehicle on the link"))?;
+
+    Ok(primary)
+}
+
+/// The wire kind of a plan.
+fn mission_type_of(kind: PlanKind) -> MissionType {
+    kind.into()
+}
+
+/// Builds a plan from what the interface sent.
+fn plan_of(kind: PlanKind, items: &[PlanItemRequest]) -> CommandResult<Plan> {
+    let mut plan = Plan::new(mission_type_of(kind));
+
+    for item in items {
+        let command =
+            mpcraft_mission::mavcmd::command_from_value(item.command_value).ok_or_else(|| {
+                CommandError::invalid_request(format!(
+                    "{} is not a command this ground station knows",
+                    item.command_value
+                ))
+            })?;
+
+        plan.push(mpcraft_mission::MissionItem {
+            id: mpcraft_mission::MissionItemId::next(),
+            command,
+            frame: item.frame,
+            params: item.params,
+            x: item.x,
+            y: item.y,
+            z: item.z,
+            current: item.current,
+            autocontinue: item.autocontinue,
+            display_name: None,
+        });
+    }
+
+    Ok(plan)
+}
+
 /// A connection profile, as the interface sees it.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -110,6 +360,20 @@ struct StateEvent {
     telemetry: TelemetryEvent,
     /// The loss statistics of the link.
     loss: LossEvent,
+    /// The messages the vehicle has sent, most recent last.
+    messages: Vec<MessageEvent>,
+}
+
+/// A message the vehicle sent.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MessageEvent {
+    /// How serious the message is, as the MAVLink enumeration.
+    severity: u8,
+    /// The name of the severity.
+    severity_name: String,
+    /// The text of the message.
+    text: String,
 }
 
 /// A vehicle on the link.
@@ -142,6 +406,40 @@ struct TelemetryEvent {
     armed: Option<bool>,
     /// The distance to home, in metres.
     distance_to_home: Option<f64>,
+    /// The home position, when it is known.
+    home: Option<PositionEvent>,
+    /// The bearing to home, in degrees.
+    bearing_to_home: Option<f64>,
+    /// The progress of the plan, when the vehicle has reported it.
+    mission: Option<MissionProgressEvent>,
+    /// The state of the global positioning, when it is known.
+    gps: Option<GpsEvent>,
+}
+
+/// The progress of the plan on the vehicle.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MissionProgressEvent {
+    /// The item the vehicle is executing.
+    pub seq: u16,
+    /// How many items the plan has.
+    pub total: u16,
+    /// The state of the plan, as the MAVLink enumeration.
+    pub state: u8,
+    /// Whether the plan is being run.
+    pub in_mission_mode: bool,
+}
+
+/// The state of the global positioning.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GpsEvent {
+    /// The type of the fix, as the MAVLink enumeration.
+    pub fix_type: u8,
+    /// The number of satellites in use.
+    pub satellites: u8,
+    /// The horizontal dilution of precision.
+    pub hdop: f64,
 }
 
 /// A position.
@@ -174,6 +472,12 @@ struct AttitudeEvent {
 struct VelocityEvent {
     /// The ground speed, in metres per second.
     ground_speed: f64,
+    /// The northward speed, in metres per second.
+    north: f64,
+    /// The eastward speed, in metres per second.
+    east: f64,
+    /// The downward speed, in metres per second.
+    down: f64,
 }
 
 /// A battery.
@@ -224,6 +528,19 @@ impl From<&LinkSnapshot> for StateEvent {
                     lost: state.loss.packets_lost,
                 })
                 .unwrap_or_default(),
+            messages: state
+                .map(|state| {
+                    state
+                        .messages
+                        .iter()
+                        .map(|message| MessageEvent {
+                            severity: message.severity,
+                            severity_name: message.severity_name().to_owned(),
+                            text: message.text.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
     }
 }
@@ -245,6 +562,9 @@ fn telemetry_event(state: &SessionState) -> TelemetryEvent {
         }),
         velocity: telemetry.velocity.as_ref().map(|velocity| VelocityEvent {
             ground_speed: velocity.ground_speed,
+            north: velocity.north,
+            east: velocity.east,
+            down: velocity.down,
         }),
         battery: telemetry.battery.map(|battery| BatteryEvent {
             voltage: battery.voltage,
@@ -258,6 +578,26 @@ fn telemetry_event(state: &SessionState) -> TelemetryEvent {
         }),
         armed: telemetry.armed,
         distance_to_home: telemetry.distance_to_home,
+        home: telemetry.home.map(|position| PositionEvent {
+            lat: position.lat,
+            lng: position.lng,
+            alt: position.alt,
+        }),
+        bearing_to_home: telemetry.bearing_to_home,
+        mission: telemetry
+            .mission
+            .as_ref()
+            .map(|mission| MissionProgressEvent {
+                seq: mission.seq,
+                total: mission.total,
+                state: mission.state as u8,
+                in_mission_mode: mission.in_mission_mode,
+            }),
+        gps: telemetry.gps.as_ref().map(|gps| GpsEvent {
+            fix_type: gps.fix_type as u8,
+            satellites: gps.satellites,
+            hdop: gps.hdop,
+        }),
     }
 }
 
@@ -304,7 +644,17 @@ fn main() {
             connect,
             disconnect,
             connection_status,
-            list_connection_profiles
+            list_connection_profiles,
+            list_flight_modes,
+            arm,
+            disarm,
+            takeoff,
+            set_mode,
+            download_mission,
+            upload_mission,
+            set_current_item,
+            clear_mission,
+            jump_to_item
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -407,5 +757,86 @@ mod tests {
 
         assert_eq!(event.status, ConnectionStatus::Reconnecting);
         assert_eq!(event.status_label(), "reconectando");
+    }
+
+    #[test]
+    fn a_vehicle_on_the_link_reaches_the_interface() {
+        // The interface addresses the vehicle it sees, so a vehicle that is on the link
+        // must arrive in the event with everything the interface shows about it.
+        let mut state = SessionState::disconnected();
+        state.connected = true;
+        state.vehicles.push(mpcraft_link::Vehicle {
+            id: mpcraft_link::VehicleId::new(1, 1),
+            kind: Some(mpcraft_link::VehicleKind::ArduCopter),
+            mav_type: Some(mpcraft_mavlink::MavType::MAV_TYPE_QUADROTOR),
+            autopilot: Some(mpcraft_mavlink::MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA),
+            custom_mode: Some(5),
+            primary: true,
+        });
+
+        let event = StateEvent::from(&LinkSnapshot {
+            status: ConnectionStatus::Connected,
+            session: Some(state),
+        });
+
+        assert_eq!(event.vehicles.len(), 1);
+        assert_eq!(event.vehicles[0].system_id, 1);
+        assert_eq!(event.vehicles[0].component_id, 1);
+        assert_eq!(event.vehicles[0].kind.as_deref(), Some("ArduCopter"));
+    }
+
+    #[test]
+    fn the_telemetry_the_interface_needs_is_carried_by_the_event() {
+        // The vertical speed dial, the home marker and the plan progress are read from
+        // the event, so the fields must be there.
+        let mut state = SessionState::disconnected();
+        state.connected = true;
+        state.telemetry.velocity = Some(mpcraft_vehicle::Velocity {
+            north: 1.0,
+            east: 2.0,
+            down: -0.5,
+            ground_speed: 2.236,
+        });
+        state.telemetry.home = Some(mpcraft_vehicle::GeoPoint {
+            lat: -35.28,
+            lng: 149.13,
+            alt: 584.0,
+        });
+        state.telemetry.bearing_to_home = Some(42.0);
+        state.telemetry.mission = Some(mpcraft_vehicle::MissionProgress {
+            seq: 3,
+            total: 12,
+            state: mpcraft_vehicle::PlanState::Active,
+            in_mission_mode: true,
+            mission_id: 1,
+            fence_id: 0,
+            rally_id: 0,
+        });
+        state.telemetry.gps = Some(mpcraft_vehicle::GpsStatus {
+            fix_type: mpcraft_mavlink::MavGpsFixType::GPS_FIX_TYPE_3D_FIX,
+            satellites: 14,
+            hdop: 1.2,
+        });
+
+        let event = StateEvent::from(&LinkSnapshot {
+            status: ConnectionStatus::Connected,
+            session: Some(state),
+        });
+
+        let velocity = event.telemetry.velocity.expect("a velocity");
+        assert!((velocity.north - 1.0).abs() < 1e-9);
+        assert!((velocity.down + 0.5).abs() < 1e-9);
+
+        assert!(event.telemetry.home.is_some());
+        assert_eq!(event.telemetry.bearing_to_home, Some(42.0));
+
+        let mission = event.telemetry.mission.expect("the progress of the plan");
+        assert_eq!(mission.seq, 3);
+        assert_eq!(mission.total, 12);
+        assert!(mission.in_mission_mode);
+
+        let gps = event.telemetry.gps.expect("the state of the positioning");
+        assert_eq!(gps.satellites, 14);
+        assert!((gps.hdop - 1.2).abs() < 1e-9);
     }
 }

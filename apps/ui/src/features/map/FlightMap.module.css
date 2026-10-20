@@ -1,0 +1,120 @@
+.map {
+  background: var(--colour-bg);
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
+.canvas {
+  height: 100%;
+  width: 100%;
+}
+
+/* The vehicle: a wedge that points where the vehicle is going. */
+
+.vehicle {
+  background: transparent;
+  height: 0;
+  width: 0;
+}
+
+.vehicle::before {
+  border-bottom: 9px solid var(--colour-accent);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  content: "";
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+  left: -7px;
+  position: absolute;
+  top: -9px;
+}
+
+/* The controls, over the map, at the top right. */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: absolute;
+  right: var(--space-3);
+  top: 88px;
+  z-index: 2;
+}
+
+.follow,
+.control {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text-dim);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-2xs);
+  padding: 2px var(--space-2);
+}
+
+.follow:hover,
+.control:hover {
+  color: var(--colour-text);
+}
+
+.followOn {
+  background: var(--colour-accent-wash);
+  border-color: var(--colour-accent-dim);
+  color: var(--colour-accent);
+}
+
+.failure {
+  background: var(--colour-danger-wash);
+  border: 1px solid #6d2b28;
+  border-radius: var(--radius-sm);
+  color: var(--colour-danger);
+  font-size: var(--font-xs);
+  left: var(--space-3);
+  margin: 0;
+  max-width: 380px;
+  padding: var(--space-2);
+  position: absolute;
+  top: var(--space-3);
+  z-index: 3;
+}
+
+.caption {
+  background: rgba(13, 17, 23, 0.75);
+  border-radius: var(--radius-sm);
+  bottom: var(--space-2);
+  color: var(--colour-text-dim);
+  font-size: var(--font-2xs);
+  left: var(--space-2);
+  margin: 0;
+  padding: 2px var(--space-2);
+  position: absolute;
+  z-index: 2;
+}
+
+/* The map's own controls, restyled to match the rest of the interface. */
+
+.map :global(.maplibregl-ctrl-group) {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+.map :global(.maplibregl-ctrl-group button + button) {
+  border-top: 1px solid var(--colour-border);
+}
+
+.map :global(.maplibregl-ctrl-group button .maplibregl-ctrl-icon) {
+  filter: invert(0.75);
+}
+
+.map :global(.maplibregl-ctrl-attrib) {
+  background: rgba(13, 17, 23, 0.75);
+  color: var(--colour-text-faint);
+  font-size: 10px;
+}
+
+.map :global(.maplibregl-ctrl-attrib a) {
+  color: var(--colour-text-dim);
+}

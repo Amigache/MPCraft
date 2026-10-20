@@ -20,11 +20,15 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod modes;
+
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
+
+use mpcraft_mavlink::MavGpsFixType;
 
 /// Identifies a vehicle on a link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -98,6 +102,20 @@ pub struct Battery {
     pub remaining: f64,
 }
 
+/// The state of the global positioning.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct GpsStatus {
+    /// The type of the fix, as the MAVLink enumeration.
+    pub fix_type: MavGpsFixType,
+    /// The number of satellites in use.
+    pub satellites: u8,
+    /// The horizontal dilution of precision.
+    ///
+    /// A lower number is a better fix. The vehicle reports it in hundredths, so it is
+    /// divided here once rather than in every reader.
+    pub hdop: f64,
+}
+
 /// The flight mode of a vehicle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FlightMode {
@@ -105,6 +123,39 @@ pub struct FlightMode {
     pub custom_mode: u32,
     /// The human-readable mode name, when known.
     pub name: Option<String>,
+}
+
+/// A message the vehicle sent.
+///
+/// Vehicles report what they are doing with `STATUSTEXT`. The severity is the MAVLink
+/// enumeration: 0 is emergency, 1 is alert, 2 is critical, 3 is error, 4 is warning,
+/// 5 is notice, 6 is information and 7 is debug.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VehicleMessage {
+    /// How serious the message is.
+    pub severity: u8,
+    /// The text of the message.
+    pub text: String,
+    /// The id that groups the chunks of a long message.
+    pub id: u16,
+}
+
+impl VehicleMessage {
+    /// The name of the severity, as the MAVLink specification calls it.
+    #[must_use]
+    pub fn severity_name(&self) -> &'static str {
+        match self.severity {
+            0 => "EMERGENCY",
+            1 => "ALERT",
+            2 => "CRITICAL",
+            3 => "ERROR",
+            4 => "WARNING",
+            5 => "NOTICE",
+            6 => "INFO",
+            7 => "DEBUG",
+            _ => "UNKNOWN",
+        }
+    }
 }
 
 /// The state of the plan the vehicle holds.
@@ -179,6 +230,8 @@ pub struct Telemetry {
     pub bearing_to_home: Option<f64>,
     /// The progress of the plan on the vehicle, once reported.
     pub mission: Option<MissionProgress>,
+    /// The state of the global positioning, once received.
+    pub gps: Option<GpsStatus>,
 }
 
 impl Telemetry {
@@ -210,6 +263,9 @@ impl Telemetry {
         }
         if let Some(mission) = update.mission {
             self.mission = Some(mission);
+        }
+        if let Some(gps) = update.gps {
+            self.gps = Some(gps);
         }
 
         self.recompute_derived();
@@ -248,6 +304,8 @@ pub struct TelemetryUpdate {
     pub home: Option<GeoPoint>,
     /// New progress of the plan on the vehicle.
     pub mission: Option<MissionProgress>,
+    /// New state of the global positioning.
+    pub gps: Option<GpsStatus>,
 }
 
 /// Computes the distance and initial bearing between two points using the haversine formula.

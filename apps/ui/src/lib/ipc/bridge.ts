@@ -7,8 +7,16 @@ import type {
   ConnectRequest,
   ConnectResponse,
   ConnectionStatus,
+  FlightMode,
+  LossStats,
+  Plan,
+  PlanItem,
+  PlanKind,
   Telemetry,
+  VehicleEvent,
   VehicleKey,
+  VehicleMessage,
+  VehicleRequest,
 } from "./types";
 
 export { listen };
@@ -48,6 +56,91 @@ export function normaliseError(cause: unknown): CommandError {
     code: "internal",
     message: cause instanceof Error ? cause.message : String(cause),
   };
+}
+
+/** The request payload of the commands that name a vehicle. */
+function vehicleRequest(vehicle?: VehicleKey): { req: VehicleRequest } {
+  const request: VehicleRequest = vehicle
+    ? { systemId: vehicle.systemId, componentId: vehicle.componentId }
+    : {};
+
+  return { req: request };
+}
+
+/** Arms the vehicle. */
+export async function arm(vehicle?: VehicleKey): Promise<void> {
+  await call<void>("arm", vehicleRequest(vehicle));
+}
+
+/** Disarms the vehicle. */
+export async function disarm(vehicle?: VehicleKey): Promise<void> {
+  await call<void>("disarm", vehicleRequest(vehicle));
+}
+
+/** Takes off to an altitude, relative to the home position, in metres. */
+export async function takeoff(
+  altitude: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("takeoff", { ...vehicleRequest(vehicle), altitude });
+}
+
+/** Changes the flight mode. */
+export async function setMode(
+  customMode: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_mode", { ...vehicleRequest(vehicle), customMode });
+}
+
+/** Downloads the plan the vehicle holds. */
+export async function downloadMission(
+  kind: PlanKind,
+  vehicle?: VehicleKey,
+): Promise<Plan> {
+  return call<Plan>("download_mission", { ...vehicleRequest(vehicle), kind });
+}
+
+/** Uploads a plan to the vehicle. */
+export async function uploadMission(
+  items: readonly PlanItem[],
+  kind: PlanKind,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("upload_mission", {
+    ...vehicleRequest(vehicle),
+    kind,
+    items,
+  });
+}
+
+/** Says which item of the plan the vehicle is executing. */
+export async function setCurrentItem(
+  seq: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_current_item", { ...vehicleRequest(vehicle), seq });
+}
+
+/** Empties one of the vehicle's plans. */
+export async function clearMission(
+  kind: PlanKind,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("clear_mission", { ...vehicleRequest(vehicle), kind });
+}
+
+/** Makes the vehicle jump to an item of the plan. */
+export async function jumpToItem(
+  seq: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("jump_to_item", { ...vehicleRequest(vehicle), seq });
+}
+
+/** The flight modes the vehicle can be in. */
+export async function listFlightModes(): Promise<FlightMode[]> {
+  return call<FlightMode[]>("list_flight_modes");
 }
 
 /** The connection state exposed to the UI. */
@@ -128,4 +221,56 @@ export function useTelemetry(
       void unlisten.then((off) => off());
     };
   }, [vehicle, onTelemetry]);
+}
+
+/** The whole state the backend publishes, in one piece. */
+export interface LinkState {
+  readonly status: ConnectionStatus;
+  readonly vehicles: readonly VehicleEvent[];
+  readonly telemetry: Telemetry;
+  readonly loss: LossStats;
+  readonly messages: readonly VehicleMessage[];
+}
+
+/** The state of a link that is not open. */
+const EMPTY_STATE: LinkState = {
+  status: "disconnected",
+  vehicles: [],
+  telemetry: {
+    attitude: null,
+    position: null,
+    velocity: null,
+    battery: null,
+    mode: null,
+    armed: null,
+    home: null,
+    distanceToHome: null,
+    bearingToHome: null,
+    mission: null,
+    gps: null,
+  },
+  loss: { received: 0, lost: 0 },
+  messages: [],
+};
+
+/**
+ * Subscribes to the state of the link.
+ *
+ * The backend publishes the whole state in one event, so the components that show it
+ * share one subscription rather than each opening their own.
+ */
+export function useLinkState(): LinkState {
+  const [state, setState] = useState<LinkState>(EMPTY_STATE);
+
+  useEffect(() => {
+    const unlisten = listen<LinkState>("link-state", (event) => {
+      setState(event.payload);
+    });
+
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
+  return state;
 }

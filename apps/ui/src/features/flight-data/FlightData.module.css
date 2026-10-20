@@ -1,0 +1,51 @@
+.screen {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.left {
+  background: var(--colour-surface);
+  border-right: 1px solid var(--colour-border);
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  max-width: 45%;
+  min-height: 0;
+  min-width: 240px;
+  overflow: hidden;
+}
+
+.hud {
+  background: var(--colour-bg);
+  border-bottom: 1px solid var(--colour-border);
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}

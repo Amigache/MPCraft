@@ -13,6 +13,7 @@ async-trait = { workspace = true }
 mpcraft-geo = { workspace = true }
 mpcraft-link = { workspace = true }
 mpcraft-log = { workspace = true }
+mpcraft-mavlink = { workspace = true }
 mpcraft-mission = { workspace = true }
 mpcraft-params = { workspace = true }
 mpcraft-settings = { workspace = true }

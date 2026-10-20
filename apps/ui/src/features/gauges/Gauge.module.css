@@ -1,0 +1,65 @@
+.gauge {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.scale {
+  fill: none;
+  stroke: var(--colour-border-strong);
+  stroke-width: 1;
+}
+
+.tick {
+  stroke: var(--colour-text-faint);
+  stroke-width: 1;
+}
+
+.endLabel {
+  fill: var(--colour-text-faint);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.cardinal {
+  fill: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.needle {
+  fill: var(--colour-accent);
+}
+
+.hub {
+  fill: var(--colour-bg);
+  stroke: var(--colour-accent);
+  stroke-width: 1;
+}
+
+.label {
+  fill: var(--colour-text-dim);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.readout {
+  fill: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  fill: var(--colour-text-faint);
+  font-family: var(--font-ui);
+  font-size: 9px;
+}
+
+.accessible {
+  fill: none;
+  height: 0;
+  width: 0;
+}

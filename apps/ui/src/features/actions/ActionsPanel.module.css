@@ -1,0 +1,102 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  overflow: auto;
+  padding: var(--space-2);
+}
+
+.block {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.block:last-of-type {
+  border-bottom: 0;
+}
+
+.row {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quick {
+  display: grid;
+  gap: var(--space-1);
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+}
+
+.field {
+  display: flex;
+  flex: 1 1 120px;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.field .select {
+  width: 100%;
+}
+
+.label {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kinds {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.kind,
+.kindActive {
+  background: transparent;
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text-dim);
+  cursor: pointer;
+  flex: 1 1 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-2xs);
+  padding: 2px var(--space-2);
+}
+
+.kind:hover {
+  color: var(--colour-text);
+}
+
+.kindActive {
+  background: var(--colour-accent-wash);
+  border-color: var(--colour-accent-dim);
+  color: var(--colour-accent);
+}
+
+.error {
+  background: var(--colour-danger-wash);
+  border: 1px solid #6d2b28;
+  border-radius: var(--radius-sm);
+  color: var(--colour-danger);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: var(--space-2);
+}
+
+.errorCode {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.notice {
+  color: var(--colour-text-dim);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: 0 var(--space-1);
+}

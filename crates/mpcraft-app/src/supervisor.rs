@@ -442,6 +442,19 @@ impl SessionSupervisor {
             .and_then(|slot| slot.as_ref().map(|handle| handle.session.state()))
     }
 
+    /// The session that is open, if there is one.
+    ///
+    /// The operations in [`crate::operations`] need the session itself, and this is how
+    /// they reach it without the shell ever touching the link layer.
+    #[must_use]
+    pub fn session(&self) -> Option<Arc<Session>> {
+        self.inner
+            .handle
+            .lock()
+            .ok()
+            .and_then(|slot| slot.as_ref().map(|handle| Arc::clone(&handle.session)))
+    }
+
     /// Closes the link that is open, if there is one.
     async fn stop_current(&self) {
         // The handle is taken out under the lock and awaited outside it: a guard must never

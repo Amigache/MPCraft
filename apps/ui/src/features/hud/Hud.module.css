@@ -1,0 +1,87 @@
+.box {
+  height: 100%;
+  width: 100%;
+}
+
+.hud {
+  background: var(--colour-bg);
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.glass {
+  fill: var(--colour-bg);
+}
+
+.sky {
+  fill: var(--colour-sky);
+}
+
+.ground {
+  fill: var(--colour-ground);
+}
+
+.horizon {
+  stroke: var(--colour-text);
+  stroke-width: 1.2;
+}
+
+.ladder {
+  stroke: var(--colour-text);
+  stroke-width: 1;
+}
+
+.ladderLabel {
+  fill: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  opacity: 0.85;
+}
+
+.bankArc {
+  fill: none;
+  stroke: var(--colour-text-dim);
+  stroke-width: 1;
+}
+
+.bankTick {
+  stroke: var(--colour-text-dim);
+  stroke-width: 1;
+}
+
+.bankPointer {
+  fill: var(--colour-accent);
+}
+
+.symbol {
+  fill: none;
+  stroke: var(--colour-accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.symbolDot {
+  fill: var(--colour-accent);
+}
+
+.ribbonTick {
+  stroke: var(--colour-text-dim);
+  stroke-width: 1;
+}
+
+.ribbonLabel {
+  fill: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.ribbonEdge {
+  stroke: var(--colour-border);
+  stroke-width: 1;
+}
+
+.ribbonMarker {
+  fill: var(--colour-accent);
+}

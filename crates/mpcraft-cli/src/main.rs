@@ -173,25 +173,6 @@ enum MissionAction {
     },
 }
 
-/// The flight modes a vehicle understands, by name.
-///
-/// The number is the custom mode the vehicle expects. It differs between the vehicle
-/// families, so a number given directly always wins over a name.
-const MODES: &[(&str, u32)] = &[
-    ("STABILIZE", 0),
-    ("ACRO", 1),
-    ("ALT_HOLD", 2),
-    ("AUTO", 3),
-    ("GUIDED", 4),
-    ("LOITER", 5),
-    ("RTL", 6),
-    ("CIRCLE", 7),
-    ("LAND", 8),
-    ("DRIFT", 11),
-    ("SPORT", 13),
-    ("SMART_RTL", 16),
-];
-
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
@@ -298,6 +279,9 @@ fn parse_vehicle(text: &str) -> Result<mpcraft_link::VehicleId, String> {
 }
 
 /// Parses a flight mode, by name or by its custom mode number.
+///
+/// The table lives in the vehicle model, so the command line and the interface offer the
+/// same modes.
 fn parse_mode(text: &str) -> Result<u32, String> {
     let trimmed = text.trim();
 
@@ -305,20 +289,17 @@ fn parse_mode(text: &str) -> Result<u32, String> {
         return Ok(number);
     }
 
-    MODES
-        .iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case(trimmed))
-        .map(|(_, number)| *number)
-        .ok_or_else(|| {
-            format!(
-                "unknown mode {text:?}; give a number, or one of: {}",
-                MODES
-                    .iter()
-                    .map(|(name, _)| *name)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        })
+    mpcraft_vehicle::modes::mode_value(trimmed).ok_or_else(|| {
+        let names: Vec<&str> = mpcraft_vehicle::modes::COMMON_MODES
+            .iter()
+            .map(|entry| entry.name)
+            .collect();
+
+        format!(
+            "unknown mode {text:?}; give a number, or one of: {}",
+            names.join(", ")
+        )
+    })
 }
 
 /// Opens a link to the vehicle.

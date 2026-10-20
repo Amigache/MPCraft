@@ -1,0 +1,175 @@
+.bar {
+  align-items: stretch;
+  background: var(--colour-surface);
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 0 var(--space-2);
+  position: relative;
+  z-index: 20;
+}
+
+.menu {
+  position: relative;
+}
+
+.menuButton,
+.menuOpen {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--colour-text-dim);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  padding: var(--space-2) var(--space-3);
+}
+
+.menuButton:hover,
+.menuOpen {
+  background: var(--colour-surface-raised);
+  color: var(--colour-text);
+}
+
+.menuOpen {
+  border-bottom-color: var(--colour-accent);
+}
+
+.dropdown {
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  left: 0;
+  min-width: 220px;
+  padding: var(--space-1);
+  position: absolute;
+  top: 100%;
+}
+
+.item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  width: 100%;
+}
+
+.item:hover:not(:disabled) {
+  background: var(--colour-accent-wash);
+  color: var(--colour-text);
+}
+
+.item:disabled {
+  color: var(--colour-text-faint);
+  cursor: default;
+}
+
+.check {
+  color: var(--colour-accent);
+  flex: 0 0 10px;
+  font-size: 10px;
+}
+
+.itemLabel {
+  flex: 1 1 auto;
+}
+
+.hint {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+}
+
+.separator {
+  background: var(--colour-border);
+  height: 1px;
+  margin: var(--space-1) 0;
+}
+
+/* The state of the link, on the right. */
+
+.right {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  margin-left: auto;
+  padding-right: var(--space-2);
+}
+
+.target {
+  color: var(--colour-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+}
+
+.state {
+  color: var(--colour-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.connected {
+  color: var(--colour-accent);
+}
+
+.connecting,
+.reconnecting {
+  color: var(--colour-warning);
+}
+
+.failed {
+  color: var(--colour-danger);
+}
+
+/* The boxes. */
+
+.overlay {
+  align-items: flex-start;
+  background: rgba(6, 9, 13, 0.55);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding-top: 12vh;
+  position: fixed;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  min-width: 320px;
+  padding: var(--space-3);
+}
+
+.dialogHead {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.dialogTitle {
+  font-size: var(--font-md);
+  font-weight: 600;
+  margin: 0;
+}
+
+.about {
+  color: var(--colour-text-dim);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  margin: 0 0 var(--space-2);
+}

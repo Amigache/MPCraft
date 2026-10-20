@@ -18,6 +18,13 @@ pub use mavlink::dialects::ardupilotmega::{
     MavProtocolCapability, MavResult, MavSeverity, MavState, MavSysStatusSensor, MavType,
 };
 
+/// The type of the GPS fix.
+///
+/// The enumeration is called `GPS_FIX_TYPE` in the dialect, and the generator prefixes
+/// the names it generates with `Mav`, so the type is re-exported under the name the rest
+/// of the codebase uses.
+pub use mavlink::dialects::ardupilotmega::GpsFixType as MavGpsFixType;
+
 // The generated message structs live in the dialect module. They are re-exported as a whole
 // so that callers can build a message of a specific type — `HEARTBEAT_DATA`, say — without
 // having to know the generator's naming convention.

@@ -41,11 +41,11 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.1 | Live telemetry readouts | `ExtLibs/ArduPilot/CurrentState.cs` | ✅ | 1 |
 | 2.2 | Artificial-horizon HUD | `ExtLibs/Controls/HUD.cs` | ✅ | 1 |
 | 2.3 | Live multi-channel graphs | `GCSViews/FlightData.cs` (ZedGraph) | 🔜 | 1 |
-| 2.4 | Map with live vehicle position | `GCSViews/FlightData.cs` (myGMAP) | 🔜 | 1 |
-| 2.5 | Flight trail / track history | `FlightData.cs` | 🔜 | 1 |
-| 2.6 | Quick-view configurable tiles | `ExtLibs/Controls/QuickView.cs` | 🔜 | 1 |
-| 2.7 | Gauges (speed / altitude / vspeed) | `Controls/AGauge.cs`, `HSI.cs` | 🔜 | 1 |
-| 2.8 | STATUSTEXT message console | `FlightData.cs` | 🟡 | 1 |
+| 2.4 | Map with live vehicle position | `GCSViews/FlightData.cs` (myGMAP) | ✅ | 1 |
+| 2.5 | Flight trail / track history | `FlightData.cs` | ✅ | 1 |
+| 2.6 | Quick-view configurable tiles | `ExtLibs/Controls/QuickView.cs` | ✅ | 1 |
+| 2.7 | Gauges (speed / altitude / vspeed) | `Controls/AGauge.cs`, `HSI.cs` | ✅ | 1 |
+| 2.8 | STATUSTEXT message console | `FlightData.cs` | ✅ | 1 |
 | 2.9 | Pre-flight checklist | `Controls/PreFlight/CheckListControl.cs` | 🔜 | 1 |
 | 2.10 | Battery banks 1–9 monitoring | `CurrentState.cs` | 🔜 | 1 |
 | 2.11 | Multi-GPS status | `CurrentState.cs` | 🔜 | 1 |
@@ -63,8 +63,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
 | 3.1 | Arm / disarm | `MAVLinkInterface.doARM` | ✅ | 1 |
-| 3.2 | Mode change (custom_mode table) | `Common.getModesList`, `translateMode` | 🟡 | 1 |
-| 3.3 | RTL / Land / Loiter / Auto shortcuts | `FlightData.cs` | 🔜 | 1 |
+| 3.2 | Mode change (custom_mode table) | `Common.getModesList`, `translateMode` | ✅ | 1 |
+| 3.3 | RTL / Land / Loiter / Auto shortcuts | `FlightData.cs` | ✅ | 1 |
 | 3.4 | Takeoff command | `MAVLinkInterface.doCommand` | ✅ | 1 |
 | 3.5 | Generic MAV_CMD long / int executor | `doCommand`, `doCommandInt` | ✅ | 1 |
 | 3.6 | Guided mode — fly to waypoint | `setGuidedModeWP` | 🔜 | 2 |
@@ -159,7 +159,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 7.1 | MapLibre base map with provider selection | `ExtLibs/Maps/*` | 🔜 | 1 |
+| 7.1 | MapLibre base map with provider selection | `ExtLibs/Maps/*` | 🟡 | 1 |
 | 7.2 | OSM / satellite / hybrid tile providers | `GMapProviders` registry | 🔜 | 1 |
 | 7.3 | Tile caching on disk | `ExtLibs/Maps/MyImageCache.cs` | 🔜 | 1 |
 | 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | 🔜 | 2 |
@@ -220,39 +220,41 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 25 |
-| 🔜 Planned | 124 |
+| ✅ Done | 32 |
+| 🔜 Planned | 118 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 5 |
+| 🟡 Partial | 4 |
 
-The 25 rows marked done are the connection, transport, parameter, mission and command
-layers, plus the first of the views that use them. The transports, the heartbeat
+The 32 rows marked done are the connection, transport, parameter, mission and command
+layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
-parameter protocol, the mission protocol, the command executor, the file formats and the
-desktop shell all work and are covered by tests, and the live telemetry view and the
-attitude indicators are on screen. The rest of the user-facing features — the connection
-dialog with a port list, the map, the mission editor — are still planned.
+parameter protocol, the mission protocol, the command executor and the file formats all
+work and are covered by tests.
 
-The five rows marked partial are the fence, the rally points, the connection profiles, the
-flight modes and the message console.
+The flight data window has upstream's distribution: a menu strip, a fixed column on the
+left with the artificial horizon above a set of tabs - quick view, actions, messages,
+gauges and status - the map filling everything else, and a status strip. The live readouts,
+the attitude indicator, the map with the vehicle and the track, the plan drawn on it, the
+dials, the tiles and the vehicle's own messages are all on screen.
 
-The fence and the rally points used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2
-*extension* field, and the generated bindings were built without the extension feature, so
-the plan type could not travel. The bindings were never the limitation — the feature flag
-was. With `mav2-message-extensions` switched on, the plan type reaches the wire on
+What is still missing from the window: the connection dialog with a list of ports, the
+parameter editor, the mission editor, the pre-flight checklist and the graphs.
+
+The four rows marked partial are the fence, the connection profiles and the map.
+
+The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
+the generated bindings were built without the extension feature, so the plan type could not
+travel. The bindings were never the limitation — the feature flag was. With
+`mav2-message-extensions` switched on, the plan type reaches the wire on
 `MISSION_REQUEST_LIST`, `MISSION_COUNT` and every item, and a fence plan downloads as a
-fence plan. What is left of those rows is the interface: drawing the polygon, and the
+fence plan. What is left of that row is the interface: drawing the polygon, and the
 inclusion and exclusion lists, which are not modelled yet.
 
 The connection profiles are stored, listed and opened at launch; what is missing is the
 screen that edits them.
 
-The flight mode changes, but the table of the modes of a vehicle family lives in the
-parameter metadata, which is not loaded yet.
-
-The message console is on screen and it is wired to the backend, but it shows the link
-notices — the ones that explain a broken link — rather than the `STATUSTEXT` stream.
-Capturing the vehicle's own messages is the next piece of work.
+The map works, and it draws the vehicle, the track and the plan; what is missing is the
+choice of the tile provider, which upstream offers as a registry of sources.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

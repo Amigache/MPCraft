@@ -1,0 +1,12 @@
+.shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.body {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}

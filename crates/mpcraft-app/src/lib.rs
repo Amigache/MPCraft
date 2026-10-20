@@ -24,6 +24,13 @@
 //! and the mechanism it drives is injected, so the whole thing is tested without a network
 //! peer and without waiting.
 //!
+//! # The operations
+//!
+//! The things an operator asks of a vehicle — arm, take off, change the mode, transfer a
+//! plan — live in [`operations`], on the supervisor. They live there rather than in the
+//! shell so that the rule that a command needs an open link is written once, and tested
+//! without a display server.
+//!
 //! # The settings
 //!
 //! The connection profiles live in [`mpcraft_settings`], in a TOML file the user can edit by
@@ -36,11 +43,13 @@ use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
 pub mod error;
+pub mod operations;
 pub mod supervisor;
 
 pub use error::{CommandError, CommandResult};
 pub use mpcraft_link::SessionState;
 pub use mpcraft_settings::ConnectionProfile;
+pub use operations::{flight_modes, ModeInfo, PlanInfo, PlanItem, PlanKind};
 pub use supervisor::{
     ConnectionStatus, Connector, LinkSnapshot, ReconnectPolicy, SessionSupervisor, Sleeper,
     TokioSleeper, TransportConnector,

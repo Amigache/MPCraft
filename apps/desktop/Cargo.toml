@@ -14,6 +14,10 @@ path = "src/main.rs"
 
 [dependencies]
 mpcraft-app.workspace = true
+mpcraft-link.workspace = true
+mpcraft-mavlink.workspace = true
+mpcraft-mission.workspace = true
+mpcraft-vehicle.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

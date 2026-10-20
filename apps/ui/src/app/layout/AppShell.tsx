@@ -1,24 +1,22 @@
-import { ConnectionPanel } from "../../features/connection/ConnectionPanel";
+import { MenuBar } from "./MenuBar";
+import { StatusBar } from "./StatusBar";
 import { FlightData } from "../../features/flight-data/FlightData";
-import { MessageConsole } from "../../features/messages/MessageConsole";
+import styles from "./AppShell.module.css";
 
 /**
- * The application chrome: the top bar, the connection controls and the screen area.
+ * The window: a menu bar, the screen, and a status bar.
+ *
+ * This is the shape Mission Planner's window has — a menu strip at the top and a status
+ * strip at the bottom — and the screen in between is the flight data view.
  */
 export function AppShell() {
   return (
-    <div className="app-shell">
-      <header className="app-shell__bar">
-        <span className="app-shell__brand">
-          MPCraft<span className="app-shell__version">0.1.0</span>
-        </span>
-        <ConnectionPanel />
-      </header>
-
-      <main className="app-shell__body">
+    <div className={styles.shell}>
+      <MenuBar />
+      <main className={styles.body}>
         <FlightData />
-        <MessageConsole />
       </main>
+      <StatusBar />
     </div>
   );
 }

@@ -1,0 +1,15 @@
+# The build
+/dist/
+/node_modules/
+/.vite/
+/coverage/
+
+# The logs of the development server
+/vite.log
+/vite.err.log
+
+# The artefacts of the end-to-end run
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

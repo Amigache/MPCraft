@@ -13,7 +13,8 @@
 //! distance to home — are computed at decode time rather than on every access.
 
 use mpcraft_vehicle::{
-    Attitude, Battery, FlightMode, GeoPoint, MissionProgress, PlanState, Telemetry, Velocity,
+    Attitude, Battery, FlightMode, GeoPoint, GpsStatus, MissionProgress, PlanState, Telemetry,
+    Velocity,
 };
 
 use mpcraft_mavlink::dialect::messages::MissionState;
@@ -119,6 +120,15 @@ impl TelemetryAggregator {
                 });
             }
 
+            MavMessage::GPS_RAW_INT(raw) => {
+                self.telemetry.gps = Some(GpsStatus {
+                    fix_type: raw.fix_type,
+                    satellites: raw.satellites_visible,
+                    // The vehicle reports the dilution in hundredths.
+                    hdop: f64::from(raw.eph) / 100.0,
+                });
+            }
+
             MavMessage::MISSION_CURRENT(current) => {
                 // The vehicle streams this whenever the plan changes, so it is the state
                 // of the plan rather than a momentary report.
@@ -172,10 +182,10 @@ fn plan_state_of(state: MissionState) -> PlanState {
 mod tests {
     use super::*;
     use mpcraft_mavlink::dialect::messages::{
-        GLOBAL_POSITION_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA, MISSION_CURRENT_DATA,
-        SYS_STATUS_DATA, TIMESYNC_DATA,
+        GLOBAL_POSITION_INT_DATA, GPS_RAW_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA,
+        MISSION_CURRENT_DATA, SYS_STATUS_DATA, TIMESYNC_DATA,
     };
-    use mpcraft_mavlink::MavType;
+    use mpcraft_mavlink::{MavGpsFixType, MavType};
 
     #[test]
     fn a_global_position_updates_the_position_and_the_velocity() {
@@ -353,6 +363,36 @@ mod tests {
 
         assert_eq!(progress.state, PlanState::Paused);
         assert!(!progress.in_mission_mode);
+    }
+
+    #[test]
+    fn a_gps_raw_int_updates_the_state_of_the_positioning() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::GPS_RAW_INT(GPS_RAW_INT_DATA {
+            time_usec: 0,
+            fix_type: MavGpsFixType::GPS_FIX_TYPE_3D_FIX,
+            lat: (35.2809 * 1e7) as i32,
+            lon: (149.13 * 1e7) as i32,
+            alt: 584_000,
+            eph: 120,
+            epv: 150,
+            vel: 0,
+            cog: 0,
+            satellites_visible: 14,
+            ..Default::default()
+        });
+
+        aggregator.apply(&message);
+
+        let gps = aggregator
+            .telemetry()
+            .gps
+            .expect("the state of the positioning");
+        assert_eq!(gps.fix_type, MavGpsFixType::GPS_FIX_TYPE_3D_FIX);
+        assert_eq!(gps.satellites, 14);
+        // The vehicle reports the dilution in hundredths.
+        assert!((gps.hdop - 1.2).abs() < 1e-6);
     }
 
     #[test]

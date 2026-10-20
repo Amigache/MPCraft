@@ -51,6 +51,16 @@ export interface Battery {
   readonly remaining: number;
 }
 
+/** The state of the global positioning. */
+export interface GpsStatus {
+  /** The type of the fix, as the MAVLink enumeration. */
+  readonly fixType: number;
+  /** The number of satellites in use. */
+  readonly satellites: number;
+  /** The horizontal dilution of precision. */
+  readonly hdop: number;
+}
+
 /** The decoded telemetry snapshot for one vehicle. */
 export interface Telemetry {
   readonly attitude: Attitude | null;
@@ -62,6 +72,99 @@ export interface Telemetry {
   readonly home: GeoPoint | null;
   readonly distanceToHome: number | null;
   readonly bearingToHome: number | null;
+  readonly mission: MissionProgress | null;
+  readonly gps: GpsStatus | null;
+}
+
+/** The progress of the plan on the vehicle. */
+export interface MissionProgress {
+  /** The item the vehicle is executing. */
+  readonly seq: number;
+  /** How many items the plan has. */
+  readonly total: number;
+  /** The state of the plan, as the MAVLink enumeration. */
+  readonly state: number;
+  /** Whether the plan is being run. */
+  readonly inMissionMode: boolean;
+}
+
+/** A message the vehicle sent. */
+export interface VehicleMessage {
+  /** How serious the message is, as the MAVLink enumeration. */
+  readonly severity: number;
+  /** The name of the severity, for example `WARNING`. */
+  readonly severityName: string;
+  /** The text of the message. */
+  readonly text: string;
+}
+
+/** A flight mode the vehicle can be in. */
+export interface FlightMode {
+  /** The custom mode value the vehicle expects. */
+  readonly value: number;
+  /** The name of the mode. */
+  readonly name: string;
+}
+
+/** The kind of plan. */
+export type PlanKind = "mission" | "fence" | "rally";
+
+/** One item of a plan. */
+export interface PlanItem {
+  /** The position in the plan. */
+  readonly seq: number;
+  /** The name of the command, for example `MAV_CMD_NAV_WAYPOINT`. */
+  readonly command: string;
+  /** The numeric command value. */
+  readonly commandValue: number;
+  /** The coordinate frame the position is expressed in. */
+  readonly frame: number;
+  /** The four generic parameters. */
+  readonly params: readonly [number, number, number, number];
+  /** The latitude, for a command that carries a position. */
+  readonly x: number;
+  /** The longitude, for a command that carries a position. */
+  readonly y: number;
+  /** The altitude. */
+  readonly z: number;
+  /** Whether the item is the one being executed. */
+  readonly current: boolean;
+  /** Whether the vehicle continues to the next item automatically. */
+  readonly autocontinue: boolean;
+}
+
+/** A plan, as the interface sees it. */
+export interface Plan {
+  /** The kind of plan. */
+  readonly kind: PlanKind;
+  /** The items, in order. */
+  readonly items: readonly PlanItem[];
+}
+
+/** The vehicle a command is for. */
+export interface VehicleRequest {
+  /** The system id of the vehicle. Omit it for the primary one on the link. */
+  readonly systemId?: number;
+  /** The component id of the vehicle. Omit it for the primary one on the link. */
+  readonly componentId?: number;
+}
+
+/** A vehicle on the link. */
+export interface VehicleEvent {
+  /** The system id. */
+  readonly systemId: number;
+  /** The component id. */
+  readonly componentId: number;
+  /** The vehicle family, when it is known. */
+  readonly kind: string | null;
+}
+
+/** The loss statistics of the link. */
+export interface LossStats {
+  /** The number of packets received. */
+  readonly received: number;
+  /** The number of packets lost. */
+  readonly lost: number;
 }
 
 /** The result of a command that changed the connection state. */
