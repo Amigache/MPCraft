@@ -317,34 +317,60 @@ built and verified:
 | Component | State |
 | --- | --- |
 | `mpcraft-mavlink` | Frame parser (v1/v2), CRC with CRC_EXTRA seeds, signature handling, packet inspector — **26 tests** |
+| `mpcraft-transport` | `Transport` trait, `ConnectionSpec` parser, serial / UDP / TCP / file transports — **40 tests** |
 | `mpcraft-geo` | Geodesy, pure-Rust UTM and MGRS — **15 tests**, validated against PROJ and two independent MGRS implementations |
 | `mpcraft-vehicle` | Telemetry snapshot with derived values and staleness tracking — **10 tests** |
 | `mpcraft-mission` | Mission model and `MAV_CMD` metadata table — **10 tests** |
-| `mpcraft-transport` | The `Transport` trait and the write-loop contract — **2 tests** |
 | `mpcraft-app` | The IPC contract and its stable error codes — **5 tests** |
-| `mpcraft-cli` | `mpcraft-cli connect \| params \| mission` |
+| `mpcraft-cli` | `mpcraft-cli ports \| connect \| params \| mission` |
 | `apps/desktop`, `apps/ui` | Tauri v2 shell and the typed IPC bridge |
 | CI | Format, clippy, test and build gates on Windows, Linux and macOS |
 
-**76 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
+**113 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
 
-### Next: Phase 0, Task 2 — the transport layer
+### Phase 0, Task 2 — the transport layer: what was built
 
-Implement the concrete transports on top of the existing `Transport` trait:
+The `Transport` trait, and four transports on top of it:
 
-- `SerialTransport` (the `serialport` crate), including DTR/RTS toggling for ESP32-style boards
-  and port enumeration.
-- `UdpTransport` in client and server mode, with multi-endpoint fan-out — upstream's
-  `UdpSerial.EndPointList` allows several ground stations to talk to one vehicle.
-- `TcpTransport` in client and server mode, with auto-reconnect and exponential backoff.
-- `FileTransport`, which replays a `.tlog` at a configurable rate. This one is not optional:
-  it powers log playback *and* it makes the whole stack testable without hardware.
-- The `ConnectionSpec` parser for connection strings of the form `scheme:target[:params]`,
-  with typed errors rather than `unwrap`.
+- **Serial** (`tokio-serial`), with port enumeration and explicit DTR control. DTR defaults to
+  *low* on open, which is what resets the ESP32-class boards that use it as a reset line.
+- **UDP**, in client and server mode, with the **fan-out** behaviour upstream has: a frame is
+  written to every peer that has been heard from, which is what lets two ground stations
+  watch the same vehicle.
+- **TCP**, in client and server mode, with the accept deferred to the first read so a
+  listening station never races its own startup.
+- **File**, replaying a recorded byte stream at a configurable rate. This is what makes the
+  whole stack testable without hardware.
 
-**Exit criteria:** a loopback test proves bytes written through a transport come back
-unchanged; a truncated-EOF test proves `read` returns `Ok(0)` rather than an error; and a
-partial-write test proves the write loop does not truncate messages.
+Plus `ConnectionSpec`, a parser for `scheme:target|option` connection strings with typed
+errors. The `|` separator keeps Windows paths such as `C:\logs\flight.tlog` unambiguous.
+
+Two deliberate decisions:
+
+- **The RTS option was removed.** The serial driver exposes no RTS line control, and an
+  option that silently does nothing is worse than no option at all.
+- **Replaying a `.tlog` with its original timing lives in `mpcraft-log`, not here.** The
+  transport is byte-oriented and knows nothing about the log format; `mpcraft-log` implements
+  the same trait and does understand the records.
+
+### Next: Phase 0, Task 3 — the session
+
+Wire the transport to the MAVLink layer and produce decoded telemetry:
+
+- `Session`, which owns a transport, runs the single reader task, and publishes parsed frames.
+- Heartbeat negotiation and vehicle detection: the vehicle is identified from its
+  `HEARTBEAT`, the same rule upstream uses — prefer component 1 seen at least twice, and
+  otherwise accept a peer seen at least four times.
+- The vehicle registry, keyed by `(system_id, component_id)`.
+- Packet-loss accounting: sequence deltas per message type, distinguishing reordering from
+  genuine loss.
+- The telemetry aggregator, decoding packets into `mpcraft-vehicle`'s `Telemetry` snapshot and
+  publishing it through an `ArcSwap`.
+- The plaintext sniffing channel that captures a board's boot output, which upstream uses to
+  explain "no heartbeat received" so usefully.
+
+**Exit criteria:** `mpcraft-cli connect udp:127.0.0.1:14550 --monitor` prints live decoded
+telemetry from a running SITL, with no panics and no packet-loss accounting regressions.
 
 ---
 

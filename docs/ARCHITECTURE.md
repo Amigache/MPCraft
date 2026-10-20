@@ -189,10 +189,13 @@ CRC is computed over bytes `[1 .. header+payload)`, then `crc_accumulate(crc_ext
 #[async_trait]
 pub trait Transport: Send + Sync {
     async fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>;
-    async fn write(&mut self, buf: &[u8]) -> io::Result<()>;
+    async fn write_some(&mut self, buf: &[u8]) -> io::Result<usize>;
     fn kind(&self) -> TransportKind;
+    fn is_open(&self) -> bool;
     async fn reconnect(&mut self) -> io::Result<()>;
     fn describe(&self) -> String;
+    // Provided method: loops over partial writes.
+    async fn write(&mut self, buf: &[u8]) -> io::Result<()>;
 }
 ```
 
@@ -200,15 +203,39 @@ Implementations:
 
 | Transport | Notes |
 | --- | --- |
-| `SerialTransport` | `serialport` crate; DTR/RTS toggling for ESP32-style boards; port enumeration |
-| `UdpTransport` | Client and server modes; multi-endpoint fan-out (upstream `UdpSerial.EndPointList`) |
-| `TcpTransport` | Client and server; auto-reconnect with backoff |
-| `FileTransport` | Replays a `.tlog` at a configurable rate — powers log playback and deterministic tests |
+| `SerialTransport` | `tokio-serial`; DTR asserted low on open by default, which resets the ESP32-class boards that use it as a reset line; port enumeration |
+| `UdpTransport` | Client and server mode; **fan-out** - a frame is written to every peer heard from, matching upstream's `UdpSerial.EndPointList` |
+| `TcpTransport` | Client and server mode; the accept is deferred to the first read so a listening station never races its own startup |
+| `FileTransport` | Replays a recorded byte stream at a configurable rate - powers log playback and deterministic tests |
 | `NtripTransport` | RTCM correction source |
 
-Auto-reconnect is implemented **in the transport**, matching upstream's `TcpSerial.autoReconnect`,
-but with exponential backoff and a supervisor in `mpcraft-app` that decides whether to restore the
-session or surface an error.
+Auto-reconnect is implemented **in the transport** as `reconnect()`, matching upstream's
+`TcpSerial.autoReconnect`. The *policy* - how many attempts, with what backoff, and whether
+to surface the failure - lives in the supervisor in `mpcraft-app`, where it can be tested
+without a real network peer.
+
+### 4.1 Connection specifications
+
+A connection target is a single string:
+
+```text
+serial:COM3:57600
+serial:/dev/ttyUSB0:115200|nodtr
+udp:127.0.0.1:14550
+udp::14550|server
+tcp:192.168.1.10:5760
+file:/logs/flight.tlog|rate=1.0
+```
+
+The `|` separator keeps Windows paths such as `C:\logs\flight.tlog` unambiguous. Parsing
+never guesses: an unrecognised option is a typed error rather than a silently ignored token.
+
+### 4.2 What the transport layer does not know
+
+A transport moves bytes. It does not parse MAVLink, does not know what a heartbeat is, and
+does not interpret the contents of a file it replays. Replaying a `.tlog` with its *original*
+timing requires understanding the log's record structure, which belongs to the log format;
+that lives in `mpcraft-log`, which implements the same trait.
 
 ---
 

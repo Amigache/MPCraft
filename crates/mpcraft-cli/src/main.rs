@@ -8,9 +8,9 @@
 //!   host did.
 //!
 //! ```text
-//! mpcraft connect udp:127.0.0.1:14550 --monitor
-//! mpcraft connect udp:127.0.0.1:14550 -- params list
-//! mpcraft connect udp:127.0.0.1:14550 -- params get ARMING_CHECK
+//! mpcraft-cli ports
+//! mpcraft-cli connect udp:127.0.0.1:14550 --monitor
+//! mpcraft-cli --target udp:127.0.0.1:14550 params list
 //! ```
 
 #![forbid(unsafe_code)]
@@ -19,6 +19,7 @@
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use mpcraft_transport::{ConnectionSpec, SerialTransport};
 
 /// The MPCraft command line interface.
 #[derive(Debug, Parser)]
@@ -31,7 +32,7 @@ struct Cli {
     /// The connection target, for example `udp:127.0.0.1:14550`.
     ///
     /// This is a global option so that the subcommand reads naturally:
-    /// `mpcraft --target udp:127.0.0.1:14550 params list`.
+    /// `mpcraft-cli --target udp:127.0.0.1:14550 params list`.
     #[arg(short, long, global = true)]
     target: Option<String>,
 
@@ -43,6 +44,9 @@ struct Cli {
 /// The available actions.
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// List the serial ports available on this machine.
+    Ports,
+
     /// Open a link to a vehicle.
     Connect {
         /// The connection target, overriding the global option.
@@ -106,16 +110,16 @@ enum MissionAction {
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let target = match cli.command_target() {
-        Some(target) => target,
-        None => {
-            eprintln!("error: no connection target given");
-            eprintln!("usage: mpcraft --target udp:127.0.0.1:14550 <command>");
+    // The CLI drives the same asynchronous session layer the desktop application uses.
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("error: cannot start the runtime: {error}");
             return ExitCode::FAILURE;
         }
     };
 
-    match run(&target, &cli.command) {
+    match runtime.block_on(run(&cli)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("error: {message}");
@@ -124,33 +128,89 @@ fn main() -> ExitCode {
     }
 }
 
-impl Cli {
-    /// The connection target, whether given globally or per command.
-    fn command_target(&self) -> Option<String> {
-        match &self.command {
-            Command::Connect { target, .. } => target.clone().or_else(|| self.target.clone()),
-            _ => self.target.clone(),
+/// Runs the requested action.
+async fn run(cli: &Cli) -> Result<(), String> {
+    match &cli.command {
+        Command::Ports => list_ports(),
+        Command::Connect { target, monitor } => {
+            let target = target
+                .clone()
+                .or_else(|| cli.target.clone())
+                .ok_or_else(|| "no connection target given".to_owned())?;
+            connect(&target, *monitor).await
+        }
+        Command::Params { action } => {
+            let target = cli
+                .target
+                .clone()
+                .ok_or_else(|| "no connection target given".to_owned())?;
+            let _spec = ConnectionSpec::parse(&target).map_err(|e| e.to_string())?;
+            println!("params {action:?} on {target}");
+            Ok(())
+        }
+        Command::Mission { action } => {
+            let target = cli
+                .target
+                .clone()
+                .ok_or_else(|| "no connection target given".to_owned())?;
+            let _spec = ConnectionSpec::parse(&target).map_err(|e| e.to_string())?;
+            println!("mission {action:?} on {target}");
+            Ok(())
         }
     }
 }
 
-/// Runs the requested action.
-fn run(target: &str, command: &Command) -> Result<(), String> {
-    // The link layer is wired up in phase 0, task 3. Until then the CLI reports the target
-    // it would connect to, which keeps the argument parsing and exit codes exercised.
-    match command {
-        Command::Connect { monitor, .. } => {
-            println!("connecting to {target}");
-            if *monitor {
-                println!("monitoring telemetry (not yet implemented)");
-            }
-        }
-        Command::Params { action } => {
-            println!("params {action:?} on {target}");
-        }
-        Command::Mission { action } => {
-            println!("mission {action:?} on {target}");
+/// Lists the serial ports this machine has.
+fn list_ports() -> Result<(), String> {
+    let ports = SerialTransport::available_ports().map_err(|e| e.to_string())?;
+
+    if ports.is_empty() {
+        println!("no serial ports found");
+        return Ok(());
+    }
+
+    for port in ports {
+        match port.description {
+            Some(description) => println!("{:<24} {description}", port.device),
+            None => println!("{}", port.device),
         }
     }
+
     Ok(())
+}
+
+/// Opens a link to a vehicle.
+async fn connect(target: &str, monitor: bool) -> Result<(), String> {
+    let spec = ConnectionSpec::parse(target).map_err(|e| e.to_string())?;
+
+    println!("connecting to {spec}");
+
+    let mut transport = mpcraft_transport::open(&spec)
+        .await
+        .map_err(|e| format!("cannot open the link: {e}"))?;
+
+    println!("link open: {}", transport.describe());
+
+    if !monitor {
+        return Ok(());
+    }
+
+    // The telemetry aggregation is wired up in phase 0, task 4. Until then the monitor
+    // reports the raw traffic so the link itself can be verified.
+    println!("monitoring (the telemetry decoder is not wired up yet)");
+
+    let mut buffer = vec![0u8; 4096];
+    loop {
+        match transport.read(&mut buffer).await {
+            Ok(0) => {
+                println!("the link ended");
+                return Ok(());
+            }
+            Ok(len) => println!("{} bytes received", len),
+            Err(error) => {
+                println!("the link failed: {error}");
+                return Err(error.to_string());
+            }
+        }
+    }
 }
