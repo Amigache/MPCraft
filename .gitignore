@@ -22,6 +22,10 @@ _ref_missionplanner/
 /mpcraft-window.png
 /shot-*.png
 
+# Mission files written while trying the command line out
+/plan.waypoints
+/plan.kml
+
 # Editors / OS
 .vscode/
 .idea/

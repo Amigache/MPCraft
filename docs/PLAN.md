@@ -455,16 +455,19 @@ first, in two steps: `begin_request`, announce, then wait.
 This is why the session has both `begin_request` and `begin_collect`. A transaction whose
 answer can arrive before the request has finished being sent must register its matcher first.
 
-### A limitation of the generated dialect
+### The extension field of the mission type
 
-`MAV_MISSION_TYPE` is a MAVLink 2 **extension field**, and the generated bindings do not
-expose extension fields for the mission messages. A plain mission travels in the short form -
-`mission_type` is zero and is truncated away - so it works. The fence and rally plans carry a
-non-zero `mission_type`, so their frames are one byte longer than the bindings expect.
+`MAV_MISSION_TYPE` is a MAVLink 2 **extension field**: it is absent from a MAVLink 1 frame,
+and it is truncated away when it is zero. A plain mission therefore travels in the short
+form, and a fence or rally plan travels with the extension present.
 
-The frames still *validate*: the checksum covers the whole payload, extension included. What
-is lost is the mission type itself, which these bindings cannot express. The fence and rally
-protocols are therefore marked as partial in the parity matrix.
+For a long time the bindings could not express it, and the fence and rally protocols were
+marked as partial in the parity matrix. The limitation was not the bindings but a feature
+flag: the upstream `mavlink` crate generates the extension fields when the
+`mav2-message-extensions` feature is on, and MPCraft had it off. With it on, the generated
+`ser` truncates the extension bytes at the first zero for MAVLink 2 and omits them for
+MAVLink 1, and the frame length follows the truncated length — the framing layer needed no
+change at all. See ADR-011.
 
 ### Phase 0, Task 6 - the desktop shell and the session supervisor
 
@@ -499,22 +502,71 @@ mpcraft.exe --target udp:127.0.0.1:14550
    server could not call a single command or receive a single event. The capability that grants
    it lives in `apps/desktop/capabilities/default.json`.
 
-### The next step: Phase 0, Task 7 - closing the phase
+### Phase 0, Task 7 - closing the phase
 
-Phase 0 is nearly complete. What is left:
+The phase is closed. The four things it was waiting for are done:
 
-- The **mission editor** commands: set the current item, clear the plan, jump to an item.
-- **Fence and rally points**, which need the extension field the bindings lack; the decision
-  is whether to hand-roll the extension bytes in the encoder or to wait for the bindings to
-  catch up.
-- The **`.waypoints` and KML import and export**, which turn the model into something a user
-  can share.
-- The **session supervisor** in `mpcraft-app`: connection profiles, auto-reconnect, and the
-  events the desktop application subscribes to.
+- **The mission editor commands**: setting the current item, emptying a plan and jumping to
+  an item are now operations of the session.
+- **Fence and rally points**: the decision was to let the generated bindings carry the
+  extension field, not to hand-roll the bytes. The `mavlink` crate has had a
+  `mav2-message-extensions` feature all along; it simply was not switched on. With it on,
+  `MAV_MISSION_TYPE` reaches the wire on `MISSION_REQUEST_LIST`, `MISSION_COUNT` and every
+  item, so a fence plan downloads as a fence plan and an upload declares which plan it is
+  writing. See ADR-011.
+- **The `.waypoints` and KML import and export**: the QGC format follows upstream's reader
+  and writer field for field, including the home position in the first line. The KML is
+  written by hand, without an XML dependency.
+- **The session supervisor**: connection profiles are stored in a hand-editable TOML file
+  under the platform configuration directory, and the supervisor reconnects with a backoff
+  that is injectable, so the policy is tested without a network peer and without waiting.
 
-**Exit criteria for phase 0:** the `mpcraft-cli` can connect to a live vehicle, read its
-parameters, download its plan, upload a modified plan, and fly it - entirely from the command
-line.
+### The exit criterion, met
+
+The criterion was that the `mpcraft-cli` can connect to a live vehicle, read its
+parameters, download its plan, upload a modified plan and fly it — entirely from the
+command line. It can:
+
+```text
+mpcraft-cli --target udp:127.0.0.1:14550 params list
+mpcraft-cli --target udp:127.0.0.1:14550 params set FENCE_MARGIN 25
+mpcraft-cli --target udp:127.0.0.1:14550 mission download --output plan.waypoints
+mpcraft-cli --target udp:127.0.0.1:14550 mission upload plan.waypoints
+mpcraft-cli --target udp:127.0.0.1:14550 mission jump 2
+mpcraft-cli --target udp:127.0.0.1:14550 arm
+mpcraft-cli --target udp:127.0.0.1:14550 mode GUIDED
+mpcraft-cli --target udp:127.0.0.1:14550 takeoff 30
+mpcraft-cli --target udp:127.0.0.1:14550 disarm
+```
+
+The vehicle it talks to is `scripts/simulated-vehicle.py`, which answers the parameter,
+mission and command protocols. It was written from the MAVLink specification, independently
+of the Rust implementation, so the two agreeing is evidence that both are right.
+
+### A race the parameter protocol hid
+
+The encoding of a parameter value follows the autopilot the vehicle reports, and the
+vehicle only says what it is in its heartbeat. A ground station that reads a parameter
+before the heartbeat has arrived guesses the encoding, and the guess reads the wrong
+numbers — an integer parameter comes back as the bit pattern of a float.
+
+The session now waits for the vehicle to *identify itself* before a parameter operation
+begins. Waiting for the vehicle to merely *appear* is not enough: it appears on the first
+frame it sends, whatever that frame is, and a vehicle that sends telemetry before its
+heartbeat is still unidentified at that point.
+
+### The next step: Phase 1 - the first window
+
+Phase 1 is the flight data view proper:
+
+- The **map**, with the live position, the track history and the plan drawn on it.
+- The **graphs**, which are the reason a ground station exists.
+- The **connection dialog** with a list of serial ports and baud rates.
+- The **flight mode control**, with the mode table of the vehicle family.
+
+The application layer, the link layer and the mission model are all in place; what is left
+is the part that draws them.
+
 
 ---
 

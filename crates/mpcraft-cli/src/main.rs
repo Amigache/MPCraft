@@ -11,15 +11,23 @@
 //! mpcraft-cli ports
 //! mpcraft-cli connect udp:127.0.0.1:14550 --monitor
 //! mpcraft-cli --target udp:127.0.0.1:14550 params list
+//! mpcraft-cli --target udp:127.0.0.1:14550 mission download --output plan.waypoints
+//! mpcraft-cli --target udp:127.0.0.1:14550 mission upload plan.waypoints
+//! mpcraft-cli --target udp:127.0.0.1:14550 arm
 //! ```
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 use std::process::ExitCode;
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use mpcraft_mission::{MissionType, Plan};
 use mpcraft_transport::{ConnectionSpec, SerialTransport};
+
+/// How long to wait for the vehicle to answer.
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The MPCraft command line interface.
 #[derive(Debug, Parser)]
@@ -35,6 +43,10 @@ struct Cli {
     /// `mpcraft-cli --target udp:127.0.0.1:14550 params list`.
     #[arg(short, long, global = true)]
     target: Option<String>,
+
+    /// The vehicle to talk to, as `system/component`.
+    #[arg(short, long, global = true, default_value = "1/1")]
+    vehicle: String,
 
     /// The action to perform.
     #[command(subcommand)]
@@ -70,6 +82,24 @@ enum Command {
         #[command(subcommand)]
         action: MissionAction,
     },
+
+    /// Arm the vehicle.
+    Arm,
+
+    /// Disarm the vehicle.
+    Disarm,
+
+    /// Change the flight mode.
+    Mode {
+        /// The mode, by name or by its custom mode number.
+        mode: String,
+    },
+
+    /// Take off to an altitude, relative to the home position.
+    Takeoff {
+        /// The altitude in metres.
+        altitude: f32,
+    },
 }
 
 /// The parameter actions.
@@ -99,13 +129,68 @@ enum ParamsAction {
 #[derive(Debug, Subcommand)]
 enum MissionAction {
     /// Download the mission and print it.
-    Download,
+    Download {
+        /// Write the mission to this file instead of only printing it.
+        #[arg(short, long)]
+        output: Option<std::path::PathBuf>,
+
+        /// The format of the file: `waypoints` or `kml`.
+        #[arg(short, long, default_value = "waypoints")]
+        format: String,
+
+        /// The kind of plan: `mission`, `fence` or `rally`.
+        #[arg(short, long, default_value = "mission")]
+        kind: String,
+    },
+
     /// Upload a mission from a file.
     Upload {
         /// The path to the mission file.
         path: std::path::PathBuf,
+
+        /// The kind of plan: `mission`, `fence` or `rally`.
+        #[arg(short, long, default_value = "mission")]
+        kind: String,
+    },
+
+    /// Say which item of the plan the vehicle is executing.
+    SetCurrent {
+        /// The sequence number of the item.
+        seq: u16,
+    },
+
+    /// Empty one of the vehicle's plans.
+    Clear {
+        /// The kind of plan: `mission`, `fence` or `rally`.
+        #[arg(short, long, default_value = "mission")]
+        kind: String,
+    },
+
+    /// Jump to an item of the plan.
+    Jump {
+        /// The sequence number of the item.
+        seq: u16,
     },
 }
+
+/// The flight modes a vehicle understands, by name.
+///
+/// The number is the custom mode the vehicle expects. It differs between the vehicle
+/// families, so a number given directly always wins over a name.
+const MODES: &[(&str, u32)] = &[
+    ("STABILIZE", 0),
+    ("ACRO", 1),
+    ("ALT_HOLD", 2),
+    ("AUTO", 3),
+    ("GUIDED", 4),
+    ("LOITER", 5),
+    ("RTL", 6),
+    ("CIRCLE", 7),
+    ("LAND", 8),
+    ("DRIFT", 11),
+    ("SPORT", 13),
+    ("SMART_RTL", 16),
+];
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -130,6 +215,8 @@ fn main() -> ExitCode {
 
 /// Runs the requested action.
 async fn run(cli: &Cli) -> Result<(), String> {
+    let vehicle = parse_vehicle(&cli.vehicle)?;
+
     match &cli.command {
         Command::Ports => list_ports(),
         Command::Connect { target, monitor } => {
@@ -140,23 +227,112 @@ async fn run(cli: &Cli) -> Result<(), String> {
             connect(&target, *monitor).await
         }
         Command::Params { action } => {
-            let target = cli
-                .target
-                .clone()
-                .ok_or_else(|| "no connection target given".to_owned())?;
-            let spec = ConnectionSpec::parse(&target).map_err(|e| e.to_string())?;
-            params(&spec, action).await
+            let session = open_link(cli).await?;
+            params(&session, vehicle, action).await
         }
         Command::Mission { action } => {
-            let target = cli
-                .target
-                .clone()
-                .ok_or_else(|| "no connection target given".to_owned())?;
-            let _spec = ConnectionSpec::parse(&target).map_err(|e| e.to_string())?;
-            println!("mission {action:?} on {target}");
+            let session = open_link(cli).await?;
+            mission(&session, vehicle, action).await
+        }
+        Command::Arm => {
+            let session = open_link(cli).await?;
+            session
+                .arm(vehicle, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot arm the vehicle: {error}"))?;
+            println!("armed");
+            Ok(())
+        }
+        Command::Disarm => {
+            let session = open_link(cli).await?;
+            session
+                .disarm(vehicle, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot disarm the vehicle: {error}"))?;
+            println!("disarmed");
+            Ok(())
+        }
+        Command::Mode { mode } => {
+            let custom_mode = parse_mode(mode)?;
+            let session = open_link(cli).await?;
+            session
+                .set_mode(
+                    vehicle,
+                    custom_mode,
+                    mpcraft_mavlink::MavModeFlag::empty(),
+                    DEFAULT_TIMEOUT,
+                )
+                .await
+                .map_err(|error| format!("cannot change the mode: {error}"))?;
+            println!("the mode is now {custom_mode}");
+            Ok(())
+        }
+        Command::Takeoff { altitude } => {
+            let session = open_link(cli).await?;
+            session
+                .takeoff(vehicle, *altitude, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot take off: {error}"))?;
+            println!("taking off to {altitude} metres");
             Ok(())
         }
     }
+}
+
+/// Parses the `system/component` pair of the vehicle to talk to.
+fn parse_vehicle(text: &str) -> Result<mpcraft_link::VehicleId, String> {
+    let (system, component) = text
+        .split_once('/')
+        .ok_or_else(|| format!("the vehicle must be given as system/component, not {text:?}"))?;
+
+    let system = system
+        .trim()
+        .parse::<u8>()
+        .map_err(|_| format!("the system id must be a number, not {system:?}"))?;
+    let component = component
+        .trim()
+        .parse::<u8>()
+        .map_err(|_| format!("the component id must be a number, not {component:?}"))?;
+
+    Ok(mpcraft_link::VehicleId::new(system, component))
+}
+
+/// Parses a flight mode, by name or by its custom mode number.
+fn parse_mode(text: &str) -> Result<u32, String> {
+    let trimmed = text.trim();
+
+    if let Ok(number) = trimmed.parse::<u32>() {
+        return Ok(number);
+    }
+
+    MODES
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(trimmed))
+        .map(|(_, number)| *number)
+        .ok_or_else(|| {
+            format!(
+                "unknown mode {text:?}; give a number, or one of: {}",
+                MODES
+                    .iter()
+                    .map(|(name, _)| *name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
+}
+
+/// Opens a link to the vehicle.
+async fn open_link(cli: &Cli) -> Result<mpcraft_link::Session, String> {
+    let target = cli
+        .target
+        .clone()
+        .ok_or_else(|| "no connection target given".to_owned())?;
+
+    let spec = ConnectionSpec::parse(&target).map_err(|error| error.to_string())?;
+
+    mpcraft_link::Session::connect(&spec, mpcraft_link::SessionOptions::default())
+        .await
+        .map_err(|error| format!("cannot open the link: {error}"))
 }
 
 /// Lists the serial ports this machine has.
@@ -198,17 +374,15 @@ async fn connect(target: &str, monitor: bool) -> Result<(), String> {
 }
 
 /// Runs a parameter operation against the vehicle.
-async fn params(spec: &ConnectionSpec, action: &ParamsAction) -> Result<(), String> {
-    let session = mpcraft_link::Session::connect(spec, mpcraft_link::SessionOptions::default())
-        .await
-        .map_err(|e| format!("cannot open the link: {e}"))?;
-
-    let vehicle = mpcraft_link::VehicleId::new(1, 1);
-
+async fn params(
+    session: &mpcraft_link::Session,
+    vehicle: mpcraft_link::VehicleId,
+    action: &ParamsAction,
+) -> Result<(), String> {
     match action {
         ParamsAction::List { filter } => {
             let store = session
-                .download_parameters(vehicle, mpcraft_link::DEFAULT_LIST_TIMEOUT)
+                .download_parameters(vehicle, DEFAULT_TIMEOUT)
                 .await
                 .map_err(|e| format!("cannot read the parameters: {e}"))?;
 
@@ -233,7 +407,7 @@ async fn params(spec: &ConnectionSpec, action: &ParamsAction) -> Result<(), Stri
 
         ParamsAction::Get { name } => {
             let parameter = session
-                .read_parameter(vehicle, name, mpcraft_link::DEFAULT_READ_TIMEOUT)
+                .read_parameter(vehicle, name, DEFAULT_TIMEOUT)
                 .await
                 .map_err(|e| format!("cannot read {name}: {e}"))?;
 
@@ -245,7 +419,7 @@ async fn params(spec: &ConnectionSpec, action: &ParamsAction) -> Result<(), Stri
             // The reported type of the parameter decides how the value is encoded, so the
             // parameter has to be known before it can be written.
             let current = session
-                .read_parameter(vehicle, name, mpcraft_link::DEFAULT_READ_TIMEOUT)
+                .read_parameter(vehicle, name, DEFAULT_TIMEOUT)
                 .await
                 .map_err(|e| format!("cannot read {name}: {e}"))?;
 
@@ -255,12 +429,161 @@ async fn params(spec: &ConnectionSpec, action: &ParamsAction) -> Result<(), Stri
             }
 
             let written = session
-                .write_parameter(vehicle, name, *value, mpcraft_link::DEFAULT_WRITE_TIMEOUT)
+                .write_parameter(vehicle, name, *value, DEFAULT_TIMEOUT)
                 .await
                 .map_err(|e| format!("cannot write {name}: {e}"))?;
 
             println!("{:<24} {}", written.name, written.value);
             Ok(())
+        }
+    }
+}
+
+/// Runs a mission operation against the vehicle.
+async fn mission(
+    session: &mpcraft_link::Session,
+    vehicle: mpcraft_link::VehicleId,
+    action: &MissionAction,
+) -> Result<(), String> {
+    match action {
+        MissionAction::Download {
+            output,
+            format,
+            kind,
+        } => {
+            let mission_type = parse_kind(kind)?;
+
+            let plan = session
+                .download_mission(vehicle, mission_type, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot download the plan: {error}"))?;
+
+            print_plan(&plan);
+
+            if let Some(path) = output {
+                let text = match format.as_str() {
+                    "waypoints" | "wpl" | "qgc" => mpcraft_mission::qgc::write_waypoints(&plan),
+                    "kml" => mpcraft_mission::kml::write_kml(&plan),
+                    other => {
+                        return Err(format!("unknown format {other:?}; use waypoints or kml"));
+                    }
+                };
+
+                std::fs::write(path, text)
+                    .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+
+                println!("the plan was written to {}", path.display());
+            }
+
+            Ok(())
+        }
+
+        MissionAction::Upload { path, kind } => {
+            let mission_type = parse_kind(kind)?;
+
+            let text = std::fs::read_to_string(path)
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+
+            let plan = read_plan(&text, path)?;
+
+            // The kind of the file and the kind that was asked for have to agree: a fence
+            // written into the mission plan would be a fence the vehicle never flies.
+            if plan.mission_type != mission_type {
+                println!(
+                    "the file holds a {:?} plan, but a {:?} one was asked for",
+                    plan.mission_type, mission_type
+                );
+            }
+
+            let result = session
+                .upload_mission(vehicle, &plan, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot upload the plan: {error}"))?;
+
+            println!("the plan of {} items was accepted: {result:?}", plan.len());
+            Ok(())
+        }
+
+        MissionAction::SetCurrent { seq } => {
+            session
+                .set_current_item(vehicle, *seq, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot set the current item: {error}"))?;
+
+            println!("the current item is now {seq}");
+            Ok(())
+        }
+
+        MissionAction::Clear { kind } => {
+            let mission_type = parse_kind(kind)?;
+
+            session
+                .clear_mission(vehicle, mission_type, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot empty the plan: {error}"))?;
+
+            println!("the plan was emptied");
+            Ok(())
+        }
+
+        MissionAction::Jump { seq } => {
+            session
+                .jump_to_item(vehicle, *seq, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|error| format!("cannot jump to the item: {error}"))?;
+
+            println!("jumped to item {seq}");
+            Ok(())
+        }
+    }
+}
+
+/// Parses the kind of plan.
+fn parse_kind(text: &str) -> Result<MissionType, String> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "mission" | "plan" => Ok(MissionType::Mission),
+        "fence" => Ok(MissionType::Fence),
+        "rally" | "rally_points" => Ok(MissionType::Rally),
+        other => Err(format!(
+            "unknown kind of plan {other:?}; use mission, fence or rally"
+        )),
+    }
+}
+
+/// Reads a plan from a file, choosing the format by its extension.
+fn read_plan(text: &str, path: &std::path::Path) -> Result<Plan, String> {
+    let extension = path
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match extension.as_str() {
+        "kml" => mpcraft_mission::kml::read_kml(text).map_err(|error| error.to_string()),
+        _ => mpcraft_mission::qgc::read_waypoints(text).map_err(|error| error.to_string()),
+    }
+}
+
+/// Prints a plan, one item per line.
+fn print_plan(plan: &Plan) {
+    println!(
+        "the plan holds {} items and is a {:?} plan",
+        plan.len(),
+        plan.mission_type
+    );
+
+    for (index, item) in plan.items.iter().enumerate() {
+        let command = mpcraft_mission::mavcmd::command_name(item.command);
+
+        if item.is_location_command() {
+            println!(
+                "{index:>3}  {command:<28} {:>11.7}, {:>11.7} {:>8.1} m",
+                item.x, item.y, item.z
+            );
+        } else {
+            println!(
+                "{index:>3}  {command:<28} params {:>8.3}, {:>8.3}, {:>8.3}, {:>8.3}",
+                item.params[0], item.params[1], item.params[2], item.params[3]
+            );
         }
     }
 }

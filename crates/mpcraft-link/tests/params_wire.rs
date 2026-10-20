@@ -12,9 +12,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mpcraft_link::{Session, SessionOptions, VehicleId};
-use mpcraft_mavlink::dialect::messages::PARAM_VALUE_DATA;
+use mpcraft_mavlink::dialect::messages::{HEARTBEAT_DATA, PARAM_VALUE_DATA};
 use mpcraft_mavlink::frame::{encode_v2, FrameParser, MavHeader};
-use mpcraft_mavlink::{MavMessage, Message};
+use mpcraft_mavlink::{MavAutopilot, MavMessage, MavType, Message};
 use mpcraft_params::ParamType;
 
 /// The message ids the vehicle received.
@@ -102,6 +102,13 @@ impl Vehicle {
     /// Answers a request.
     async fn answer(&mut self, request: &MavMessage, peer: SocketAddr) {
         match request {
+            // The ground station announces itself with a heartbeat. The vehicle answers
+            // with one of its own: that is how it identifies itself, and the ground
+            // station waits for the identification before it reads the parameters.
+            MavMessage::HEARTBEAT(_) => {
+                self.send_heartbeat(peer).await;
+            }
+
             MavMessage::PARAM_REQUEST_LIST(_) => {
                 let total = self.parameters.len() as u16;
                 for (index, (name, value, param_type)) in self.parameters.clone().iter().enumerate()
@@ -152,6 +159,26 @@ impl Vehicle {
 
             _ => {}
         }
+    }
+
+    /// Sends the heartbeat that identifies the vehicle.
+    async fn send_heartbeat(&mut self, peer: SocketAddr) {
+        let header = MavHeader {
+            system_id: 1,
+            component_id: 1,
+            sequence: self.sequence,
+        };
+        self.sequence = self.sequence.wrapping_add(1);
+
+        let message = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
+            custom_mode: 5,
+            mavtype: MavType::MAV_TYPE_QUADROTOR,
+            autopilot: MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
+            ..Default::default()
+        });
+
+        let bytes = encode_v2(&message, header);
+        let _ = self.socket.send_to(&bytes, peer).await;
     }
 
     /// Sends one `PARAM_VALUE`.

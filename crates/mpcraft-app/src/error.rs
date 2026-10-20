@@ -28,6 +28,8 @@ impl CommandError {
     pub const CODE_REJECTED: &'static str = "rejected_by_vehicle";
     /// The request was malformed.
     pub const CODE_INVALID_REQUEST: &'static str = "invalid_request";
+    /// The settings could not be read or written.
+    pub const CODE_SETTINGS: &'static str = "settings_error";
     /// Something went wrong that has no more specific code.
     pub const CODE_INTERNAL: &'static str = "internal";
 
@@ -73,6 +75,12 @@ impl CommandError {
         Self::new(Self::CODE_INVALID_REQUEST, message)
     }
 
+    /// Creates a `settings_error` error.
+    #[must_use]
+    pub fn settings(message: impl Into<String>) -> Self {
+        Self::new(Self::CODE_SETTINGS, message)
+    }
+
     /// Creates an `internal` error.
     #[must_use]
     pub fn internal(message: impl Into<String>) -> Self {
@@ -105,6 +113,7 @@ mod tests {
         assert_eq!(CommandError::not_connected().code, "not_connected");
         assert_eq!(CommandError::rejected("x").code, "rejected_by_vehicle");
         assert_eq!(CommandError::invalid_request("x").code, "invalid_request");
+        assert_eq!(CommandError::settings("x").code, "settings_error");
         assert_eq!(CommandError::internal("x").code, "internal");
     }
 

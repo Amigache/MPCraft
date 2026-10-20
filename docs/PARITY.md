@@ -19,7 +19,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.4 | UDP client / server mode | `ExtLibs/Comms/CommsUdpSerial.cs` | ✅ | 0 |
 | 1.5 | UDP multi-endpoint fan-out | `CommsUdpSerial.EndPointList` | ✅ | 0 |
 | 1.6 | TCP client / server mode | `ExtLibs/Comms/CommsTCPSerial.cs` | ✅ | 0 |
-| 1.7 | TCP auto-reconnect | `TcpSerial.autoReconnect` | 🔜 | 1 |
+| 1.7 | TCP auto-reconnect | `TcpSerial.autoReconnect` | ✅ | 1 |
 | 1.8 | Heartbeat negotiation & vehicle selection | `MAVLinkInterface.OpenBg` | ✅ | 0 |
 | 1.9 | Vehicle-type detection (Copter/Plane/Rover/Sub/Tracker) | `MAVLinkInterface.setAPType` | ✅ | 0 |
 | 1.10 | Multi-vehicle registry | `ExtLibs/ArduPilot/Mavlink/MAVList.cs` | ✅ | 0 |
@@ -28,7 +28,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.13 | MAVLink 2 signing (out & in) | `MAVLinkInterface.generatePacket`, `CheckSignature` | ✅ | 0 |
 | 1.14 | Signing keyring persistence | `ExtLibs/ArduPilot/Mavlink/MAVAuthKeys.cs` | 🔜 | 0 |
 | 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | 🔜 | 5 |
-| 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | 🔜 | 7 |
+| 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | 🟡 | 7 |
 | 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | 🔜 | 5 |
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 | 5 |
 | 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
@@ -62,11 +62,11 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 3.1 | Arm / disarm | `MAVLinkInterface.doARM` | 🔜 | 1 |
-| 3.2 | Mode change (custom_mode table) | `Common.getModesList`, `translateMode` | 🔜 | 1 |
+| 3.1 | Arm / disarm | `MAVLinkInterface.doARM` | ✅ | 1 |
+| 3.2 | Mode change (custom_mode table) | `Common.getModesList`, `translateMode` | 🟡 | 1 |
 | 3.3 | RTL / Land / Loiter / Auto shortcuts | `FlightData.cs` | 🔜 | 1 |
-| 3.4 | Takeoff command | `MAVLinkInterface.doCommand` | 🔜 | 1 |
-| 3.5 | Generic MAV_CMD long / int executor | `doCommand`, `doCommandInt` | 🔜 | 1 |
+| 3.4 | Takeoff command | `MAVLinkInterface.doCommand` | ✅ | 1 |
+| 3.5 | Generic MAV_CMD long / int executor | `doCommand`, `doCommandInt` | ✅ | 1 |
 | 3.6 | Guided mode — fly to waypoint | `setGuidedModeWP` | 🔜 | 2 |
 | 3.7 | Guided mode — "go here" from map | `FlightData.cs` goHereToolStripMenuItem | 🔜 | 2 |
 | 3.8 | Position target global-int | `setPositionTargetGlobalInt` | 🔜 | 2 |
@@ -91,10 +91,10 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.7 | Altitude modes (absolute / relative / terrain) | `FlightPlanner.cs` altmode | 🔜 | 2 |
 | 4.8 | Geo-fence polygon drawing & upload | `FlightPlanner.cs` polygon tools | 🟡 | 2 |
 | 4.9 | Fence inclusion / exclusion lists | `FenceInclusion/Exclusion` | 🟡 | 2 |
-| 4.10 | Rally point upload / download | `getRallyPoint`, `setRallyPoint` | 🟡 | 2 |
+| 4.10 | Rally point upload / download | `getRallyPoint`, `setRallyPoint` | ✅ | 2 |
 | 4.11 | Home position management | `getHomePositionAsync` | 🔜 | 2 |
-| 4.12 | QGC `.waypoints` import / export | `FlightPlanner.cs` readQGC110wpfile | 🔜 | 2 |
-| 4.13 | KML import / export | `FlightPlanner.cs` processKML | 🔜 | 2 |
+| 4.12 | QGC `.waypoints` import / export | `FlightPlanner.cs` readQGC110wpfile | ✅ | 2 |
+| 4.13 | KML import / export | `FlightPlanner.cs` processKML | ✅ | 2 |
 | 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | 🔜 | 2 |
 | 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | 🔜 | 2 |
 | 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | 🔜 | 2 |
@@ -220,28 +220,39 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 18 |
-| 🔜 Planned | 132 |
+| ✅ Done | 25 |
+| 🔜 Planned | 124 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 4 |
+| 🟡 Partial | 5 |
 
-The 18 rows marked done are the connection, transport, parameter and mission layer, plus the
-first of the views that use them: the transports, the heartbeat negotiation, the vehicle
-registry, the loss accounting, the board-output capture, the parameter protocol, the mission
-protocol and the desktop shell all work and are covered by tests, and the live telemetry view
-and the attitude indicators are on screen. The rest of the user-facing features — the
-connection dialog with a port list, the map, the mission editor — are still planned.
+The 25 rows marked done are the connection, transport, parameter, mission and command
+layers, plus the first of the views that use them. The transports, the heartbeat
+negotiation, the vehicle registry, the loss accounting, the board-output capture, the
+parameter protocol, the mission protocol, the command executor, the file formats and the
+desktop shell all work and are covered by tests, and the live telemetry view and the
+attitude indicators are on screen. The rest of the user-facing features — the connection
+dialog with a port list, the map, the mission editor — are still planned.
 
-Three of the rows marked partial are the fence and rally protocols. `MAV_MISSION_TYPE` is a
-MAVLink 2 *extension* field, and the generated bindings do not expose extension fields for the
-mission messages. A plain mission travels in the short form — `mission_type` is zero and is
-truncated away — so it works. A fence or rally plan carries a non-zero `mission_type`, so its
-frames are one byte longer than the bindings expect. The frames still validate, because the
-checksum covers the whole payload; what is lost is the mission type itself.
+The five rows marked partial are the fence, the rally points, the connection profiles, the
+flight modes and the message console.
 
-The fourth is the message console. The console is on screen and it is wired to the backend, but
-it shows the link notices — the ones that explain a broken link — rather than the `STATUSTEXT`
-stream. Capturing the vehicle's own messages is the next piece of work.
+The fence and the rally points used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2
+*extension* field, and the generated bindings were built without the extension feature, so
+the plan type could not travel. The bindings were never the limitation — the feature flag
+was. With `mav2-message-extensions` switched on, the plan type reaches the wire on
+`MISSION_REQUEST_LIST`, `MISSION_COUNT` and every item, and a fence plan downloads as a
+fence plan. What is left of those rows is the interface: drawing the polygon, and the
+inclusion and exclusion lists, which are not modelled yet.
+
+The connection profiles are stored, listed and opened at launch; what is missing is the
+screen that edits them.
+
+The flight mode changes, but the table of the modes of a vehicle family lives in the
+parameter metadata, which is not loaded yet.
+
+The message console is on screen and it is wired to the backend, but it shows the link
+notices — the ones that explain a broken link — rather than the `STATUSTEXT` stream.
+Capturing the vehicle's own messages is the next piece of work.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

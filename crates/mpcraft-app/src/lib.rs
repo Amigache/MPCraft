@@ -15,38 +15,36 @@
 //! Telemetry is pushed as **one batched snapshot per tick**, never as one event per field.
 //! At 20 Hz with forty fields, per-field events would mean eight hundred IPC messages per
 //! second.
+//!
+//! # The link
+//!
+//! The [`SessionSupervisor`] owns the link to the vehicle. It opens it, publishes its state
+//! to the interface, and — when the link drops — follows the [`ReconnectPolicy`]: how many
+//! attempts, with what backoff, and how long a single attempt may take. The policy is data,
+//! and the mechanism it drives is injected, so the whole thing is tested without a network
+//! peer and without waiting.
+//!
+//! # The settings
+//!
+//! The connection profiles live in [`mpcraft_settings`], in a TOML file the user can edit by
+//! hand. [`AppState`] owns the store and the commands that read and write it.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-
-use mpcraft_link::{Session, SessionOptions};
+use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
 pub mod error;
+pub mod supervisor;
 
 pub use error::{CommandError, CommandResult};
 pub use mpcraft_link::SessionState;
-
-/// The connection state of the application.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ConnectionStatus {
-    /// No link is open.
-    #[default]
-    Disconnected,
-    /// A link is being opened.
-    Connecting,
-    /// A vehicle is answering.
-    Connected,
-    /// The link dropped and is being restored.
-    Reconnecting,
-    /// The link could not be opened.
-    Failed,
-}
+pub use mpcraft_settings::ConnectionProfile;
+pub use supervisor::{
+    ConnectionStatus, Connector, LinkSnapshot, ReconnectPolicy, SessionSupervisor, Sleeper,
+    TokioSleeper, TransportConnector,
+};
 
 /// Identifies a vehicle on a link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -84,193 +82,135 @@ pub struct ConnectResponse {
     pub vehicle: Option<VehicleKey>,
 }
 
-/// How often the supervisor publishes the state to the interface.
-const PUBLISH_INTERVAL: Duration = Duration::from_millis(200);
-
-/// A running session and the flag that stops it.
-#[derive(Clone)]
-struct SessionHandle {
-    session: Arc<Session>,
-    stopped: Arc<AtomicBool>,
-}
-
-/// Owns the link to the vehicle and publishes its state.
-///
-/// The supervisor is deliberately free of any interface type: it calls a callback with the
-/// state, and the shell decides how to deliver it. That keeps this crate headless.
-#[derive(Clone)]
-pub struct SessionSupervisor {
-    handle: Arc<Mutex<Option<SessionHandle>>>,
-}
-
-impl Default for SessionSupervisor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SessionSupervisor {
-    /// Creates a supervisor with no link open.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            handle: Arc::new(Mutex::new(None)),
-        }
-    }
-
-    /// Opens a link to a vehicle.
-    ///
-    /// The state is published through `publish` every [`PUBLISH_INTERVAL`], so the interface
-    /// sees the link come up and the telemetry arrive.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the target cannot be parsed or the link cannot be opened.
-    pub async fn connect<F>(&self, target: &str, mut publish: F) -> CommandResult<ConnectResponse>
-    where
-        F: FnMut(&SessionState) + Send + 'static,
-    {
-        let target = target.trim();
-        if target.is_empty() {
-            return Err(CommandError::invalid_request(
-                "the connection target is empty",
-            ));
-        }
-
-        let spec = mpcraft_transport::ConnectionSpec::parse(target)
-            .map_err(|error| CommandError::invalid_request(error.to_string()))?;
-
-        publish(&SessionState::disconnected());
-
-        let session = Session::connect(&spec, SessionOptions::default())
-            .await
-            .map_err(|error| CommandError::internal(error.to_string()))?;
-
-        let session = Arc::new(session);
-        let stopped = Arc::new(AtomicBool::new(false));
-
-        // The publisher runs for as long as the session lives.
-        let publisher_session = Arc::clone(&session);
-        let publisher_stopped = Arc::clone(&stopped);
-        let handle_stopped = Arc::clone(&stopped);
-        let handle_session = Arc::clone(&session);
-
-        tokio::spawn(async move {
-            let mut last_vehicles = 0usize;
-
-            while !publisher_stopped.load(Ordering::Relaxed) {
-                let state = publisher_session.state();
-
-                // The vehicle appearing on the link is worth a line in the log: it is the
-                // moment the operator was waiting for.
-                if state.vehicles.len() != last_vehicles {
-                    last_vehicles = state.vehicles.len();
-                    for vehicle in &state.vehicles {
-                        tracing::info!(
-                            "vehicle {}/{} ({}) is on the link",
-                            vehicle.id.system_id,
-                            vehicle.id.component_id,
-                            vehicle.kind.map_or("unknown", |kind| kind.as_str()),
-                        );
-                    }
-                }
-
-                publish(&state);
-                tokio::time::sleep(PUBLISH_INTERVAL).await;
-            }
-        });
-
-        // Stopping the session stops the publisher too.
-        let stop_watcher_session = Arc::clone(&handle_session);
-        let stop_watcher_stopped = Arc::clone(&handle_stopped);
-        tokio::spawn(async move {
-            while !stop_watcher_stopped.load(Ordering::Relaxed) {
-                if stop_watcher_session.is_closed() {
-                    stop_watcher_stopped.store(true, Ordering::Relaxed);
-                    break;
-                }
-                tokio::time::sleep(PUBLISH_INTERVAL).await;
-            }
-        });
-
-        if let Ok(mut slot) = self.handle.lock() {
-            *slot = Some(SessionHandle {
-                session,
-                stopped: handle_stopped,
-            });
-        }
-
-        Ok(ConnectResponse {
-            status: ConnectionStatus::Connecting,
-            vehicle: None,
-        })
-    }
-
-    /// Closes the link.
-    pub async fn disconnect(&self) -> CommandResult<ConnectResponse> {
-        // The handle is taken out under the lock and awaited outside it: a guard must never
-        // be held across an await point.
-        let handle = self.handle.lock().ok().and_then(|mut slot| slot.take());
-
-        if let Some(handle) = handle {
-            handle.stopped.store(true, Ordering::Relaxed);
-            handle.session.stop().await;
-        }
-
-        Ok(ConnectResponse {
-            status: ConnectionStatus::Disconnected,
-            vehicle: None,
-        })
-    }
-
-    /// The state of the current session, if there is one.
-    #[must_use]
-    pub fn state(&self) -> Option<SessionState> {
-        self.handle
-            .lock()
-            .ok()
-            .and_then(|slot| slot.as_ref().map(|handle| handle.session.state()))
-    }
-}
-
 /// The state the application keeps between commands.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct AppState {
     /// The supervisor that owns the link.
     pub supervisor: SessionSupervisor,
+
+    /// The persisted settings, when the platform has a configuration directory.
+    ///
+    /// It is `None` on a machine that has neither a configuration directory nor a home
+    /// directory. The application carries on without persisted settings there; it simply
+    /// cannot remember anything between two runs.
+    pub settings: Option<SettingsStore>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            supervisor: SessionSupervisor::new(),
+            settings: SettingsStore::platform(),
+        }
+    }
+}
+
+impl AppState {
+    /// The connection profiles the user has saved.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, or when the
+    /// settings file cannot be read. A file that cannot be read is reported as it is: the
+    /// profiles are never quietly replaced by an empty list.
+    pub fn connection_profiles(&self) -> CommandResult<Vec<ConnectionProfile>> {
+        let store = self.store()?;
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.connection_profiles)
+    }
+
+    /// Saves the connection profiles.
+    ///
+    /// The other settings are left alone: the file is read, the profiles are replaced, and
+    /// the file is written back.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, when the settings
+    /// file cannot be read, or when it cannot be written.
+    pub fn set_connection_profiles(&self, profiles: &[ConnectionProfile]) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.connection_profiles = profiles.to_vec();
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))
+    }
+
+    /// The settings store, when there is one.
+    fn store(&self) -> CommandResult<&SettingsStore> {
+        self.settings.as_ref().ok_or_else(|| {
+            CommandError::settings(
+                "this machine has no configuration directory to keep the settings in",
+            )
+        })
+    }
+}
+
+/// The link the application should open at launch.
+///
+/// The command line wins over the saved profiles: an argument is a deliberate choice made
+/// at the moment of the launch, while a profile is a default that was set up days ago. With
+/// no argument, the first profile marked for automatic connection is opened.
+#[must_use]
+pub fn launch_target(target: Option<&str>, profiles: &[ConnectionProfile]) -> Option<String> {
+    if let Some(target) = target.map(str::trim).filter(|target| !target.is_empty()) {
+        return Some(target.to_owned());
+    }
+
+    profiles
+        .iter()
+        .find(|profile| profile.auto_connect)
+        .map(|profile| profile.target.clone())
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use super::*;
 
-    #[tokio::test]
-    async fn an_empty_target_is_rejected() {
-        let supervisor = SessionSupervisor::new();
-        let error = supervisor
-            .connect("   ", |_| {})
-            .await
-            .expect_err("the target should be rejected");
+    /// Counts the temporary directories, so that two tests never share one.
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-        assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
+    /// A directory that is removed when the test ends.
+    struct TempDir {
+        path: PathBuf,
     }
 
-    #[tokio::test]
-    async fn a_malformed_target_is_rejected() {
-        let supervisor = SessionSupervisor::new();
-        let error = supervisor
-            .connect("carrier-pigeon:COM3", |_| {})
-            .await
-            .expect_err("the target should be rejected");
+    impl TempDir {
+        /// A directory of its own, under the temporary directory of the system.
+        fn new(name: &str) -> Self {
+            let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "mpcraft-app-{name}-{}-{unique}",
+                std::process::id()
+            ));
 
-        assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
+            std::fs::create_dir_all(&path).expect("the temporary directory should be creatable");
+
+            Self { path }
+        }
+
+        /// The path of the directory.
+        fn path(&self) -> &Path {
+            &self.path
+        }
     }
 
-    #[tokio::test]
-    async fn disconnecting_without_a_link_is_harmless() {
-        let supervisor = SessionSupervisor::new();
-        let response = supervisor.disconnect().await.unwrap();
-        assert_eq!(response.status, ConnectionStatus::Disconnected);
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
     }
 
     #[test]
@@ -278,5 +218,86 @@ mod tests {
         assert_eq!(CommandError::CODE_TIMEOUT, "link_timeout");
         assert_eq!(CommandError::CODE_NO_VEHICLE, "no_vehicle");
         assert_eq!(CommandError::CODE_NOT_CONNECTED, "not_connected");
+        assert_eq!(CommandError::CODE_SETTINGS, "settings_error");
+    }
+
+    #[test]
+    fn the_profiles_are_read_from_the_settings_store() {
+        let directory = TempDir::new("profiles");
+        let store = SettingsStore::new(directory.path());
+
+        let state = AppState {
+            supervisor: SessionSupervisor::new(),
+            settings: Some(store),
+        };
+
+        assert!(state
+            .connection_profiles()
+            .expect("the profiles should be readable")
+            .is_empty());
+
+        let profiles = vec![ConnectionProfile::auto_connect(
+            "SITL",
+            "udp:127.0.0.1:14550",
+        )];
+        state
+            .set_connection_profiles(&profiles)
+            .expect("the profiles should be saved");
+
+        assert_eq!(
+            state
+                .connection_profiles()
+                .expect("the profiles should be readable"),
+            profiles
+        );
+    }
+
+    #[test]
+    fn a_machine_without_a_configuration_directory_says_so() {
+        let state = AppState {
+            supervisor: SessionSupervisor::new(),
+            settings: None,
+        };
+
+        let error = state
+            .connection_profiles()
+            .expect_err("there is nowhere to read the profiles from");
+
+        assert_eq!(error.code, CommandError::CODE_SETTINGS);
+    }
+
+    #[test]
+    fn the_command_line_wins_over_the_saved_profiles() {
+        let profiles = vec![ConnectionProfile::auto_connect(
+            "SITL",
+            "udp:127.0.0.1:14550",
+        )];
+
+        let target = launch_target(Some("serial:COM3:57600"), &profiles);
+
+        assert_eq!(target.as_deref(), Some("serial:COM3:57600"));
+    }
+
+    #[test]
+    fn a_profile_is_opened_at_launch_when_there_is_no_argument() {
+        let profiles = vec![
+            ConnectionProfile::new("Flight controller", "serial:COM3:57600"),
+            ConnectionProfile::auto_connect("SITL", "udp:127.0.0.1:14550"),
+        ];
+
+        let target = launch_target(None, &profiles);
+
+        assert_eq!(target.as_deref(), Some("udp:127.0.0.1:14550"));
+    }
+
+    #[test]
+    fn nothing_is_opened_when_nothing_asks_for_it() {
+        let profiles = vec![ConnectionProfile::new(
+            "Flight controller",
+            "serial:COM3:57600",
+        )];
+
+        assert!(launch_target(None, &profiles).is_none());
+        assert!(launch_target(Some("  "), &profiles).is_none());
     }
 }

@@ -10,6 +10,10 @@ repository.workspace = true
 
 [dependencies]
 mpcraft-mavlink = { workspace = true }
+# `num-traits` is what the generated MAVLink enums implement `FromPrimitive` on, so it is
+# the only way to turn a wire value back into a `MAV_CMD`. It is already in the dependency
+# tree through `mavlink`, so it costs nothing to compile.
+num-traits = { version = "0.2", default-features = false }
 serde = { workspace = true }
 thiserror = { workspace = true }
 toml = { workspace = true }

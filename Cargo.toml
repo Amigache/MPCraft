@@ -42,6 +42,7 @@ mavlink = { version = "0.20", default-features = false, features = [
     "serde",
     "format-generated-code",
     "mav2-message-signing",
+    "mav2-message-extensions",
     "dialect-ardupilotmega",
     "dialect-common",
 ] }

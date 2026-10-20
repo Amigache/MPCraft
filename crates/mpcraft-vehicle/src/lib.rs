@@ -107,6 +107,52 @@ pub struct FlightMode {
     pub name: Option<String>,
 }
 
+/// The state of the plan the vehicle holds.
+///
+/// The vehicle reports this in `MISSION_CURRENT`, which it streams whenever the plan
+/// changes. A vehicle that does not support the reporting says so rather than guessing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PlanState {
+    /// The vehicle does not report the state of its plan.
+    Unknown,
+    /// There is no plan on the vehicle.
+    NoPlan,
+    /// The plan has been uploaded but has not started.
+    NotStarted,
+    /// The plan is running.
+    Active,
+    /// The plan is paused.
+    Paused,
+    /// The plan has run to the end.
+    Complete,
+}
+
+/// The progress of the plan on the vehicle.
+///
+/// This is what the interface shows when it highlights the item the vehicle is flying
+/// towards, and it is the only way to tell a plan that is running from one that was
+/// uploaded and never started.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MissionProgress {
+    /// The sequence number of the item the vehicle is executing.
+    pub seq: u16,
+    /// The number of items in the plan.
+    pub total: u16,
+    /// The state of the plan.
+    pub state: PlanState,
+    /// Whether the vehicle is in a mode that can execute the plan.
+    ///
+    /// A vehicle that is in a mode that cannot fly the plan is *suspended*: the plan is
+    /// loaded, but nothing is executing.
+    pub in_mission_mode: bool,
+    /// The identifier of the mission plan.
+    pub mission_id: u32,
+    /// The identifier of the fence plan.
+    pub fence_id: u32,
+    /// The identifier of the rally point plan.
+    pub rally_id: u32,
+}
+
 /// The state of a vehicle at a point in time.
 ///
 /// Every optional field is `None` until the corresponding message has been received at least
@@ -131,6 +177,8 @@ pub struct Telemetry {
     pub distance_to_home: Option<f64>,
     /// The bearing to home in degrees, computed when both positions are known.
     pub bearing_to_home: Option<f64>,
+    /// The progress of the plan on the vehicle, once reported.
+    pub mission: Option<MissionProgress>,
 }
 
 impl Telemetry {
@@ -159,6 +207,9 @@ impl Telemetry {
         }
         if let Some(home) = update.home {
             self.home = Some(home);
+        }
+        if let Some(mission) = update.mission {
+            self.mission = Some(mission);
         }
 
         self.recompute_derived();
@@ -195,6 +246,8 @@ pub struct TelemetryUpdate {
     pub armed: Option<bool>,
     /// New home position.
     pub home: Option<GeoPoint>,
+    /// New progress of the plan on the vehicle.
+    pub mission: Option<MissionProgress>,
 }
 
 /// Computes the distance and initial bearing between two points using the haversine formula.
@@ -364,6 +417,32 @@ mod tests {
         });
         assert!(telemetry.distance_to_home.is_some());
         assert!(telemetry.bearing_to_home.is_some());
+    }
+
+    #[test]
+    fn the_progress_of_the_plan_reaches_the_snapshot() {
+        let mut telemetry = Telemetry::default();
+        assert!(telemetry.mission.is_none());
+
+        telemetry.apply(TelemetryUpdate {
+            mission: Some(MissionProgress {
+                seq: 2,
+                total: 7,
+                state: PlanState::Active,
+                in_mission_mode: true,
+                mission_id: 11,
+                fence_id: 22,
+                rally_id: 33,
+            }),
+            ..Default::default()
+        });
+
+        let progress = telemetry.mission.expect("the progress of the plan");
+        assert_eq!(progress.seq, 2);
+        assert_eq!(progress.total, 7);
+        assert_eq!(progress.state, PlanState::Active);
+        assert!(progress.in_mission_mode);
+        assert_eq!(progress.mission_id, 11);
     }
 
     #[test]

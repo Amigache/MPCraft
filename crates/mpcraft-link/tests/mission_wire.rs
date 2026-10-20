@@ -125,6 +125,7 @@ impl Vehicle {
                         count,
                         target_system: 0,
                         target_component: 0,
+                        ..Default::default()
                     }),
                 )
                 .await;
@@ -152,12 +153,14 @@ impl Vehicle {
                             seq: 0,
                             target_system: 0,
                             target_component: 0,
+                            ..Default::default()
                         })
                     } else {
                         MavMessage::MISSION_REQUEST(MISSION_REQUEST_DATA {
                             seq: 0,
                             target_system: 0,
                             target_component: 0,
+                            ..Default::default()
                         })
                     },
                 )
@@ -196,6 +199,7 @@ impl Vehicle {
                     target_system: 0,
                     target_component: 0,
                     mavtype: MavMissionResult::MAV_MISSION_ACCEPTED,
+                    ..Default::default()
                 }),
             )
             .await;
@@ -207,12 +211,14 @@ impl Vehicle {
                         seq: next,
                         target_system: 0,
                         target_component: 0,
+                        ..Default::default()
                     })
                 } else {
                     MavMessage::MISSION_REQUEST(MISSION_REQUEST_DATA {
                         seq: next,
                         target_system: 0,
                         target_component: 0,
+                        ..Default::default()
                     })
                 },
             )
@@ -227,9 +233,9 @@ impl Vehicle {
         };
 
         let message = if self.use_int {
-            MavMessage::MISSION_ITEM_INT(item.to_int_message(seq))
+            MavMessage::MISSION_ITEM_INT(item.to_int_message(seq, MissionType::Mission))
         } else {
-            MavMessage::MISSION_ITEM(item.to_float_message(seq))
+            MavMessage::MISSION_ITEM(item.to_float_message(seq, MissionType::Mission))
         };
 
         self.send(peer, message).await;
@@ -308,13 +314,17 @@ fn plan_bytes(items: &[MissionItem], use_int: bool) -> Vec<Vec<u8>> {
             };
             if use_int {
                 encode_v2(
-                    &MavMessage::MISSION_ITEM_INT(item.to_int_message(seq as u16)),
+                    &MavMessage::MISSION_ITEM_INT(
+                        item.to_int_message(seq as u16, MissionType::Mission),
+                    ),
                     header,
                 )
             } else {
                 #[allow(deprecated)]
                 encode_v2(
-                    &MavMessage::MISSION_ITEM(item.to_float_message(seq as u16)),
+                    &MavMessage::MISSION_ITEM(
+                        item.to_float_message(seq as u16, MissionType::Mission),
+                    ),
                     header,
                 )
             }

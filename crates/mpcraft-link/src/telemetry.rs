@@ -12,8 +12,11 @@
 //! then an atomic load rather than a re-derivation, and the derived values — ground speed,
 //! distance to home — are computed at decode time rather than on every access.
 
-use mpcraft_vehicle::{Attitude, Battery, FlightMode, GeoPoint, Telemetry, Velocity};
+use mpcraft_vehicle::{
+    Attitude, Battery, FlightMode, GeoPoint, MissionProgress, PlanState, Telemetry, Velocity,
+};
 
+use mpcraft_mavlink::dialect::messages::MissionState;
 use mpcraft_mavlink::{MavMessage, MavModeFlag};
 
 /// Decodes messages into a telemetry snapshot.
@@ -116,6 +119,22 @@ impl TelemetryAggregator {
                 });
             }
 
+            MavMessage::MISSION_CURRENT(current) => {
+                // The vehicle streams this whenever the plan changes, so it is the state
+                // of the plan rather than a momentary report.
+                self.telemetry.mission = Some(MissionProgress {
+                    seq: current.seq,
+                    total: current.total,
+                    state: plan_state_of(current.mission_state),
+                    // The mode is a number: 0 unknown, 1 the vehicle can execute the plan,
+                    // 2 the vehicle is suspended and cannot.
+                    in_mission_mode: current.mission_mode == 1,
+                    mission_id: current.mission_id,
+                    fence_id: current.fence_id,
+                    rally_id: current.rally_points_id,
+                });
+            }
+
             _ => {}
         }
 
@@ -137,12 +156,24 @@ impl TelemetryAggregator {
     }
 }
 
+/// The state of the plan, as the vehicle reports it.
+fn plan_state_of(state: MissionState) -> PlanState {
+    match state {
+        MissionState::MISSION_STATE_UNKNOWN => PlanState::Unknown,
+        MissionState::MISSION_STATE_NO_MISSION => PlanState::NoPlan,
+        MissionState::MISSION_STATE_NOT_STARTED => PlanState::NotStarted,
+        MissionState::MISSION_STATE_ACTIVE => PlanState::Active,
+        MissionState::MISSION_STATE_PAUSED => PlanState::Paused,
+        MissionState::MISSION_STATE_COMPLETE => PlanState::Complete,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mpcraft_mavlink::dialect::messages::{
-        GLOBAL_POSITION_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA, SYS_STATUS_DATA,
-        TIMESYNC_DATA,
+        GLOBAL_POSITION_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA, MISSION_CURRENT_DATA,
+        SYS_STATUS_DATA, TIMESYNC_DATA,
     };
     use mpcraft_mavlink::MavType;
 
@@ -271,12 +302,70 @@ mod tests {
     }
 
     #[test]
+    fn a_mission_current_updates_the_progress_of_the_plan() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::MISSION_CURRENT(MISSION_CURRENT_DATA {
+            seq: 3,
+            total: 12,
+            mission_state: MissionState::MISSION_STATE_ACTIVE,
+            mission_mode: 1,
+            mission_id: 0x1234,
+            fence_id: 0x5678,
+            rally_points_id: 0x9abc,
+        });
+
+        aggregator.apply(&message);
+
+        let progress = aggregator
+            .telemetry()
+            .mission
+            .expect("the progress of the plan");
+
+        assert_eq!(progress.seq, 3);
+        assert_eq!(progress.total, 12);
+        assert_eq!(progress.state, PlanState::Active);
+        assert!(progress.in_mission_mode);
+        assert_eq!(progress.mission_id, 0x1234);
+        assert_eq!(progress.fence_id, 0x5678);
+        assert_eq!(progress.rally_id, 0x9abc);
+    }
+
+    #[test]
+    fn a_suspended_plan_is_not_in_mission_mode() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::MISSION_CURRENT(MISSION_CURRENT_DATA {
+            seq: 0,
+            total: 4,
+            mission_state: MissionState::MISSION_STATE_PAUSED,
+            // 2 means the vehicle is suspended: it cannot execute the plan.
+            mission_mode: 2,
+            ..Default::default()
+        });
+
+        aggregator.apply(&message);
+
+        let progress = aggregator
+            .telemetry()
+            .mission
+            .expect("the progress of the plan");
+
+        assert_eq!(progress.state, PlanState::Paused);
+        assert!(!progress.in_mission_mode);
+    }
+
+    #[test]
     fn an_unrelated_message_leaves_the_snapshot_alone() {
         let mut aggregator = TelemetryAggregator::new();
         let before = aggregator.telemetry().clone();
 
         // TIMESYNC is not a telemetry message.
-        aggregator.apply(&MavMessage::TIMESYNC(TIMESYNC_DATA { tc1: 1, ts1: 2 }));
+        aggregator.apply(&MavMessage::TIMESYNC(TIMESYNC_DATA {
+            tc1: 1,
+            ts1: 2,
+            ..Default::default()
+        }));
 
         assert_eq!(aggregator.telemetry().position, before.position);
         assert_eq!(aggregator.telemetry().battery, before.battery);

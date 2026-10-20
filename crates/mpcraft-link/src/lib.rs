@@ -12,6 +12,9 @@
 //! | [`telemetry`] | Decoding messages into the telemetry snapshot |
 //! | [`loss`] | Packet-loss accounting that distinguishes reordering from loss |
 //! | [`plaintext`] | Capturing the board's own output, which explains a silent link |
+//! | [`params`] | The parameter protocol |
+//! | [`mission`] | The mission protocol |
+//! | [`commands`] | The command protocol: arming, taking off, changing the mode |
 //!
 //! # The concurrency model
 //!
@@ -52,6 +55,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod commands;
 pub mod error;
 pub mod heartbeat;
 pub mod loss;
@@ -62,6 +66,7 @@ pub mod session;
 pub mod telemetry;
 pub mod vehicle;
 
+pub use commands::{CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
 pub use heartbeat::{Heartbeat, HeartbeatCollector, HeartbeatRejection};
 pub use loss::{LossAccountant, LossStats};

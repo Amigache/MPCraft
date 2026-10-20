@@ -32,6 +32,13 @@ pub enum LinkError {
     #[error("the vehicle rejected the request: {0}")]
     Rejected(String),
 
+    /// The vehicle refused a command.
+    ///
+    /// The command error carries the result the vehicle reported, so the caller can tell
+    /// a refusal from a vehicle that never answered.
+    #[error("the vehicle refused the command: {0}")]
+    Command(#[from] crate::commands::CommandError),
+
     /// The session has been closed.
     #[error("the session is closed")]
     SessionClosed,
@@ -58,7 +65,9 @@ impl LinkError {
             Self::Cancelled => "cancelled",
             Self::NoVehicle => "no_vehicle",
             Self::Protocol(_) => "protocol",
-            Self::Rejected(_) => "rejected_by_vehicle",
+            // A refused command is a refusal: the frontend already knows how to present
+            // one, and the message says which command it was.
+            Self::Rejected(_) | Self::Command(_) => "rejected_by_vehicle",
             Self::SessionClosed => "not_connected",
         }
     }

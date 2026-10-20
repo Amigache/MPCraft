@@ -361,6 +361,53 @@ impl Session {
         self.state.borrow().clone()
     }
 
+    /// Waits until a vehicle has identified itself.
+    ///
+    /// Some of the protocol depends on what the vehicle says about itself: the encoding
+    /// of its parameter values, for one, follows the autopilot it reports. A ground
+    /// station that reads a parameter before the heartbeat has arrived guesses the
+    /// encoding, and the guess reads the wrong numbers.
+    ///
+    /// Waiting for the vehicle to *appear* is not enough: it appears on the first frame
+    /// it sends, whatever that frame is, and a vehicle that sends telemetry before its
+    /// heartbeat is still unidentified at that point.
+    ///
+    /// The wait is bounded by the timeout, and the timeout also covers the operation that
+    /// follows, so an operation takes at most twice as long as the timeout it was given.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle does not identify itself within the timeout.
+    pub async fn wait_for_vehicle(
+        &self,
+        vehicle: VehicleId,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            // The autopilot is what the heartbeat carries, and it is what the parameter
+            // encoding depends on.
+            let identified = self
+                .state
+                .borrow()
+                .vehicles
+                .iter()
+                .any(|seen| seen.id == vehicle && seen.autopilot.is_some());
+
+            if identified {
+                return Ok(());
+            }
+
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(LinkError::Timeout(timeout));
+            }
+
+            tokio::time::sleep(remaining.min(Duration::from_millis(20))).await;
+        }
+    }
+
     /// The tunables this session was opened with.
     #[must_use]
     pub fn options(&self) -> SessionOptions {
@@ -529,6 +576,51 @@ impl Session {
             .await
     }
 
+    /// Sends a message and waits for the answer that completes the exchange.
+    ///
+    /// The matcher is registered before the message is written, because a vehicle on a
+    /// fast link can answer before the request has even left the session.
+    ///
+    /// The message is written once. If the vehicle has not answered by the middle of the
+    /// timeout it is written a second time: a lost frame is the common failure on a noisy
+    /// link, and one repeat is enough to tell a silent vehicle from a lost answer. The
+    /// repeat carries a higher `confirmation` number where the message has such a field,
+    /// so the vehicle can tell it apart from the first attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes or the timeout expires.
+    pub(crate) async fn exchange(
+        &self,
+        timeout: Duration,
+        matcher: impl Fn(&ReceivedMessage) -> bool + Send + 'static,
+        complete: impl Fn(&[ReceivedMessage]) -> bool + Send + 'static,
+        message: impl Fn(u8) -> MavMessage,
+    ) -> Result<Vec<ReceivedMessage>, LinkError> {
+        let mut collector = self.begin_collect(matcher, complete).await?;
+
+        // The budget is measured from the start of the exchange rather than turned into a
+        // deadline: `Instant + Duration` panics on an absurd duration, and a ground
+        // station that passes one must not take the process down with it.
+        let start = Instant::now();
+
+        let mut attempt = 0u8;
+        loop {
+            self.write_message(&message(attempt)).await?;
+            attempt += 1;
+
+            // The first attempt gets half of the budget, the retry the other half.
+            let share = if attempt == 1 { timeout / 2 } else { timeout };
+            let budget = share.saturating_sub(start.elapsed());
+
+            match collector.wait_for(budget).await {
+                Ok(messages) => return Ok(messages),
+                Err(LinkError::Timeout(_)) if attempt < 2 => continue,
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
     /// Stops the session.
     pub async fn stop(&self) {
         let _ = self.commands.send(Command::Stop).await;
@@ -576,11 +668,26 @@ impl Collector {
     ///
     /// Returns an error when the session closes before the collection is complete, or when
     /// the timeout expires.
-    pub async fn wait(self, timeout: Duration) -> Result<Vec<ReceivedMessage>, LinkError> {
-        match tokio::time::timeout(timeout, self.wait).await {
+    pub async fn wait(mut self, timeout: Duration) -> Result<Vec<ReceivedMessage>, LinkError> {
+        self.wait_for(timeout).await
+    }
+
+    /// Waits for the collection to complete, for at most the given budget.
+    ///
+    /// The collector is **not** consumed, so a transaction that re-sends its request can
+    /// keep waiting on the same matcher. Registering a fresh matcher for the retry would
+    /// leave a window in which the vehicle's answer arrives with nobody listening — the
+    /// very race the collector exists to prevent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes before the collection is complete, or when
+    /// the budget runs out.
+    pub async fn wait_for(&mut self, budget: Duration) -> Result<Vec<ReceivedMessage>, LinkError> {
+        match tokio::time::timeout(budget, &mut self.wait).await {
             Ok(Ok(result)) => result,
             Ok(Err(_)) => Err(LinkError::SessionClosed),
-            Err(_) => Err(LinkError::Timeout(timeout)),
+            Err(_) => Err(LinkError::Timeout(budget)),
         }
     }
 }
@@ -751,6 +858,10 @@ fn deliver(pending: &mut Vec<PendingRequest>, frames: &[Frame]) {
             Some(received) => {
                 let _ = request.respond.send(Ok(received));
             }
+            // The caller has given up — it timed out, or the session is shutting down.
+            // Keeping the matcher would leak it, and every message that arrives would be
+            // tested against a predicate nobody is waiting for.
+            None if request.respond.is_closed() => {}
             None => remaining.push(request),
         }
     }
@@ -784,6 +895,8 @@ fn deliver_collections(collections: &mut Vec<PendingCollection>, frames: &[Frame
 
         if (collection.complete)(&collection.messages) {
             let _ = collection.respond.send(Ok(collection.messages));
+        } else if collection.respond.is_closed() {
+            // The caller has given up. See `deliver` for why this matters.
         } else {
             remaining.push(collection);
         }

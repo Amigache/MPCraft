@@ -33,26 +33,28 @@
 //! A vehicle that advertises `MAV_PROTOCOL_CAPABILITY::MISSION_INT` wants the integer form
 //! of the items, whose coordinates are scaled by `1e7`. Mission Planner does the same.
 //!
-//! # A limitation of the generated dialect
+//! # The mission type
 //!
-//! `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and the generated bindings do not
-//! expose extension fields for the mission messages. A plain mission travels in the short
-//! form — `mission_type` is zero and is truncated away — so it works. The fence and rally
-//! plans carry a non-zero `mission_type`, so their frames are one byte longer than the
-//! bindings expect.
+//! `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field: it is absent from a MAVLink 1
+//! frame and truncated away when it is zero. A plain mission therefore travels in the short
+//! form, and the fence and rally plans travel with the extension present.
 //!
-//! The frames still *validate*: the checksum covers the whole payload, extension included.
-//! What is lost is the mission type itself, which the protocol cannot express through these
-//! bindings.
+//! The type is carried through the whole exchange — the request for the list, the request
+//! for each item, the announcement of an upload and each item of it — because a vehicle
+//! that is asked for the wrong type answers with the wrong plan. Upstream carries it the
+//! same way: `MAVLinkInterface.cs:3277` (`getWPCountAsync`), `:3409` (`getWPAsync`),
+//! `:3756` (`setWPTotalAsync`) and `:3986` (`setWPAsync`).
 
 use std::time::Duration;
 
 #[allow(deprecated)]
 use mpcraft_mavlink::dialect::messages::{
-    MISSION_COUNT_DATA, MISSION_REQUEST_DATA, MISSION_REQUEST_INT_DATA, MISSION_REQUEST_LIST_DATA,
+    MISSION_CLEAR_ALL_DATA, MISSION_COUNT_DATA, MISSION_REQUEST_DATA, MISSION_REQUEST_INT_DATA,
+    MISSION_REQUEST_LIST_DATA, MISSION_SET_CURRENT_DATA,
 };
-use mpcraft_mavlink::{MavMessage, MavMissionResult, MavProtocolCapability};
+use mpcraft_mavlink::{MavMessage, MavMissionResult, MavMissionType, MavProtocolCapability};
 use mpcraft_mission::{MissionItem, MissionType, Plan};
+use mpcraft_vehicle::MissionProgress;
 
 use crate::error::LinkError;
 use crate::session::{ReceivedMessage, Session};
@@ -62,10 +64,16 @@ use crate::vehicle::VehicleId;
 pub const MISSION_ITEM_ID: u32 = 39;
 /// The message id of `MISSION_REQUEST`.
 pub const MISSION_REQUEST_ID: u32 = 40;
+/// The message id of `MISSION_SET_CURRENT`.
+pub const MISSION_SET_CURRENT_ID: u32 = 41;
+/// The message id of `MISSION_CURRENT`.
+pub const MISSION_CURRENT_ID: u32 = 42;
 /// The message id of `MISSION_REQUEST_LIST`.
 pub const MISSION_REQUEST_LIST_ID: u32 = 43;
 /// The message id of `MISSION_COUNT`.
 pub const MISSION_COUNT_ID: u32 = 44;
+/// The message id of `MISSION_CLEAR_ALL`.
+pub const MISSION_CLEAR_ALL_ID: u32 = 45;
 /// The message id of `MISSION_ACK`.
 pub const MISSION_ACK_ID: u32 = 47;
 /// The message id of `MISSION_REQUEST_INT`.
@@ -75,6 +83,9 @@ pub const MISSION_ITEM_INT_ID: u32 = 73;
 
 /// How long to wait for one item.
 pub const DEFAULT_ITEM_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// How long to wait for the vehicle to confirm a change to the plan.
+pub const DEFAULT_PLAN_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// The reasons a mission operation can fail.
 #[derive(Debug, Clone, PartialEq)]
@@ -130,7 +141,8 @@ impl Session {
     /// Downloads a plan from the vehicle.
     ///
     /// The vehicle reports how many items it has, and the items are then requested one by
-    /// one.
+    /// one. The mission type travels with every message: a vehicle that is asked for the
+    /// wrong type answers with the wrong plan.
     ///
     /// # Errors
     ///
@@ -142,12 +154,19 @@ impl Session {
         mission_type: MissionType,
         timeout: Duration,
     ) -> Result<Plan, LinkError> {
-        let _ = mission_type;
-
-        // The collector is registered before the request is sent.
+        // The collector is registered before the request is sent. The count has to name
+        // the plan that was asked for: a vehicle that answers with the count of another
+        // plan would send the wrong items.
         let collector = self
             .begin_collect(
-                |message| message.message_id == MISSION_COUNT_ID,
+                move |message| {
+                    message.message_id == MISSION_COUNT_ID
+                        && matches!(
+                            &message.message,
+                            MavMessage::MISSION_COUNT(count)
+                                if count.mission_type == mission_type_of(mission_type)
+                        )
+                },
                 |messages| !messages.is_empty(),
             )
             .await?;
@@ -156,6 +175,7 @@ impl Session {
             MISSION_REQUEST_LIST_DATA {
                 target_system: vehicle.system_id,
                 target_component: vehicle.component_id,
+                mission_type: mission_type_of(mission_type),
             },
         ))
         .await?;
@@ -172,7 +192,7 @@ impl Session {
 
         for seq in 0..count {
             let item = self
-                .request_mission_item(vehicle, seq, use_int, timeout)
+                .request_mission_item(vehicle, seq, mission_type, use_int, timeout)
                 .await?;
             plan.push(item);
         }
@@ -216,6 +236,8 @@ impl Session {
             count: plan.len() as u16,
             target_system: vehicle.system_id,
             target_component: vehicle.component_id,
+            mission_type: mission_type_of(plan.mission_type),
+            opaque_id: 0,
         }))
         .await?;
 
@@ -270,9 +292,9 @@ impl Session {
 
                     #[allow(deprecated)]
                     let item_message = if use_int {
-                        MavMessage::MISSION_ITEM_INT(item.to_int_message(seq))
+                        MavMessage::MISSION_ITEM_INT(item.to_int_message(seq, plan.mission_type))
                     } else {
-                        MavMessage::MISSION_ITEM(item.to_float_message(seq))
+                        MavMessage::MISSION_ITEM(item.to_float_message(seq, plan.mission_type))
                     };
 
                     self.write_message(&item_message).await?;
@@ -293,12 +315,13 @@ impl Session {
         &self,
         vehicle: VehicleId,
         seq: u16,
+        mission_type: MissionType,
         use_int: bool,
         timeout: Duration,
     ) -> Result<MissionItem, LinkError> {
         let collector = self
             .begin_collect(
-                |message| {
+                move |message| {
                     message.message_id == MISSION_ITEM_ID
                         || message.message_id == MISSION_ITEM_INT_ID
                 },
@@ -312,12 +335,14 @@ impl Session {
                 seq,
                 target_system: vehicle.system_id,
                 target_component: vehicle.component_id,
+                mission_type: mission_type_of(mission_type),
             })
         } else {
             MavMessage::MISSION_REQUEST(MISSION_REQUEST_DATA {
                 seq,
                 target_system: vehicle.system_id,
                 target_component: vehicle.component_id,
+                mission_type: mission_type_of(mission_type),
             })
         };
 
@@ -354,6 +379,152 @@ impl Session {
                 ),
             )),
         }
+    }
+
+    /// Makes an item of the plan the one the vehicle is executing.
+    ///
+    /// The vehicle answers with `MISSION_CURRENT`, which is also how it reports the
+    /// progress of the plan. The answer has to name the item that was asked for: the
+    /// vehicle streams `MISSION_CURRENT` continuously, so an answer that names a
+    /// different item says nothing about this request.
+    ///
+    /// Upstream waits for any `MISSION_CURRENT` (`MAVLinkInterface.cs:2449`); waiting for
+    /// the one that names the item is the same exchange with a sharper answer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle does not answer in time.
+    // `MISSION_SET_CURRENT` is deprecated in favour of `MAV_CMD_DO_SET_MISSION_CURRENT`,
+    // but it is the message every autopilot answers with `MISSION_CURRENT`, which is what
+    // this operation waits for.
+    #[allow(deprecated)]
+    pub async fn set_current_item(
+        &self,
+        vehicle: VehicleId,
+        seq: u16,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        self.exchange(
+            timeout,
+            move |message| {
+                message.message_id == MISSION_CURRENT_ID
+                    && message.system_id == vehicle.system_id
+                    && message.component_id == vehicle.component_id
+                    && matches!(
+                        &message.message,
+                        MavMessage::MISSION_CURRENT(current) if current.seq == seq
+                    )
+            },
+            |messages| !messages.is_empty(),
+            move |_attempt| {
+                MavMessage::MISSION_SET_CURRENT(MISSION_SET_CURRENT_DATA {
+                    seq,
+                    target_system: vehicle.system_id,
+                    target_component: vehicle.component_id,
+                })
+            },
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Clears a plan from the vehicle.
+    ///
+    /// The vehicle answers with `MISSION_ACK`, which says whether it accepted. The
+    /// acknowledgement has to name the plan that was cleared: a link can carry a mission
+    /// transfer and a fence transfer at once, and their acknowledgements look the same
+    /// apart from the type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the plan or does not answer in time.
+    pub async fn clear_mission(
+        &self,
+        vehicle: VehicleId,
+        mission_type: MissionType,
+        timeout: Duration,
+    ) -> Result<MavMissionResult, LinkError> {
+        let collected = self
+            .exchange(
+                timeout,
+                move |message| {
+                    message.message_id == MISSION_ACK_ID
+                        && message.system_id == vehicle.system_id
+                        && message.component_id == vehicle.component_id
+                        && matches!(
+                            &message.message,
+                            MavMessage::MISSION_ACK(ack)
+                                if ack.mission_type == mission_type_of(mission_type)
+                        )
+                },
+                |messages| !messages.is_empty(),
+                move |_attempt| {
+                    MavMessage::MISSION_CLEAR_ALL(MISSION_CLEAR_ALL_DATA {
+                        target_system: vehicle.system_id,
+                        target_component: vehicle.component_id,
+                        mission_type: mission_type_of(mission_type),
+                    })
+                },
+            )
+            .await?;
+
+        let result = collected
+            .first()
+            .and_then(mission_ack_of)
+            .ok_or(LinkError::Protocol(
+                mpcraft_mavlink::ProtocolError::Malformed("the acknowledgement carried no result"),
+            ))?;
+
+        if result != MavMissionResult::MAV_MISSION_ACCEPTED {
+            return Err(LinkError::Rejected(
+                MissionError::Rejected { result }.to_string(),
+            ));
+        }
+
+        Ok(result)
+    }
+
+    /// Makes the vehicle jump to an item of the plan.
+    ///
+    /// The command is `MAV_CMD_DO_JUMP`, whose first parameter is the sequence number of
+    /// the item to jump to. The vehicle acknowledges it like any other command.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn jump_to_item(
+        &self,
+        vehicle: VehicleId,
+        seq: u16,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        self.command_long(
+            vehicle,
+            mpcraft_mavlink::MavCmd::MAV_CMD_DO_JUMP,
+            [seq as f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            timeout,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// The state of the plan on the vehicle.
+    ///
+    /// The vehicle streams `MISSION_CURRENT` whenever the plan changes, and the session
+    /// keeps the last one. `None` means the vehicle has not reported it yet.
+    #[must_use]
+    pub fn mission_current(&self) -> Option<MissionProgress> {
+        self.state().telemetry.mission
+    }
+}
+
+/// The wire value of a mission type.
+fn mission_type_of(mission_type: MissionType) -> MavMissionType {
+    match mission_type {
+        MissionType::Mission => MavMissionType::MAV_MISSION_TYPE_MISSION,
+        MissionType::Fence => MavMissionType::MAV_MISSION_TYPE_FENCE,
+        MissionType::Rally => MavMissionType::MAV_MISSION_TYPE_RALLY,
     }
 }
 

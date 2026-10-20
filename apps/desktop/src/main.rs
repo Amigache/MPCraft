@@ -10,7 +10,8 @@
 #![warn(missing_docs)]
 
 use mpcraft_app::{
-    AppState, CommandResult, ConnectRequest, ConnectResponse, ConnectionStatus, SessionState,
+    AppState, CommandResult, ConnectRequest, ConnectResponse, ConnectionStatus, LinkSnapshot,
+    SessionState,
 };
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -60,11 +61,41 @@ async fn disconnect(app: AppHandle, state: State<'_, AppState>) -> CommandResult
 /// Never fails.
 #[tauri::command]
 async fn connection_status(state: State<'_, AppState>) -> CommandResult<ConnectionStatus> {
-    Ok(match state.supervisor.state() {
-        Some(snapshot) if snapshot.connected => ConnectionStatus::Connected,
-        Some(_) => ConnectionStatus::Connecting,
-        None => ConnectionStatus::Disconnected,
-    })
+    Ok(state.supervisor.status())
+}
+
+/// The connection profiles the user has saved.
+///
+/// The fields are `name`, `target` and `autoConnect`, like every other payload the shell
+/// emits.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the profiles cannot be read.
+#[tauri::command]
+async fn list_connection_profiles(state: State<'_, AppState>) -> CommandResult<Vec<ProfileEvent>> {
+    let profiles = state.connection_profiles()?;
+
+    Ok(profiles
+        .iter()
+        .map(|profile| ProfileEvent {
+            name: profile.name.clone(),
+            target: profile.target.clone(),
+            auto_connect: profile.auto_connect,
+        })
+        .collect())
+}
+
+/// A connection profile, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileEvent {
+    /// The name the profile is listed under.
+    name: String,
+    /// The connection target.
+    target: String,
+    /// Whether the profile is opened when the application starts.
+    auto_connect: bool,
 }
 
 /// The payload of the state event.
@@ -167,57 +198,66 @@ struct LossEvent {
     lost: u64,
 }
 
-impl From<&SessionState> for StateEvent {
-    fn from(state: &SessionState) -> Self {
-        let telemetry = &state.telemetry;
+impl From<&LinkSnapshot> for StateEvent {
+    fn from(snapshot: &LinkSnapshot) -> Self {
+        let state = snapshot.session.as_ref();
 
         Self {
-            status: if state.connected {
-                ConnectionStatus::Connected
-            } else {
-                ConnectionStatus::Disconnected
-            },
+            status: snapshot.status,
             vehicles: state
-                .vehicles
-                .iter()
-                .map(|vehicle| VehicleEvent {
-                    system_id: vehicle.id.system_id,
-                    component_id: vehicle.id.component_id,
-                    kind: vehicle.kind.map(|kind| kind.as_str().to_owned()),
+                .map(|state| {
+                    state
+                        .vehicles
+                        .iter()
+                        .map(|vehicle| VehicleEvent {
+                            system_id: vehicle.id.system_id,
+                            component_id: vehicle.id.component_id,
+                            kind: vehicle.kind.map(|kind| kind.as_str().to_owned()),
+                        })
+                        .collect()
                 })
-                .collect(),
-            telemetry: TelemetryEvent {
-                position: telemetry.position.map(|position| PositionEvent {
-                    lat: position.lat,
-                    lng: position.lng,
-                    alt: position.alt,
-                }),
-                attitude: telemetry.attitude.map(|attitude| AttitudeEvent {
-                    roll: attitude.roll.to_degrees(),
-                    pitch: attitude.pitch.to_degrees(),
-                    yaw: attitude.yaw.to_degrees(),
-                }),
-                velocity: telemetry.velocity.as_ref().map(|velocity| VelocityEvent {
-                    ground_speed: velocity.ground_speed,
-                }),
-                battery: telemetry.battery.map(|battery| BatteryEvent {
-                    voltage: battery.voltage,
-                    current: battery.current,
-                    remaining: battery.remaining,
-                }),
-                mode: telemetry.mode.as_ref().map(|mode| {
-                    mode.name
-                        .clone()
-                        .unwrap_or_else(|| format!("mode {}", mode.custom_mode))
-                }),
-                armed: telemetry.armed,
-                distance_to_home: telemetry.distance_to_home,
-            },
-            loss: LossEvent {
-                received: state.loss.packets_received,
-                lost: state.loss.packets_lost,
-            },
+                .unwrap_or_default(),
+            telemetry: state.map(telemetry_event).unwrap_or_default(),
+            loss: state
+                .map(|state| LossEvent {
+                    received: state.loss.packets_received,
+                    lost: state.loss.packets_lost,
+                })
+                .unwrap_or_default(),
         }
+    }
+}
+
+/// The telemetry of a session, as the interface sees it.
+fn telemetry_event(state: &SessionState) -> TelemetryEvent {
+    let telemetry = &state.telemetry;
+
+    TelemetryEvent {
+        position: telemetry.position.map(|position| PositionEvent {
+            lat: position.lat,
+            lng: position.lng,
+            alt: position.alt,
+        }),
+        attitude: telemetry.attitude.map(|attitude| AttitudeEvent {
+            roll: attitude.roll.to_degrees(),
+            pitch: attitude.pitch.to_degrees(),
+            yaw: attitude.yaw.to_degrees(),
+        }),
+        velocity: telemetry.velocity.as_ref().map(|velocity| VelocityEvent {
+            ground_speed: velocity.ground_speed,
+        }),
+        battery: telemetry.battery.map(|battery| BatteryEvent {
+            voltage: battery.voltage,
+            current: battery.current,
+            remaining: battery.remaining,
+        }),
+        mode: telemetry.mode.as_ref().map(|mode| {
+            mode.name
+                .clone()
+                .unwrap_or_else(|| format!("mode {}", mode.custom_mode))
+        }),
+        armed: telemetry.armed,
+        distance_to_home: telemetry.distance_to_home,
     }
 }
 
@@ -236,7 +276,10 @@ impl StateEvent {
 
 impl Default for StateEvent {
     fn default() -> Self {
-        Self::from(&SessionState::disconnected())
+        Self::from(&LinkSnapshot {
+            status: ConnectionStatus::Disconnected,
+            session: None,
+        })
     }
 }
 
@@ -260,19 +303,33 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             connect,
             disconnect,
-            connection_status
+            connection_status,
+            list_connection_profiles
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("MPCraft");
             }
 
-            // Connect to the vehicle the command line asked for, once the window is up.
-            if let Some(target) = target.clone() {
+            // The state is cloned rather than borrowed: the borrow of the application
+            // cannot outlive the setup closure.
+            let state = app.state::<AppState>().inner().clone();
+
+            // The saved profiles reach the supervisor too: a profile marked for automatic
+            // connection is opened when the command line does not ask for a link.
+            let profiles = match state.connection_profiles() {
+                Ok(profiles) => profiles,
+                Err(error) => {
+                    tracing::warn!("could not read the connection profiles: {error}");
+                    Vec::new()
+                }
+            };
+
+            let target = mpcraft_app::launch_target(target.as_deref(), &profiles);
+
+            // Connect to the vehicle the launch asked for, once the window is up.
+            if let Some(target) = target {
                 let handle = app.handle().clone();
-                // The state is cloned rather than borrowed: the borrow of the application
-                // cannot outlive the setup closure.
-                let state = app.state::<AppState>().inner().clone();
 
                 tauri::async_runtime::spawn(async move {
                     let emitter = handle.clone();
@@ -326,4 +383,29 @@ fn target_from_arguments() -> Option<String> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_snapshot_without_a_session_has_no_vehicles() {
+        let event = StateEvent::default();
+
+        assert_eq!(event.status, ConnectionStatus::Disconnected);
+        assert!(event.vehicles.is_empty());
+        assert!(event.telemetry.position.is_none());
+    }
+
+    #[test]
+    fn the_state_of_a_link_is_carried_by_the_event() {
+        let event = StateEvent::from(&LinkSnapshot {
+            status: ConnectionStatus::Reconnecting,
+            session: None,
+        });
+
+        assert_eq!(event.status, ConnectionStatus::Reconnecting);
+        assert_eq!(event.status_label(), "reconectando");
+    }
 }

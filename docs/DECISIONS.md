@@ -202,3 +202,33 @@ risks subtle incompatibilities and provides no benefit.
 
 **Consequences.** MPCraft consumes the same ecosystem artefacts and stays compatible with the
 wider ArduPilot tooling.
+
+---
+
+## ADR-011 — Let the generated bindings carry the MAVLink 2 extension fields
+
+**Status:** Accepted
+
+**Context.** `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field: it is absent from a MAVLink 1
+frame and truncated away when it is zero. The upstream `mavlink` Rust crate generates the
+bindings with a `mav2-message-extensions` feature, and MPCraft was built without it. The
+consequence was that a fence or a rally plan — whose `mission_type` is not zero — could not be
+expressed at all, and the parity matrix carried three rows as permanently partial.
+
+The obvious fix, hand-rolling the extension bytes in the encoder, was the wrong one: it would
+mean re-implementing the truncation rule, the checksum coverage and the length calculation
+that the protocol already specifies, and it would do so in the one place where a mistake is
+silent.
+
+**Decision.** Enable the `mav2-message-extensions` feature and use the generated fields.
+
+**Rationale.** The bindings were never the limitation; the feature flag was. With it on, the
+generated `ser` truncates the extension bytes at the first zero for MAVLink 2 and omits them
+for MAVLink 1, and the frame length follows the truncated length — the framing layer needs no
+change at all. The plan type now reaches the wire, the fence and rally plans become
+expressible, and the rule lives in one place: the protocol specification.
+
+**Consequences.** The three partial rows of the parity matrix become achievable. The
+`MissionType` reaches the vehicle on `MISSION_REQUEST_LIST`, `MISSION_COUNT` and every item,
+so a download knows which plan it is reading and an upload declares which one it is writing.
+

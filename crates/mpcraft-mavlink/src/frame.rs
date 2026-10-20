@@ -649,6 +649,9 @@ impl From<ProtocolError> for String {
 mod tests {
     use super::*;
 
+    // `MavMessage::parse` is a method of the upstream `Message` trait.
+    use mavlink::Message as _;
+
     #[test]
     fn crc_matches_specification() {
         // Folding a zero CRC_EXTRA seed into the initial value 0xFFFF yields 0x0F87. The
@@ -915,6 +918,142 @@ mod tests {
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].version, MavlinkVersion::V1);
         assert_eq!(frames[0].sequence, 2);
+        assert!(FrameParser::verify_crc(&frames[0]).is_ok());
+    }
+
+    /// A `MISSION_COUNT` whose extensions are all zero.
+    ///
+    /// A plain mission travels in the short form: the extension bytes are zero and are
+    /// truncated away, so the payload is only the four bytes of the short form.
+    fn plain_mission_count() -> crate::dialect::MavMessage {
+        crate::dialect::MavMessage::MISSION_COUNT(crate::dialect::messages::MISSION_COUNT_DATA {
+            count: 3,
+            target_system: 1,
+            target_component: 1,
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn an_extension_field_survives_the_frame() {
+        // The fence and the rally plans travel with a non-zero `MAV_MISSION_TYPE`, and that
+        // field is a MAVLink 2 extension. It has to arrive intact.
+        let message = crate::dialect::MavMessage::MISSION_COUNT(
+            crate::dialect::messages::MISSION_COUNT_DATA {
+                count: 5,
+                target_system: 1,
+                target_component: 1,
+                mission_type: crate::dialect::MavMissionType::MAV_MISSION_TYPE_FENCE,
+                opaque_id: 0x1234,
+            },
+        );
+
+        let header = MavHeader {
+            system_id: 1,
+            component_id: 1,
+            sequence: 4,
+        };
+
+        let bytes = encode_v2(&message, header);
+
+        let mut parser = FrameParser::new();
+        let mut frames = Vec::new();
+        parser.feed(&bytes, &mut frames).unwrap();
+
+        assert_eq!(frames.len(), 1);
+        assert!(FrameParser::verify_crc(&frames[0]).is_ok());
+
+        let decoded = crate::dialect::MavMessage::parse(
+            MavlinkVersion::V2,
+            frames[0].message_id,
+            &frames[0].payload,
+        )
+        .expect("the frame should decode");
+
+        match decoded {
+            crate::dialect::MavMessage::MISSION_COUNT(count) => {
+                assert_eq!(count.count, 5);
+                assert_eq!(
+                    count.mission_type,
+                    crate::dialect::MavMissionType::MAV_MISSION_TYPE_FENCE
+                );
+                assert_eq!(count.opaque_id, 0x1234);
+            }
+            other => panic!("expected a mission count, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_extension_bytes_are_truncated_at_the_first_zero() {
+        // A plan whose extensions are zero travels in the short form: the payload is the
+        // four bytes of the short form and no more.
+        let header = MavHeader {
+            system_id: 1,
+            component_id: 1,
+            sequence: 0,
+        };
+
+        let bytes = encode_v2(&plain_mission_count(), header);
+
+        // The length is the second byte of the frame.
+        assert_eq!(bytes[1], 4, "the short form is four bytes long");
+
+        let mut parser = FrameParser::new();
+        let mut frames = Vec::new();
+        parser.feed(&bytes, &mut frames).unwrap();
+
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].payload.len(), 4);
+
+        // The plan is still a plain mission once it arrives.
+        let decoded = crate::dialect::MavMessage::parse(
+            MavlinkVersion::V2,
+            frames[0].message_id,
+            &frames[0].payload,
+        )
+        .expect("the frame should decode");
+
+        match decoded {
+            crate::dialect::MavMessage::MISSION_COUNT(count) => {
+                assert_eq!(count.count, 3);
+                assert_eq!(
+                    count.mission_type,
+                    crate::dialect::MavMissionType::MAV_MISSION_TYPE_MISSION
+                );
+            }
+            other => panic!("expected a mission count, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_mavlink1_frame_carries_no_extensions() {
+        // MAVLink 1 has no extension fields, so a fence plan cannot travel in it. The
+        // message still encodes, and the type is simply absent.
+        let message = crate::dialect::MavMessage::MISSION_COUNT(
+            crate::dialect::messages::MISSION_COUNT_DATA {
+                count: 2,
+                target_system: 1,
+                target_component: 1,
+                mission_type: crate::dialect::MavMissionType::MAV_MISSION_TYPE_RALLY,
+                ..Default::default()
+            },
+        );
+
+        let header = MavHeader {
+            system_id: 1,
+            component_id: 1,
+            sequence: 0,
+        };
+
+        let bytes = encode_v1(&message, header);
+
+        assert_eq!(bytes[1], 4, "the short form is four bytes long");
+
+        let mut parser = FrameParser::new();
+        let mut frames = Vec::new();
+        parser.feed(&bytes, &mut frames).unwrap();
+
+        assert_eq!(frames.len(), 1);
         assert!(FrameParser::verify_crc(&frames[0]).is_ok());
     }
 }

@@ -22,7 +22,8 @@ use std::time::Duration;
 
 use mpcraft_link::{Session, SessionOptions};
 use mpcraft_mavlink::dialect::messages::{
-    ATTITUDE_DATA, GLOBAL_POSITION_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA, SYS_STATUS_DATA,
+    MavSysStatusSensorExtended, ATTITUDE_DATA, GLOBAL_POSITION_INT_DATA, HEARTBEAT_DATA,
+    HOME_POSITION_DATA, SYS_STATUS_DATA,
 };
 use mpcraft_mavlink::frame::{encode_v2, FrameParser, MavHeader};
 use mpcraft_mavlink::{
@@ -227,11 +228,19 @@ async fn the_fixture_decodes_into_telemetry() {
 ///
 /// The generated default sets the first bit of each sensor mask; the generator writes zeros.
 /// Both are valid, but the two implementations must be given the same input to be compared.
+///
+/// The *extended* sensor masks are MAVLink 2 extension fields. They are empty here, so the
+/// encoder truncates them away and the frame is the short form the generator writes. A
+/// vehicle that reports extended sensors sends the longer form, which the parser reads
+/// either way.
 fn sys_status() -> MavMessage {
     MavMessage::SYS_STATUS(SYS_STATUS_DATA {
         onboard_control_sensors_present: MavSysStatusSensor::empty(),
         onboard_control_sensors_enabled: MavSysStatusSensor::empty(),
         onboard_control_sensors_health: MavSysStatusSensor::empty(),
+        onboard_control_sensors_present_extended: MavSysStatusSensorExtended::empty(),
+        onboard_control_sensors_enabled_extended: MavSysStatusSensorExtended::empty(),
+        onboard_control_sensors_health_extended: MavSysStatusSensorExtended::empty(),
         voltage_battery: 12_340,
         current_battery: -1_500,
         battery_remaining: 87,

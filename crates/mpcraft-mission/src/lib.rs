@@ -10,6 +10,15 @@
 //! editor needs and the wire does not. The conversions to and from the MAVLink messages live
 //! in [`wire`].
 //!
+//! # The file formats
+//!
+//! A plan travels between ground stations in one of two formats:
+//!
+//! * [`qgc`] — the QGC `.waypoints` format, which keeps everything: the command, the frame,
+//!   the parameters and the position.
+//! * [`kml`] — KML, which is how a plan is shared with the rest of the world. It carries the
+//!   position and the command, and nothing else.
+//!
 //! # Round-trip fidelity
 //!
 //! A plan downloaded from a vehicle and uploaded back must be byte-identical on the wire.
@@ -23,9 +32,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use mpcraft_mavlink::MavCmd;
 use serde::{Deserialize, Serialize};
 
+pub mod kml;
 pub mod mavcmd;
+pub mod qgc;
 pub mod wire;
 
+pub use kml::{read_kml, write_kml, KmlError};
+pub use qgc::{read_waypoints, write_waypoints, WaypointError};
 pub use wire::MissionType;
 
 /// A stable identity for a mission item.

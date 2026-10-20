@@ -142,6 +142,10 @@ impl Session {
         vehicle: VehicleId,
         timeout: Duration,
     ) -> Result<ParameterStore, LinkError> {
+        // The encoding of the values follows the autopilot the vehicle reports, so the
+        // vehicle has to have introduced itself before the first value is decoded.
+        self.wait_for_vehicle(vehicle, timeout).await?;
+
         let request = MavMessage::PARAM_REQUEST_LIST(PARAM_REQUEST_LIST_DATA {
             target_system: vehicle.system_id,
             target_component: vehicle.component_id,
@@ -188,6 +192,9 @@ impl Session {
         name: &str,
         timeout: Duration,
     ) -> Result<Parameter, LinkError> {
+        // The encoding of the value follows the autopilot the vehicle reports.
+        self.wait_for_vehicle(vehicle, timeout).await?;
+
         let request = MavMessage::PARAM_REQUEST_READ(PARAM_REQUEST_READ_DATA {
             param_index: -1,
             target_system: vehicle.system_id,
@@ -255,6 +262,9 @@ impl Session {
         value: f64,
         timeout: Duration,
     ) -> Result<Parameter, LinkError> {
+        // The encoding of the value follows the autopilot the vehicle reports.
+        self.wait_for_vehicle(vehicle, timeout).await?;
+
         let encoding = self.param_encoding();
         let reported_type = self
             .state()

@@ -1,0 +1,410 @@
+//! Vehicle commands.
+//!
+//! The protocol is documented at <https://mavlink.io/en/services/command.html>. A command
+//! is a `COMMAND_LONG` or a `COMMAND_INT` message, and the vehicle answers with a
+//! `COMMAND_ACK` that carries the outcome.
+//!
+//! # The acknowledgement is the answer
+//!
+//! Upstream's `doCommand` returns a `bool`, and the caller cannot tell a refused command
+//! from a vehicle that never answered. MPCraft keeps the two apart: a refusal is an error
+//! that carries the [`MavResult`] the vehicle reported, and silence is a timeout.
+//!
+//! ```text
+//! GCS  ────COMMAND_LONG────▶  vehicle
+//! GCS  ◀────COMMAND_ACK────  vehicle      (the result the vehicle reported)
+//! ```
+//!
+//! # An acknowledgement for another command is ignored
+//!
+//! A link can carry several vehicles, and a vehicle can be executing a command that
+//! another ground station sent. An acknowledgement whose command is not the one that was
+//! sent is therefore **ignored**, and the transaction keeps waiting — the same choice
+//! upstream makes at `MAVLinkInterface.cs:2805`. The acknowledgement is matched on the
+//! sending vehicle as well as on the command, so a transaction never steals the answer of
+//! another vehicle.
+//!
+//! # `MAV_RESULT_IN_PROGRESS`
+//!
+//! A command that takes a while — a calibration, a reboot — is acknowledged with
+//! `MAV_RESULT_IN_PROGRESS` first, and with the final result later. The transaction waits
+//! for the final result; the interim one is not an answer.
+
+use std::time::Duration;
+
+// `SET_MODE` is deprecated in favour of `MAV_CMD_DO_SET_MODE`, but the legacy message
+// carries the custom mode exactly — as a `u32`, without the float rounding the command
+// suffers — and every autopilot still understands it. Both are sent.
+#[allow(deprecated)]
+use mpcraft_mavlink::dialect::messages::{COMMAND_INT_DATA, COMMAND_LONG_DATA, SET_MODE_DATA};
+use mpcraft_mavlink::{MavCmd, MavFrame, MavMessage, MavModeFlag, MavResult};
+
+use crate::error::LinkError;
+use crate::session::{ReceivedMessage, Session};
+use crate::vehicle::VehicleId;
+
+/// The message id of `COMMAND_LONG`.
+pub const COMMAND_LONG_ID: u32 = 76;
+
+/// The message id of `COMMAND_INT`.
+pub const COMMAND_INT_ID: u32 = 75;
+
+/// The message id of `COMMAND_ACK`.
+pub const COMMAND_ACK_ID: u32 = 77;
+
+/// The message id of `SET_MODE`.
+pub const SET_MODE_ID: u32 = 11;
+
+/// How long to wait for the acknowledgement of a command.
+///
+/// Upstream waits two seconds for a command to be acknowledged.
+pub const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// How long to wait for the acknowledgement of an arming command.
+///
+/// Arming can trigger a compass or accelerometer calibration, and the vehicle does not
+/// answer until that is done. Upstream waits ten seconds for this one command.
+pub const DEFAULT_ARM_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The reasons a command can fail.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandError {
+    /// The vehicle understood the command and refused it.
+    ///
+    /// The result says why: `MAV_RESULT_DENIED` for a command that is not allowed right
+    /// now, `MAV_RESULT_UNSUPPORTED` for one the vehicle does not implement.
+    Refused {
+        /// The command that was sent.
+        command: MavCmd,
+        /// The result the vehicle reported.
+        result: MavResult,
+    },
+}
+
+impl std::fmt::Display for CommandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Refused { command, result } => {
+                write!(f, "the vehicle refused {command:?}: {result:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CommandError {}
+
+/// The command operations of a session.
+impl Session {
+    /// Arms a vehicle.
+    ///
+    /// The vehicle refuses the command when it is not ready to fly — no GPS lock, a
+    /// failed pre-arm check — and says so in the acknowledgement.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn arm(&self, vehicle: VehicleId, timeout: Duration) -> Result<(), LinkError> {
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_COMPONENT_ARM_DISARM,
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            timeout,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// Disarms a vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn disarm(&self, vehicle: VehicleId, timeout: Duration) -> Result<(), LinkError> {
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_COMPONENT_ARM_DISARM,
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            timeout,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// Takes off to the given altitude.
+    ///
+    /// The altitude is in metres, relative to the home position.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn takeoff(
+        &self,
+        vehicle: VehicleId,
+        altitude: f32,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_NAV_TAKEOFF,
+            [altitude, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            timeout,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// Changes the flight mode of a vehicle.
+    ///
+    /// Two messages go out, and both are needed:
+    ///
+    /// * `SET_MODE` carries the custom mode exactly, as the legacy protocol requires.
+    /// * `COMMAND_LONG` with `MAV_CMD_DO_SET_MODE` is what the vehicle **acknowledges** —
+    ///   the legacy message has no answer of its own.
+    ///
+    /// Upstream sends the same two messages (`MAVLinkInterface.cs:4620`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn set_mode(
+        &self,
+        vehicle: VehicleId,
+        custom_mode: u32,
+        base_mode: MavModeFlag,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        #[allow(deprecated)]
+        self.write_message(&MavMessage::SET_MODE(SET_MODE_DATA {
+            custom_mode,
+            target_system: vehicle.system_id,
+            base_mode,
+        }))
+        .await?;
+
+        // The custom mode travels as a float parameter, which is what the protocol
+        // allows; the `SET_MODE` message above carries the exact value.
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_DO_SET_MODE,
+            [
+                base_mode.bits() as f32,
+                custom_mode as f32,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ],
+            timeout,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// Executes a command with floating-point parameters.
+    ///
+    /// This is the executor the other operations are built on. The vehicle's answer is
+    /// returned: `MAV_RESULT_ACCEPTED` when the command was carried out.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command, or when it does not answer
+    /// in time.
+    pub async fn command_long(
+        &self,
+        vehicle: VehicleId,
+        command: MavCmd,
+        params: [f32; 7],
+        timeout: Duration,
+    ) -> Result<MavResult, LinkError> {
+        self.execute_command(vehicle, command, timeout, |confirmation| {
+            MavMessage::COMMAND_LONG(COMMAND_LONG_DATA {
+                param1: params[0],
+                param2: params[1],
+                param3: params[2],
+                param4: params[3],
+                param5: params[4],
+                param6: params[5],
+                param7: params[6],
+                command,
+                target_system: vehicle.system_id,
+                target_component: vehicle.component_id,
+                confirmation,
+            })
+        })
+        .await
+    }
+
+    /// Executes a command with integer parameters.
+    ///
+    /// The integer form exists for the commands whose position is scaled by `1e7` — a
+    /// latitude and a longitude that would lose their precision as floats. The seven
+    /// parameters map onto the message as they do in the protocol: the first four are the
+    /// generic parameters, the last three are X, Y and Z.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command, or when it does not answer
+    /// in time.
+    pub async fn command_int(
+        &self,
+        vehicle: VehicleId,
+        command: MavCmd,
+        params: [i32; 7],
+        timeout: Duration,
+    ) -> Result<MavResult, LinkError> {
+        self.execute_command(vehicle, command, timeout, |_confirmation| {
+            MavMessage::COMMAND_INT(COMMAND_INT_DATA {
+                param1: params[0] as f32,
+                param2: params[1] as f32,
+                param3: params[2] as f32,
+                param4: params[3] as f32,
+                x: params[4],
+                y: params[5],
+                z: params[6] as f32,
+                command,
+                target_system: vehicle.system_id,
+                target_component: vehicle.component_id,
+                frame: MavFrame::MAV_FRAME_GLOBAL,
+                current: 0,
+                autocontinue: 0,
+            })
+        })
+        .await
+    }
+
+    /// Sends a command and waits for the acknowledgement that answers it.
+    async fn execute_command(
+        &self,
+        vehicle: VehicleId,
+        command: MavCmd,
+        timeout: Duration,
+        message: impl Fn(u8) -> MavMessage,
+    ) -> Result<MavResult, LinkError> {
+        let collected = self
+            .exchange(
+                timeout,
+                move |received| is_acknowledgement_of(received, vehicle),
+                move |received| acknowledgement_result(received, command).is_some(),
+                message,
+            )
+            .await?;
+
+        let result = acknowledgement_result(&collected, command).ok_or(LinkError::Protocol(
+            mpcraft_mavlink::ProtocolError::Malformed(
+                "the acknowledgement carried no result for the command",
+            ),
+        ))?;
+
+        if result == MavResult::MAV_RESULT_ACCEPTED {
+            return Ok(result);
+        }
+
+        Err(LinkError::Command(CommandError::Refused {
+            command,
+            result,
+        }))
+    }
+}
+
+/// Whether the message is an acknowledgement from the vehicle.
+///
+/// The acknowledgement is matched on the vehicle as well as on the message id: a link can
+/// carry several vehicles, and each of them acknowledges its own commands.
+fn is_acknowledgement_of(message: &ReceivedMessage, vehicle: VehicleId) -> bool {
+    message.message_id == COMMAND_ACK_ID
+        && message.system_id == vehicle.system_id
+        && message.component_id == vehicle.component_id
+}
+
+/// The result of the last acknowledgement of the given command.
+///
+/// An acknowledgement that reports `MAV_RESULT_IN_PROGRESS` is not an answer: the vehicle
+/// will send the final result later.
+fn acknowledgement_result(messages: &[ReceivedMessage], command: MavCmd) -> Option<MavResult> {
+    messages
+        .iter()
+        .rev()
+        .find_map(|message| match &message.message {
+            MavMessage::COMMAND_ACK(ack) if ack.command == command => match ack.result {
+                MavResult::MAV_RESULT_IN_PROGRESS => None,
+                result => Some(result),
+            },
+            _ => None,
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mpcraft_mavlink::dialect::messages::COMMAND_ACK_DATA;
+    /// Builds a received acknowledgement.
+    fn ack(command: MavCmd, result: MavResult) -> ReceivedMessage {
+        ReceivedMessage {
+            system_id: 1,
+            component_id: 1,
+            message_id: COMMAND_ACK_ID,
+            message_name: "COMMAND_ACK".to_owned(),
+            message: MavMessage::COMMAND_ACK(COMMAND_ACK_DATA {
+                command,
+                result,
+                ..Default::default()
+            }),
+        }
+    }
+
+    #[test]
+    fn the_result_of_the_last_acknowledgement_wins() {
+        let messages = vec![
+            ack(
+                MavCmd::MAV_CMD_COMPONENT_ARM_DISARM,
+                MavResult::MAV_RESULT_IN_PROGRESS,
+            ),
+            ack(
+                MavCmd::MAV_CMD_COMPONENT_ARM_DISARM,
+                MavResult::MAV_RESULT_ACCEPTED,
+            ),
+        ];
+
+        assert_eq!(
+            acknowledgement_result(&messages, MavCmd::MAV_CMD_COMPONENT_ARM_DISARM),
+            Some(MavResult::MAV_RESULT_ACCEPTED)
+        );
+    }
+
+    #[test]
+    fn an_acknowledgement_for_another_command_is_ignored() {
+        let messages = vec![ack(
+            MavCmd::MAV_CMD_NAV_TAKEOFF,
+            MavResult::MAV_RESULT_ACCEPTED,
+        )];
+
+        assert_eq!(
+            acknowledgement_result(&messages, MavCmd::MAV_CMD_COMPONENT_ARM_DISARM),
+            None
+        );
+    }
+
+    #[test]
+    fn an_interim_acknowledgement_is_not_an_answer() {
+        let messages = vec![ack(
+            MavCmd::MAV_CMD_PREFLIGHT_CALIBRATION,
+            MavResult::MAV_RESULT_IN_PROGRESS,
+        )];
+
+        assert_eq!(
+            acknowledgement_result(&messages, MavCmd::MAV_CMD_PREFLIGHT_CALIBRATION),
+            None
+        );
+    }
+
+    #[test]
+    fn a_refusal_carries_the_result_the_vehicle_reported() {
+        let error = CommandError::Refused {
+            command: MavCmd::MAV_CMD_COMPONENT_ARM_DISARM,
+            result: MavResult::MAV_RESULT_DENIED,
+        };
+
+        assert!(error.to_string().contains("DENIED"));
+    }
+}

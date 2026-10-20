@@ -21,6 +21,19 @@
 //! `MISSION_ITEM_INT` scales latitude and longitude by `1e7`, and only for commands that
 //! actually carry a position. A command whose X/Y/Z are not a location is **not** scaled.
 //! [`is_location_command`] is the single source of truth for that distinction.
+//!
+//! # Names and values
+//!
+//! A command travels on the wire as its `MAV_CMD` enumeration value, but the file formats
+//! name it: a `.waypoints` file writes the value, a KML file writes the name.
+//! [`command_from_value`], [`command_name`] and [`command_from_name`] translate between
+//! the two, and all three go through the generated bindings so they cannot drift away
+//! from the dialect.
+
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+use num_traits::FromPrimitive;
 
 use mpcraft_mavlink::MavCmd;
 /// The default coordinate frame for a new mission item: `MAV_FRAME_GLOBAL_RELATIVE_ALT`.
@@ -358,6 +371,61 @@ pub fn is_location_command(command: MavCmd) -> bool {
     })
 }
 
+/// The largest value a `MAV_CMD` can take.
+///
+/// The command travels as a `uint16_t`, so the value space is bounded even though the
+/// enumeration itself is sparse.
+const MAX_COMMAND_VALUE: u32 = u16::MAX as u32;
+
+/// The catalogue of command names, built on first use.
+static COMMAND_NAMES: OnceLock<HashMap<String, MavCmd>> = OnceLock::new();
+
+/// Returns the command with the given wire value, if the dialect defines one.
+///
+/// The value is the `MAV_CMD` enumeration value that travels in a mission item. A file
+/// that names a value the dialect does not know is rejected rather than guessed at: an
+/// unknown command is a command the vehicle would refuse to fly.
+#[must_use]
+pub fn command_from_value(value: u32) -> Option<MavCmd> {
+    MavCmd::from_u32(value)
+}
+
+/// Returns the canonical name of a command, e.g. `MAV_CMD_NAV_WAYPOINT`.
+///
+/// The name is the one the MAVLink specification uses, which is what the file formats
+/// carry: a plan that travels through a third-party tool still names its commands the
+/// way the specification does.
+#[must_use]
+pub fn command_name(command: MavCmd) -> String {
+    format!("{command:?}")
+}
+
+/// Returns the command with the given canonical name, if the dialect defines one.
+///
+/// The name is matched exactly, the way the specification spells it. A name the dialect
+/// does not know is `None` — the caller decides whether that is an error or a default.
+#[must_use]
+pub fn command_from_name(name: &str) -> Option<MavCmd> {
+    command_names().get(name).copied()
+}
+
+/// The catalogue of command names, indexed by name.
+///
+/// The dialect is the source of truth: the index is built by asking the bindings which
+/// value every command has, so it cannot fall out of step with them the way a
+/// hand-written table would. The scan is bounded by the wire type and paid once.
+fn command_names() -> &'static HashMap<String, MavCmd> {
+    COMMAND_NAMES.get_or_init(|| {
+        let mut names = HashMap::new();
+        for value in 0..=MAX_COMMAND_VALUE {
+            if let Some(command) = MavCmd::from_u32(value) {
+                names.insert(command_name(command), command);
+            }
+        }
+        names
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,5 +476,70 @@ mod tests {
         assert_eq!(cmd.units[4], ParamUnit::Degrees);
         assert_eq!(cmd.units[5], ParamUnit::Degrees);
         assert_eq!(cmd.units[6], ParamUnit::Metres);
+    }
+
+    #[test]
+    fn a_command_is_found_by_its_wire_value() {
+        assert_eq!(
+            command_from_value(16),
+            Some(MavCmd::MAV_CMD_NAV_WAYPOINT),
+            "the wire value of a waypoint is 16"
+        );
+        assert_eq!(command_from_value(22), Some(MavCmd::MAV_CMD_NAV_TAKEOFF));
+    }
+
+    #[test]
+    fn an_unknown_wire_value_is_not_a_command() {
+        // 99 is not in the dialect: Mission Planner used to fold it onto the waypoint
+        // command, but a command the specification does not define must not be guessed.
+        assert_eq!(command_from_value(99), None);
+    }
+
+    #[test]
+    fn a_command_is_found_by_its_name() {
+        assert_eq!(
+            command_from_name("MAV_CMD_NAV_WAYPOINT"),
+            Some(MavCmd::MAV_CMD_NAV_WAYPOINT)
+        );
+        assert_eq!(
+            command_from_name("MAV_CMD_NAV_TAKEOFF"),
+            Some(MavCmd::MAV_CMD_NAV_TAKEOFF)
+        );
+        assert_eq!(command_from_name("WAYPOINT"), None, "the name is exact");
+        assert_eq!(command_from_name("NOT_A_COMMAND"), None);
+    }
+
+    #[test]
+    fn the_catalogue_covers_the_whole_value_space() {
+        // The last command of the dialect is at 43005, so an index that stopped at the
+        // commands a mission uses would miss it.
+        assert_eq!(
+            command_from_name("MAV_CMD_SET_HAGL"),
+            Some(MavCmd::MAV_CMD_SET_HAGL)
+        );
+        assert_eq!(command_from_value(43005), Some(MavCmd::MAV_CMD_SET_HAGL));
+    }
+
+    #[test]
+    fn the_name_of_a_command_is_the_one_the_specification_uses() {
+        assert_eq!(command_name(CMD_NAV_WAYPOINT), "MAV_CMD_NAV_WAYPOINT");
+        assert_eq!(command_name(CMD_NAV_TAKEOFF), "MAV_CMD_NAV_TAKEOFF");
+    }
+
+    #[test]
+    fn every_command_in_the_metadata_table_has_a_name_and_a_value() {
+        for cmd in COMMANDS {
+            let name = command_name(cmd.command);
+            assert_eq!(
+                command_from_name(&name),
+                Some(cmd.command),
+                "{name} does not resolve back to its command"
+            );
+            assert_eq!(
+                command_from_value(cmd.command as u32),
+                Some(cmd.command),
+                "the wire value of {name} does not resolve back to it"
+            );
+        }
     }
 }
