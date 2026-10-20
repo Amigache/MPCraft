@@ -33,6 +33,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mpcraft_mavlink::dialect::Dialect;
+use mpcraft_mavlink::frame::MavHeader;
 use mpcraft_mavlink::{Frame, FrameParser, MavMessage, MavlinkVersion, Message};
 use mpcraft_params::ParameterStore;
 use mpcraft_transport::{ConnectionSpec, Transport};
@@ -47,6 +48,15 @@ use crate::vehicle::{VehicleId, VehicleKind, VehicleRegistry};
 
 /// The size of the read buffer.
 const READ_BUFFER_SIZE: usize = 4096;
+
+/// The system id the ground station uses.
+const GCS_SYSTEM_ID: u8 = 255;
+
+/// The component id the ground station uses.
+///
+/// Mission Planner uses the same value, and the vehicle checks that the items it receives
+/// are addressed to it.
+const GCS_COMPONENT_ID: u8 = 190;
 
 /// The tunables of a session.
 #[derive(Debug, Clone, Copy)]
@@ -374,6 +384,31 @@ impl Session {
         }
     }
 
+    /// Registers a matcher for a single message.
+    ///
+    /// The matcher is registered *before* the request that triggers it is sent. That order
+    /// matters: a vehicle on a fast link can answer before the request has even left the
+    /// session, and an answer that arrives before anybody is listening is lost.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session has closed.
+    pub async fn begin_request<F>(&self, matcher: F) -> Result<RequestHandle, LinkError>
+    where
+        F: Fn(&ReceivedMessage) -> bool + Send + 'static,
+    {
+        let (respond, wait) = oneshot::channel();
+        self.commands
+            .send(Command::Request {
+                matcher: Box::new(matcher),
+                respond,
+            })
+            .await
+            .map_err(|_| LinkError::SessionClosed)?;
+
+        Ok(RequestHandle { wait })
+    }
+
     /// Registers a collector for the messages that match a predicate.
     ///
     /// The collector is registered *before* the request that triggers it is sent. That order
@@ -428,9 +463,54 @@ impl Session {
         collector.wait(timeout).await
     }
 
+    /// Encodes a message and writes it to the link.
+    ///
+    /// The ground station identifies itself with the system and component ids that Mission
+    /// Planner uses, because the vehicle checks that the items it receives are addressed to
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session is closed or the write fails.
+    pub async fn write_message(&self, message: &MavMessage) -> Result<(), LinkError> {
+        let header = MavHeader {
+            system_id: GCS_SYSTEM_ID,
+            component_id: GCS_COMPONENT_ID,
+            sequence: next_sequence(),
+        };
+
+        self.write(mpcraft_mavlink::frame::encode_v2(message, header))
+            .await
+    }
+
     /// Stops the session.
     pub async fn stop(&self) {
         let _ = self.commands.send(Command::Stop).await;
+    }
+}
+
+/// A registered matcher, waiting for the message it is waiting for.
+///
+/// Created by [`Session::begin_request`]. Registering the matcher before the request is
+/// sent is what stops a fast answer from being lost.
+#[derive(Debug)]
+pub struct RequestHandle {
+    wait: oneshot::Receiver<Result<ReceivedMessage, LinkError>>,
+}
+
+impl RequestHandle {
+    /// Waits for the message.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes before the message arrives, or when the
+    /// timeout expires.
+    pub async fn wait(self, timeout: Duration) -> Result<ReceivedMessage, LinkError> {
+        match tokio::time::timeout(timeout, self.wait).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(LinkError::SessionClosed),
+            Err(_) => Err(LinkError::Timeout(timeout)),
+        }
     }
 }
 
@@ -457,6 +537,15 @@ impl Collector {
             Err(_) => Err(LinkError::Timeout(timeout)),
         }
     }
+}
+
+/// The sequence number of the next outgoing frame.
+///
+/// The sequence number is per system and component, and increments for every frame sent.
+fn next_sequence() -> u8 {
+    use std::sync::atomic::{AtomicU8, Ordering};
+    static SEQUENCE: AtomicU8 = AtomicU8::new(0);
+    SEQUENCE.fetch_add(1, Ordering::Relaxed)
 }
 
 /// A pending request waiting for a matching message.

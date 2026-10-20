@@ -320,15 +320,16 @@ built and verified:
 | `mpcraft-transport` | `Transport` trait, `ConnectionSpec` parser, serial / UDP / TCP / file transports — **40 tests** |
 | `mpcraft-geo` | Geodesy, pure-Rust UTM and MGRS — **15 tests**, validated against PROJ and two independent MGRS implementations |
 | `mpcraft-vehicle` | Telemetry snapshot with derived values and staleness tracking — **10 tests** |
-| `mpcraft-link` | Session, heartbeat negotiation, vehicle registry, loss accounting, telemetry aggregation, the parameter protocol — **57 tests** |
+| `mpcraft-link` | Session, heartbeat negotiation, vehicle registry, loss accounting, telemetry aggregation, the parameter and mission protocols — **67 tests** |
 | `mpcraft-params` | The parameter model, the encoding rules and the capability gate — **14 tests** |
+| `mpcraft-mission` | The plan model, the MAV_CMD metadata and the wire conversions — **21 tests** |
 | `mpcraft-mission` | Mission model and `MAV_CMD` metadata table — **10 tests** |
 | `mpcraft-app` | The IPC contract and its stable error codes — **5 tests** |
 | `mpcraft-cli` | `mpcraft-cli ports \| connect \| params \| mission` |
 | `apps/desktop`, `apps/ui` | Tauri v2 shell and the typed IPC bridge |
 | CI | Format, clippy, test and build gates on Windows, Linux and macOS |
 
-**192 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
+**202 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
 
 ### Phase 0, Task 2 — the transport layer: what was built
 
@@ -423,22 +424,64 @@ now does the same, in two steps: `begin_collect` registers the collector, the re
 and only then does the collector wait. The suite that runs a simulated vehicle on a real UDP
 socket is what made the race visible.
 
-### The next step: Phase 0, Task 5 - the mission protocol
+### Phase 0, Task 5 - the mission protocol: what was built
 
-The parameter protocol is the first request/response transaction, and the actor model has
-now been proven against a real socket. The mission protocol is the same shape with more
-moving parts:
+`mpcraft-mission` and the mission operations of `mpcraft-link`:
 
-- `MISSION_COUNT` / `MISSION_ITEM` / `MISSION_REQUEST`, and the `MISSION_ITEM_INT` variant
-  that the capability bit selects.
-- The upload direction, where the **vehicle** drives the sequence by asking for the next
-  item.
-- `MISSION_ACK`, and the three failure results the vehicle can report.
-- The fence and rally point protocols, which are the same exchange with a different mission
-  type.
+- **The domain model** - a `MissionItem` with a stable identity, a `Plan`, and the wire
+  conversions in `mpcraft-mission::wire`.
+- **`download_mission`** - the vehicle reports how many items it has, and the items are then
+  requested one by one.
+- **`upload_mission`** - the ground station announces the number of items, and then the
+  **vehicle drives the exchange** by asking for each item in turn. The write is finished by a
+  `MISSION_ACK`, which says whether the plan was accepted.
+- **The `MISSION_ITEM_INT` capability** - a vehicle that advertises it wants the integer form,
+  whose coordinates are scaled by `1e7`. Mission Planner does the same.
+- **Only the coordinates of a location command are scaled.** A command whose X and Y are not a
+  position keeps them as they are. The metadata table says which is which, and the scaling
+  follows the table.
 
-**Exit criteria:** a mission downloaded from a vehicle and uploaded back is byte-identical on
-the wire, and a mission uploaded to a vehicle reads back identically.
+### The exit criterion is met
+
+A plan downloaded from a vehicle and uploaded back is **byte-identical on the wire**, and the
+suite that proves it runs a simulated vehicle on a real UDP socket.
+
+### A second race, in the other direction
+
+The upload had the same flaw as the download: the plan was announced *before* the matcher was
+registered, and the vehicle answers the announcement immediately. The matcher is now registered
+first, in two steps: `begin_request`, announce, then wait.
+
+This is why the session has both `begin_request` and `begin_collect`. A transaction whose
+answer can arrive before the request has finished being sent must register its matcher first.
+
+### A limitation of the generated dialect
+
+`MAV_MISSION_TYPE` is a MAVLink 2 **extension field**, and the generated bindings do not
+expose extension fields for the mission messages. A plain mission travels in the short form -
+`mission_type` is zero and is truncated away - so it works. The fence and rally plans carry a
+non-zero `mission_type`, so their frames are one byte longer than the bindings expect.
+
+The frames still *validate*: the checksum covers the whole payload, extension included. What
+is lost is the mission type itself, which these bindings cannot express. The fence and rally
+protocols are therefore marked as partial in the parity matrix.
+
+### The next step: Phase 0, Task 6 - closing the phase
+
+Phase 0 is nearly complete. What is left:
+
+- The **mission editor** commands: set the current item, clear the plan, jump to an item.
+- **Fence and rally points**, which need the extension field the bindings lack; the decision
+  is whether to hand-roll the extension bytes in the encoder or to wait for the bindings to
+  catch up.
+- The **`.waypoints` and KML import and export**, which turn the model into something a user
+  can share.
+- The **session supervisor** in `mpcraft-app`: connection profiles, auto-reconnect, and the
+  events the desktop application subscribes to.
+
+**Exit criteria for phase 0:** the `mpcraft-cli` can connect to a live vehicle, read its
+parameters, download its plan, upload a modified plan, and fly it - entirely from the command
+line.
 
 ---
 

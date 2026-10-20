@@ -2573,6 +2573,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "mpcraft-mavlink",
+ "mpcraft-mission",
  "mpcraft-params",
  "mpcraft-transport",
  "mpcraft-vehicle",

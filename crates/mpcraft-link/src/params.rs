@@ -19,7 +19,6 @@ use std::time::Duration;
 use mpcraft_mavlink::dialect::messages::{
     PARAM_REQUEST_LIST_DATA, PARAM_REQUEST_READ_DATA, PARAM_SET_DATA, PARAM_VALUE_DATA,
 };
-use mpcraft_mavlink::frame::{encode_v2, MavHeader};
 use mpcraft_mavlink::{MavMessage, MavProtocolCapability};
 use mpcraft_params::{resolve_encoding, ParamEncoding, ParamType, Parameter, ParameterStore};
 
@@ -408,26 +407,4 @@ pub(crate) fn param_name_of(value: &PARAM_VALUE_DATA) -> String {
     let bytes: Vec<u8> = value.param_id.iter().copied().collect();
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     String::from_utf8_lossy(&bytes[..end]).into_owned()
-}
-
-/// Encodes a message and writes it to the link.
-impl Session {
-    async fn write_message(&self, message: &MavMessage) -> Result<(), LinkError> {
-        let header = MavHeader {
-            system_id: 255,
-            component_id: 190,
-            sequence: next_sequence(),
-        };
-
-        self.write(encode_v2(message, header)).await
-    }
-}
-
-/// The sequence number of the next outgoing frame.
-///
-/// The sequence number is per system and component, and increments for every frame sent.
-fn next_sequence() -> u8 {
-    use std::sync::atomic::{AtomicU8, Ordering};
-    static SEQUENCE: AtomicU8 = AtomicU8::new(0);
-    SEQUENCE.fetch_add(1, Ordering::Relaxed)
 }

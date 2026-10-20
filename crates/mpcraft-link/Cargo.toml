@@ -13,6 +13,7 @@ arc-swap.workspace = true
 bytes.workspace = true
 dashmap.workspace = true
 mpcraft-mavlink.workspace = true
+mpcraft-mission.workspace = true
 mpcraft-params.workspace = true
 mpcraft-transport.workspace = true
 mpcraft-vehicle.workspace = true

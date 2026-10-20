@@ -22,29 +22,33 @@
 //! actually carry a position. A command whose X/Y/Z are not a location is **not** scaled.
 //! [`is_location_command`] is the single source of truth for that distinction.
 
+use mpcraft_mavlink::MavCmd;
 /// The default coordinate frame for a new mission item: `MAV_FRAME_GLOBAL_RELATIVE_ALT`.
-pub const DEFAULT_FRAME: u32 = 6;
+///
+/// The `MAV_FRAME_GLOBAL_RELATIVE_ALT_INT` synonym is deprecated and is not what a vehicle
+/// expects.
+pub const DEFAULT_FRAME: u32 = 3;
 
 /// The default mission type: `MAV_MISSION_TYPE_MISSION`.
 pub const DEFAULT_MISSION_TYPE: u32 = 0;
 
 /// `MAV_CMD_NAV_WAYPOINT`.
-pub const CMD_NAV_WAYPOINT: u32 = 16;
+pub const CMD_NAV_WAYPOINT: MavCmd = MavCmd::MAV_CMD_NAV_WAYPOINT;
 
 /// `MAV_CMD_NAV_TAKEOFF`.
-pub const CMD_NAV_TAKEOFF: u32 = 22;
+pub const CMD_NAV_TAKEOFF: MavCmd = MavCmd::MAV_CMD_NAV_TAKEOFF;
 
 /// `MAV_CMD_NAV_LAND`.
-pub const CMD_NAV_LAND: u32 = 21;
+pub const CMD_NAV_LAND: MavCmd = MavCmd::MAV_CMD_NAV_LAND;
 
 /// `MAV_CMD_CONDITION_DELAY`.
-pub const CMD_CONDITION_DELAY: u32 = 112;
+pub const CMD_CONDITION_DELAY: MavCmd = MavCmd::MAV_CMD_CONDITION_DELAY;
 
 /// The role of each of a command's seven parameter slots.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CmdMetadata {
     /// The MAV_CMD value.
-    pub command: u32,
+    pub command: MavCmd,
     /// The display name.
     pub name: &'static str,
     /// The role of P1, P2, P3, P4, X, Y and Z, in that order.
@@ -211,7 +215,7 @@ pub const COMMANDS: &[CmdMetadata] = &[
         ],
     },
     CmdMetadata {
-        command: 17,
+        command: MavCmd::MAV_CMD_NAV_LOITER_UNLIM,
         name: "Loiter Unbounded",
         roles: location_roles(),
         units: [
@@ -225,7 +229,7 @@ pub const COMMANDS: &[CmdMetadata] = &[
         ],
     },
     CmdMetadata {
-        command: 18,
+        command: MavCmd::MAV_CMD_NAV_LOITER_TURNS,
         name: "Loiter Turns",
         roles: [
             ParamRole::Other,
@@ -247,7 +251,7 @@ pub const COMMANDS: &[CmdMetadata] = &[
         ],
     },
     CmdMetadata {
-        command: 19,
+        command: MavCmd::MAV_CMD_NAV_LOITER_TIME,
         name: "Loiter Time",
         roles: [
             ParamRole::Other,
@@ -269,7 +273,7 @@ pub const COMMANDS: &[CmdMetadata] = &[
         ],
     },
     CmdMetadata {
-        command: 20,
+        command: MavCmd::MAV_CMD_NAV_RETURN_TO_LAUNCH,
         name: "Return to Launch",
         roles: other_roles(),
         units: [
@@ -283,7 +287,7 @@ pub const COMMANDS: &[CmdMetadata] = &[
         ],
     },
     CmdMetadata {
-        command: 113,
+        command: MavCmd::MAV_CMD_CONDITION_CHANGE_ALT,
         name: "Change Altitude",
         roles: [
             ParamRole::Other,
@@ -305,7 +309,7 @@ pub const COMMANDS: &[CmdMetadata] = &[
         ],
     },
     CmdMetadata {
-        command: 177,
+        command: MavCmd::MAV_CMD_DO_SET_SERVO,
         name: "Do Set Servo",
         roles: [
             ParamRole::Other,
@@ -330,7 +334,7 @@ pub const COMMANDS: &[CmdMetadata] = &[
 
 /// Returns the metadata for a command, if it is known.
 #[must_use]
-pub fn metadata(command: u32) -> Option<&'static CmdMetadata> {
+pub fn metadata(command: MavCmd) -> Option<&'static CmdMetadata> {
     COMMANDS.iter().find(|cmd| cmd.command == command)
 }
 
@@ -342,12 +346,13 @@ pub fn metadata(command: u32) -> Option<&'static CmdMetadata> {
 ///
 /// ```
 /// use mpcraft_mission::mavcmd::is_location_command;
+/// use mpcraft_mavlink::MavCmd;
 ///
-/// assert!(is_location_command(16)); // NAV_WAYPOINT
-/// assert!(!is_location_command(112)); // CONDITION_DELAY
+/// assert!(is_location_command(MavCmd::MAV_CMD_NAV_WAYPOINT));
+/// assert!(!is_location_command(MavCmd::MAV_CMD_CONDITION_DELAY));
 /// ```
 #[must_use]
-pub fn is_location_command(command: u32) -> bool {
+pub fn is_location_command(command: MavCmd) -> bool {
     metadata(command).is_some_and(|cmd| {
         cmd.roles[4] == ParamRole::Latitude && cmd.roles[5] == ParamRole::Longitude
     })
@@ -375,8 +380,8 @@ mod tests {
 
     #[test]
     fn unknown_commands_are_not_locations() {
-        // An unknown command must never be assumed to carry a position.
-        assert!(!is_location_command(999_999));
+        // A command that is not in the table must never be assumed to carry a position.
+        assert!(!is_location_command(MavCmd::MAV_CMD_NAV_SPLINE_WAYPOINT));
     }
 
     #[test]
@@ -389,7 +394,8 @@ mod tests {
 
     #[test]
     fn commands_have_unique_ids() {
-        let mut ids: Vec<u32> = COMMANDS.iter().map(|c| c.command).collect();
+        // The enumeration is not ordered, so the identifiers are compared by their value.
+        let mut ids: Vec<u32> = COMMANDS.iter().map(|c| c.command as u32).collect();
         ids.sort_unstable();
         let count = ids.len();
         ids.dedup();

@@ -82,16 +82,16 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 4.1 | Mission download / upload | `ExtLibs/ArduPilot/mav_mission.cs` | 🔜 | 2 |
-| 4.2 | `MISSION_ITEM_INT` support | `getWPAsync` (capability-gated) | 🔜 | 2 |
+| 4.1 | Mission download / upload | `ExtLibs/ArduPilot/mav_mission.cs` | ✅ | 2 |
+| 4.2 | `MISSION_ITEM_INT` support | `getWPAsync` (capability-gated) | ✅ | 2 |
 | 4.3 | Partial mission update | `mav_mission.uploadPartial` | 🔜 | 2 |
 | 4.4 | Waypoint table editor | `GCSViews/FlightPlanner.cs` (Commands grid) | 🔜 | 2 |
 | 4.5 | Map-based waypoint add / drag / delete | `FlightPlanner.cs` | 🔜 | 2 |
 | 4.6 | MAV_CMD parameter metadata & units | `mavcmd.xml` | 🔜 | 2 |
 | 4.7 | Altitude modes (absolute / relative / terrain) | `FlightPlanner.cs` altmode | 🔜 | 2 |
-| 4.8 | Geo-fence polygon drawing & upload | `FlightPlanner.cs` polygon tools | 🔜 | 2 |
-| 4.9 | Fence inclusion / exclusion lists | `FenceInclusion/Exclusion` | 🔜 | 2 |
-| 4.10 | Rally point upload / download | `getRallyPoint`, `setRallyPoint` | 🔜 | 2 |
+| 4.8 | Geo-fence polygon drawing & upload | `FlightPlanner.cs` polygon tools | 🟡 | 2 |
+| 4.9 | Fence inclusion / exclusion lists | `FenceInclusion/Exclusion` | 🟡 | 2 |
+| 4.10 | Rally point upload / download | `getRallyPoint`, `setRallyPoint` | 🟡 | 2 |
 | 4.11 | Home position management | `getHomePositionAsync` | 🔜 | 2 |
 | 4.12 | QGC `.waypoints` import / export | `FlightPlanner.cs` readQGC110wpfile | 🔜 | 2 |
 | 4.13 | KML import / export | `FlightPlanner.cs` processKML | 🔜 | 2 |
@@ -220,15 +220,23 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 14 |
-| 🔧 Planned | 140 |
+| ✅ Done | 16 |
+| 🔧 Planned | 135 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 0 |
+| 🟡 Partial | 3 |
 
-The 14 rows marked done are the connection, transport and parameter layer: the transports, the
-heartbeat negotiation, the vehicle registry, the loss accounting and the board-output
-capture all work and are covered by tests. The user-facing features that use them — the
-connection dialog, the live telemetry view — are still planned, because they need the UI.
+The 16 rows marked done are the connection, transport, parameter and mission layer: the
+transports, the heartbeat negotiation, the vehicle registry, the loss accounting, the
+board-output capture, the parameter protocol and the mission protocol all work and are
+covered by tests. The user-facing features that use them — the connection dialog, the live
+telemetry view, the mission editor — are still planned, because they need the UI.
+
+The three rows marked partial are the fence and rally protocols. `MAV_MISSION_TYPE` is a
+MAVLink 2 *extension* field, and the generated bindings do not expose extension fields for the
+mission messages. A plain mission travels in the short form — `mission_type` is zero and is
+truncated away — so it works. A fence or rally plan carries a non-zero `mission_type`, so its
+frames are one byte longer than the bindings expect. The frames still validate, because the
+checksum covers the whole payload; what is lost is the mission type itself.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

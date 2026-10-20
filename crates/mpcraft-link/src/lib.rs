@@ -55,6 +55,7 @@
 pub mod error;
 pub mod heartbeat;
 pub mod loss;
+pub mod mission;
 pub mod params;
 pub mod plaintext;
 pub mod session;
@@ -64,6 +65,7 @@ pub mod vehicle;
 pub use error::LinkError;
 pub use heartbeat::{Heartbeat, HeartbeatCollector, HeartbeatRejection};
 pub use loss::{LossAccountant, LossStats};
+pub use mission::{MissionError, DEFAULT_ITEM_TIMEOUT};
 pub use params::{ParamError, DEFAULT_LIST_TIMEOUT, DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT};
 pub use plaintext::PlaintextSniffer;
 pub use session::{ReceivedMessage, Session, SessionOptions, SessionState};
