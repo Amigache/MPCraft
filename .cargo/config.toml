@@ -1,0 +1,15 @@
+# Cargo configuration for MPCraft.
+
+[build]
+# Keep the workspace target directory inside the repository so the IDE and the CLI agree.
+target-dir = "target"
+
+[target.x86_64-pc-windows-gnu]
+# The GNU linker reports `.rsrc merge failure: multiple non-default manifests` when the
+# application embeds both a Windows manifest and icon resources. The build succeeds and the
+# resources are still embedded; the message is a quirk of `ld` rather than a defect.
+rustflags = ["-A", "linker-messages"]
+
+[alias]
+t = "test --workspace"
+tauri = "run --package mpcraft-desktop --"

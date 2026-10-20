@@ -34,7 +34,9 @@ async fn connect(
     let target = req.target.trim();
 
     if target.is_empty() {
-        return Err(CommandError::invalid_request("the connection target is empty"));
+        return Err(CommandError::invalid_request(
+            "the connection target is empty",
+        ));
     }
 
     set_status(&state, ConnectionStatus::Connecting);

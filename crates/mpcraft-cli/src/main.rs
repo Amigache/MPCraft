@@ -22,7 +22,11 @@ use clap::{Parser, Subcommand};
 
 /// The MPCraft command line interface.
 #[derive(Debug, Parser)]
-#[command(name = "mpcraft", version, about = "MPCraft command line interface")]
+#[command(
+    name = "mpcraft-cli",
+    version,
+    about = "MPCraft command line interface"
+)]
 struct Cli {
     /// The connection target, for example `udp:127.0.0.1:14550`.
     ///

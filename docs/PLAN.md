@@ -309,14 +309,46 @@ MPCraft is a success when:
 
 ---
 
-## 10. Immediate next step
+## 10. Current state and immediate next step
 
-**Phase 0, Task 1 — `mpcraft-mavlink` crate skeleton and framing parser.**
+The workspace, the plan, the agents and the skills are in place. The following is already
+built and verified:
 
-Deliverable: a crate that parses a byte stream into typed MAVLink frames, verifies CRC-16 with the
-correct CRC_EXTRA seed, resynchronises after corruption, and passes golden-file tests built from
-real captured traffic.
+| Component | State |
+| --- | --- |
+| `mpcraft-mavlink` | Frame parser (v1/v2), CRC with CRC_EXTRA seeds, signature handling, packet inspector — **26 tests** |
+| `mpcraft-geo` | Geodesy, pure-Rust UTM and MGRS — **15 tests**, validated against PROJ and two independent MGRS implementations |
+| `mpcraft-vehicle` | Telemetry snapshot with derived values and staleness tracking — **10 tests** |
+| `mpcraft-mission` | Mission model and `MAV_CMD` metadata table — **10 tests** |
+| `mpcraft-transport` | The `Transport` trait and the write-loop contract — **2 tests** |
+| `mpcraft-app` | The IPC contract and its stable error codes — **5 tests** |
+| `mpcraft-cli` | `mpcraft-cli connect \| params \| mission` |
+| `apps/desktop`, `apps/ui` | Tauri v2 shell and the typed IPC bridge |
+| CI | Format, clippy, test and build gates on Windows, Linux and macOS |
+
+**76 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
+
+### Next: Phase 0, Task 2 — the transport layer
+
+Implement the concrete transports on top of the existing `Transport` trait:
+
+- `SerialTransport` (the `serialport` crate), including DTR/RTS toggling for ESP32-style boards
+  and port enumeration.
+- `UdpTransport` in client and server mode, with multi-endpoint fan-out — upstream's
+  `UdpSerial.EndPointList` allows several ground stations to talk to one vehicle.
+- `TcpTransport` in client and server mode, with auto-reconnect and exponential backoff.
+- `FileTransport`, which replays a `.tlog` at a configurable rate. This one is not optional:
+  it powers log playback *and* it makes the whole stack testable without hardware.
+- The `ConnectionSpec` parser for connection strings of the form `scheme:target[:params]`,
+  with typed errors rather than `unwrap`.
+
+**Exit criteria:** a loopback test proves bytes written through a transport come back
+unchanged; a truncated-EOF test proves `read` returns `Ok(0)` rather than an error; and a
+partial-write test proves the write loop does not truncate messages.
 
 ---
 
+[`docs/ARCHITECTURE.md`]: docs/ARCHITECTURE.md
+[`docs/PARITY.md`]: docs/PARITY.md
+[`docs/DECISIONS.md`]: docs/DECISIONS.md
 [`.opencode/agents/`]: .opencode/agents/
