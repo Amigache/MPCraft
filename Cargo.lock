@@ -2507,6 +2507,7 @@ dependencies = [
  "mpcraft-mission",
  "mpcraft-params",
  "mpcraft-settings",
+ "mpcraft-transport",
  "mpcraft-vehicle",
  "serde",
  "serde_json",

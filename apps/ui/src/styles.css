@@ -1,0 +1,347 @@
+/* MPCraft — the design tokens.
+ *
+ * A dark theme, because a ground station is used in a dim room and next to an aircraft.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --colour-bg: #0d1117;
+  --colour-surface: #161b22;
+  --colour-surface-raised: #1c2330;
+  --colour-border: #2a3441;
+  --colour-text: #e6edf3;
+  --colour-text-dim: #8b949e;
+  --colour-accent: #00c896;
+  --colour-accent-dim: #0a7a5f;
+  --colour-danger: #f85149;
+  --colour-warning: #d29922;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius: 6px;
+  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--colour-bg);
+  color: var(--colour-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* The shell ---------------------------------------------------------------- */
+
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.app-shell__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--colour-surface);
+  border-bottom: 1px solid var(--colour-border);
+}
+
+.app-shell__brand {
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.app-shell__version {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--colour-text-dim);
+  font-weight: 400;
+}
+
+.app-shell__body {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+}
+
+/* The connection panel ----------------------------------------------------- */
+
+.connection-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.connection-panel__target {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  color: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: var(--space-2) var(--space-3);
+  width: 260px;
+}
+
+.connection-panel__target:focus-visible {
+  outline: 2px solid var(--colour-accent);
+  outline-offset: 1px;
+}
+
+.connection-panel__error {
+  color: var(--colour-danger);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.button {
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  color: var(--colour-text);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: var(--space-2) var(--space-4);
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--colour-accent-dim);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--colour-accent);
+  outline-offset: 1px;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.button--primary {
+  background: var(--colour-accent-dim);
+  border-color: var(--colour-accent-dim);
+  color: #eafff7;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: var(--colour-accent);
+  border-color: var(--colour-accent);
+  color: #04231b;
+}
+
+.status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 999px;
+  border: 1px solid var(--colour-border);
+  color: var(--colour-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.status--connected {
+  color: var(--colour-accent);
+  border-color: var(--colour-accent-dim);
+}
+
+.status--connecting,
+.status--reconnecting {
+  color: var(--colour-warning);
+  border-color: var(--colour-warning);
+}
+
+.status--failed {
+  color: var(--colour-danger);
+  border-color: var(--colour-danger);
+}
+
+/* The panels --------------------------------------------------------------- */
+
+.panel {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  margin: var(--space-4) var(--space-5) 0;
+  padding: var(--space-4) var(--space-5);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.panel--flight {
+  overflow: auto;
+}
+
+.panel--messages {
+  margin: var(--space-4) var(--space-5) var(--space-5);
+  max-height: 180px;
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.panel__header h2 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+  color: var(--colour-text-dim);
+}
+
+.panel__badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--colour-text-dim);
+  background: var(--colour-surface-raised);
+  border-radius: 999px;
+  padding: 2px var(--space-2);
+}
+
+/* The readouts ------------------------------------------------------------- */
+
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.readout {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.readout__label {
+  color: var(--colour-text-dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.readout__value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout__unit {
+  color: var(--colour-text-dim);
+  font-size: 11px;
+}
+
+/* The attitude gauges ------------------------------------------------------ */
+
+.attitude {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.attitude__gauge {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attitude__dial {
+  background: linear-gradient(180deg, #1d3550 0 50%, #3a2f1c 50% 100%);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  height: 64px;
+  overflow: hidden;
+  position: relative;
+}
+
+.attitude__horizon {
+  background: linear-gradient(180deg, #1d3550 0 50%, #3a2f1c 50% 100%);
+  height: 200%;
+  left: -50%;
+  position: absolute;
+  top: -50%;
+  width: 200%;
+  transition: transform 80ms linear;
+}
+
+.attitude__needle {
+  background: var(--colour-accent);
+  height: 2px;
+  left: 20%;
+  position: absolute;
+  right: 20%;
+  top: 50%;
+}
+
+.attitude__value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The message console ------------------------------------------------------ */
+
+.messages__empty {
+  color: var(--colour-text-dim);
+  margin: 0;
+}
+
+.messages__list {
+  list-style: none;
+  margin: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.messages__item {
+  border-bottom: 1px solid var(--colour-border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: var(--space-2) 0;
+}
+
+.messages__item:last-child {
+  border-bottom: none;
+}

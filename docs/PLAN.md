@@ -329,7 +329,7 @@ built and verified:
 | `apps/desktop`, `apps/ui` | Tauri v2 shell and the typed IPC bridge |
 | CI | Format, clippy, test and build gates on Windows, Linux and macOS |
 
-**202 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
+**205 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
 
 ### Phase 0, Task 2 — the transport layer: what was built
 
@@ -466,7 +466,40 @@ The frames still *validate*: the checksum covers the whole payload, extension in
 is lost is the mission type itself, which these bindings cannot express. The fence and rally
 protocols are therefore marked as partial in the parity matrix.
 
-### The next step: Phase 0, Task 6 - closing the phase
+### Phase 0, Task 6 - the desktop shell and the session supervisor
+
+The application layer exists and works end to end:
+
+- **`mpcraft-app`** - `SessionSupervisor`, which owns the link, publishes the state to the
+  interface every 200 ms, and decides whether to keep the link open.
+- **`apps/desktop`** - a thin Tauri v2 shell. It wires commands to the supervisor and owns
+  nothing else.
+- **`apps/ui`** - the React frontend: the connection panel, the flight data view with live
+  telemetry, the attitude indicators and the message console.
+- **`scripts/simulated-vehicle.py`** - a vehicle simulator, written from the MAVLink
+  specification independently of the Rust implementation. It is what makes the whole stack
+  demonstrable without hardware, and it is the counterpart of the golden file.
+
+The shell connects on launch when a target is given:
+
+```bash
+mpcraft.exe --target udp:127.0.0.1:14550
+```
+
+### Three findings from putting the application on screen
+
+1. **A ground station must announce itself.** A vehicle that only streams telemetry never
+   learns the ground station's address, so its traffic goes nowhere. The session now sends a
+   heartbeat when the link opens.
+2. **A UDP reset is not a broken link.** On Windows a UDP socket reports the previous
+   datagram's "port unreachable" as a connection reset on the next read. Treating that as a
+   fatal failure tore down a perfectly good link. It is now treated as transient.
+3. **The interface needs an explicit capability to talk to the development server.** Tauri v2
+   restricts the IPC to the application's own origin, so a page loaded from the development
+   server could not call a single command or receive a single event. The capability that grants
+   it lives in `apps/desktop/capabilities/default.json`.
+
+### The next step: Phase 0, Task 7 - closing the phase
 
 Phase 0 is nearly complete. What is left:
 

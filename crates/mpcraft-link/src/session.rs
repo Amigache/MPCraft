@@ -262,6 +262,23 @@ impl SessionContext {
     }
 }
 
+impl SessionState {
+    /// The state of a link that is not open.
+    #[must_use]
+    pub fn disconnected() -> Self {
+        Self {
+            vehicles: Vec::new(),
+            telemetry: mpcraft_vehicle::Telemetry::default(),
+            loss: LossStats::default(),
+            capabilities: None,
+            parameters: mpcraft_params::ParameterStore::new(),
+            plaintext: Vec::new(),
+            looks_like_can_bus: false,
+            connected: false,
+        }
+    }
+}
+
 /// A live link to a vehicle.
 ///
 /// The session owns a reader task that holds the transport. Everything else — telemetry,
@@ -285,7 +302,36 @@ impl Session {
         options: SessionOptions,
     ) -> Result<Self, LinkError> {
         let transport = mpcraft_transport::open(spec).await?;
-        Ok(Self::with_transport(transport, options))
+        let session = Self::with_transport(transport, options);
+
+        // The ground station announces itself. A vehicle that streams telemetry needs to
+        // know where to send it, and the first frame it sees from the ground station is
+        // what tells it.
+        session.announce().await;
+
+        Ok(session)
+    }
+
+    /// Sends the heartbeat that identifies this end as a ground station.
+    ///
+    /// A vehicle that only streams telemetry never learns the ground station's address
+    /// otherwise, and its traffic would go nowhere.
+    pub async fn announce(&self) {
+        use mpcraft_mavlink::dialect::messages::HEARTBEAT_DATA;
+        use mpcraft_mavlink::{MavAutopilot, MavModeFlag, MavState, MavType};
+
+        let message = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
+            custom_mode: 0,
+            mavtype: MavType::MAV_TYPE_GCS,
+            autopilot: MavAutopilot::MAV_AUTOPILOT_GENERIC,
+            base_mode: MavModeFlag::empty(),
+            system_status: MavState::MAV_STATE_ACTIVE,
+            mavlink_version: 3,
+        });
+
+        if let Err(error) = self.write_message(&message).await {
+            tracing::warn!("could not announce the ground station: {error}");
+        }
     }
 
     /// Opens a session on an already-open transport.
@@ -657,6 +703,14 @@ async fn run_reader(
                 let _ = state_tx.send(context.snapshot(true));
             }
             Ok(Err(error)) => {
+                // A UDP socket reports the previous datagram's "port unreachable" as a
+                // connection reset on the next read. That is a transient condition, not a
+                // broken link: the vehicle may simply not be listening yet.
+                if error.kind() == std::io::ErrorKind::ConnectionReset {
+                    tracing::debug!("the peer is unreachable at the moment: {error}");
+                    continue;
+                }
+
                 tracing::warn!("the link failed: {error}");
                 stopped.store(true, Ordering::Relaxed);
                 let _ = state_tx.send(context.snapshot(false));

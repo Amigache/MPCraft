@@ -11,15 +11,18 @@ import type {
   VehicleKey,
 } from "./types";
 
+export { listen };
+
 /**
  * The single place where the frontend talks to the Rust backend.
  *
  * Every command goes through {@link call}, which normalises the error shape so components
- * never have to deal with Tauri-specific payloads.
+ * handle a `code` rather than parsing strings.
  */
-
-/** Invokes a Tauri command, normalising the error shape. */
-async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+export async function call<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
   try {
     return await invoke<T>(command, args);
   } catch (cause) {
@@ -28,7 +31,7 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
 }
 
 /** Converts an unknown thrown value into the typed error shape. */
-function normaliseError(cause: unknown): CommandError {
+export function normaliseError(cause: unknown): CommandError {
   if (
     typeof cause === "object" &&
     cause !== null &&
@@ -83,7 +86,7 @@ export function useConnection(): ConnectionState {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<{ status: ConnectionStatus }>("connection", (event) => {
+    const unlisten = listen<{ status: ConnectionStatus }>("link-state", (event) => {
       setStatus(event.payload.status);
     });
     return () => {

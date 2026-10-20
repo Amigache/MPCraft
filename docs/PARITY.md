@@ -38,14 +38,14 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 2.1 | Live telemetry readouts | `ExtLibs/ArduPilot/CurrentState.cs` | 🔜 | 1 |
-| 2.2 | Artificial-horizon HUD | `ExtLibs/Controls/HUD.cs` | 🔜 | 1 |
+| 2.1 | Live telemetry readouts | `ExtLibs/ArduPilot/CurrentState.cs` | ✅ | 1 |
+| 2.2 | Artificial-horizon HUD | `ExtLibs/Controls/HUD.cs` | ✅ | 1 |
 | 2.3 | Live multi-channel graphs | `GCSViews/FlightData.cs` (ZedGraph) | 🔜 | 1 |
 | 2.4 | Map with live vehicle position | `GCSViews/FlightData.cs` (myGMAP) | 🔜 | 1 |
 | 2.5 | Flight trail / track history | `FlightData.cs` | 🔜 | 1 |
 | 2.6 | Quick-view configurable tiles | `ExtLibs/Controls/QuickView.cs` | 🔜 | 1 |
 | 2.7 | Gauges (speed / altitude / vspeed) | `Controls/AGauge.cs`, `HSI.cs` | 🔜 | 1 |
-| 2.8 | STATUSTEXT message console | `FlightData.cs` | 🔜 | 1 |
+| 2.8 | STATUSTEXT message console | `FlightData.cs` | 🟡 | 1 |
 | 2.9 | Pre-flight checklist | `Controls/PreFlight/CheckListControl.cs` | 🔜 | 1 |
 | 2.10 | Battery banks 1–9 monitoring | `CurrentState.cs` | 🔜 | 1 |
 | 2.11 | Multi-GPS status | `CurrentState.cs` | 🔜 | 1 |
@@ -220,23 +220,28 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 16 |
-| 🔧 Planned | 135 |
+| ✅ Done | 18 |
+| 🔜 Planned | 132 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 3 |
+| 🟡 Partial | 4 |
 
-The 16 rows marked done are the connection, transport, parameter and mission layer: the
-transports, the heartbeat negotiation, the vehicle registry, the loss accounting, the
-board-output capture, the parameter protocol and the mission protocol all work and are
-covered by tests. The user-facing features that use them — the connection dialog, the live
-telemetry view, the mission editor — are still planned, because they need the UI.
+The 18 rows marked done are the connection, transport, parameter and mission layer, plus the
+first of the views that use them: the transports, the heartbeat negotiation, the vehicle
+registry, the loss accounting, the board-output capture, the parameter protocol, the mission
+protocol and the desktop shell all work and are covered by tests, and the live telemetry view
+and the attitude indicators are on screen. The rest of the user-facing features — the
+connection dialog with a port list, the map, the mission editor — are still planned.
 
-The three rows marked partial are the fence and rally protocols. `MAV_MISSION_TYPE` is a
+Three of the rows marked partial are the fence and rally protocols. `MAV_MISSION_TYPE` is a
 MAVLink 2 *extension* field, and the generated bindings do not expose extension fields for the
 mission messages. A plain mission travels in the short form — `mission_type` is zero and is
 truncated away — so it works. A fence or rally plan carries a non-zero `mission_type`, so its
 frames are one byte longer than the bindings expect. The frames still validate, because the
 checksum covers the whole payload; what is lost is the mission type itself.
+
+The fourth is the message console. The console is on screen and it is wired to the backend, but
+it shows the link notices — the ones that explain a broken link — rather than the `STATUSTEXT`
+stream. Capturing the vehicle's own messages is the next piece of work.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

@@ -88,6 +88,12 @@ impl std::fmt::Display for CommandError {
 
 impl std::error::Error for CommandError {}
 
+impl From<mpcraft_link::LinkError> for CommandError {
+    fn from(error: mpcraft_link::LinkError) -> Self {
+        Self::new(error.code(), error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +114,13 @@ mod tests {
         let json = serde_json::to_value(&error).unwrap();
         assert_eq!(json["code"], "link_timeout");
         assert_eq!(json["message"], "no answer within 2s");
+    }
+
+    #[test]
+    fn a_link_error_keeps_its_code() {
+        let error = CommandError::from(mpcraft_link::LinkError::Timeout(
+            std::time::Duration::from_secs(1),
+        ));
+        assert_eq!(error.code, "link_timeout");
     }
 }

@@ -18,6 +18,10 @@ _ref_missionplanner/
 /data/
 *.log
 
+# Screenshots taken from the running application
+/mpcraft-window.png
+/shot-*.png
+
 # Editors / OS
 .vscode/
 .idea/
