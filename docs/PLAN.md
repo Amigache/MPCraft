@@ -316,17 +316,18 @@ built and verified:
 
 | Component | State |
 | --- | --- |
-| `mpcraft-mavlink` | Frame parser (v1/v2), CRC with CRC_EXTRA seeds, signature handling, packet inspector — **26 tests** |
+| `mpcraft-mavlink` | Frame parser and encoder (v1/v2), CRC with CRC_EXTRA seeds, signature handling, packet inspector — **34 tests** |
 | `mpcraft-transport` | `Transport` trait, `ConnectionSpec` parser, serial / UDP / TCP / file transports — **40 tests** |
 | `mpcraft-geo` | Geodesy, pure-Rust UTM and MGRS — **15 tests**, validated against PROJ and two independent MGRS implementations |
 | `mpcraft-vehicle` | Telemetry snapshot with derived values and staleness tracking — **10 tests** |
+| `mpcraft-link` | Session, heartbeat negotiation, vehicle registry, loss accounting, telemetry aggregation — **49 tests** |
 | `mpcraft-mission` | Mission model and `MAV_CMD` metadata table — **10 tests** |
 | `mpcraft-app` | The IPC contract and its stable error codes — **5 tests** |
 | `mpcraft-cli` | `mpcraft-cli ports \| connect \| params \| mission` |
 | `apps/desktop`, `apps/ui` | Tauri v2 shell and the typed IPC bridge |
 | CI | Format, clippy, test and build gates on Windows, Linux and macOS |
 
-**113 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
+**166 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
 
 ### Phase 0, Task 2 — the transport layer: what was built
 
@@ -353,24 +354,57 @@ Two deliberate decisions:
   transport is byte-oriented and knows nothing about the log format; `mpcraft-log` implements
   the same trait and does understand the records.
 
-### Next: Phase 0, Task 3 — the session
+### Phase 0, Task 3 - the session: what was built
 
-Wire the transport to the MAVLink layer and produce decoded telemetry:
+`mpcraft-link` now turns a byte stream into vehicle state:
 
-- `Session`, which owns a transport, runs the single reader task, and publishes parsed frames.
-- Heartbeat negotiation and vehicle detection: the vehicle is identified from its
-  `HEARTBEAT`, the same rule upstream uses — prefer component 1 seen at least twice, and
-  otherwise accept a peer seen at least four times.
-- The vehicle registry, keyed by `(system_id, component_id)`.
-- Packet-loss accounting: sequence deltas per message type, distinguishing reordering from
-  genuine loss.
-- The telemetry aggregator, decoding packets into `mpcraft-vehicle`'s `Telemetry` snapshot and
-  publishing it through an `ArcSwap`.
-- The plaintext sniffing channel that captures a board's boot output, which upstream uses to
-  explain "no heartbeat received" so usefully.
+- **`Session`** - the reader task that owns the transport, and the actor model around it.
+- **Heartbeat negotiation** - the vehicle is identified from its heartbeat, with upstream's
+  preference rules. **One deliberate divergence:** upstream orders the candidate groups by how
+  often each was seen, which hands a vehicle's *gimbal* to the operator instead of the vehicle.
+  MPCraft implements upstream's *stated* intent - component id 1 wins - and says so in the code.
+- **The vehicle registry** - keyed by `(system_id, component_id)`, with the ArduPilot vehicle
+  family detected from the heartbeat.
+- **Packet-loss accounting** - upstream's rolling 64-bit mask algorithm, ported exactly, so a
+  reordered packet is not counted as a lost one.
+- **The telemetry aggregator** - messages decoded once into a snapshot, with the derived values
+  computed at decode time.
+- **The board-output capture** - the bytes outside of MAVLink frames are kept, which is what
+  turns "no heartbeat received" into "the board is printing at the wrong baud rate". A
+  DroneCAN banner is recognised as such.
 
-**Exit criteria:** `mpcraft-cli connect udp:127.0.0.1:14550 --monitor` prints live decoded
-telemetry from a running SITL, with no panics and no packet-loss accounting regressions.
+### The golden-file test
+
+`scripts/generate-test-stream.py` is a **second, independent implementation** of the MAVLink wire
+format. The Rust parser is therefore checked against something other than itself, and the two are
+compared byte for byte across every frame of the fixture.
+
+It has already earned its keep. It caught two real bugs:
+
+1. **The message id was read from the wrong offset.** The MAVLink 2 header carries the message id
+   at offset seven, not ten. The bug was invisible to the round-trip tests, because a
+   self-consistent implementation is self-consistently wrong - and it would have broken **every**
+   MAVLink 2 frame, which is what every modern vehicle sends.
+2. **MAVLink 2 truncates the trailing zero bytes of a payload.** The generated code does this
+   and the receiver pads the payload back. The fixture now exercises the truncated form, so the
+   parser is tested against the shorter payload it will really receive.
+
+### The next step: Phase 0, Task 4 - the parameter protocol
+
+The session can identify a vehicle and read its telemetry. The next piece is the first
+*request/response* transaction, which is where the actor model earns its keep:
+
+- `PARAM_REQUEST_LIST` and the `PARAM_VALUE` stream, with the progress and cancellation
+  semantics upstream has.
+- `PARAM_REQUEST_READ` and `PARAM_SET`, with the write confirmation and the `*_ENABLE`
+  ordering.
+- The parameter store, holding the values, their reported wire types, and their freshness.
+- The capability gate: `MAV_PROTOCOL_CAPABILITY::PARAM_FLOAT` decides whether a value is sent
+  as `REAL32` or in its reported type. Getting this wrong silently corrupts integer
+  parameters.
+
+**Exit criteria:** a parameter written by MPCraft reads back identically from the vehicle, and
+the value survives a write of an integer parameter that is not a float.
 
 ---
 

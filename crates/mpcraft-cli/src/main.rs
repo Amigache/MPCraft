@@ -185,32 +185,115 @@ async fn connect(target: &str, monitor: bool) -> Result<(), String> {
 
     println!("connecting to {spec}");
 
-    let mut transport = mpcraft_transport::open(&spec)
+    let session = mpcraft_link::Session::connect(&spec, mpcraft_link::SessionOptions::default())
         .await
         .map_err(|e| format!("cannot open the link: {e}"))?;
 
-    println!("link open: {}", transport.describe());
+    println!("link open");
 
     if !monitor {
         return Ok(());
     }
 
-    // The telemetry aggregation is wired up in phase 0, task 4. Until then the monitor
-    // reports the raw traffic so the link itself can be verified.
-    println!("monitoring (the telemetry decoder is not wired up yet)");
+    monitor_session(&session).await
+}
 
-    let mut buffer = vec![0u8; 4096];
-    loop {
-        match transport.read(&mut buffer).await {
-            Ok(0) => {
-                println!("the link ended");
-                return Ok(());
-            }
-            Ok(len) => println!("{} bytes received", len),
-            Err(error) => {
-                println!("the link failed: {error}");
-                return Err(error.to_string());
-            }
+/// Prints the live telemetry until the link ends.
+async fn monitor_session(session: &mpcraft_link::Session) -> Result<(), String> {
+    println!("monitoring; press Ctrl-C to stop");
+
+    let mut last_summary = String::new();
+
+    while session.state().connected {
+        let state = session.state();
+        let summary = summarise(&state);
+
+        // Print when something changed, so the output stays readable but nothing is missed.
+        if summary != last_summary {
+            println!("{summary}");
+            last_summary = summary;
         }
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
+
+    // The link ended. The final state is printed whether or not it changed, because the
+    // session may have finished before the first poll.
+    let state = session.state();
+    let summary = summarise(&state);
+    if summary != last_summary {
+        println!("{summary}");
+    }
+
+    // A link that ended without a vehicle is almost always a configuration problem. Say so,
+    // and show the board's own output if there was any.
+    if state.vehicles.is_empty() {
+        eprintln!("no vehicle answered on this link");
+
+        if state.looks_like_can_bus {
+            eprintln!(
+                "this looks like a DroneCAN port; use the DroneCAN screen rather than the \
+                 serial link"
+            );
+        }
+
+        if !state.plaintext.is_empty() {
+            eprintln!("the board printed:");
+            for line in &state.plaintext {
+                eprintln!("  {line}");
+            }
+        } else {
+            eprintln!("no board output was captured either; check the baud rate and the port");
+        }
+
+        return Err("no vehicle answered".to_owned());
+    }
+
+    println!("the link ended");
+    Ok(())
+}
+
+/// Summarises the session state in a single line.
+fn summarise(state: &mpcraft_link::SessionState) -> String {
+    let telemetry = &state.telemetry;
+
+    let vehicle = state.vehicles.first().map_or_else(
+        || "no vehicle".to_owned(),
+        |v| {
+            let kind = v
+                .kind
+                .map_or_else(String::new, |k| format!(" ({})", k.as_str()));
+            format!("{}{kind}", v.id)
+        },
+    );
+
+    let position = telemetry.position.map_or_else(
+        || "no position".to_owned(),
+        |p| format!("{:.7}, {:.7} {:+.1} m", p.lat, p.lng, p.alt),
+    );
+
+    let attitude = telemetry.attitude.map_or_else(
+        || "no attitude".to_owned(),
+        |a| format!("roll {:.1} pitch {:.1} yaw {:.1}", a.roll, a.pitch, a.yaw),
+    );
+
+    let mode = telemetry.mode.as_ref().map_or_else(
+        || "unknown".to_owned(),
+        |m| {
+            m.name
+                .clone()
+                .unwrap_or_else(|| format!("mode {}", m.custom_mode))
+        },
+    );
+
+    let armed = match telemetry.armed {
+        Some(true) => "armed",
+        Some(false) => "disarmed",
+        None => "arm state unknown",
+    };
+
+    format!(
+        "{vehicle} | {position} | {attitude} | {mode} | {armed} | lost {} | received {}",
+        state.loss.packets_lost, state.loss.packets_received
+    )
 }

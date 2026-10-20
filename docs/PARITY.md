@@ -13,25 +13,25 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 1.1 | Serial port connection | `ExtLibs/Comms/CommsSerialPort.cs` | 🔜 | 0 |
+| 1.1 | Serial port connection | `ExtLibs/Comms/CommsSerialPort.cs` | ✅ | 0 |
 | 1.2 | Serial port enumeration | `ExtLibs/Controls/ConnectionControl.cs` | 🔜 | 1 |
 | 1.3 | Baud-rate selection & auto-baud | `ExtLibs/Controls/ConnectionControl.cs` | 🔜 | 1 |
-| 1.4 | UDP client / server mode | `ExtLibs/Comms/CommsUdpSerial.cs` | 🔜 | 0 |
-| 1.5 | UDP multi-endpoint fan-out | `CommsUdpSerial.EndPointList` | 🔜 | 0 |
-| 1.6 | TCP client / server mode | `ExtLibs/Comms/CommsTCPSerial.cs` | 🔜 | 0 |
+| 1.4 | UDP client / server mode | `ExtLibs/Comms/CommsUdpSerial.cs` | ✅ | 0 |
+| 1.5 | UDP multi-endpoint fan-out | `CommsUdpSerial.EndPointList` | ✅ | 0 |
+| 1.6 | TCP client / server mode | `ExtLibs/Comms/CommsTCPSerial.cs` | ✅ | 0 |
 | 1.7 | TCP auto-reconnect | `TcpSerial.autoReconnect` | 🔜 | 1 |
-| 1.8 | Heartbeat negotiation & vehicle selection | `MAVLinkInterface.OpenBg` | 🔜 | 0 |
-| 1.9 | Vehicle-type detection (Copter/Plane/Rover/Sub/Tracker) | `MAVLinkInterface.setAPType` | 🔜 | 0 |
-| 1.10 | Multi-vehicle registry | `ExtLibs/ArduPilot/Mavlink/MAVList.cs` | 🔜 | 0 |
-| 1.11 | Packet-loss & reorder accounting | `MAVLinkInterface.readPacketAsync` | 🔜 | 0 |
-| 1.12 | Plaintext / boot-output sniffing | `MAVLinkInterface.plaintxtline` | 🔜 | 0 |
-| 1.13 | MAVLink 2 signing (out & in) | `MAVLinkInterface.generatePacket`, `CheckSignature` | 🔜 | 0 |
+| 1.8 | Heartbeat negotiation & vehicle selection | `MAVLinkInterface.OpenBg` | ✅ | 0 |
+| 1.9 | Vehicle-type detection (Copter/Plane/Rover/Sub/Tracker) | `MAVLinkInterface.setAPType` | ✅ | 0 |
+| 1.10 | Multi-vehicle registry | `ExtLibs/ArduPilot/Mavlink/MAVList.cs` | ✅ | 0 |
+| 1.11 | Packet-loss & reorder accounting | `MAVLinkInterface.readPacketAsync` | ✅ | 0 |
+| 1.12 | Plaintext / boot-output sniffing | `MAVLinkInterface.plaintxtline` | ✅ | 0 |
+| 1.13 | MAVLink 2 signing (out & in) | `MAVLinkInterface.generatePacket`, `CheckSignature` | ✅ | 0 |
 | 1.14 | Signing keyring persistence | `ExtLibs/ArduPilot/Mavlink/MAVAuthKeys.cs` | 🔜 | 0 |
 | 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | 🔜 | 5 |
 | 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | 🔜 | 7 |
 | 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | 🔜 | 5 |
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 | 5 |
-| 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | 🔜 | 0 |
+| 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
 | 1.20 | Serial passthrough (`SERIAL_CONTROL`) | `MAVLinkSerialPort.cs` | 🔜 | 5 |
 
 ## 2. Flight data & telemetry
@@ -220,10 +220,15 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 0 |
-| 🔜 Planned | 158 |
+| ✅ Done | 11 |
+| 🔧 Planned | 143 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 0 |
+
+The 11 rows marked done are the connection and transport layer: the transports, the
+heartbeat negotiation, the vehicle registry, the loss accounting and the board-output
+capture all work and are covered by tests. The user-facing features that use them — the
+connection dialog, the live telemetry view — are still planned, because they need the UI.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

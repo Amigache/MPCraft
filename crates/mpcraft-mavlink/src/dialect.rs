@@ -12,16 +12,16 @@
 //! (`MavMessage::HEARTBEAT`). The aliases below hide that convention so the rest of MPCraft can
 //! use the canonical MAVLink spelling.
 
+pub use mavlink::dialects::ardupilotmega::MavMessage;
 pub use mavlink::dialects::ardupilotmega::{
-    MavAutopilot, MavCmd, MavFrame, MavMissionResult, MavMissionType, MavParamType, MavResult,
-    MavSeverity, MavState, MavType,
+    MavAutopilot, MavCmd, MavFrame, MavMissionResult, MavMissionType, MavModeFlag, MavParamType,
+    MavResult, MavSeverity, MavState, MavSysStatusSensor, MavType,
 };
 
-// `MAV_MODE` is deprecated in the MAVLink specification: setting a mode through it is less
-// predictable than using standard modes or custom modes. MPCraft uses `MAV_MODE_FLAG` with a
-// custom mode instead, so the deprecated enum is not re-exported.
-#[allow(deprecated)]
-pub use mavlink::dialects::ardupilotmega::MavMode as MavModeDeprecated;
+// The generated message structs live in the dialect module. They are re-exported as a whole
+// so that callers can build a message of a specific type — `HEARTBEAT_DATA`, say — without
+// having to know the generator's naming convention.
+pub use mavlink::dialects::ardupilotmega as messages;
 
 pub use mavlink::{MavlinkVersion, Message};
 

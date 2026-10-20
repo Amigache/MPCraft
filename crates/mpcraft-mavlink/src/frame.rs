@@ -54,23 +54,49 @@ pub const IFLAG_SYSID_32: u8 = 0x02;
 pub const IFLAG_TARGET_32: u8 = 0x04;
 
 /// The MAVLink protocol version of a frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MavlinkVersion {
-    /// MAVLink 1.
-    V1,
-    /// MAVLink 2.
-    V2,
+///
+/// This is the version enum of the upstream `mavlink` crate, re-exported so that the frame
+/// layer and the dialect layer agree on one type.
+pub use mavlink::MavlinkVersion;
+
+/// The header of a MAVLink frame: who sent it, and in which sequence.
+pub use mavlink::MavHeader;
+
+/// Encodes a message into a MAVLink 2 frame.
+///
+/// The frame carries the STX marker, the length, the flags, the header, the payload, the
+/// CRC and, when the message is signed, the signature block. The CRC is computed with the
+/// message's own CRC_EXTRA seed, so the result is a frame any conformant parser accepts.
+///
+/// # Panics
+///
+/// Panics if the message cannot be serialised, which the generated bindings never do.
+#[must_use]
+pub fn encode_v2<M: mavlink::Message>(message: &M, header: MavHeader) -> Vec<u8> {
+    let mut frame = mavlink::MAVLinkV2MessageRaw::new();
+    frame.serialize_message(header, message);
+    frame.raw_bytes().to_vec()
 }
 
-impl MavlinkVersion {
-    /// The STX marker byte for this version.
-    #[must_use]
-    pub const fn stx(self) -> u8 {
-        match self {
-            Self::V1 => STX_V1,
-            Self::V2 => STX_V2,
-        }
-    }
+/// Encodes a message into a MAVLink 1 frame.
+///
+/// MAVLink 1 message ids are limited to 255; a message with a larger id cannot be encoded
+/// this way.
+///
+/// # Panics
+///
+/// Panics if the message id does not fit in a byte, or the message cannot be serialised.
+#[must_use]
+pub fn encode_v1<M: mavlink::Message>(message: &M, header: MavHeader) -> Vec<u8> {
+    assert!(
+        message.message_id() <= u32::from(u8::MAX),
+        "message id {} does not fit in a MAVLink 1 frame",
+        message.message_id()
+    );
+
+    let mut frame = mavlink::MAVLinkV1MessageRaw::new();
+    frame.serialize_message(header, message);
+    frame.raw_bytes().to_vec()
 }
 
 /// A parsed MAVLink frame.
@@ -171,6 +197,8 @@ pub struct FrameParser {
     cursor: usize,
     stats: ParserStats,
     policy: CrcPolicy,
+    /// The bytes that were discarded while hunting for a frame boundary.
+    plaintext: Vec<u8>,
 }
 
 impl Default for FrameParser {
@@ -188,6 +216,7 @@ impl FrameParser {
             cursor: 0,
             stats: ParserStats::default(),
             policy: CrcPolicy::Reject,
+            plaintext: Vec::new(),
         }
     }
 
@@ -238,7 +267,17 @@ impl FrameParser {
     pub fn reset(&mut self) {
         self.buffer.clear();
         self.cursor = 0;
+        self.plaintext.clear();
         self.stats = ParserStats::default();
+    }
+
+    /// Takes the bytes that were discarded while hunting for a frame boundary.
+    ///
+    /// These are the bytes that were *not* part of a MAVLink frame. A board that is printing
+    /// its banner produces them, and they are the difference between "no heartbeat
+    /// received" and "the board is printing at the wrong baud rate".
+    pub fn take_plaintext(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.plaintext)
     }
 
     /// Verifies the CRC of a frame against the dialect's CRC_EXTRA seed.
@@ -361,12 +400,16 @@ impl FrameParser {
                 ParseOutcome::Incomplete
             } else {
                 self.stats.bytes_discarded += discard as u64;
+                self.plaintext
+                    .extend_from_slice(&self.buffer[self.cursor..self.cursor + discard]);
                 ParseOutcome::Corrupt { skip: discard }
             };
         };
 
         if stx_pos > 0 {
             self.stats.bytes_discarded += stx_pos as u64;
+            self.plaintext
+                .extend_from_slice(&self.buffer[self.cursor..self.cursor + stx_pos]);
             self.advance(stx_pos);
         }
 
@@ -431,6 +474,17 @@ impl FrameParser {
     ///
     /// Returns the frame and the number of bytes it occupies, or `None` when more bytes are
     /// needed.
+    ///
+    /// # The header layout
+    ///
+    /// ```text
+    /// 0      1      2      3      4      5      6      7 8 9
+    /// STX    len    incomp compat seq    sysid  compid msgid
+    /// ```
+    ///
+    /// The message id occupies three bytes at offset seven, and the payload starts at
+    /// offset ten. With the `SYSID32` flag the system id widens to four bytes and
+    /// everything after it shifts by three.
     fn parse_v2(buf: &[u8]) -> Option<(Frame, usize)> {
         if buf.len() < V2_HEADER_LEN {
             return None;
@@ -440,35 +494,32 @@ impl FrameParser {
         let incompat_flags = buf[2];
         let compat_flags = buf[3];
         let sequence = buf[4];
-        let system_id = buf[5];
-        let component_id = buf[6];
 
-        // The system id widens to 32 bits when the flag is set.
-        let (system_id, mut header_len) = if incompat_flags & IFLAG_SYSID_32 != 0 {
-            if buf.len() < V2_HEADER_LEN + 3 {
-                return None;
-            }
-            let id = u32::from_le_bytes([buf[5], buf[6], buf[7], buf[8]]) as u8;
-            (id, V2_HEADER_LEN + 3)
-        } else {
-            (system_id, V2_HEADER_LEN)
-        };
+        // The system id widens to 32 bits when the flag is set, which shifts everything
+        // that follows it.
+        let (system_id, component_id, message_id, mut header_len) =
+            if incompat_flags & IFLAG_SYSID_32 != 0 {
+                if buf.len() < V2_HEADER_LEN + 3 {
+                    return None;
+                }
+                let id = u32::from_le_bytes([buf[5], buf[6], buf[7], buf[8]]);
+                let component = buf[9];
+                let id3 = u32::from_le_bytes([buf[10], buf[11], buf[12], 0]);
+                (id, component, id3, V2_HEADER_LEN + 3)
+            } else {
+                let id = u32::from(buf[5]);
+                let component = buf[6];
+                let id3 = u32::from_le_bytes([buf[7], buf[8], buf[9], 0]);
+                (id, component, id3, V2_HEADER_LEN)
+            };
 
-        // The message id occupies three bytes in MAVLink 2.
-        let msg_id_end = header_len + 3;
-        if buf.len() < msg_id_end {
-            return None;
-        }
-        let message_id =
-            u32::from_le_bytes([buf[header_len], buf[header_len + 1], buf[header_len + 2], 0]);
-
-        // An optional 32-bit target system id follows.
+        // An optional 32-bit target system id follows the message id.
         let mut target_system_id = None;
         if incompat_flags & IFLAG_TARGET_32 != 0 {
-            if buf.len() < msg_id_end + 4 {
+            if buf.len() < header_len + 4 {
                 return None;
             }
-            target_system_id = Some(buf[msg_id_end]);
+            target_system_id = Some(buf[header_len]);
             header_len += 4;
         }
 
@@ -505,7 +556,7 @@ impl FrameParser {
             incompat_flags,
             compat_flags,
             sequence,
-            system_id,
+            system_id: system_id as u8,
             component_id,
             message_id,
             target_system_id,
@@ -804,5 +855,66 @@ mod tests {
         parser.reset();
         assert_eq!(parser.buffered(), 0);
         assert_eq!(parser.stats().frames_parsed, 0);
+    }
+
+    #[test]
+    fn an_encoded_frame_parses_back_to_the_same_message() {
+        let message =
+            crate::dialect::MavMessage::HEARTBEAT(crate::dialect::messages::HEARTBEAT_DATA {
+                custom_mode: 5,
+                mavtype: crate::dialect::MavType::MAV_TYPE_QUADROTOR,
+                autopilot: crate::dialect::MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
+                ..Default::default()
+            });
+
+        let header = MavHeader {
+            system_id: 1,
+            component_id: 1,
+            sequence: 7,
+        };
+
+        let bytes = encode_v2(&message, header);
+
+        let mut parser = FrameParser::new();
+        let mut frames = Vec::new();
+        parser.feed(&bytes, &mut frames).unwrap();
+
+        assert_eq!(frames.len(), 1, "the frame should have been parsed");
+        let frame = &frames[0];
+        assert_eq!(frame.message_id, 0);
+        assert_eq!(frame.system_id, 1);
+        assert_eq!(frame.component_id, 1);
+        assert_eq!(frame.sequence, 7);
+        assert_eq!(frame.version, MavlinkVersion::V2);
+
+        // The CRC must validate against the message's own seed.
+        assert!(FrameParser::verify_crc(frame).is_ok());
+        assert_eq!(parser.stats().crc_errors, 0);
+    }
+
+    #[test]
+    fn a_mavlink1_frame_round_trips_too() {
+        let message =
+            crate::dialect::MavMessage::HEARTBEAT(crate::dialect::messages::HEARTBEAT_DATA {
+                custom_mode: 3,
+                ..Default::default()
+            });
+
+        let header = MavHeader {
+            system_id: 1,
+            component_id: 1,
+            sequence: 2,
+        };
+
+        let bytes = encode_v1(&message, header);
+
+        let mut parser = FrameParser::new();
+        let mut frames = Vec::new();
+        parser.feed(&bytes, &mut frames).unwrap();
+
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].version, MavlinkVersion::V1);
+        assert_eq!(frames[0].sequence, 2);
+        assert!(FrameParser::verify_crc(&frames[0]).is_ok());
     }
 }
