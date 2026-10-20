@@ -108,10 +108,10 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 5.1 | Full parameter download with progress | `MAVLinkInterface.getParamListAsync` | 🔜 | 3 |
-| 5.2 | Parameter write with echo confirmation | `setParamAsync` | 🔜 | 3 |
+| 5.1 | Full parameter download with progress | `MAVLinkInterface.getParamListAsync` | ✅ | 3 |
+| 5.2 | Parameter write with echo confirmation | `setParamAsync` | ✅ | 3 |
 | 5.3 | Batched write with `*_ENABLE` ordering | `ConfigRawParams.SortENABLE` | 🔜 | 3 |
-| 5.4 | Live parameter updates | `processInfoFromStream` PARAM_VALUE | 🔜 | 3 |
+| 5.4 | Live parameter updates | `processInfoFromStream` PARAM_VALUE | ✅ | 3 |
 | 5.5 | Parameter metadata (ranges, bitmasks, options, units) | `ParameterMetaData.xml` | 🔜 | 3 |
 | 5.6 | Parameter tree by prefix | `ConfigRawParams.BuildTree` | 🔜 | 3 |
 | 5.7 | Parameter search | `ConfigRawParams.txt_search` | 🔜 | 3 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 11 |
-| 🔧 Planned | 143 |
+| ✅ Done | 14 |
+| 🔧 Planned | 140 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 0 |
 
-The 11 rows marked done are the connection and transport layer: the transports, the
+The 14 rows marked done are the connection, transport and parameter layer: the transports, the
 heartbeat negotiation, the vehicle registry, the loss accounting and the board-output
 capture all work and are covered by tests. The user-facing features that use them — the
 connection dialog, the live telemetry view — are still planned, because they need the UI.

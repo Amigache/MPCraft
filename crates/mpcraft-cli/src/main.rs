@@ -144,9 +144,8 @@ async fn run(cli: &Cli) -> Result<(), String> {
                 .target
                 .clone()
                 .ok_or_else(|| "no connection target given".to_owned())?;
-            let _spec = ConnectionSpec::parse(&target).map_err(|e| e.to_string())?;
-            println!("params {action:?} on {target}");
-            Ok(())
+            let spec = ConnectionSpec::parse(&target).map_err(|e| e.to_string())?;
+            params(&spec, action).await
         }
         Command::Mission { action } => {
             let target = cli
@@ -196,6 +195,74 @@ async fn connect(target: &str, monitor: bool) -> Result<(), String> {
     }
 
     monitor_session(&session).await
+}
+
+/// Runs a parameter operation against the vehicle.
+async fn params(spec: &ConnectionSpec, action: &ParamsAction) -> Result<(), String> {
+    let session = mpcraft_link::Session::connect(spec, mpcraft_link::SessionOptions::default())
+        .await
+        .map_err(|e| format!("cannot open the link: {e}"))?;
+
+    let vehicle = mpcraft_link::VehicleId::new(1, 1);
+
+    match action {
+        ParamsAction::List { filter } => {
+            let store = session
+                .download_parameters(vehicle, mpcraft_link::DEFAULT_LIST_TIMEOUT)
+                .await
+                .map_err(|e| format!("cannot read the parameters: {e}"))?;
+
+            println!(
+                "{} parameters received, {} reported by the vehicle",
+                store.len(),
+                store.total_reported()
+            );
+
+            for parameter in store.iter() {
+                if let Some(filter) = filter {
+                    if !parameter.name.contains(filter.as_str()) {
+                        continue;
+                    }
+                }
+
+                println!("{:<24} {}", parameter.name, parameter.value);
+            }
+
+            Ok(())
+        }
+
+        ParamsAction::Get { name } => {
+            let parameter = session
+                .read_parameter(vehicle, name, mpcraft_link::DEFAULT_READ_TIMEOUT)
+                .await
+                .map_err(|e| format!("cannot read {name}: {e}"))?;
+
+            println!("{:<24} {}", parameter.name, parameter.value);
+            Ok(())
+        }
+
+        ParamsAction::Set { name, value } => {
+            // The reported type of the parameter decides how the value is encoded, so the
+            // parameter has to be known before it can be written.
+            let current = session
+                .read_parameter(vehicle, name, mpcraft_link::DEFAULT_READ_TIMEOUT)
+                .await
+                .map_err(|e| format!("cannot read {name}: {e}"))?;
+
+            if current.value == *value {
+                println!("{name} is already {value}; nothing to do");
+                return Ok(());
+            }
+
+            let written = session
+                .write_parameter(vehicle, name, *value, mpcraft_link::DEFAULT_WRITE_TIMEOUT)
+                .await
+                .map_err(|e| format!("cannot write {name}: {e}"))?;
+
+            println!("{:<24} {}", written.name, written.value);
+            Ok(())
+        }
+    }
 }
 
 /// Prints the live telemetry until the link ends.

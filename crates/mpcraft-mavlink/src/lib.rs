@@ -40,8 +40,9 @@ pub mod inspector;
 pub mod signing;
 
 pub use dialect::{
-    MavAutopilot, MavCmd, MavFrame, MavMessage, MavMissionResult, MavMissionType, MavModeFlag,
-    MavParamType, MavResult, MavSeverity, MavState, MavSysStatusSensor, MavType, Message,
+    CharArray, MavAutopilot, MavCmd, MavFrame, MavMessage, MavMissionResult, MavMissionType,
+    MavModeFlag, MavParamType, MavProtocolCapability, MavResult, MavSeverity, MavState,
+    MavSysStatusSensor, MavType, Message,
 };
 pub use error::{ProtocolError, Result};
 pub use frame::{Frame, FrameParser, MavlinkVersion};

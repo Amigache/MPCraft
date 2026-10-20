@@ -15,7 +15,7 @@
 pub use mavlink::dialects::ardupilotmega::MavMessage;
 pub use mavlink::dialects::ardupilotmega::{
     MavAutopilot, MavCmd, MavFrame, MavMissionResult, MavMissionType, MavModeFlag, MavParamType,
-    MavResult, MavSeverity, MavState, MavSysStatusSensor, MavType,
+    MavProtocolCapability, MavResult, MavSeverity, MavState, MavSysStatusSensor, MavType,
 };
 
 // The generated message structs live in the dialect module. They are re-exported as a whole
@@ -23,6 +23,8 @@ pub use mavlink::dialects::ardupilotmega::{
 // having to know the generator's naming convention.
 pub use mavlink::dialects::ardupilotmega as messages;
 
+pub use mavlink::types;
+pub use mavlink::types::CharArray;
 pub use mavlink::{MavlinkVersion, Message};
 
 /// The compiled dialect used throughout MPCraft: ArduPilot Mega plus the common dialect.

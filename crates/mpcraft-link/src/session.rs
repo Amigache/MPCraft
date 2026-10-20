@@ -27,12 +27,14 @@
 //! bounded by [`SessionOptions::poll_interval`]; the default of ten milliseconds is well
 //! below what a pilot would notice.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mpcraft_mavlink::dialect::Dialect;
 use mpcraft_mavlink::{Frame, FrameParser, MavMessage, MavlinkVersion, Message};
+use mpcraft_params::ParameterStore;
 use mpcraft_transport::{ConnectionSpec, Transport};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -41,7 +43,7 @@ use crate::heartbeat::{Heartbeat, HeartbeatCollector};
 use crate::loss::{LossAccountant, LossStats};
 use crate::plaintext::PlaintextSniffer;
 use crate::telemetry::TelemetryAggregator;
-use crate::vehicle::{Vehicle, VehicleId, VehicleKind, VehicleRegistry};
+use crate::vehicle::{VehicleId, VehicleKind, VehicleRegistry};
 
 /// The size of the read buffer.
 const READ_BUFFER_SIZE: usize = 4096;
@@ -89,6 +91,12 @@ impl ReceivedMessage {
     }
 }
 
+/// A predicate that decides whether a message matches a request.
+type Matcher = Box<dyn Fn(&ReceivedMessage) -> bool + Send>;
+
+/// A predicate that decides whether a collection of messages is complete.
+type Completion = Box<dyn Fn(&[ReceivedMessage]) -> bool + Send>;
+
 /// A command sent to the reader task.
 enum Command {
     /// Write bytes to the link.
@@ -101,9 +109,18 @@ enum Command {
     /// Wait for a message that matches a predicate.
     Request {
         /// The predicate a message must satisfy.
-        matcher: Box<dyn Fn(&ReceivedMessage) -> bool + Send>,
+        matcher: Matcher,
         /// Where to deliver the matching message.
         respond: oneshot::Sender<Result<ReceivedMessage, LinkError>>,
+    },
+    /// Collect messages that match a predicate until the collection is complete.
+    Collect {
+        /// The predicate a message must satisfy to be collected.
+        matcher: Matcher,
+        /// Whether the collection is complete, given what has been collected so far.
+        complete: Completion,
+        /// Where to deliver the collected messages.
+        respond: oneshot::Sender<Result<Vec<ReceivedMessage>, LinkError>>,
     },
     /// Stop the session.
     Stop,
@@ -113,17 +130,126 @@ enum Command {
 #[derive(Debug, Clone)]
 pub struct SessionState {
     /// The vehicles seen on the link.
-    pub vehicles: Vec<Vehicle>,
+    pub vehicles: Vec<crate::vehicle::Vehicle>,
     /// The telemetry of the primary vehicle.
     pub telemetry: mpcraft_vehicle::Telemetry,
     /// The loss statistics of the primary vehicle.
     pub loss: LossStats,
+    /// The protocol capabilities the vehicle advertised.
+    pub capabilities: Option<u64>,
+    /// The parameters the vehicle has reported.
+    pub parameters: ParameterStore,
     /// The lines of board output captured outside of MAVLink frames.
     pub plaintext: Vec<String>,
     /// Whether the board's output looks like a DroneCAN bus.
     pub looks_like_can_bus: bool,
     /// Whether the link is still open.
     pub connected: bool,
+}
+
+/// The mutable state the reader task owns.
+///
+/// Bundling it into one struct keeps the reader task's functions from taking a dozen
+/// arguments, and makes it obvious that the state is only ever touched by one task.
+#[derive(Debug, Default)]
+struct SessionContext {
+    registry: VehicleRegistry,
+    heartbeats: HeartbeatCollector,
+    aggregator: TelemetryAggregator,
+    plaintext: PlaintextSniffer,
+    accountants: HashMap<VehicleId, LossAccountant>,
+    last_packet_at: Option<Instant>,
+    loss: LossStats,
+    capabilities: Option<u64>,
+    parameters: ParameterStore,
+}
+
+impl SessionContext {
+    /// Handles one frame: updates the vehicle state and the telemetry.
+    fn handle_frame(&mut self, frame: &Frame, now: Instant) {
+        let id = VehicleId::new(frame.system_id, frame.component_id);
+        let vehicle = self.registry.observe(id);
+
+        // The loss accounting is per vehicle, and follows the sequence number.
+        let since_previous = self
+            .last_packet_at
+            .is_some_and(|last| now.saturating_duration_since(last).as_secs_f64() < 1.0);
+        let accountant = self.accountants.entry(id).or_default();
+        accountant.observe(frame.sequence, since_previous);
+        self.loss = accountant.stats();
+        self.last_packet_at = Some(now);
+
+        let Ok(message) = Dialect::parse(frame.version, frame.message_id, &frame.payload) else {
+            return;
+        };
+
+        // The heartbeat identifies the vehicle.
+        if frame.message_id == crate::heartbeat::HEARTBEAT_ID
+            || frame.message_id == crate::heartbeat::HIGH_LATENCY2_ID
+        {
+            let mav_type = match &message {
+                MavMessage::HEARTBEAT(heartbeat) => Some(heartbeat.mavtype),
+                _ => None,
+            };
+
+            let _ = self.heartbeats.observe(Heartbeat {
+                system_id: frame.system_id,
+                component_id: frame.component_id,
+                message_id: frame.message_id,
+                mav_type,
+            });
+
+            if let MavMessage::HEARTBEAT(heartbeat) = &message {
+                vehicle.mav_type = Some(heartbeat.mavtype);
+                vehicle.autopilot = Some(heartbeat.autopilot);
+                vehicle.kind = Some(VehicleKind::from_heartbeat(
+                    heartbeat.autopilot,
+                    heartbeat.mavtype,
+                ));
+                vehicle.custom_mode = Some(heartbeat.custom_mode);
+            }
+        }
+
+        // The protocol capabilities arrive in AUTOPILOT_VERSION and decide how the vehicle
+        // encodes its parameter values.
+        if let MavMessage::AUTOPILOT_VERSION(version) = &message {
+            self.capabilities = Some(version.capabilities.bits());
+        }
+
+        // A PARAM_VALUE updates the parameter store, whether it was asked for or the vehicle
+        // changed the value on its own.
+        if let MavMessage::PARAM_VALUE(value) = &message {
+            if value.param_index != crate::params::PX4_PARAM_HASH_INDEX {
+                let name = crate::params::param_name_of(value);
+                if !name.is_empty() {
+                    let reported_type = mpcraft_params::ParamType::from_mavlink(value.param_type)
+                        .unwrap_or(mpcraft_params::ParamType::Real32);
+                    self.parameters.set_total_reported(value.param_count);
+                    self.parameters.insert(mpcraft_params::Parameter::new(
+                        name,
+                        value.param_value as f64,
+                        reported_type,
+                    ));
+                }
+            }
+        }
+
+        self.aggregator.apply(&message);
+    }
+
+    /// The snapshot of the current state.
+    fn snapshot(&self, connected: bool) -> SessionState {
+        SessionState {
+            vehicles: self.registry.vehicles().into_iter().cloned().collect(),
+            telemetry: self.aggregator.telemetry().clone(),
+            loss: self.loss,
+            capabilities: self.capabilities,
+            parameters: self.parameters.clone(),
+            plaintext: self.plaintext.lines(),
+            looks_like_can_bus: self.plaintext.looks_like_can_bus(),
+            connected,
+        }
+    }
 }
 
 /// A live link to a vehicle.
@@ -156,14 +282,7 @@ impl Session {
     #[must_use]
     pub fn with_transport(transport: Box<dyn Transport>, options: SessionOptions) -> Self {
         let (commands, receiver) = mpsc::channel::<Command>(64);
-        let (state_tx, state_rx) = watch::channel(SessionState {
-            vehicles: Vec::new(),
-            telemetry: mpcraft_vehicle::Telemetry::default(),
-            loss: LossStats::default(),
-            plaintext: Vec::new(),
-            looks_like_can_bus: false,
-            connected: true,
-        });
+        let (state_tx, state_rx) = watch::channel(SessionContext::default().snapshot(true));
 
         let stopped = Arc::new(AtomicBool::new(false));
         let task_stopped = Arc::clone(&stopped);
@@ -255,16 +374,103 @@ impl Session {
         }
     }
 
+    /// Registers a collector for the messages that match a predicate.
+    ///
+    /// The collector is registered *before* the request that triggers it is sent. That order
+    /// matters: a vehicle on a fast link can answer before the request has even left the
+    /// session, and an answer that arrives before anybody is listening is lost.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session has closed.
+    pub async fn begin_collect<F, C>(&self, matcher: F, complete: C) -> Result<Collector, LinkError>
+    where
+        F: Fn(&ReceivedMessage) -> bool + Send + 'static,
+        C: Fn(&[ReceivedMessage]) -> bool + Send + 'static,
+    {
+        let (respond, wait) = oneshot::channel();
+        self.commands
+            .send(Command::Collect {
+                matcher: Box::new(matcher),
+                complete: Box::new(complete),
+                respond,
+            })
+            .await
+            .map_err(|_| LinkError::SessionClosed)?;
+
+        Ok(Collector { wait })
+    }
+
+    /// Collects the messages that match a predicate until the collection is complete.
+    ///
+    /// This is what a streaming protocol needs: the parameter list is a stream of
+    /// `PARAM_VALUE` messages that ends when every parameter has arrived, not when one
+    /// matching message does.
+    ///
+    /// Use [`Session::begin_collect`] when the request has to be sent *after* the collector
+    /// is registered.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes before the collection is complete, or when
+    /// the timeout expires.
+    pub async fn collect<F, C>(
+        &self,
+        timeout: Duration,
+        matcher: F,
+        complete: C,
+    ) -> Result<Vec<ReceivedMessage>, LinkError>
+    where
+        F: Fn(&ReceivedMessage) -> bool + Send + 'static,
+        C: Fn(&[ReceivedMessage]) -> bool + Send + 'static,
+    {
+        let collector = self.begin_collect(matcher, complete).await?;
+        collector.wait(timeout).await
+    }
+
     /// Stops the session.
     pub async fn stop(&self) {
         let _ = self.commands.send(Command::Stop).await;
     }
 }
 
+/// A registered collector, waiting for the messages it is collecting.
+///
+/// Created by [`Session::begin_collect`]. Registering the collector before the request is
+/// sent is what stops a fast answer from being lost.
+#[derive(Debug)]
+pub struct Collector {
+    wait: oneshot::Receiver<Result<Vec<ReceivedMessage>, LinkError>>,
+}
+
+impl Collector {
+    /// Waits for the collection to complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes before the collection is complete, or when
+    /// the timeout expires.
+    pub async fn wait(self, timeout: Duration) -> Result<Vec<ReceivedMessage>, LinkError> {
+        match tokio::time::timeout(timeout, self.wait).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(LinkError::SessionClosed),
+            Err(_) => Err(LinkError::Timeout(timeout)),
+        }
+    }
+}
+
 /// A pending request waiting for a matching message.
 struct PendingRequest {
-    matcher: Box<dyn Fn(&ReceivedMessage) -> bool + Send>,
+    matcher: Matcher,
     respond: oneshot::Sender<Result<ReceivedMessage, LinkError>>,
+}
+
+/// A pending request that collects messages until it is complete.
+struct PendingCollection {
+    matcher: Matcher,
+    complete: Completion,
+    messages: Vec<ReceivedMessage>,
+    respond: oneshot::Sender<Result<Vec<ReceivedMessage>, LinkError>>,
 }
 
 /// The reader task: the single owner of the transport.
@@ -279,18 +485,9 @@ async fn run_reader(
     let mut buffer = vec![0u8; READ_BUFFER_SIZE];
     let mut frames: Vec<Frame> = Vec::new();
 
-    let mut registry = VehicleRegistry::new();
-    let mut heartbeats = HeartbeatCollector::new();
-    let mut plaintext = PlaintextSniffer::new();
-    let mut aggregator = TelemetryAggregator::new();
-    let mut loss: LossStats = LossStats::default();
-
-    // The loss accounting is per vehicle.
-    let mut accountants: std::collections::HashMap<VehicleId, LossAccountant> =
-        std::collections::HashMap::new();
-    let mut last_packet_at: Option<Instant> = None;
-
+    let mut context = SessionContext::default();
     let mut pending: Vec<PendingRequest> = Vec::new();
+    let mut collections: Vec<PendingCollection> = Vec::new();
 
     loop {
         // 1. Serve the queued writes and requests first.
@@ -305,9 +502,21 @@ async fn run_reader(
                 Command::Request { matcher, respond } => {
                     pending.push(PendingRequest { matcher, respond });
                 }
+                Command::Collect {
+                    matcher,
+                    complete,
+                    respond,
+                } => {
+                    collections.push(PendingCollection {
+                        matcher,
+                        complete,
+                        messages: Vec::new(),
+                        respond,
+                    });
+                }
                 Command::Stop => {
                     stopped.store(true, Ordering::Relaxed);
-                    publish(&state_tx, &registry, &aggregator, &plaintext, loss, false);
+                    let _ = state_tx.send(context.snapshot(false));
                     return;
                 }
             }
@@ -323,11 +532,11 @@ async fn run_reader(
                 // last read is collected before the state is published.
                 let discarded = parser.take_plaintext();
                 if !discarded.is_empty() {
-                    plaintext.observe(&discarded);
+                    context.plaintext.observe(&discarded);
                 }
 
                 stopped.store(true, Ordering::Relaxed);
-                publish(&state_tx, &registry, &aggregator, &plaintext, loss, false);
+                let _ = state_tx.send(context.snapshot(false));
                 return;
             }
             Ok(Ok(count)) => {
@@ -336,16 +545,7 @@ async fn run_reader(
                 frames.clear();
                 if parser.feed(&buffer[..count], &mut frames).is_ok() {
                     for frame in &frames {
-                        handle_frame(
-                            frame,
-                            now,
-                            &mut registry,
-                            &mut heartbeats,
-                            &mut aggregator,
-                            &mut accountants,
-                            &mut last_packet_at,
-                            &mut loss,
-                        );
+                        context.handle_frame(frame, now);
                     }
                 }
 
@@ -354,82 +554,27 @@ async fn run_reader(
                 // bytes they were.
                 let discarded = parser.take_plaintext();
                 if !discarded.is_empty() {
-                    plaintext.observe(&discarded);
+                    context.plaintext.observe(&discarded);
                 }
 
                 // Deliver any message that satisfies a pending request.
                 if !pending.is_empty() {
                     deliver(&mut pending, &frames);
                 }
+                if !collections.is_empty() {
+                    deliver_collections(&mut collections, &frames);
+                }
 
-                publish(&state_tx, &registry, &aggregator, &plaintext, loss, true);
+                let _ = state_tx.send(context.snapshot(true));
             }
             Ok(Err(error)) => {
                 tracing::warn!("the link failed: {error}");
                 stopped.store(true, Ordering::Relaxed);
-                publish(&state_tx, &registry, &aggregator, &plaintext, loss, false);
+                let _ = state_tx.send(context.snapshot(false));
                 return;
             }
         }
     }
-}
-
-/// Handles one frame: updates the vehicle state and the telemetry.
-#[allow(clippy::too_many_arguments)]
-fn handle_frame(
-    frame: &Frame,
-    now: Instant,
-    registry: &mut VehicleRegistry,
-    heartbeats: &mut HeartbeatCollector,
-    aggregator: &mut TelemetryAggregator,
-    accountants: &mut std::collections::HashMap<VehicleId, LossAccountant>,
-    last_packet_at: &mut Option<Instant>,
-    loss: &mut LossStats,
-) {
-    let id = VehicleId::new(frame.system_id, frame.component_id);
-    let vehicle = registry.observe(id);
-
-    // The loss accounting is per vehicle, and follows the sequence number.
-    let since_previous =
-        last_packet_at.is_some_and(|last| now.saturating_duration_since(last).as_secs_f64() < 1.0);
-    let accountant = accountants.entry(id).or_default();
-    accountant.observe(frame.sequence, since_previous);
-    *loss = accountant.stats();
-    *last_packet_at = Some(now);
-
-    // Decode the message.
-    let Ok(message) = Dialect::parse(frame.version, frame.message_id, &frame.payload) else {
-        return;
-    };
-
-    // The heartbeat identifies the vehicle.
-    if frame.message_id == crate::heartbeat::HEARTBEAT_ID
-        || frame.message_id == crate::heartbeat::HIGH_LATENCY2_ID
-    {
-        let mav_type = match &message {
-            MavMessage::HEARTBEAT(heartbeat) => Some(heartbeat.mavtype),
-            _ => None,
-        };
-
-        let _ = heartbeats.observe(Heartbeat {
-            system_id: frame.system_id,
-            component_id: frame.component_id,
-            message_id: frame.message_id,
-            mav_type,
-        });
-
-        if let MavMessage::HEARTBEAT(heartbeat) = &message {
-            vehicle.mav_type = Some(heartbeat.mavtype);
-            vehicle.autopilot = Some(heartbeat.autopilot);
-            vehicle.kind = Some(VehicleKind::from_heartbeat(
-                heartbeat.autopilot,
-                heartbeat.mavtype,
-            ));
-            vehicle.custom_mode = Some(heartbeat.custom_mode);
-        }
-    }
-
-    aggregator.apply(&message);
 }
 
 /// Delivers the messages that satisfy a pending request.
@@ -437,7 +582,7 @@ fn deliver(pending: &mut Vec<PendingRequest>, frames: &[Frame]) {
     let mut remaining = Vec::with_capacity(pending.len());
 
     for request in pending.drain(..) {
-        let mut matched: Option<ReceivedMessage> = None;
+        let mut matched = None;
 
         for frame in frames {
             let Ok(message) = Dialect::parse(frame.version, frame.message_id, &frame.payload)
@@ -470,26 +615,38 @@ fn deliver(pending: &mut Vec<PendingRequest>, frames: &[Frame]) {
     *pending = remaining;
 }
 
-/// Publishes the current state.
-fn publish(
-    state_tx: &watch::Sender<SessionState>,
-    registry: &VehicleRegistry,
-    aggregator: &TelemetryAggregator,
-    plaintext: &PlaintextSniffer,
-    loss: LossStats,
-    connected: bool,
-) {
-    let state = SessionState {
-        vehicles: registry.vehicles().into_iter().cloned().collect(),
-        telemetry: aggregator.telemetry().clone(),
-        loss,
-        plaintext: plaintext.lines(),
-        looks_like_can_bus: plaintext.looks_like_can_bus(),
-        connected,
-    };
+/// Delivers the messages that satisfy a pending collection.
+fn deliver_collections(collections: &mut Vec<PendingCollection>, frames: &[Frame]) {
+    let mut remaining = Vec::with_capacity(collections.len());
 
-    // A closed watch channel simply means nobody is listening any more.
-    let _ = state_tx.send(state);
+    for mut collection in collections.drain(..) {
+        for frame in frames {
+            let Ok(message) = Dialect::parse(frame.version, frame.message_id, &frame.payload)
+            else {
+                continue;
+            };
+
+            let received = ReceivedMessage {
+                system_id: frame.system_id,
+                component_id: frame.component_id,
+                message_id: frame.message_id,
+                message_name: message.message_name().to_owned(),
+                message,
+            };
+
+            if (collection.matcher)(&received) {
+                collection.messages.push(received);
+            }
+        }
+
+        if (collection.complete)(&collection.messages) {
+            let _ = collection.respond.send(Ok(collection.messages));
+        } else {
+            remaining.push(collection);
+        }
+    }
+
+    *collections = remaining;
 }
 
 /// The MAVLink version a frame used, for the frame parser.

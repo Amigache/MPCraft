@@ -320,14 +320,15 @@ built and verified:
 | `mpcraft-transport` | `Transport` trait, `ConnectionSpec` parser, serial / UDP / TCP / file transports — **40 tests** |
 | `mpcraft-geo` | Geodesy, pure-Rust UTM and MGRS — **15 tests**, validated against PROJ and two independent MGRS implementations |
 | `mpcraft-vehicle` | Telemetry snapshot with derived values and staleness tracking — **10 tests** |
-| `mpcraft-link` | Session, heartbeat negotiation, vehicle registry, loss accounting, telemetry aggregation — **49 tests** |
+| `mpcraft-link` | Session, heartbeat negotiation, vehicle registry, loss accounting, telemetry aggregation, the parameter protocol — **57 tests** |
+| `mpcraft-params` | The parameter model, the encoding rules and the capability gate — **14 tests** |
 | `mpcraft-mission` | Mission model and `MAV_CMD` metadata table — **10 tests** |
 | `mpcraft-app` | The IPC contract and its stable error codes — **5 tests** |
 | `mpcraft-cli` | `mpcraft-cli ports \| connect \| params \| mission` |
 | `apps/desktop`, `apps/ui` | Tauri v2 shell and the typed IPC bridge |
 | CI | Format, clippy, test and build gates on Windows, Linux and macOS |
 
-**166 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
+**192 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
 
 ### Phase 0, Task 2 — the transport layer: what was built
 
@@ -389,22 +390,55 @@ It has already earned its keep. It caught two real bugs:
    and the receiver pads the payload back. The fixture now exercises the truncated form, so the
    parser is tested against the shorter payload it will really receive.
 
-### The next step: Phase 0, Task 4 - the parameter protocol
+### Phase 0, Task 4 - the parameter protocol: what was built
 
-The session can identify a vehicle and read its telemetry. The next piece is the first
-*request/response* transaction, which is where the actor model earns its keep:
+`mpcraft-params` and the parameter operations of `mpcraft-link`:
 
-- `PARAM_REQUEST_LIST` and the `PARAM_VALUE` stream, with the progress and cancellation
-  semantics upstream has.
-- `PARAM_REQUEST_READ` and `PARAM_SET`, with the write confirmation and the `*_ENABLE`
-  ordering.
-- The parameter store, holding the values, their reported wire types, and their freshness.
-- The capability gate: `MAV_PROTOCOL_CAPABILITY::PARAM_FLOAT` decides whether a value is sent
-  as `REAL32` or in its reported type. Getting this wrong silently corrupts integer
-  parameters.
+- **`ParameterStore`** - the values, the type the vehicle reported for each, and the total the
+  vehicle says it has.
+- **The encoding rules** - a parameter value travels in a four-byte field declared as a
+  `float`, and the `param_type` says what those four bytes mean. There are two ways they can
+  be filled: byte-wise, or cast to a float. The two are **not** interchangeable, and guessing
+  wrong corrupts every integer parameter.
+- **The capability gate** - the vehicle says which it uses, through
+  `MAV_PROTOCOL_CAPABILITY_PARAM_ENCODE_BYTEWISE` or `PARAM_ENCODE_C_CAST`. Two real
+  autopilots need no bit at all: ArduPilot sends floats, and PX4 sends bytes. Mission
+  Planner's rule covers both, and MPCraft keeps it while also honouring the two current
+  capability bits.
+- **`download_parameters`**, **`read_parameter`** and **`write_parameter`** - the three
+  operations of the protocol, with the timeout and retry semantics upstream has.
+- **The write is confirmed by the value the vehicle stores**, not by the value that was sent.
+  A vehicle that refuses a write answers with the unchanged value, which is how the ground
+  station learns it failed.
 
-**Exit criteria:** a parameter written by MPCraft reads back identically from the vehicle, and
-the value survives a write of an integer parameter that is not a float.
+### A race that the socket tests caught
+
+The parameter list is a *stream*: the request goes out, and the vehicle answers with a
+`PARAM_VALUE` per parameter. The first implementation sent the request and *then* registered
+the collector - so a vehicle on a fast link could answer before anybody was listening, and the
+answer was lost.
+
+Upstream avoids this by subscribing to the message type before sending the request. MPCraft
+now does the same, in two steps: `begin_collect` registers the collector, the request is sent,
+and only then does the collector wait. The suite that runs a simulated vehicle on a real UDP
+socket is what made the race visible.
+
+### The next step: Phase 0, Task 5 - the mission protocol
+
+The parameter protocol is the first request/response transaction, and the actor model has
+now been proven against a real socket. The mission protocol is the same shape with more
+moving parts:
+
+- `MISSION_COUNT` / `MISSION_ITEM` / `MISSION_REQUEST`, and the `MISSION_ITEM_INT` variant
+  that the capability bit selects.
+- The upload direction, where the **vehicle** drives the sequence by asking for the next
+  item.
+- `MISSION_ACK`, and the three failure results the vehicle can report.
+- The fence and rally point protocols, which are the same exchange with a different mission
+  type.
+
+**Exit criteria:** a mission downloaded from a vehicle and uploaded back is byte-identical on
+the wire, and a mission uploaded to a vehicle reads back identically.
 
 ---
 

@@ -2573,6 +2573,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "mpcraft-mavlink",
+ "mpcraft-params",
  "mpcraft-transport",
  "mpcraft-vehicle",
  "parking_lot",
@@ -2623,6 +2624,7 @@ dependencies = [
 name = "mpcraft-params"
 version = "0.1.0"
 dependencies = [
+ "mpcraft-mavlink",
  "quick-xml 0.37.5",
  "serde",
  "serde_json",
