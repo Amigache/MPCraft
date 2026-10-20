@@ -1,0 +1,98 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mpcraft-mavlink",
+    "crates/mpcraft-transport",
+    "crates/mpcraft-vehicle",
+    "crates/mpcraft-link",
+    "crates/mpcraft-mission",
+    "crates/mpcraft-geo",
+    "crates/mpcraft-params",
+    "crates/mpcraft-log",
+    "crates/mpcraft-settings",
+    "crates/mpcraft-app",
+    "crates/mpcraft-cli",
+    "apps/desktop",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "GPL-3.0-or-later"
+authors = ["MPCraft Contributors"]
+repository = "https://github.com/mpcraft/mpcraft"
+
+[workspace.dependencies]
+mpcraft-mavlink = { path = "crates/mpcraft-mavlink" }
+mpcraft-transport = { path = "crates/mpcraft-transport" }
+mpcraft-vehicle = { path = "crates/mpcraft-vehicle" }
+mpcraft-link = { path = "crates/mpcraft-link" }
+mpcraft-mission = { path = "crates/mpcraft-mission" }
+mpcraft-geo = { path = "crates/mpcraft-geo" }
+mpcraft-params = { path = "crates/mpcraft-params" }
+mpcraft-log = { path = "crates/mpcraft-log" }
+mpcraft-settings = { path = "crates/mpcraft-settings" }
+mpcraft-app = { path = "crates/mpcraft-app" }
+mpcraft-cli = { path = "crates/mpcraft-cli" }
+
+mavlink = { version = "0.20", default-features = false, features = [
+    "std",
+    "tokio",
+    "serde",
+    "format-generated-code",
+    "mav2-message-signing",
+    "dialect-ardupilotmega",
+    "dialect-common",
+] }
+
+serialport = { version = "4", default-features = false }
+
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync", "fs"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures = "0.3"
+async-trait = "0.1"
+bytes = "1"
+dashmap = "6"
+parking_lot = "0.12"
+rayon = "1"
+arc-swap = "1"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "stream"] }
+quick-xml = { version = "0.37", features = ["serialize"] }
+csv = "1"
+regex = "1"
+flate2 = "1"
+sha2 = "0.10"
+dirs = "6"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+
+geo = "0.31"
+geo-types = "0.7"
+
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-store = "2"
+tauri-plugin-shell = "2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = 1

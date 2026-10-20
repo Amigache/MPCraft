@@ -1,0 +1,77 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "docs/ARCHITECTURE.md",
+    "docs/PARITY.md"
+  ],
+  "agents": {
+    "protocol": {
+      "mode": "subagent",
+      "description": "Protocol expert for the MAVLink wire layer. Use for framing, CRC, signing, dialect bindings, packet inspection, and transport implementations. Owns crates/mpcraft-mavlink and crates/mpcraft-transport.",
+      "color": "#4a9eff",
+      "permissions": [
+        { "action": "edit", "resource": "crates/mpcraft-mavlink/**", "effect": "allow" },
+        { "action": "edit", "resource": "crates/mpcraft-transport/**", "effect": "allow" },
+        { "action": "shell", "resource": "cargo test -p mpcraft-mavlink*", "effect": "allow" },
+        { "action": "shell", "resource": "cargo test -p mpcraft-transport*", "effect": "allow" }
+      ]
+    },
+    "link": {
+      "mode": "subagent",
+      "description": "Session and vehicle-state engineer. Use for the link layer: transactions, heartbeat negotiation, parameter and mission protocols, telemetry aggregation, and the vehicle state model. Owns crates/mpcraft-link and crates/mpcraft-vehicle.",
+      "color": "#00c896",
+      "permissions": [
+        { "action": "edit", "resource": "crates/mpcraft-link/**", "effect": "allow" },
+        { "action": "edit", "resource": "crates/mpcraft-vehicle/**", "effect": "allow" },
+        { "action": "edit", "resource": "crates/mpcraft-params/**", "effect": "allow" },
+        { "action": "shell", "resource": "cargo test -p mpcraft-link*", "effect": "allow" },
+        { "action": "shell", "resource": "cargo test -p mpcraft-vehicle*", "effect": "allow" }
+      ]
+    },
+    "mission": {
+      "mode": "subagent",
+      "description": "Mission-planning and geospatial engineer. Use for the mission item model, MAV_CMD metadata, mission upload/download, geofences, rallies, geodesy, and terrain data. Owns crates/mpcraft-mission and crates/mpcraft-geo.",
+      "color": "#c896ff",
+      "permissions": [
+        { "action": "edit", "resource": "crates/mpcraft-mission/**", "effect": "allow" },
+        { "action": "edit", "resource": "crates/mpcraft-geo/**", "effect": "allow" },
+        { "action": "shell", "resource": "cargo test -p mpcraft-mission*", "effect": "allow" },
+        { "action": "shell", "resource": "cargo test -p mpcraft-geo*", "effect": "allow" }
+      ]
+    },
+    "frontend": {
+      "mode": "subagent",
+      "description": "Frontend engineer for the Tauri + React + TypeScript UI. Use for screens, components, stores, the map, graphs, data tables, and the IPC bridge. Owns apps/ui and apps/desktop.",
+      "color": "#ffb347",
+      "permissions": [
+        { "action": "edit", "resource": "apps/ui/**", "effect": "allow" },
+        { "action": "edit", "resource": "apps/desktop/**", "effect": "allow" },
+        { "action": "shell", "resource": "npm*", "effect": "allow" },
+        { "action": "shell", "resource": "pnpm*", "effect": "allow" }
+      ]
+    },
+    "logs": {
+      "mode": "subagent",
+      "description": "Log parsing and analysis engineer. Use for tlog, DataFlash, ULog, and binary log formats, log download, graphing, and KML/CSV export. Owns crates/mpcraft-log.",
+      "color": "#ff6b9d",
+      "permissions": [
+        { "action": "edit", "resource": "crates/mpcraft-log/**", "effect": "allow" },
+        { "action": "shell", "resource": "cargo test -p mpcraft-log*", "effect": "allow" }
+      ]
+    },
+    "architect": {
+      "mode": "subagent",
+      "description": "Application architect and quality gatekeeper for MPCraft. Use for the app orchestration layer, Tauri wiring, CI, cross-platform packaging, code review, and parity-matrix upkeep. Owns crates/mpcraft-app, crates/mpcraft-settings, and apps/desktop.",
+      "color": "#a0a8b8",
+      "permissions": [
+        { "action": "edit", "resource": "crates/mpcraft-app/**", "effect": "allow" },
+        { "action": "edit", "resource": "crates/mpcraft-settings/**", "effect": "allow" },
+        { "action": "edit", "resource": "apps/desktop/**", "effect": "allow" },
+        { "action": "edit", "resource": ".github/**", "effect": "allow" },
+        { "action": "edit", "resource": "docs/**", "effect": "allow" },
+        { "action": "shell", "resource": "cargo *", "effect": "allow" },
+        { "action": "shell", "resource": "git *", "effect": "allow" }
+      ]
+    }
+  }
+}

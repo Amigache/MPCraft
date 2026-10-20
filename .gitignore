@@ -1,0 +1,25 @@
+# Reference clone of upstream Mission Planner (read-only, for parity analysis)
+_ref_missionplanner/
+
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Tauri / frontend
+/apps/desktop/src-tauri/target/
+/apps/desktop/gen/
+/apps/ui/node_modules/
+/apps/ui/dist/
+/apps/ui/.vite/
+/apps/ui/coverage/
+
+# Runtime data
+/data/
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

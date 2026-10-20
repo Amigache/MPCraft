@@ -1,0 +1,23 @@
+[package]
+name = "mpcraft-app"
+description = "Application orchestration for MPCraft: session supervisor and event bus."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+mpcraft-geo = { workspace = true }
+mpcraft-link = { workspace = true }
+mpcraft-log = { workspace = true }
+mpcraft-mission = { workspace = true }
+mpcraft-params = { workspace = true }
+mpcraft-settings = { workspace = true }
+mpcraft-vehicle = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

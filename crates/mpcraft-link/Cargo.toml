@@ -1,0 +1,22 @@
+[package]
+name = "mpcraft-link"
+description = "Session, transactions, parameter and mission protocols for MPCraft."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+arc-swap = { workspace = true }
+bytes = { workspace = true }
+dashmap = { workspace = true }
+mpcraft-mission = { workspace = true }
+mpcraft-mavlink = { workspace = true }
+mpcraft-vehicle = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

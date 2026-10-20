@@ -1,0 +1,17 @@
+[package]
+name = "mpcraft-log"
+description = "Log parsers (tlog, DataFlash, ULog) and KML/CSV export for MPCraft."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+csv = { workspace = true }
+flate2 = { workspace = true }
+mpcraft-mavlink = { workspace = true }
+quick-xml = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

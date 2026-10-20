@@ -1,0 +1,21 @@
+[package]
+name = "mpcraft-transport"
+description = "Byte transports for MPCraft: serial, UDP, TCP, file replay and NTRIP."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+bytes.workspace = true
+parking_lot.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+serialport.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
