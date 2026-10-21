@@ -651,7 +651,19 @@ range, and the operator has to see what the vehicle has rather than what they wa
 The rules about a plan are the autopilot's, so they live in the model and not in the
 interface. `mpcraft-mission::validate` holds the one rule upstream has: a waypoint with a
 zero altitude would fly the vehicle to the ground. The interface shows what the rule says
-and does not know why.
+and does not know why. A fence has a rule of its own: a polygon needs three vertices, and
+the vehicle cannot build a fence out of two.
+
+The editor has the three kinds of plan upstream's planner has - mission, fence and rally -
+and each kind is edited with the commands that kind takes. The fence is a polygon: the
+vertices that are included in it make the ring, the points that are excluded from it are
+drawn in the colour of the danger, and the circles that are in it or out of it are drawn
+as they are.
+
+The commands of a plan are named the way the specification names them, and the catalogue
+carries the name the operator reads them with: the plan of the vehicle says
+`MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION` and the interface shows *Fence Polygon
+Vertex*.
 
 The plan can be read from and written to a file — the QGC `.waypoints` format and the KML
 that Google Earth reads — and the file is read and written in Rust, where the formats live.

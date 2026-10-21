@@ -319,12 +319,14 @@ export interface MavCommand {
   readonly roles: readonly string[];
   /** The unit of each of the seven slots, in order. */
   readonly units: readonly string[];
+  /** The name the specification gives it, for example `MAV_CMD_NAV_WAYPOINT`. */
+  readonly canonicalName: string;
 }
 
 /** A warning about an item of a plan. */
 export interface PlanWarning {
-  /** The position of the item in the plan. */
-  readonly seq: number;
+  /** The position of the item in the plan, when the warning is about one. */
+  readonly seq: number | null;
   /** What is wrong with it, for example `zeroAltitude`. */
   readonly reason: string;
 }

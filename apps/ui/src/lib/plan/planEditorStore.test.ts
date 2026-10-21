@@ -26,6 +26,7 @@ const { uploadMission, validateMission } = await import("../ipc/bridge");
 /** The waypoint of the catalogue, for the test. */
 const WAYPOINT: MavCommand = {
   name: "Waypoint",
+  canonicalName: "MAV_CMD_NAV_WAYPOINT",
   value: 16,
   roles: ["empty", "empty", "empty", "other", "latitude", "longitude", "altitude"],
   units: ["", "", "", "", "°", "°", "m"],

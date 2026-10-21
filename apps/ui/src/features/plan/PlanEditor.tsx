@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useCommandStore } from "../../lib/plan/commandStore";
 import { pickOpenPath, pickSavePath } from "../../lib/ipc/dialog";
-import type { PlanWarning } from "../../lib/ipc/types";
+import type { PlanKind, PlanWarning } from "../../lib/ipc/types";
 import {
   fileNameOf,
   formatOfPath,
   labelOfFormat,
 } from "../../lib/plan/planFiles";
-import { isChanged, usePlanEditorStore } from "../../lib/plan/planEditorStore";
+import {
+  addKindFor,
+  isChanged,
+  usePlanEditorStore,
+} from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { PlanGrid } from "./PlanGrid";
 import styles from "./PlanEditor.module.css";
@@ -45,6 +49,8 @@ function describeWarning(reason: string): string {
   switch (reason) {
     case "zeroAltitude":
       return "the altitude is zero — the vehicle would fly down to the ground.";
+    case "tooFewFenceVertices":
+      return "the fence has fewer than three vertices — a polygon needs three.";
     default:
       return reason;
   }
@@ -61,7 +67,11 @@ export function PlanEditor() {
   const draft = usePlanEditorStore((state) => state.draft);
   const baseline = usePlanEditorStore((state) => state.baseline);
   const selected = usePlanEditorStore((state) => state.selected);
+  const kind = usePlanStore((state) => state.kind);
+  const setKind = usePlanStore((state) => state.setKind);
   const adding = usePlanEditorStore((state) => state.adding);
+  const addKind = usePlanEditorStore((state) => state.addKind);
+  const setAddKind = usePlanEditorStore((state) => state.setAddKind);
   const marked = usePlanEditorStore((state) => state.marked);
   const places = usePlanEditorStore((state) => state.places);
   const busy = usePlanEditorStore((state) => state.busy);
@@ -86,8 +96,6 @@ export function PlanEditor() {
   const dismissError = usePlanEditorStore((state) => state.dismissError);
   const undo = usePlanEditorStore((state) => state.undo);
   const redo = usePlanEditorStore((state) => state.redo);
-
-  const kind = usePlanStore((state) => state.kind);
 
   // The keyboard, the way upstream has it: control and Z takes the last change back.
   useEffect(() => {
@@ -124,9 +132,18 @@ export function PlanEditor() {
     void loadCommands();
   }, [loadCommands]);
 
-  // A fence is a polygon the vehicle will not leave, not a list of waypoints to fly:
-  // there is nothing to add to it, though its points can be moved and removed.
-  const canAdd = kind !== "fence";
+  // What the plan of this kind takes: a mission takes waypoints, a fence takes the
+  // vertices of its polygon, and a rally takes the points the vehicle may come back
+  // to.
+  const planAddKind = addKindFor(kind);
+
+  /** The name of the button, and what it says when it is armed. */
+  const addLabel = {
+    waypoint: "waypoint",
+    vertex: "vertex",
+    exclusion: "excluded vertex",
+    rally: "rally point",
+  }[planAddKind];
 
   // The escape key stops the adding of an item. It does not close the editor: a plan
   // with unsent edits is not something to lose to a stray key.
@@ -189,8 +206,28 @@ export function PlanEditor() {
   const warnings: readonly PlanWarning[] =
     pending?.kind === "upload" ? pending.warnings : [];
 
+  /** The kinds of plan the vehicle holds, in the order upstream has them. */
+  const kinds: readonly PlanKind[] = ["mission", "fence", "rally"];
+
   return (
     <section className={styles.editor} aria-label="The plan editor">
+      <div className={styles.kinds} role="tablist" aria-label="The kind of plan">
+        {kinds.map((entry) => (
+          <button
+            key={entry}
+            type="button"
+            role="tab"
+            aria-selected={kind === entry}
+            className={`${styles.kind} ${kind === entry ? styles.kindOn : ""}`}
+            onClick={() => {
+              setKind(entry);
+            }}
+          >
+            {KIND_LABELS[entry]}
+          </button>
+        ))}
+      </div>
+
       <div className={styles.toolbar}>
         <button
           type="button"
@@ -216,21 +253,37 @@ export function PlanEditor() {
 
         <button
           type="button"
-          className={`button ${adding ? styles.adding : ""}`}
-          aria-label="Add a waypoint on the map"
-          aria-pressed={adding}
-          disabled={!canAdd || busy}
-          title={
-            canAdd
-              ? "Click the map to add a waypoint"
-              : "A fence is a polygon, not a list of waypoints"
-          }
+          className={`button ${adding && addKind === planAddKind ? styles.adding : ""}`}
+          aria-label={`Add an ${addLabel} on the map`}
+          aria-pressed={adding && addKind === planAddKind}
+          disabled={busy}
+          title={`Click the map to add an ${addLabel}`}
           onClick={() => {
-            setAdding(!adding);
+            setAddKind(planAddKind);
+            setAdding(!(adding && addKind === planAddKind));
           }}
         >
-          {adding ? "Click the map to add a waypoint" : "Add waypoint"}
+          {adding && addKind === planAddKind
+            ? `Click the map to add an ${addLabel}`
+            : `Add ${addLabel}`}
         </button>
+
+        {kind === "fence" ? (
+          <button
+            type="button"
+            className={`button ${adding && addKind === "exclusion" ? styles.adding : ""}`}
+            aria-label="Add an excluded vertex on the map"
+            aria-pressed={adding && addKind === "exclusion"}
+            disabled={busy}
+            title="Click the map to add a point that is excluded from the polygon"
+            onClick={() => {
+              setAddKind("exclusion");
+              setAdding(!(adding && addKind === "exclusion"));
+            }}
+          >
+            Add exclusion
+          </button>
+        ) : null}
 
         <button
           type="button"
@@ -358,7 +411,9 @@ export function PlanEditor() {
                   <ul className={styles.warnings}>
                     {warnings.map((warning) => (
                       <li key={`${warning.seq}-${warning.reason}`}>
-                        Item {warning.seq + 1}: {describeWarning(warning.reason)}
+                        {warning.seq === null
+                          ? describeWarning(warning.reason)
+                          : `Item ${warning.seq + 1}: ${describeWarning(warning.reason)}`}
                       </li>
                     ))}
                   </ul>

@@ -15,6 +15,11 @@ import type {
   PlanWarning,
 } from "../ipc/types";
 import { useCommandStore } from "./commandStore";
+import {
+  RALLY_POINT,
+  VERTEX_EXCLUSION,
+  VERTEX_INCLUSION,
+} from "./fence";
 import type { PlanFileFormat } from "./planFiles";
 import {
   insertItem,
@@ -52,8 +57,11 @@ export type PendingAction =
       readonly format: PlanFileFormat;
     };
 
-/** The name the catalogue of commands gives the waypoint. */
-const WAYPOINT_COMMAND = "Waypoint";
+/** What the editor is adding when the operator clicks on the map. */
+export type AddKind = "waypoint" | "vertex" | "exclusion" | "rally";
+
+/** The name the specification gives the waypoint. */
+const WAYPOINT_COMMAND = "MAV_CMD_NAV_WAYPOINT";
 
 /** The frame a new item is given when there is no item before it. */
 const DEFAULT_FRAME = 3;
@@ -69,6 +77,12 @@ export interface PlanEditorStore {
   readonly selected: number | null;
   /** Whether the next click on the map adds an item. */
   readonly adding: boolean;
+  /** Says what the next click on the map adds. */
+  readonly setAddKind: (kind: AddKind) => void;
+
+
+  /** What the next click on the map adds. */
+  readonly addKind: AddKind;
   /** How many items of the plan the map has given a marker. */
   readonly marked: number;
   /** How many items of the plan carry a place at all. */
@@ -160,11 +174,40 @@ export function isChanged(state: {
   return !sameItems(state.draft, state.baseline);
 }
 
-/** The waypoint command of the catalogue, when the catalogue knows one. */
-function waypointCommand(
+/**
+ * The command of the item that is added, when the catalogue knows one.
+ *
+ * What is added depends on the plan: a mission takes waypoints, a fence takes the
+ * vertices of its polygon, and a rally takes the points the vehicle may come back to.
+ */
+function commandFor(
+  kind: AddKind,
   commands: readonly MavCommand[],
 ): MavCommand | undefined {
-  return commands.find((command) => command.name === WAYPOINT_COMMAND);
+  const name = {
+    waypoint: WAYPOINT_COMMAND,
+    vertex: VERTEX_INCLUSION,
+    exclusion: VERTEX_EXCLUSION,
+    rally: RALLY_POINT,
+  }[kind];
+
+  return commands.find((command) => command.canonicalName === name);
+}
+
+/**
+ * The kind of item that the plan of this kind takes.
+ *
+ * A fence is a polygon, and its points are its vertices. A rally takes rally points.
+ */
+export function addKindFor(kind: PlanKind): AddKind {
+  switch (kind) {
+    case "fence":
+      return "vertex";
+    case "rally":
+      return "rally";
+    default:
+      return "waypoint";
+  }
 }
 
 /** The place an item goes when it is inserted after another one. */
@@ -185,6 +228,7 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
   baseline: [],
   selected: null,
   adding: false,
+  addKind: "waypoint",
   marked: 0,
   places: 0,
   busy: false,
@@ -249,6 +293,7 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
   select: (selected) => set({ selected }),
 
   setAdding: (adding) => set({ adding }),
+  setAddKind: (kind) => set({ addKind: kind }),
 
   setMarked: (marked, places) =>
     set((state) =>
@@ -308,7 +353,10 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
 
   addAt: (latitude, longitude) => {
     const state = get();
-    const command = waypointCommand(useCommandStore.getState().commands);
+    const command = commandFor(
+      state.addKind,
+      useCommandStore.getState().commands,
+    );
     if (command === undefined) {
       set({
         error: {
@@ -326,7 +374,7 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
     // another height is a waypoint the operator did not mean.
     const item: PlanItem = {
       seq: 0,
-      command: command.name,
+      command: command.canonicalName,
       commandValue: command.value,
       frame: before?.frame ?? DEFAULT_FRAME,
       params: [0, 0, 0, 0],
@@ -506,7 +554,19 @@ usePlanStore.subscribe((state, previous) => {
     return;
   }
 
-  if (!usePlanEditorStore.getState().open) {
+  const editor = usePlanEditorStore.getState();
+
+  if (!editor.open) {
+    return;
+  }
+
+  // A plan with edits that have not been sent is work, and the work is not lost
+  // because the operator looked at another plan.
+  if (isChanged(editor)) {
+    usePlanEditorStore.setState({
+      notice:
+        "The plan being edited has changes that have not been sent. They are still here."
+    });
     return;
   }
 

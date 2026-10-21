@@ -57,6 +57,24 @@ pub const CMD_NAV_LAND: MavCmd = MavCmd::MAV_CMD_NAV_LAND;
 /// `MAV_CMD_CONDITION_DELAY`.
 pub const CMD_CONDITION_DELAY: MavCmd = MavCmd::MAV_CMD_CONDITION_DELAY;
 
+/// `MAV_CMD_NAV_RALLY_POINT`.
+pub const CMD_NAV_RALLY_POINT: MavCmd = MavCmd::MAV_CMD_NAV_RALLY_POINT;
+
+/// `MAV_CMD_NAV_FENCE_RETURN_POINT`.
+pub const CMD_FENCE_RETURN_POINT: MavCmd = MavCmd::MAV_CMD_NAV_FENCE_RETURN_POINT;
+
+/// `MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION`.
+pub const CMD_FENCE_VERTEX_INCLUSION: MavCmd = MavCmd::MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION;
+
+/// `MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION`.
+pub const CMD_FENCE_VERTEX_EXCLUSION: MavCmd = MavCmd::MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION;
+
+/// `MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION`.
+pub const CMD_FENCE_CIRCLE_INCLUSION: MavCmd = MavCmd::MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION;
+
+/// `MAV_CMD_NAV_FENCE_CIRCLE_EXCLUSION`.
+pub const CMD_FENCE_CIRCLE_EXCLUSION: MavCmd = MavCmd::MAV_CMD_NAV_FENCE_CIRCLE_EXCLUSION;
+
 /// The role of each of a command's seven parameter slots.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CmdMetadata {
@@ -149,6 +167,36 @@ const fn land_roles() -> [ParamRole; 7] {
         ParamRole::Latitude,
         ParamRole::Longitude,
         ParamRole::Altitude,
+    ]
+}
+
+/// The roles of the vertices of a fence's polygon.
+///
+/// A vertex of the polygon is on the ground: it has a place, but no height.
+const fn fence_vertex_roles() -> [ParamRole; 7] {
+    [
+        ParamRole::Empty,
+        ParamRole::Empty,
+        ParamRole::Empty,
+        ParamRole::Other,
+        ParamRole::Latitude,
+        ParamRole::Longitude,
+        ParamRole::Empty,
+    ]
+}
+
+/// The roles of a circle of a fence.
+///
+/// The radius of the circle is the first parameter, in metres.
+const fn fence_circle_roles() -> [ParamRole; 7] {
+    [
+        ParamRole::Distance,
+        ParamRole::Empty,
+        ParamRole::Empty,
+        ParamRole::Other,
+        ParamRole::Latitude,
+        ParamRole::Longitude,
+        ParamRole::Empty,
     ]
 }
 
@@ -283,6 +331,90 @@ pub const COMMANDS: &[CmdMetadata] = &[
             ParamUnit::Degrees,
             ParamUnit::Degrees,
             ParamUnit::Metres,
+        ],
+    },
+    CmdMetadata {
+        command: CMD_NAV_RALLY_POINT,
+        name: "Rally Point",
+        roles: location_roles(),
+        units: [
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::Degrees,
+            ParamUnit::Degrees,
+            ParamUnit::Metres,
+        ],
+    },
+    CmdMetadata {
+        command: CMD_FENCE_RETURN_POINT,
+        name: "Fence Return Point",
+        roles: fence_vertex_roles(),
+        units: [
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::Degrees,
+            ParamUnit::Degrees,
+            ParamUnit::None,
+        ],
+    },
+    CmdMetadata {
+        command: CMD_FENCE_VERTEX_INCLUSION,
+        name: "Fence Polygon Vertex",
+        roles: fence_vertex_roles(),
+        units: [
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::Degrees,
+            ParamUnit::Degrees,
+            ParamUnit::None,
+        ],
+    },
+    CmdMetadata {
+        command: CMD_FENCE_VERTEX_EXCLUSION,
+        name: "Fence Polygon Vertex Exclusion",
+        roles: fence_vertex_roles(),
+        units: [
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::Degrees,
+            ParamUnit::Degrees,
+            ParamUnit::None,
+        ],
+    },
+    CmdMetadata {
+        command: CMD_FENCE_CIRCLE_INCLUSION,
+        name: "Fence Circle Inclusion",
+        roles: fence_circle_roles(),
+        units: [
+            ParamUnit::Metres,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::Degrees,
+            ParamUnit::Degrees,
+            ParamUnit::None,
+        ],
+    },
+    CmdMetadata {
+        command: CMD_FENCE_CIRCLE_EXCLUSION,
+        name: "Fence Circle Exclusion",
+        roles: fence_circle_roles(),
+        units: [
+            ParamUnit::Metres,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::None,
+            ParamUnit::Degrees,
+            ParamUnit::Degrees,
+            ParamUnit::None,
         ],
     },
     CmdMetadata {

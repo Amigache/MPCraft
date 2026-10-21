@@ -7,6 +7,12 @@ import type { MavCommand, Plan, PlanItem, Telemetry } from "../../lib/ipc/types"
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useCommandStore } from "../../lib/plan/commandStore";
 import { carriesPosition, commandOf } from "../../lib/plan/planItems";
+import {
+  VERTEX_EXCLUSION,
+  circleRing,
+  circlesOf,
+  ringOf,
+} from "../../lib/plan/fence";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -39,6 +45,12 @@ const PLAN_SOURCE = "plan";
 
 /** The identifier of the source of the items of the plan. */
 const ITEMS_SOURCE = "plan-items";
+
+/** The identifier of the source of the polygon of a fence. */
+const FENCE_SOURCE = "fence";
+
+/** The identifier of the source of the circles of a fence. */
+const CIRCLES_SOURCE = "fence-circles";
 
 /** The identifier of the source of the home position. */
 const HOME_SOURCE = "home";
@@ -279,6 +291,18 @@ export function FlightMap() {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
+      instance.addSource(FENCE_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Polygon", coordinates: [] },
+        },
+      });
+      instance.addSource(CIRCLES_SOURCE, {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
       instance.addSource(HOME_SOURCE, {
         type: "geojson",
         data: {
@@ -329,6 +353,58 @@ export function FlightMap() {
         paint: {
           "circle-radius": 6,
           "circle-color": "#00c896",
+          "circle-stroke-color": "#0d1117",
+          "circle-stroke-width": 1.5,
+        },
+      });
+
+      // The fence: the polygon the vehicle will not leave, and the circles that
+      // are in it or out of it.
+      instance.addLayer({
+        id: "fence-fill",
+        type: "fill",
+        source: FENCE_SOURCE,
+        paint: {
+          "fill-color": "#e2a03f",
+          "fill-opacity": 0.18,
+        },
+      });
+
+      instance.addLayer({
+        id: "fence-line",
+        type: "line",
+        source: FENCE_SOURCE,
+        layout: { "line-join": "round" },
+        paint: {
+          "line-color": "#e2a03f",
+          "line-width": 2,
+          "line-opacity": 0.9,
+        },
+      });
+
+      instance.addLayer({
+        id: "fence-circles",
+        type: "line",
+        source: CIRCLES_SOURCE,
+        layout: { "line-join": "round" },
+        paint: {
+          "line-color": "#e2a03f",
+          "line-width": 1.5,
+          "line-opacity": 0.8,
+          "line-dasharray": [3, 2],
+        },
+      });
+
+      // The points that are excluded from the polygon of a fence: they are holes
+      // in it, and the vehicle keeps out of them.
+      instance.addLayer({
+        id: "plan-excluded",
+        type: "circle",
+        source: ITEMS_SOURCE,
+        filter: ["==", ["get", "excluded"], true],
+        paint: {
+          "circle-radius": 4,
+          "circle-color": "#f85149",
           "circle-stroke-color": "#0d1117",
           "circle-stroke-width": 1.5,
         },
@@ -475,8 +551,45 @@ export function FlightMap() {
         features: places.map((item) => ({
           type: "Feature",
           geometry: { type: "Point", coordinates: [item.y, item.x] },
-          properties: { seq: item.seq, current: item.current },
+          properties: {
+            seq: item.seq,
+            current: item.current,
+            excluded: item.command === VERTEX_EXCLUSION,
+          },
         })),
+      });
+    }
+
+    // The polygon of the fence, and the circles that are in it or out of it.
+    const ring = shown.kind === "fence" ? ringOf(shown.items) : null;
+
+    const fence = instance.getSource(FENCE_SOURCE);
+    if (fence) {
+      setSourceData(instance, FENCE_SOURCE, {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "Polygon",
+          coordinates: ring === null ? [] : [ring],
+        },
+      });
+    }
+
+    const circles = instance.getSource(CIRCLES_SOURCE);
+    if (circles) {
+      setSourceData(instance, CIRCLES_SOURCE, {
+        type: "FeatureCollection",
+        features:
+          shown.kind === "fence"
+            ? circlesOf(shown.items).map((circle) => ({
+                type: "Feature",
+                properties: { included: circle.included },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [circleRing(circle)],
+                },
+              }))
+            : [],
       });
     }
   }, [commands, shown, ready]);
@@ -523,7 +636,12 @@ export function FlightMap() {
       let entry = items.current.get(item.seq);
       if (entry === undefined) {
         const element = document.createElement("div");
-        element.className = styles.item ?? "";
+        // A point that is excluded from the polygon of a fence is drawn in the
+        // colour of the danger: it is the one the vehicle must keep out of.
+        element.className =
+          (item.command === VERTEX_EXCLUSION
+            ? styles.excludedItem ?? ""
+            : styles.item ?? "");
         // The marker is a graphic, not a control: the map library would otherwise make
         // it a button, and a plan of a thousand waypoints would be a thousand buttons
         // for the keyboard to walk through. The grid is the list of the items.

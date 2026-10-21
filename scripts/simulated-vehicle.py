@@ -91,6 +91,11 @@ CMD_NAV_WAYPOINT = 16
 CMD_NAV_RETURN_TO_LAUNCH = 20
 CMD_NAV_LAND = 21
 CMD_NAV_TAKEOFF = 22
+CMD_FENCE_RETURN_POINT = 5000
+CMD_FENCE_VERTEX_INCLUSION = 5001
+CMD_FENCE_VERTEX_EXCLUSION = 5002
+CMD_FENCE_CIRCLE_INCLUSION = 5003
+CMD_NAV_RALLY_POINT = 5100
 CMD_DO_SET_MODE = 176
 CMD_DO_JUMP = 177
 CMD_COMPONENT_ARM_DISARM = 400
@@ -744,8 +749,8 @@ class Vehicle:
         # The plans it holds, by type.
         self.plans = {
             MISSION_MISSION: self.default_mission(),
-            MISSION_FENCE: [],
-            MISSION_RALLY: [],
+            MISSION_FENCE: self.default_fence(),
+            MISSION_RALLY: self.default_rally(),
         }
 
         # The item the vehicle is executing.
@@ -814,6 +819,58 @@ class Vehicle:
                 "x": -35.2830,
                 "y": 149.1300,
                 "z": 100.0,
+                "current": 0,
+                "autocontinue": 1,
+            },
+        ]
+
+    @staticmethod
+    def default_fence():
+        """The fence the vehicle starts with.
+
+        A square around the place it flies, a circle in the middle of it and a point that
+        is excluded from it: the three kinds of thing a fence is made of.
+        """
+        def vertex(seq, command, lat, lng, param1=0.0):
+            return {
+                "seq": seq,
+                "command": command,
+                "frame": 0,
+                "param1": param1,
+                "param2": 0.0,
+                "param3": 0.0,
+                "param4": 0.0,
+                "x": lat,
+                "y": lng,
+                "z": 0.0,
+                "current": 0,
+                "autocontinue": 1,
+            }
+
+        return [
+            vertex(0, CMD_FENCE_VERTEX_INCLUSION, -35.2850, 149.1250),
+            vertex(1, CMD_FENCE_VERTEX_INCLUSION, -35.2850, 149.1350),
+            vertex(2, CMD_FENCE_VERTEX_INCLUSION, -35.2750, 149.1350),
+            vertex(3, CMD_FENCE_VERTEX_INCLUSION, -35.2750, 149.1250),
+            vertex(4, CMD_FENCE_CIRCLE_INCLUSION, -35.2809, 149.1300, 120.0),
+            vertex(5, CMD_FENCE_VERTEX_EXCLUSION, -35.2800, 149.1280),
+        ]
+
+    @staticmethod
+    def default_rally():
+        """The rally point the vehicle starts with."""
+        return [
+            {
+                "seq": 0,
+                "command": CMD_NAV_RALLY_POINT,
+                "frame": 0,
+                "param1": 0.0,
+                "param2": 0.0,
+                "param3": 0.0,
+                "param4": 0.0,
+                "x": -35.2790,
+                "y": 149.1320,
+                "z": 30.0,
                 "current": 0,
                 "autocontinue": 1,
             },

@@ -27,6 +27,37 @@
   padding: var(--space-2) var(--space-3);
 }
 
+/* The kind of plan: mission, fence or rally. Upstream's planner has them as tabs, and
+   the editor of a plan is a different plan in each of them. */
+
+.kinds {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3) 0;
+}
+
+.kind {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--colour-text-dim);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  padding: var(--space-1) var(--space-2);
+}
+
+.kind:hover {
+  color: var(--colour-text);
+}
+
+.kindOn {
+  border-bottom-color: var(--colour-accent);
+  color: var(--colour-text);
+}
+
 .adding {
   background: var(--colour-accent-wash);
   border-color: var(--colour-accent-dim);

@@ -127,6 +127,13 @@
   cursor: grabbing;
 }
 
+/* A point that is excluded from the polygon of a fence. */
+
+.excludedItem {
+  border-color: var(--colour-danger);
+  color: var(--colour-danger);
+}
+
 .itemSelected {
   background: var(--colour-accent);
   border-color: var(--colour-accent);

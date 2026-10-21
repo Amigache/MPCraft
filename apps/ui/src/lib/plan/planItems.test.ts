@@ -40,6 +40,7 @@ function command(
 ): MavCommand {
   return {
     name,
+    canonicalName: name,
     value,
     roles,
     units: roles.map(() => ""),

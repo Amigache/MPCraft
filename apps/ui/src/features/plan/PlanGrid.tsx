@@ -378,7 +378,10 @@ function CommandCell({
         if (command === undefined) {
           return;
         }
-        onChange(item.seq, { command: command.name, commandValue: command.value });
+        onChange(item.seq, {
+          command: command.canonicalName,
+          commandValue: command.value,
+        });
       }}
     >
       {known ? null : <option value={item.commandValue}>{item.command}</option>}

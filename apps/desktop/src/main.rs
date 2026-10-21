@@ -446,6 +446,9 @@ async fn validate_mission(
             seq: warning.seq,
             reason: match warning.reason {
                 mpcraft_mission::validate::WarningReason::ZeroAltitude => "zeroAltitude".to_owned(),
+                mpcraft_mission::validate::WarningReason::TooFewFenceVertices => {
+                    "tooFewFenceVertices".to_owned()
+                }
             },
         })
         .collect())
@@ -455,8 +458,8 @@ async fn validate_mission(
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PlanWarningEvent {
-    /// The position of the item in the plan.
-    seq: usize,
+    /// The position of the item in the plan, when the warning is about one.
+    seq: Option<usize>,
     /// What is wrong with it.
     reason: String,
 }
@@ -539,6 +542,7 @@ async fn list_mav_commands() -> CommandResult<Vec<MavCommandEvent>> {
         .iter()
         .map(|entry| MavCommandEvent {
             name: entry.name.to_owned(),
+            canonical_name: mpcraft_mission::mavcmd::command_name(entry.command),
             value: entry.command as u32,
             roles: entry.roles.iter().map(|role| role_name(*role)).collect(),
             units: entry.units.iter().map(|unit| unit_name(*unit)).collect(),
@@ -578,8 +582,13 @@ fn unit_name(unit: mpcraft_mission::mavcmd::ParamUnit) -> &'static str {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MavCommandEvent {
-    /// The name of the command, for example `MAV_CMD_NAV_WAYPOINT`.
+    /// The name the command is shown with, for example `Waypoint`.
     name: String,
+    /// The name the specification gives it, for example `MAV_CMD_NAV_WAYPOINT`.
+    ///
+    /// The plan of the vehicle names its commands the way the specification does,
+    /// and the interface has to name them the same way when it adds one.
+    canonical_name: String,
     /// The value the command travels with.
     value: u32,
     /// The role of each of the seven slots, in order.
