@@ -13,8 +13,8 @@
 //! distance to home — are computed at decode time rather than on every access.
 
 use mpcraft_vehicle::{
-    Attitude, Battery, FlightMode, GeoPoint, GpsStatus, MissionProgress, PlanState, Telemetry,
-    Velocity,
+    Airspeed, Attitude, Barometer, Battery, Controls, FlightMode, GeoPoint, GpsStatus, Imu,
+    MissionProgress, PlanState, Telemetry, Velocity,
 };
 
 use mpcraft_mavlink::dialect::messages::MissionState;
@@ -87,6 +87,25 @@ impl TelemetryAggregator {
                 if velocity.ground_speed == 0.0 {
                     velocity.ground_speed = f64::from(hud.groundspeed);
                 }
+
+                // The HUD is also what tells the vehicle's speed through the air, its rate
+                // of climb and its throttle. A vehicle with no airspeed sensor reports
+                // zero, which is not the same as not having said: the vehicle that has no
+                // sensor does not send the message at all.
+                let airspeed = self.telemetry.airspeed.get_or_insert(Airspeed {
+                    airspeed: None,
+                    ground_speed: 0.0,
+                    climb: 0.0,
+                    throttle: 0.0,
+                });
+
+                airspeed.ground_speed = f64::from(hud.groundspeed);
+                airspeed.climb = f64::from(hud.climb);
+                airspeed.throttle = f64::from(hud.throttle);
+
+                if hud.airspeed > 0.0 {
+                    airspeed.airspeed = Some(f64::from(hud.airspeed));
+                }
             }
 
             MavMessage::SYS_STATUS(status) => {
@@ -127,6 +146,128 @@ impl TelemetryAggregator {
                     // The vehicle reports the dilution in hundredths.
                     hdop: f64::from(raw.eph) / 100.0,
                 });
+            }
+
+            MavMessage::RAW_IMU(imu) => {
+                // The accelerometers are in thousandths of g, the gyroscopes in thousandths
+                // of a radian per second, and the magnetometers in thousandths of a gauss.
+                // The conversions happen once, here, so that everything downstream reads
+                // the units an operator expects.
+                self.telemetry.imu = Some(Imu {
+                    acceleration: [
+                        f64::from(imu.xacc) * 9.81 * 0.001,
+                        f64::from(imu.yacc) * 9.81 * 0.001,
+                        f64::from(imu.zacc) * 9.81 * 0.001,
+                    ],
+                    angular_rate: [
+                        f64::from(imu.xgyro) * 0.001,
+                        f64::from(imu.ygyro) * 0.001,
+                        f64::from(imu.zgyro) * 0.001,
+                    ],
+                    magnetic_field: [
+                        f64::from(imu.xmag) * 0.001,
+                        f64::from(imu.ymag) * 0.001,
+                        f64::from(imu.zmag) * 0.001,
+                    ],
+                    temperature: f64::from(imu.temperature) * 0.01,
+                });
+            }
+
+            MavMessage::SCALED_IMU(imu) => {
+                // The scaled variant carries the same sensors, already scaled by the
+                // vehicle itself. It only reaches the model when the raw one has not.
+                if self.telemetry.imu.is_none() {
+                    self.telemetry.imu = Some(Imu {
+                        acceleration: [
+                            f64::from(imu.xacc) * 9.81 * 0.001,
+                            f64::from(imu.yacc) * 9.81 * 0.001,
+                            f64::from(imu.zacc) * 9.81 * 0.001,
+                        ],
+                        angular_rate: [
+                            f64::from(imu.xgyro) * 0.001,
+                            f64::from(imu.ygyro) * 0.001,
+                            f64::from(imu.zgyro) * 0.001,
+                        ],
+                        magnetic_field: [
+                            f64::from(imu.xmag) * 0.001,
+                            f64::from(imu.ymag) * 0.001,
+                            f64::from(imu.zmag) * 0.001,
+                        ],
+                        temperature: f64::from(imu.temperature) * 0.01,
+                    });
+                }
+            }
+
+            MavMessage::SCALED_PRESSURE(pressure) => {
+                // The pressures are in hectopascals and the temperature in hundredths of a
+                // degree.
+                self.telemetry.barometer = Some(Barometer {
+                    absolute_pressure: f64::from(pressure.press_abs),
+                    differential_pressure: f64::from(pressure.press_diff),
+                    temperature: f64::from(pressure.temperature) * 0.01,
+                });
+            }
+
+            MavMessage::SERVO_OUTPUT_RAW(servos) => {
+                // The pulse width of each output, in microseconds. The vehicle may report
+                // fewer than eight outputs, and the ones it does not report stay unknown
+                // rather than becoming zero: a servo at zero microseconds is a fault, not
+                // the absence of a report.
+                let mut controls = self.telemetry.controls.unwrap_or(Controls {
+                    outputs: [None; 8],
+                    inputs: [None; 8],
+                    signal: None,
+                });
+
+                let outputs = [
+                    servos.servo1_raw,
+                    servos.servo2_raw,
+                    servos.servo3_raw,
+                    servos.servo4_raw,
+                    servos.servo5_raw,
+                    servos.servo6_raw,
+                    servos.servo7_raw,
+                    servos.servo8_raw,
+                ];
+
+                for (slot, value) in controls.outputs.iter_mut().zip(outputs) {
+                    *slot = Some(f64::from(value));
+                }
+
+                self.telemetry.controls = Some(controls);
+            }
+
+            MavMessage::RC_CHANNELS(channels) => {
+                // The value of each radio channel, in microseconds. The vehicle says how
+                // many channels it has, and the ones beyond that count are not reported.
+                let mut controls = self.telemetry.controls.unwrap_or(Controls {
+                    outputs: [None; 8],
+                    inputs: [None; 8],
+                    signal: None,
+                });
+
+                let values = [
+                    channels.chan1_raw,
+                    channels.chan2_raw,
+                    channels.chan3_raw,
+                    channels.chan4_raw,
+                    channels.chan5_raw,
+                    channels.chan6_raw,
+                    channels.chan7_raw,
+                    channels.chan8_raw,
+                ];
+
+                for (index, value) in values.iter().enumerate() {
+                    controls.inputs[index] = if (index as u8) < channels.chancount {
+                        Some(f64::from(*value))
+                    } else {
+                        None
+                    };
+                }
+
+                controls.signal = Some(f64::from(channels.rssi));
+
+                self.telemetry.controls = Some(controls);
             }
 
             MavMessage::MISSION_CURRENT(current) => {
@@ -183,7 +324,8 @@ mod tests {
     use super::*;
     use mpcraft_mavlink::dialect::messages::{
         GLOBAL_POSITION_INT_DATA, GPS_RAW_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA,
-        MISSION_CURRENT_DATA, SYS_STATUS_DATA, TIMESYNC_DATA,
+        MISSION_CURRENT_DATA, RAW_IMU_DATA, RC_CHANNELS_DATA, SCALED_PRESSURE_DATA,
+        SERVO_OUTPUT_RAW_DATA, SYS_STATUS_DATA, TIMESYNC_DATA, VFR_HUD_DATA,
     };
     use mpcraft_mavlink::{MavGpsFixType, MavType};
 
@@ -409,5 +551,141 @@ mod tests {
 
         assert_eq!(aggregator.telemetry().position, before.position);
         assert_eq!(aggregator.telemetry().battery, before.battery);
+    }
+
+    #[test]
+    fn a_raw_imu_updates_the_inertial_measurement() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::RAW_IMU(RAW_IMU_DATA {
+            time_usec: 0,
+            // One g on the first axis, in thousandths of a g.
+            xacc: 1000,
+            yacc: 0,
+            zacc: -100,
+            // One radian per second on the first axis, in thousandths.
+            xgyro: 1000,
+            ygyro: 0,
+            zgyro: 0,
+            // Half a gauss on the first axis, in thousandths.
+            xmag: 500,
+            ymag: 0,
+            zmag: 0,
+            id: 0,
+            // Twenty degrees, in hundredths.
+            temperature: 2000,
+        });
+
+        aggregator.apply(&message);
+
+        let imu = aggregator
+            .telemetry()
+            .imu
+            .expect("the inertial measurement");
+
+        assert!((imu.acceleration[0] - 9.81).abs() < 1e-6);
+        assert!(imu.acceleration[1].abs() < 1e-6);
+        assert!((imu.acceleration[2] + 0.981).abs() < 1e-6);
+        assert!((imu.angular_rate[0] - 1.0).abs() < 1e-6);
+        assert!((imu.magnetic_field[0] - 0.5).abs() < 1e-6);
+        assert!((imu.temperature - 20.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_scaled_pressure_updates_the_barometer() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::SCALED_PRESSURE(SCALED_PRESSURE_DATA {
+            time_boot_ms: 0,
+            press_abs: 1013.25,
+            press_diff: 4.5,
+            temperature: 2150,
+            temperature_press_diff: 0,
+        });
+
+        aggregator.apply(&message);
+
+        let barometer = aggregator.telemetry().barometer.expect("the barometer");
+
+        assert!((barometer.absolute_pressure - 1013.25).abs() < 1e-6);
+        assert!((barometer.differential_pressure - 4.5).abs() < 1e-6);
+        assert!((barometer.temperature - 21.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_servo_outputs_are_the_pulse_widths() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::SERVO_OUTPUT_RAW(SERVO_OUTPUT_RAW_DATA {
+            time_usec: 0,
+            servo1_raw: 1500,
+            servo2_raw: 1600,
+            servo3_raw: 1700,
+            servo4_raw: 1800,
+            servo5_raw: 1900,
+            servo6_raw: 2000,
+            servo7_raw: 2100,
+            servo8_raw: 2200,
+            port: 0,
+            ..Default::default()
+        });
+
+        aggregator.apply(&message);
+
+        let controls = aggregator.telemetry().controls.expect("the controls");
+
+        assert_eq!(controls.outputs[0], Some(1500.0));
+        assert_eq!(controls.outputs[7], Some(2200.0));
+    }
+
+    #[test]
+    fn the_radio_channels_beyond_the_count_of_the_vehicle_are_unknown() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::RC_CHANNELS(RC_CHANNELS_DATA {
+            time_boot_ms: 0,
+            chancount: 4,
+            chan1_raw: 1000,
+            chan2_raw: 1100,
+            chan3_raw: 1200,
+            chan4_raw: 1300,
+            chan5_raw: 1400,
+            rssi: 90,
+            ..Default::default()
+        });
+
+        aggregator.apply(&message);
+
+        let controls = aggregator.telemetry().controls.expect("the controls");
+
+        assert_eq!(controls.inputs[0], Some(1000.0));
+        assert_eq!(controls.inputs[3], Some(1300.0));
+        // The vehicle says it has four channels, so the fifth was not reported: it is
+        // unknown, and not a channel sitting at zero.
+        assert_eq!(controls.inputs[4], None);
+        assert_eq!(controls.signal, Some(90.0));
+    }
+
+    #[test]
+    fn the_hud_gives_the_air_data() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::VFR_HUD(VFR_HUD_DATA {
+            airspeed: 12.5,
+            groundspeed: 14.0,
+            alt: 100.0,
+            climb: -1.5,
+            heading: 90,
+            throttle: 45,
+        });
+
+        aggregator.apply(&message);
+
+        let airspeed = aggregator.telemetry().airspeed.expect("the air data");
+
+        assert_eq!(airspeed.airspeed, Some(12.5));
+        assert!((airspeed.ground_speed - 14.0).abs() < 1e-6);
+        assert!((airspeed.climb + 1.5).abs() < 1e-6);
+        assert!((airspeed.throttle - 45.0).abs() < 1e-6);
     }
 }

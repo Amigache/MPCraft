@@ -210,6 +210,110 @@ MESSAGES = {
             ("satellites_visible", "u8"),
         ],
     ),
+    27: message(
+        27,
+        "RAW_IMU",
+        144,
+        [
+            ("time_usec", "u64"),
+            ("xacc", "i16"),
+            ("yacc", "i16"),
+            ("zacc", "i16"),
+            ("xgyro", "i16"),
+            ("ygyro", "i16"),
+            ("zgyro", "i16"),
+            ("xmag", "i16"),
+            ("ymag", "i16"),
+            ("zmag", "i16"),
+        ],
+        # The identifier of the sensor and its temperature only travel in MAVLink 2.
+        extensions=[
+            ("id", "u8"),
+            ("temperature", "i16"),
+        ],
+    ),
+    29: message(
+        29,
+        "SCALED_PRESSURE",
+        115,
+        [
+            ("time_boot_ms", "u32"),
+            ("press_abs", "f32"),
+            ("press_diff", "f32"),
+            ("temperature", "i16"),
+        ],
+        extensions=[
+            ("temperature_press_diff", "i16"),
+        ],
+    ),
+    36: message(
+        36,
+        "SERVO_OUTPUT_RAW",
+        222,
+        [
+            ("time_usec", "u32"),
+            ("port", "u8"),
+            ("servo1_raw", "u16"),
+            ("servo2_raw", "u16"),
+            ("servo3_raw", "u16"),
+            ("servo4_raw", "u16"),
+            ("servo5_raw", "u16"),
+            ("servo6_raw", "u16"),
+            ("servo7_raw", "u16"),
+            ("servo8_raw", "u16"),
+        ],
+        extensions=[
+            ("servo9_raw", "u16"),
+            ("servo10_raw", "u16"),
+            ("servo11_raw", "u16"),
+            ("servo12_raw", "u16"),
+            ("servo13_raw", "u16"),
+            ("servo14_raw", "u16"),
+            ("servo15_raw", "u16"),
+            ("servo16_raw", "u16"),
+        ],
+    ),
+    65: message(
+        65,
+        "RC_CHANNELS",
+        118,
+        [
+            ("time_boot_ms", "u32"),
+            ("chancount", "u8"),
+            ("chan1_raw", "u16"),
+            ("chan2_raw", "u16"),
+            ("chan3_raw", "u16"),
+            ("chan4_raw", "u16"),
+            ("chan5_raw", "u16"),
+            ("chan6_raw", "u16"),
+            ("chan7_raw", "u16"),
+            ("chan8_raw", "u16"),
+            ("chan9_raw", "u16"),
+            ("chan10_raw", "u16"),
+            ("chan11_raw", "u16"),
+            ("chan12_raw", "u16"),
+            ("chan13_raw", "u16"),
+            ("chan14_raw", "u16"),
+            ("chan15_raw", "u16"),
+            ("chan16_raw", "u16"),
+            ("chan17_raw", "u16"),
+            ("chan18_raw", "u16"),
+            ("rssi", "u8"),
+        ],
+    ),
+    74: message(
+        74,
+        "VFR_HUD",
+        20,
+        [
+            ("airspeed", "f32"),
+            ("groundspeed", "f32"),
+            ("heading", "i16"),
+            ("throttle", "u16"),
+            ("alt", "f32"),
+            ("climb", "f32"),
+        ],
+    ),
     30: message(
         30,
         "ATTITUDE",
@@ -721,6 +825,88 @@ class Vehicle:
                     "cog": int(math.degrees(yaw) * 100) % 36000,
                     "fix_type": 3,
                     "satellites_visible": 14,
+                },
+            )
+
+            # The inertial sensors. The accelerometers are in thousandths of a g, the
+            # gyroscopes in thousandths of a radian per second and the magnetometers in
+            # thousandths of a gauss.
+            self.send(
+                27,
+                {
+                    "time_usec": int(elapsed * 1_000_000),
+                    # The vehicle hangs from its rotors, so gravity is on the third axis.
+                    "xacc": int(roll * 900),
+                    "yacc": int(pitch * 900),
+                    "zacc": -1000 + int(roll * 120),
+                    "xgyro": 0,
+                    "ygyro": 0,
+                    "zgyro": 0,
+                    "xmag": 210,
+                    "ymag": -35,
+                    "zmag": -412,
+                    "id": 0,
+                    "temperature": 2500,
+                },
+            )
+
+            # The barometer.
+            self.send(
+                29,
+                {
+                    "time_boot_ms": int(elapsed * 1000),
+                    "press_abs": 1013.25 - alt * 0.008,
+                    "press_diff": 0.0,
+                    "temperature": 2150,
+                },
+            )
+
+            # The servos: a quadcopter, two of them turning one way and two the other.
+            self.send(
+                36,
+                {
+                    "time_usec": int(elapsed * 1_000_000),
+                    "port": 0,
+                    "servo1_raw": 1500,
+                    "servo2_raw": 1500,
+                    "servo3_raw": 1800,
+                    "servo4_raw": 1800,
+                    "servo5_raw": 1000,
+                    "servo6_raw": 1000,
+                    "servo7_raw": 1800,
+                    "servo8_raw": 1800,
+                },
+            )
+
+            # The radio control.
+            self.send(
+                65,
+                {
+                    "time_boot_ms": int(elapsed * 1000),
+                    "chancount": 8,
+                    "chan1_raw": 1500,
+                    "chan2_raw": 1500,
+                    "chan3_raw": 1000,
+                    "chan4_raw": 2000,
+                    "chan5_raw": 1500,
+                    "chan6_raw": 1500,
+                    "chan7_raw": 1500,
+                    "chan8_raw": 1500,
+                    "rssi": 92,
+                },
+            )
+
+            # The head-up display: the air data the pilot reads.
+            self.send(
+                74,
+                {
+                    "airspeed": ground_speed,
+                    "groundspeed": ground_speed,
+                    # The heading of the HUD is in degrees, not in hundredths.
+                    "heading": int(math.degrees(yaw)) % 360,
+                    "throttle": 45,
+                    "alt": alt,
+                    "climb": 0.0,
                 },
             )
 

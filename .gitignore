@@ -17,6 +17,7 @@ _ref_missionplanner/
 # Runtime data
 /data/
 *.log
+sim.out
 
 # Screenshots taken from the running application
 /mpcraft-window.png

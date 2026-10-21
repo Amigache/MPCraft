@@ -205,6 +205,58 @@ pub struct MissionProgress {
     pub rally_id: u32,
 }
 
+/// The inertial measurement of the vehicle.
+///
+/// The units are the ones an operator reads: metres per second squared for the
+/// acceleration, radians per second for the angular rate, and gauss for the magnetic field.
+/// The values on the wire are in thousandths, and the conversion happens once, here.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Imu {
+    /// The acceleration on each axis, in metres per second squared.
+    pub acceleration: [f64; 3],
+    /// The angular rate on each axis, in radians per second.
+    pub angular_rate: [f64; 3],
+    /// The magnetic field on each axis, in gauss.
+    pub magnetic_field: [f64; 3],
+    /// The temperature of the sensor, in degrees Celsius.
+    pub temperature: f64,
+}
+
+/// The barometer of the vehicle.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Barometer {
+    /// The absolute pressure, in hectopascals.
+    pub absolute_pressure: f64,
+    /// The differential pressure, in hectopascals.
+    pub differential_pressure: f64,
+    /// The temperature, in degrees Celsius.
+    pub temperature: f64,
+}
+
+/// The servos and the radio control.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Controls {
+    /// The pulse width of each of the first eight outputs, in microseconds.
+    pub outputs: [Option<f64>; 8],
+    /// The value of each of the first eight radio channels.
+    pub inputs: [Option<f64>; 8],
+    /// The strength of the radio signal, as a percentage.
+    pub signal: Option<f64>,
+}
+
+/// The air data of the vehicle.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Airspeed {
+    /// The speed through the air, in metres per second.
+    pub airspeed: Option<f64>,
+    /// The speed over the ground, in metres per second.
+    pub ground_speed: f64,
+    /// The rate of climb, in metres per second.
+    pub climb: f64,
+    /// The throttle, as a percentage.
+    pub throttle: f64,
+}
+
 /// The state of a vehicle at a point in time.
 ///
 /// Every optional field is `None` until the corresponding message has been received at least
@@ -233,6 +285,14 @@ pub struct Telemetry {
     pub mission: Option<MissionProgress>,
     /// The state of the global positioning, once received.
     pub gps: Option<GpsStatus>,
+    /// The inertial measurement, once received.
+    pub imu: Option<Imu>,
+    /// The barometer, once received.
+    pub barometer: Option<Barometer>,
+    /// The servos and the radio control, once received.
+    pub controls: Option<Controls>,
+    /// The air data, once received.
+    pub airspeed: Option<Airspeed>,
 }
 
 impl Telemetry {
@@ -267,6 +327,18 @@ impl Telemetry {
         }
         if let Some(gps) = update.gps {
             self.gps = Some(gps);
+        }
+        if let Some(imu) = update.imu {
+            self.imu = Some(imu);
+        }
+        if let Some(barometer) = update.barometer {
+            self.barometer = Some(barometer);
+        }
+        if let Some(controls) = update.controls {
+            self.controls = Some(controls);
+        }
+        if let Some(airspeed) = update.airspeed {
+            self.airspeed = Some(airspeed);
         }
 
         self.recompute_derived();
@@ -307,6 +379,14 @@ pub struct TelemetryUpdate {
     pub mission: Option<MissionProgress>,
     /// New state of the global positioning.
     pub gps: Option<GpsStatus>,
+    /// New inertial measurement.
+    pub imu: Option<Imu>,
+    /// New barometer reading.
+    pub barometer: Option<Barometer>,
+    /// New state of the servos and the radio control.
+    pub controls: Option<Controls>,
+    /// New air data.
+    pub airspeed: Option<Airspeed>,
 }
 
 /// Computes the distance and initial bearing between two points using the haversine formula.

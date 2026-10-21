@@ -104,6 +104,74 @@ pub enum Field {
     MissionTotal,
     /// Whether the vehicle is armed: one when it is, zero when it is not.
     Armed,
+    /// The acceleration on the first axis, in metres per second squared.
+    ImuAccelerationX,
+    /// The acceleration on the second axis, in metres per second squared.
+    ImuAccelerationY,
+    /// The acceleration on the third axis, in metres per second squared.
+    ImuAccelerationZ,
+    /// The angular rate on the first axis, in degrees per second.
+    ImuAngularRateX,
+    /// The angular rate on the second axis, in degrees per second.
+    ImuAngularRateY,
+    /// The angular rate on the third axis, in degrees per second.
+    ImuAngularRateZ,
+    /// The magnetic field on the first axis, in gauss.
+    ImuMagneticX,
+    /// The magnetic field on the second axis, in gauss.
+    ImuMagneticY,
+    /// The magnetic field on the third axis, in gauss.
+    ImuMagneticZ,
+    /// The temperature of the inertial sensor, in degrees Celsius.
+    ImuTemperature,
+    /// The absolute pressure, in hectopascals.
+    BarometerPressure,
+    /// The differential pressure, in hectopascals.
+    BarometerDifferentialPressure,
+    /// The temperature of the barometer, in degrees Celsius.
+    BarometerTemperature,
+    /// The pulse width of the first servo, in microseconds.
+    ServoOutput1,
+    /// The pulse width of the second servo, in microseconds.
+    ServoOutput2,
+    /// The pulse width of the third servo, in microseconds.
+    ServoOutput3,
+    /// The pulse width of the fourth servo, in microseconds.
+    ServoOutput4,
+    /// The pulse width of the fifth servo, in microseconds.
+    ServoOutput5,
+    /// The pulse width of the sixth servo, in microseconds.
+    ServoOutput6,
+    /// The pulse width of the seventh servo, in microseconds.
+    ServoOutput7,
+    /// The pulse width of the eighth servo, in microseconds.
+    ServoOutput8,
+    /// The value of the first radio channel, in microseconds.
+    RcInput1,
+    /// The value of the second radio channel, in microseconds.
+    RcInput2,
+    /// The value of the third radio channel, in microseconds.
+    RcInput3,
+    /// The value of the fourth radio channel, in microseconds.
+    RcInput4,
+    /// The value of the fifth radio channel, in microseconds.
+    RcInput5,
+    /// The value of the sixth radio channel, in microseconds.
+    RcInput6,
+    /// The value of the seventh radio channel, in microseconds.
+    RcInput7,
+    /// The value of the eighth radio channel, in microseconds.
+    RcInput8,
+    /// The strength of the radio signal, as a percentage.
+    RcSignal,
+    /// The speed through the air, in metres per second.
+    Airspeed,
+    /// The speed over the ground, in metres per second.
+    AirspeedGroundSpeed,
+    /// The rate of climb, in metres per second.
+    AirspeedClimb,
+    /// The throttle, as a percentage.
+    AirspeedThrottle,
 }
 
 /// Every field, in the order they are stored.
@@ -128,6 +196,40 @@ pub const FIELDS: &[Field] = &[
     Field::MissionSequence,
     Field::MissionTotal,
     Field::Armed,
+    Field::ImuAccelerationX,
+    Field::ImuAccelerationY,
+    Field::ImuAccelerationZ,
+    Field::ImuAngularRateX,
+    Field::ImuAngularRateY,
+    Field::ImuAngularRateZ,
+    Field::ImuMagneticX,
+    Field::ImuMagneticY,
+    Field::ImuMagneticZ,
+    Field::ImuTemperature,
+    Field::BarometerPressure,
+    Field::BarometerDifferentialPressure,
+    Field::BarometerTemperature,
+    Field::ServoOutput1,
+    Field::ServoOutput2,
+    Field::ServoOutput3,
+    Field::ServoOutput4,
+    Field::ServoOutput5,
+    Field::ServoOutput6,
+    Field::ServoOutput7,
+    Field::ServoOutput8,
+    Field::RcInput1,
+    Field::RcInput2,
+    Field::RcInput3,
+    Field::RcInput4,
+    Field::RcInput5,
+    Field::RcInput6,
+    Field::RcInput7,
+    Field::RcInput8,
+    Field::RcSignal,
+    Field::Airspeed,
+    Field::AirspeedGroundSpeed,
+    Field::AirspeedClimb,
+    Field::AirspeedThrottle,
 ];
 
 impl Field {
@@ -155,6 +257,40 @@ impl Field {
             Self::MissionSequence => "mission.sequence",
             Self::MissionTotal => "mission.total",
             Self::Armed => "armed",
+            Self::ImuAccelerationX => "imu.accelerationX",
+            Self::ImuAccelerationY => "imu.accelerationY",
+            Self::ImuAccelerationZ => "imu.accelerationZ",
+            Self::ImuAngularRateX => "imu.angularRateX",
+            Self::ImuAngularRateY => "imu.angularRateY",
+            Self::ImuAngularRateZ => "imu.angularRateZ",
+            Self::ImuMagneticX => "imu.magneticX",
+            Self::ImuMagneticY => "imu.magneticY",
+            Self::ImuMagneticZ => "imu.magneticZ",
+            Self::ImuTemperature => "imu.temperature",
+            Self::BarometerPressure => "barometer.pressure",
+            Self::BarometerDifferentialPressure => "barometer.differentialPressure",
+            Self::BarometerTemperature => "barometer.temperature",
+            Self::ServoOutput1 => "servos.output1",
+            Self::ServoOutput2 => "servos.output2",
+            Self::ServoOutput3 => "servos.output3",
+            Self::ServoOutput4 => "servos.output4",
+            Self::ServoOutput5 => "servos.output5",
+            Self::ServoOutput6 => "servos.output6",
+            Self::ServoOutput7 => "servos.output7",
+            Self::ServoOutput8 => "servos.output8",
+            Self::RcInput1 => "rc.input1",
+            Self::RcInput2 => "rc.input2",
+            Self::RcInput3 => "rc.input3",
+            Self::RcInput4 => "rc.input4",
+            Self::RcInput5 => "rc.input5",
+            Self::RcInput6 => "rc.input6",
+            Self::RcInput7 => "rc.input7",
+            Self::RcInput8 => "rc.input8",
+            Self::RcSignal => "rc.signal",
+            Self::Airspeed => "airspeed.airspeed",
+            Self::AirspeedGroundSpeed => "airspeed.groundSpeed",
+            Self::AirspeedClimb => "airspeed.climb",
+            Self::AirspeedThrottle => "airspeed.throttle",
         }
     }
 
@@ -176,6 +312,30 @@ impl Field {
             Self::GpsHdop => "",
             Self::MissionSequence | Self::MissionTotal => "",
             Self::Armed => "",
+            Self::ImuAccelerationX | Self::ImuAccelerationY | Self::ImuAccelerationZ => "m/s²",
+            Self::ImuAngularRateX | Self::ImuAngularRateY | Self::ImuAngularRateZ => "°/s",
+            Self::ImuMagneticX | Self::ImuMagneticY | Self::ImuMagneticZ => "gauss",
+            Self::ImuTemperature | Self::BarometerTemperature => "°C",
+            Self::BarometerPressure | Self::BarometerDifferentialPressure => "hPa",
+            Self::ServoOutput1
+            | Self::ServoOutput2
+            | Self::ServoOutput3
+            | Self::ServoOutput4
+            | Self::ServoOutput5
+            | Self::ServoOutput6
+            | Self::ServoOutput7
+            | Self::ServoOutput8 => "µs",
+            Self::RcInput1
+            | Self::RcInput2
+            | Self::RcInput3
+            | Self::RcInput4
+            | Self::RcInput5
+            | Self::RcInput6
+            | Self::RcInput7
+            | Self::RcInput8 => "µs",
+            Self::RcSignal => "%",
+            Self::Airspeed | Self::AirspeedGroundSpeed | Self::AirspeedClimb => "m/s",
+            Self::AirspeedThrottle => "%",
         }
     }
 
@@ -263,6 +423,56 @@ impl Sample {
             telemetry.armed.map(|armed| f64::from(u8::from(armed))),
         );
 
+        if let Some(imu) = telemetry.imu {
+            set(Field::ImuAccelerationX, Some(imu.acceleration[0]));
+            set(Field::ImuAccelerationY, Some(imu.acceleration[1]));
+            set(Field::ImuAccelerationZ, Some(imu.acceleration[2]));
+            // The model keeps the rate in radians; the graph reads it in degrees, the way
+            // an operator reads it.
+            set(
+                Field::ImuAngularRateX,
+                Some(imu.angular_rate[0].to_degrees()),
+            );
+            set(
+                Field::ImuAngularRateY,
+                Some(imu.angular_rate[1].to_degrees()),
+            );
+            set(
+                Field::ImuAngularRateZ,
+                Some(imu.angular_rate[2].to_degrees()),
+            );
+            set(Field::ImuMagneticX, Some(imu.magnetic_field[0]));
+            set(Field::ImuMagneticY, Some(imu.magnetic_field[1]));
+            set(Field::ImuMagneticZ, Some(imu.magnetic_field[2]));
+            set(Field::ImuTemperature, Some(imu.temperature));
+        }
+
+        if let Some(barometer) = telemetry.barometer {
+            set(Field::BarometerPressure, Some(barometer.absolute_pressure));
+            set(
+                Field::BarometerDifferentialPressure,
+                Some(barometer.differential_pressure),
+            );
+            set(Field::BarometerTemperature, Some(barometer.temperature));
+        }
+
+        if let Some(controls) = telemetry.controls {
+            for (index, output) in controls.outputs.iter().enumerate() {
+                set(servo_field(index), *output);
+            }
+            for (index, input) in controls.inputs.iter().enumerate() {
+                set(rc_field(index), *input);
+            }
+            set(Field::RcSignal, controls.signal);
+        }
+
+        if let Some(airspeed) = telemetry.airspeed {
+            set(Field::Airspeed, airspeed.airspeed);
+            set(Field::AirspeedGroundSpeed, Some(airspeed.ground_speed));
+            set(Field::AirspeedClimb, Some(airspeed.climb));
+            set(Field::AirspeedThrottle, Some(airspeed.throttle));
+        }
+
         Self { at, values }
     }
 
@@ -270,6 +480,38 @@ impl Sample {
     #[must_use]
     pub fn get(&self, field: Field) -> Option<f64> {
         self.values.get(field.index()).copied().flatten()
+    }
+}
+
+/// The field of the servo with the given place.
+///
+/// The servos are numbered from one, the way they are on the vehicle.
+fn servo_field(index: usize) -> Field {
+    match index {
+        0 => Field::ServoOutput1,
+        1 => Field::ServoOutput2,
+        2 => Field::ServoOutput3,
+        3 => Field::ServoOutput4,
+        4 => Field::ServoOutput5,
+        5 => Field::ServoOutput6,
+        6 => Field::ServoOutput7,
+        _ => Field::ServoOutput8,
+    }
+}
+
+/// The field of the radio channel with the given place.
+///
+/// The channels are numbered from one, the way they are on the transmitter.
+fn rc_field(index: usize) -> Field {
+    match index {
+        0 => Field::RcInput1,
+        1 => Field::RcInput2,
+        2 => Field::RcInput3,
+        3 => Field::RcInput4,
+        4 => Field::RcInput5,
+        5 => Field::RcInput6,
+        6 => Field::RcInput7,
+        _ => Field::RcInput8,
     }
 }
 
@@ -889,6 +1131,257 @@ pub static PRESETS: &[Preset] = &[
         ],
         upstream: false,
     },
+    Preset {
+        name: PresetName::new("Speed", "Ground vs Air Speed"),
+        description: "This shows the ground speed of the vehicle versus its air speed",
+        series: &[
+            Series {
+                name: "Ground speed",
+                expression: "airspeed.groundSpeed",
+                unit: "m/s",
+            },
+            Series {
+                name: "Air speed",
+                expression: "airspeed.airspeed",
+                unit: "m/s",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Sensors/Accelerometer", "Accelerometers"),
+        description: "Accelerometer Output",
+        series: &[
+            Series {
+                name: "X",
+                expression: "imu.accelerationX",
+                unit: "m/s²",
+            },
+            Series {
+                name: "Y",
+                expression: "imu.accelerationY",
+                unit: "m/s²",
+            },
+            Series {
+                name: "Z",
+                expression: "imu.accelerationZ",
+                unit: "m/s²",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Sensors/Gyroscope", "Gyros"),
+        description: "Gyroscope Output",
+        series: &[
+            Series {
+                name: "X",
+                expression: "imu.angularRateX",
+                unit: "°/s",
+            },
+            Series {
+                name: "Y",
+                expression: "imu.angularRateY",
+                unit: "°/s",
+            },
+            Series {
+                name: "Z",
+                expression: "imu.angularRateZ",
+                unit: "°/s",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Sensors/Compass", "Compass"),
+        description: "Primary Compass",
+        series: &[
+            Series {
+                name: "X",
+                expression: "imu.magneticX",
+                unit: "gauss",
+            },
+            Series {
+                name: "Y",
+                expression: "imu.magneticY",
+                unit: "gauss",
+            },
+            Series {
+                name: "Z",
+                expression: "imu.magneticZ",
+                unit: "gauss",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Sensors/Barometer", "Barometer"),
+        description: "Barometer",
+        series: &[Series {
+            name: "Temperature",
+            expression: "barometer.temperature",
+            unit: "°C",
+        }],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Sensors/Barometer", "Barometric Pressure"),
+        description: "Barometric Pressure",
+        series: &[Series {
+            name: "Pressure",
+            expression: "barometer.pressure",
+            unit: "hPa",
+        }],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Servos", "Servos 1-4"),
+        description: "First 4 servo outputs",
+        series: &[
+            Series {
+                name: "Servo 1",
+                expression: "servos.output1",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 2",
+                expression: "servos.output2",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 3",
+                expression: "servos.output3",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 4",
+                expression: "servos.output4",
+                unit: "µs",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Servos", "Servos 1-8"),
+        description: "First 8 servo outputs",
+        series: &[
+            Series {
+                name: "Servo 1",
+                expression: "servos.output1",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 2",
+                expression: "servos.output2",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 3",
+                expression: "servos.output3",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 4",
+                expression: "servos.output4",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 5",
+                expression: "servos.output5",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 6",
+                expression: "servos.output6",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 7",
+                expression: "servos.output7",
+                unit: "µs",
+            },
+            Series {
+                name: "Servo 8",
+                expression: "servos.output8",
+                unit: "µs",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("RC", "RC Input 1-4"),
+        description: "First 4 RC inputs",
+        series: &[
+            Series {
+                name: "Channel 1",
+                expression: "rc.input1",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 2",
+                expression: "rc.input2",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 3",
+                expression: "rc.input3",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 4",
+                expression: "rc.input4",
+                unit: "µs",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("RC", "RC Input 1-8"),
+        description: "First 8 RC inputs",
+        series: &[
+            Series {
+                name: "Channel 1",
+                expression: "rc.input1",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 2",
+                expression: "rc.input2",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 3",
+                expression: "rc.input3",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 4",
+                expression: "rc.input4",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 5",
+                expression: "rc.input5",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 6",
+                expression: "rc.input6",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 7",
+                expression: "rc.input7",
+                unit: "µs",
+            },
+            Series {
+                name: "Channel 8",
+                expression: "rc.input8",
+                unit: "µs",
+            },
+        ],
+        upstream: true,
+    },
 ];
 
 /// A series whose expression has been read.
@@ -1210,7 +1703,17 @@ mod tests {
             vec![
                 "Speed/Ground Speed",
                 "Attitude/Roll and Pitch",
-                "Attitude/Circular Angle"
+                "Attitude/Circular Angle",
+                "Speed/Ground vs Air Speed",
+                "Sensors/Accelerometer/Accelerometers",
+                "Sensors/Gyroscope/Gyros",
+                "Sensors/Compass/Compass",
+                "Sensors/Barometer/Barometer",
+                "Sensors/Barometer/Barometric Pressure",
+                "Servos/Servos 1-4",
+                "Servos/Servos 1-8",
+                "RC/RC Input 1-4",
+                "RC/RC Input 1-8",
             ]
         );
     }
