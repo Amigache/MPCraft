@@ -184,6 +184,54 @@ impl SessionSupervisor {
         Ok(())
     }
 
+    /// The logs the vehicle holds in its own memory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle does not answer.
+    pub async fn vehicle_logs(&self, vehicle: VehicleId) -> CommandResult<Vec<VehicleLog>> {
+        let session = self.open_session()?;
+
+        let entries = mpcraft_link::logs::list_logs(&session, vehicle, COMMAND_TIMEOUT).await?;
+
+        Ok(entries
+            .into_iter()
+            .map(|entry| VehicleLog {
+                id: entry.id,
+                time_utc: entry.time_utc,
+                size: entry.size,
+            })
+            .collect())
+    }
+
+    /// Fetches a log of the vehicle and writes it to a file.
+    ///
+    /// The log is fetched in pieces and put together as it arrives, and the file is
+    /// written when every piece is there.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle does not answer,
+    /// or when the file cannot be written.
+    pub async fn download_log(
+        &self,
+        vehicle: VehicleId,
+        id: u16,
+        size: u32,
+        path: &std::path::Path,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        let bytes =
+            mpcraft_link::logs::read_log(&session, vehicle, id, size, COMMAND_TIMEOUT).await?;
+
+        std::fs::write(path, bytes).map_err(|error| {
+            CommandError::internal(format!("cannot write {}: {error}", path.display()))
+        })?;
+
+        Ok(())
+    }
+
     /// Takes the radio channels over, one at a time.
     ///
     /// # Errors
@@ -480,6 +528,18 @@ impl From<&Plan> for PlanInfo {
 
         Self { kind, items }
     }
+}
+
+/// One of the logs a vehicle holds.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VehicleLog {
+    /// The number of the log, which is what the data is asked for with.
+    pub id: u16,
+    /// When the log was started, in seconds since the epoch.
+    pub time_utc: u32,
+    /// How many bytes the log holds.
+    pub size: u32,
 }
 
 #[cfg(test)]

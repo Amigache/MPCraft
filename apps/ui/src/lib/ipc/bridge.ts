@@ -31,6 +31,7 @@ import type {
   TerrainPoint,
   VehicleEvent,
   VehicleKey,
+  VehicleLog,
   VehicleMessage,
   VehicleRequest,
 } from "./types";
@@ -418,6 +419,26 @@ export async function playbackSeek(seconds: number): Promise<void> {
 /** Closes the log that is being played back. */
 export async function playbackClose(): Promise<void> {
   await call<void>("playback_close", {});
+}
+
+/**
+ * The logs the vehicle holds in its own memory.
+ *
+ * A log that is only on the vehicle is a log that is lost when the vehicle is
+ * reformatted.
+ */
+export async function vehicleLogs(vehicle?: VehicleKey): Promise<VehicleLog[]> {
+  return call<VehicleLog[]>("vehicle_logs", vehicleRequest(vehicle));
+}
+
+/** Fetches a log of the vehicle and writes it to a file. */
+export async function downloadLog(
+  id: number,
+  size: number,
+  path: string,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("download_log", { ...vehicleRequest(vehicle), id, size, path });
 }
 
 /** The track of a log: the places the vehicle went through. */

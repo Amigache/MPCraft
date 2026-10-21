@@ -7,15 +7,18 @@ import {
   logExportKml,
   logSeries,
   logSummary,
+  downloadLog,
   normaliseError,
   playbackOpen,
   playbackSeek,
+  vehicleLogs,
 } from "../../lib/ipc/bridge";
 import type {
   CommandError,
   GraphPreset,
   GraphSeries,
   LogSummary,
+  VehicleLog,
 } from "../../lib/ipc/types";
 import { alignSeries, planChart } from "../../lib/graphs/plan";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -55,6 +58,8 @@ export function LogSheet() {
   const [error, setError] = useState<CommandError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The logs the vehicle holds in its own memory. */
+  const [logs, setLogs] = useState<readonly VehicleLog[]>([]);
   /** How long the flight lasted, in seconds. */
   const [flight, setFlight] = useState(0);
   /** Where the play-back is, in seconds. */
@@ -225,6 +230,42 @@ export function LogSheet() {
     summary === null || summary.end <= summary.start
       ? 0
       : (summary.end - summary.start) / 1_000_000;
+
+  const readVehicleLogs = async () => {
+    setBusy(true);
+
+    try {
+      const list = await vehicleLogs();
+      setLogs(list);
+      setError(null);
+    } catch (cause) {
+      setError(normaliseError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fetchLog = async (log: VehicleLog) => {
+    const picked = await pickSavePath(`log-${log.id}.log`, [
+      { name: "Log of the vehicle", extensions: ["log", "bin"] },
+    ]);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await downloadLog(log.id, log.size, picked.path);
+      setNotice(`The log was written to ${picked.path}.`);
+      setError(null);
+    } catch (cause) {
+      setError(normaliseError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const exportKml = async () => {
     if (path === null) {
@@ -406,6 +447,42 @@ export function LogSheet() {
                 ))}
               </div>
             </>
+          ) : null}
+
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              title="Ask the vehicle for the logs it holds in its own memory"
+              onClick={() => {
+                void readVehicleLogs();
+              }}
+            >
+              The logs of the vehicle
+            </button>
+          </div>
+
+          {logs.length > 0 ? (
+            <div className={styles.messages}>
+              {logs.map((log) => (
+                <span key={log.id} className={styles.message}>
+                  <span className={styles.messageName}>
+                    {`Log ${log.id} · ${(log.size / 1024).toFixed(1)} kB`}
+                  </span>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={busy}
+                    onClick={() => {
+                      void fetchLog(log);
+                    }}
+                  >
+                    Download
+                  </button>
+                </span>
+              ))}
+            </div>
           ) : null}
 
           {presets.length > 0 ? (

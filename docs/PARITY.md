@@ -144,7 +144,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 6.2 | DataFlash `.bin` parser | `ExtLibs/Utilities/BinaryLog.cs` | 🔜 | 4 |
 | 6.3 | MAVLink `.tlog` parser | `Log/MavlinkLog.cs` | ✅ | 4 |
 | 6.4 | PX4 ULog parser | `ExtLibs/Utilities/ULog.cs` (upstream: unwired) | 🔜 | 4 |
-| 6.5 | Log download over MAVLink | `Log/LogDownloadMavLink.cs` | 🔜 | 4 |
+| 6.5 | Log download over MAVLink | `Log/LogDownloadMavLink.cs` | ✅ | 4 |
 | 6.6 | Log download over SCP | `Log/LogDownloadscp.cs` | 🔜 | 5 |
 | 6.7 | Log browser — message tree + sample grid | `Log/LogBrowse.cs` | 🔜 | 4 |
 | 6.8 | Log graphing with multi-axis | `LogBrowse.CreateChart` | ✅ | 4 |
@@ -164,7 +164,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.3 | Tile caching on disk | `ExtLibs/Maps/MyImageCache.cs` | 🔜 | 1 |
 | 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | 🔜 | 2 |
 | 7.5 | Tile prefetch for a region | `ExtLibs/GMap.NET.WindowsForms/TilePrefetcher.cs` | 🔜 | 2 |
-| 7.6 | Geofence / rally / home markers | `ExtLibs/Maps/GMapMarker*.cs` | 🔜 | 2 |
+| 7.6 | Geofence / rally / home markers | `ExtLibs/Maps/GMapMarker*.cs` | ✅ | 2 |
 | 7.7 | UTM / MGRS coordinate conversion | `ExtLibs/Utilities/utmpos.cs`, `GeoUtility` | ✅ | 2 |
 | 7.8 | SRTM terrain elevation lookup | `ExtLibs/Utilities/srtm.cs` | ✅ | 2 |
 | 7.9 | DTED local elevation | `ExtLibs/Utilities/DTED.cs` | 🔜 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 90 |
-| 🔜 Planned | 63 |
+| ✅ Done | 92 |
+| 🔜 Planned | 61 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 90 rows marked done are the connection, transport, parameter, mission and command
+The 92 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all

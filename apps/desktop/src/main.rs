@@ -1301,6 +1301,47 @@ struct PlaybackState {
     telemetry: TelemetryEvent,
 }
 
+/// The logs the vehicle holds in its own memory.
+///
+/// A log that is only on the vehicle is a log that is lost when the vehicle is
+/// reformatted. The list is what the operator chooses from.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle does not answer.
+#[tauri::command]
+async fn vehicle_logs(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<Vec<mpcraft_app::VehicleLog>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.vehicle_logs(vehicle).await
+}
+
+/// Fetches a log of the vehicle and writes it to a file.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// does not answer, or when the file cannot be written.
+#[tauri::command]
+async fn download_log(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    id: u16,
+    size: u32,
+    path: String,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .download_log(vehicle, id, size, std::path::Path::new(&path))
+        .await
+}
+
 /// The track of a log: the places the vehicle went through.
 ///
 /// # Errors
@@ -2357,6 +2398,8 @@ fn main() {
             list_mav_commands,
             graph_series,
             log_summary,
+            vehicle_logs,
+            download_log,
             playback_open,
             playback_seek,
             playback_close,

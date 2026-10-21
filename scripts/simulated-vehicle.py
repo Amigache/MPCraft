@@ -44,6 +44,7 @@ FORMATS = {
     "f32": "<f",
     "f64": "<d",
     "char50": "<50s",
+    "char90": "<90s",
 }
 
 CLASSES = {
@@ -51,6 +52,7 @@ CLASSES = {
     "i8": 1,
     "char16": 1,
     "char50": 1,
+    "char90": 1,
     "u16": 2,
     "i16": 2,
     "u32": 4,
@@ -386,6 +388,56 @@ MESSAGES = {
         [
             ("ignition_voltage", "f32"),
             ("fuel_pressure", "f32"),
+        ],
+    ),
+    117: message(
+        117,
+        "LOG_REQUEST_LIST",
+        128,
+        [
+            ("start", "u16"),
+            ("end", "u16"),
+        ],
+        [
+            ("target_system", "u8"),
+            ("target_component", "u8"),
+        ],
+    ),
+    118: message(
+        118,
+        "LOG_ENTRY",
+        56,
+        [
+            ("time_utc", "u32"),
+            ("size", "u32"),
+            ("id", "u16"),
+            ("num_logs", "u16"),
+            ("last_log_num", "u16"),
+        ],
+    ),
+    119: message(
+        119,
+        "LOG_REQUEST_DATA",
+        116,
+        [
+            ("ofs", "u32"),
+            ("count", "u32"),
+            ("id", "u16"),
+        ],
+        [
+            ("target_system", "u8"),
+            ("target_component", "u8"),
+        ],
+    ),
+    120: message(
+        120,
+        "LOG_DATA",
+        134,
+        [
+            ("ofs", "u32"),
+            ("id", "u16"),
+            ("count", "u8"),
+            ("data", "char90"),
         ],
     ),
     178: message(
@@ -809,6 +861,22 @@ PARAMETERS = [
     ("SERVO6_FUNCTION", 0, PARAM_UINT8),
     ("SERVO7_FUNCTION", 0, PARAM_UINT8),
     ("SERVO8_FUNCTION", 0, PARAM_UINT8),
+]
+
+
+# The logs the vehicle holds in its own memory.
+#
+# A real vehicle has the logs of its flights; the simulator has one small log, so that
+# the ground station has something to fetch.
+VEHICLE_LOGS = [
+    {
+        "id": 1,
+        "time_utc": 1_700_000_000,
+        "size": 180,
+        "body": bytes(
+            (index * 7 + 11) % 256 for index in range(180)
+        ),
+    },
 ]
 
 
@@ -1405,6 +1473,8 @@ class Vehicle:
             11: self.on_set_mode,
             20: self.on_param_request_read,
             21: self.on_param_request_list,
+        117: self.on_log_request_list,
+        119: self.on_log_request_data,
             23: self.on_param_set,
             39: self.on_mission_item,
             40: self.on_mission_request,
@@ -1425,6 +1495,49 @@ class Vehicle:
         return
 
     # -------------------------------------------------------------- parameters
+
+    def on_log_request_list(self, values):
+        """The ground station wants the list of the logs the vehicle holds."""
+        print("the logs were requested", flush=True)
+
+        for entry in VEHICLE_LOGS:
+            self.send(
+                118,
+                {
+                    "time_utc": entry["time_utc"],
+                    "size": entry["size"],
+                    "id": entry["id"],
+                    "num_logs": len(VEHICLE_LOGS),
+                    "last_log_num": entry["id"],
+                },
+            )
+
+    def on_log_request_data(self, values):
+        """The ground station wants a piece of a log."""
+        log_id = int(values.get("id", 0))
+        offset = int(values.get("ofs", 0))
+        count = int(values.get("count", 0))
+
+        entry = next(
+            (log for log in VEHICLE_LOGS if log["id"] == log_id),
+            None,
+        )
+
+        if entry is None:
+            return
+
+        body = entry["body"]
+        piece = body[offset : offset + count]
+
+        self.send(
+            120,
+            {
+                "ofs": offset,
+                "id": log_id,
+                "count": len(piece),
+                "data": piece,
+            },
+        )
 
     def on_param_request_list(self, values):
         """The ground station wants every parameter."""

@@ -58,7 +58,7 @@ pub use graphs::{GraphHistory, PresetInfo, SeriesData, SeriesInfo, SeriesPoints}
 pub use mpcraft_link::SessionState;
 pub use mpcraft_settings::ConnectionProfile;
 pub use operations::OutputFunction;
-pub use operations::{flight_modes, ModeInfo, PlanInfo, PlanItem, PlanKind};
+pub use operations::{flight_modes, ModeInfo, PlanInfo, PlanItem, PlanKind, VehicleLog};
 pub use supervisor::{
     ConnectionStatus, Connector, LinkSnapshot, ReconnectPolicy, SessionSupervisor, Sleeper,
     TokioSleeper, TransportConnector,

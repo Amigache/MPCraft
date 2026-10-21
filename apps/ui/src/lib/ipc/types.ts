@@ -511,6 +511,18 @@ export interface PlaybackInfo {
   readonly open: boolean;
 }
 
+/**
+ * One of the logs a vehicle holds in its own memory.
+ */
+export interface VehicleLog {
+  /** The number of the log, which is what the data is asked for with. */
+  readonly id: number;
+  /** When the log was started, in seconds since the epoch. */
+  readonly timeUtc: number;
+  /** How many bytes the log holds. */
+  readonly size: number;
+}
+
 export interface GraphPreset {
   /** The full name, as the interface shows it. */
   readonly name: string;

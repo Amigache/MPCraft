@@ -58,6 +58,7 @@
 pub mod commands;
 pub mod error;
 pub mod heartbeat;
+pub mod logs;
 pub mod loss;
 pub mod mission;
 pub mod params;
