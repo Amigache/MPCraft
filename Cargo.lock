@@ -2494,6 +2494,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "csv",
+ "flate2",
  "mpcraft-geo",
  "mpcraft-link",
  "mpcraft-log",
@@ -2503,6 +2504,7 @@ dependencies = [
  "mpcraft-settings",
  "mpcraft-transport",
  "mpcraft-vehicle",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
