@@ -1400,6 +1400,32 @@ async fn diagnostics_bundle(
     Ok(output)
 }
 
+/// Writes a firmware to a board, over the port the board is on.
+///
+/// The board has to be in its bootloader: it answers the questions of the protocol
+/// instead of the MAVLink of a flight. The file is the one that the manifest of the
+/// firmware points at.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the port cannot be opened, when the
+/// file cannot be read, or when the board does not answer.
+#[tauri::command]
+async fn firmware_write_to_board(
+    port: String,
+    file: String,
+) -> CommandResult<mpcraft_app::bootloader::BoardInfo> {
+    let transport = SerialTransport::open(port, 115200, false).map_err(|error| {
+        CommandError::internal(format!("the port could not be opened: {error}"))
+    })?;
+
+    let firmware = std::fs::read(&file).map_err(|error| {
+        CommandError::invalid_request(format!("the file could not be read: {error}"))
+    })?;
+
+    mpcraft_app::bootloader::write_firmware(transport, &firmware, |_, _| {}).await
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -2835,6 +2861,7 @@ fn main() {
             dted_path,
             firmware_manifest,
             firmware_download,
+            firmware_write_to_board,
             diagnostics_bundle,
             list_parameters,
             read_parameters,
