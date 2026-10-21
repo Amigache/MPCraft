@@ -11,8 +11,8 @@
 
 use mpcraft_app::{
     flight_modes, AppState, CommandError, CommandResult, ConnectRequest, ConnectResponse,
-    ConnectionStatus, LinkSnapshot, ModeInfo, PlanInfo, PlanKind, PresetInfo, SeriesData,
-    SessionState,
+    ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, PlanInfo, PlanKind, PresetInfo,
+    SeriesData, SessionState,
 };
 use mpcraft_link::VehicleId;
 use mpcraft_mission::{MissionType, Plan};
@@ -1019,8 +1019,33 @@ fn plan_of(kind: PlanKind, items: &[PlanItemRequest]) -> CommandResult<Plan> {
     Ok(plan)
 }
 
-/// A connection profile, as the interface sees it.
-#[derive(Debug, Clone, serde::Serialize)]
+/// Saves the connection profiles.
+///
+/// The profiles are the ones the operator has named, and the file is read, the profiles
+/// are replaced and the file is written back: the other settings are left alone.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the profiles cannot be written.
+#[tauri::command]
+async fn set_connection_profiles(
+    state: State<'_, AppState>,
+    profiles: Vec<ProfileEvent>,
+) -> CommandResult<()> {
+    let profiles: Vec<ConnectionProfile> = profiles
+        .into_iter()
+        .map(|profile| ConnectionProfile {
+            name: profile.name,
+            target: profile.target,
+            auto_connect: profile.auto_connect,
+        })
+        .collect();
+
+    state.set_connection_profiles(&profiles)
+}
+
+/// A connection profile, as the interface sees it./// A connection profile, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProfileEvent {
     /// The name the profile is listed under.
@@ -1523,6 +1548,7 @@ fn main() {
             disconnect,
             connection_status,
             list_connection_profiles,
+            set_connection_profiles,
             list_flight_modes,
             list_serial_ports,
             list_graphs,

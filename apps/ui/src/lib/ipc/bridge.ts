@@ -6,6 +6,7 @@ import type {
   ChecklistEntry,
   CommandError,
   ConnectRequest,
+  ConnectionProfile,
   ConnectResponse,
   ConnectionStatus,
   Coordinates,
@@ -220,6 +221,22 @@ export async function setFavouriteParameter(
   favourite: boolean,
 ): Promise<void> {
   await call<void>("set_favourite_parameter", { name, favourite });
+}
+
+/**
+ * The connections the operator has named.
+ *
+ * The backend keeps them between two runs, in the order they were saved.
+ */
+export async function listConnectionProfiles(): Promise<ConnectionProfile[]> {
+  return call<ConnectionProfile[]>("list_connection_profiles");
+}
+
+/** Saves the connections the operator has named. */
+export async function setConnectionProfiles(
+  profiles: readonly ConnectionProfile[],
+): Promise<void> {
+  await call<void>("set_connection_profiles", { profiles: [...profiles] });
 }
 
 /**

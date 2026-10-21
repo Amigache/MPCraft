@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { listSerialPorts, useConnection } from "../../lib/ipc/bridge";
 import type { CommandError, SerialPort } from "../../lib/ipc/types";
+import { useProfilesStore } from "../../lib/connection/profilesStore";
 import {
   BAUD_RATES,
   DEFAULT_BAUD,
@@ -22,6 +23,10 @@ import styles from "./ConnectionPanel.module.css";
  * `serial:COM3:115200` by hand every time is a nuisance — but the target stays a text
  * box, because a machine may have no serial ports at all, and a link may be a UDP or a
  * TCP address.
+ *
+ * The **links the operator has named** are below: the vehicle on the bench, the
+ * simulator, the drone in the field. They are kept between two runs, and the ones
+ * marked are opened when the application starts.
  */
 
 /** The state of the list of ports. */
@@ -35,6 +40,14 @@ export function ConnectionPanel() {
   const [portsState, setPortsState] = useState<PortsState>("loading");
   const [portsError, setPortsError] = useState<CommandError | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const profiles = useProfilesStore((state) => state.profiles);
+  const loadProfiles = useProfilesStore((state) => state.load);
+  const saveProfile = useProfilesStore((state) => state.save);
+  const removeProfile = useProfilesStore((state) => state.remove);
+  const setAutoConnect = useProfilesStore((state) => state.setAutoConnect);
+  const profileError = useProfilesStore((state) => state.error);
+  const [name, setName] = useState("");
 
   const open = status === "disconnected" || status === "failed";
 
@@ -64,6 +77,11 @@ export function ConnectionPanel() {
       cancelled = true;
     };
   }, []);
+
+  // The links the operator has named. They are read when the panel opens.
+  useEffect(() => {
+    void loadProfiles();
+  }, [loadProfiles]);
 
   // What the target says about the port and the rate. A target that is not a serial
   // one says neither, and the panel then offers the rate it has been given.
@@ -211,6 +229,97 @@ export function ConnectionPanel() {
           <span className={styles.code}>{error.code}</span> {error.message}
         </p>
       ) : null}
+
+      <section className={styles.saved}>
+        <h3 className={styles.savedHeading}>Saved links</h3>
+
+        <div className={styles.saveRow}>
+          <input
+            className="input"
+            value={name}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="Name"
+            aria-label="The name of the link"
+            onChange={(event) => {
+              setName(event.target.value);
+            }}
+          />
+          <button
+            type="button"
+            className="button"
+            disabled={busy || name.trim().length === 0 || target.trim().length === 0}
+            title="Save the target under this name"
+            onClick={() => {
+              void run(async () => {
+                await saveProfile({
+                  name: name.trim(),
+                  target: target.trim(),
+                  autoConnect: false,
+                });
+                setName("");
+              });
+            }}
+          >
+            Save
+          </button>
+        </div>
+
+        {profiles.length === 0 ? (
+          <p className={styles.note}>
+            No link has been saved. The ones that are saved are here the next time, and
+            the ones marked are opened when the application starts.
+          </p>
+        ) : (
+          <ul className={styles.savedList}>
+            {profiles.map((profile) => (
+              <li key={profile.name} className={styles.savedItem}>
+                <input
+                  type="checkbox"
+                  checked={profile.autoConnect}
+                  aria-label={`Open ${profile.name} when the application starts`}
+                  title="Open this link when the application starts"
+                  disabled={busy}
+                  onChange={(event) => {
+                    void setAutoConnect(profile.name, event.target.checked);
+                  }}
+                />
+                <button
+                  type="button"
+                  className={styles.savedName}
+                  title="Use this link"
+                  onClick={() => {
+                    setTarget(profile.target);
+                    setName(profile.name);
+                  }}
+                >
+                  {profile.name}
+                </button>
+                <span className={styles.savedTarget}>{profile.target}</span>
+                <button
+                  type="button"
+                  className={styles.savedDelete}
+                  aria-label={`Forget ${profile.name}`}
+                  title="Forget this link"
+                  disabled={busy}
+                  onClick={() => {
+                    void run(() => removeProfile(profile.name));
+                  }}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {profileError ? (
+          <p className={styles.error} role="alert">
+            <span className={styles.code}>{profileError.code}</span>{" "}
+            {profileError.message}
+          </p>
+        ) : null}
+      </section>
     </div>
   );
 }

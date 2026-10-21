@@ -28,7 +28,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.13 | MAVLink 2 signing (out & in) | `MAVLinkInterface.generatePacket`, `CheckSignature` | ✅ | 0 |
 | 1.14 | Signing keyring persistence | `ExtLibs/ArduPilot/Mavlink/MAVAuthKeys.cs` | 🔜 | 0 |
 | 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | 🔜 | 5 |
-| 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | 🟡 | 7 |
+| 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | ✅ | 7 |
 | 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | 🔜 | 5 |
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 | 5 |
 | 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
@@ -159,7 +159,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 7.1 | MapLibre base map with provider selection | `ExtLibs/Maps/*` | 🟡 | 1 |
+| 7.1 | MapLibre base map with provider selection | `ExtLibs/Maps/*` | ✅ | 1 |
 | 7.2 | OSM / satellite / hybrid tile providers | `GMapProviders` registry | 🔜 | 1 |
 | 7.3 | Tile caching on disk | `ExtLibs/Maps/MyImageCache.cs` | 🔜 | 1 |
 | 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | 🔜 | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 50 |
+| ✅ Done | 52 |
 | 🔜 Planned | 100 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 4 |
+| 🟡 Partial | 2 |
 
-The 50 rows marked done are the connection, transport, parameter, mission and command
+The 52 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -258,22 +258,29 @@ unsent changes never looks like the plan on the vehicle.
 What is still missing from the window: the elevation profile of the plan, the servo and
 relay outputs, and the auxiliary functions.
 
-The four rows marked partial are the connection profiles, the map, the metadata of the
-parameters, and the writing to the flash.
+The two rows marked partial are the metadata of the parameters and the writing to the
+flash.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not
 travel. The bindings were never the limitation — the feature flag was. With
 `mav2-message-extensions` switched on, the plan type reaches the wire on
 `MISSION_REQUEST_LIST`, `MISSION_COUNT` and every item, and a fence plan downloads as a
-fence plan. What is left of that row is the interface: drawing the polygon, and the
-inclusion and exclusion lists, which are not modelled yet.
+fence plan.
 
-The connection profiles are stored, listed and opened at launch; what is missing is the
-screen that edits them.
+The fence is now drawn as the polygon it is: the vertices that are included in it make
+the ring, the points that are excluded from it are drawn in the colour of the danger, and
+the circles that are in it or out of it are drawn as they are. The editor has the three
+kinds of plan upstream's planner has - mission, fence and rally - and the plan of each
+kind is edited with the commands that kind takes.
 
-The map works, and it draws the vehicle, the track and the plan; what is missing is the
-choice of the tile provider, which upstream offers as a registry of sources.
+The connection profiles are stored, listed, edited and opened at launch.
+
+The map draws the vehicle, the track, the plan and the fence, and the operator chooses
+where the tiles come from: the three styles of OpenFreeMap, the ordinary map of
+OpenStreetMap, the topography of OpenTopoMap, the satellite imagery of Esri and the pale
+map of CartoDB. They are the sources that are free and that need neither an account nor a
+key.
 
 The plan editor keeps the edits apart from the plan the vehicle holds, and says so when
 they differ, and a change can be taken back with the button or with control and Z.

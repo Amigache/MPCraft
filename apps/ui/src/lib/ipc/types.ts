@@ -241,6 +241,21 @@ export interface FlightMode {
   readonly name: string;
 }
 
+/**
+ * A connection the operator has named and can come back to.
+ *
+ * The profile is deliberately small: a name to show in a list, the target of the
+ * connection, and whether the link is opened when the application starts.
+ */
+export interface ConnectionProfile {
+  /** The name the profile is listed under. */
+  readonly name: string;
+  /** The connection target, for example `udp:127.0.0.1:14550`. */
+  readonly target: string;
+  /** Whether the profile is opened when the application starts. */
+  readonly autoConnect: boolean;
+}
+
 /** A serial port on this machine. */
 export interface SerialPort {
   /** The device name, for example `COM3` or `/dev/ttyUSB0`. */
