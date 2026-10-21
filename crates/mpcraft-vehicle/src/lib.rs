@@ -257,6 +257,80 @@ pub struct Airspeed {
     pub throttle: f64,
 }
 
+/// The state of the estimator of the vehicle.
+///
+/// The variances are the squares of the standard deviations, in the units of what they
+/// measure: metres per second for the velocity, metres for the position, gauss for the
+/// compass.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Ekf {
+    /// The variance of the velocity estimate.
+    pub velocity_variance: f64,
+    /// The variance of the horizontal position estimate.
+    pub horizontal_variance: f64,
+    /// The variance of the vertical position estimate.
+    pub vertical_variance: f64,
+    /// The variance of the compass.
+    pub compass_variance: f64,
+    /// The variance of the terrain altitude.
+    pub terrain_variance: f64,
+    /// The variance of the airspeed estimate.
+    pub airspeed_variance: f64,
+}
+
+/// The vibration of the airframe.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Vibration {
+    /// The vibration on the first axis, in metres per second squared.
+    pub x: f64,
+    /// The vibration on the second axis, in metres per second squared.
+    pub y: f64,
+    /// The vibration on the third axis, in metres per second squared.
+    pub z: f64,
+}
+
+/// The state of one battery bank.
+///
+/// A vehicle may carry several banks: the pack of the propulsion and the pack of the
+/// payload, for instance. Each of them has its own cells, its own current and its own
+/// remaining charge.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BatteryBank {
+    /// The identifier the vehicle gives the bank.
+    pub id: u8,
+    /// The voltage of each cell, in volts.
+    ///
+    /// The cells the vehicle does not have are not in the list: a bank of six cells has
+    /// six entries, and not sixteen with ten of them empty.
+    pub cells: Vec<f64>,
+    /// The current of the bank, in amperes.
+    pub current: f64,
+    /// The remaining charge of the bank, as a percentage.
+    pub remaining: f64,
+    /// The temperature of the bank, in degrees Celsius.
+    pub temperature: f64,
+}
+
+/// What the flight controller is asking the vehicle to do.
+///
+/// The desired attitude is what the controller wants, and the difference between it and
+/// what the vehicle does is how well the controller is tuned.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Controller {
+    /// The roll the controller asks for, in radians.
+    pub roll: f64,
+    /// The pitch the controller asks for, in radians.
+    pub pitch: f64,
+    /// The error of the altitude, in metres.
+    pub altitude_error: f64,
+    /// The error of the airspeed.
+    pub airspeed_error: f64,
+    /// The error of the cross-track, in metres.
+    pub cross_track_error: f64,
+    /// The distance to the waypoint the vehicle is flying towards, in metres.
+    pub waypoint_distance: f64,
+}
+
 /// The state of a vehicle at a point in time.
 ///
 /// Every optional field is `None` until the corresponding message has been received at least
@@ -293,6 +367,16 @@ pub struct Telemetry {
     pub controls: Option<Controls>,
     /// The air data, once received.
     pub airspeed: Option<Airspeed>,
+    /// The state of the estimator, once received.
+    pub ekf: Option<Ekf>,
+    /// The vibration of the airframe, once received.
+    pub vibration: Option<Vibration>,
+    /// The battery banks the vehicle has reported.
+    pub batteries: Vec<BatteryBank>,
+    /// The attitude of the second estimator, once received.
+    pub ahrs2: Option<Attitude>,
+    /// What the flight controller is asking for, once received.
+    pub controller: Option<Controller>,
 }
 
 impl Telemetry {
@@ -339,6 +423,21 @@ impl Telemetry {
         }
         if let Some(airspeed) = update.airspeed {
             self.airspeed = Some(airspeed);
+        }
+        if let Some(ekf) = update.ekf {
+            self.ekf = Some(ekf);
+        }
+        if let Some(vibration) = update.vibration {
+            self.vibration = Some(vibration);
+        }
+        if !update.batteries.is_empty() {
+            self.batteries = update.batteries;
+        }
+        if let Some(ahrs2) = update.ahrs2 {
+            self.ahrs2 = Some(ahrs2);
+        }
+        if let Some(controller) = update.controller {
+            self.controller = Some(controller);
         }
 
         self.recompute_derived();
@@ -387,6 +486,16 @@ pub struct TelemetryUpdate {
     pub controls: Option<Controls>,
     /// New air data.
     pub airspeed: Option<Airspeed>,
+    /// New state of the estimator.
+    pub ekf: Option<Ekf>,
+    /// New vibration of the airframe.
+    pub vibration: Option<Vibration>,
+    /// New battery banks.
+    pub batteries: Vec<BatteryBank>,
+    /// New attitude of the second estimator.
+    pub ahrs2: Option<Attitude>,
+    /// New wish of the flight controller.
+    pub controller: Option<Controller>,
 }
 
 /// Computes the distance and initial bearing between two points using the haversine formula.

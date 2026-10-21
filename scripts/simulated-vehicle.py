@@ -301,6 +301,91 @@ MESSAGES = {
             ("rssi", "u8"),
         ],
     ),
+    62: message(
+        62,
+        "NAV_CONTROLLER_OUTPUT",
+        183,
+        [
+            ("nav_roll", "f32"),
+            ("nav_pitch", "f32"),
+            ("alt_error", "f32"),
+            ("aspd_error", "f32"),
+            ("xtrack_error", "f32"),
+            ("nav_bearing", "i16"),
+            ("target_bearing", "i16"),
+            ("wp_dist", "u16"),
+        ],
+    ),
+    147: message(
+        147,
+        "BATTERY_STATUS",
+        154,
+        [
+            ("current_consumed", "i32"),
+            ("energy_consumed", "i32"),
+            ("temperature", "i16"),
+            # The voltages of the cells travel as an array of ten; the wire does not care
+            # about the name, only about the order.
+            ("cell1", "u16"),
+            ("cell2", "u16"),
+            ("cell3", "u16"),
+            ("cell4", "u16"),
+            ("cell5", "u16"),
+            ("cell6", "u16"),
+            ("cell7", "u16"),
+            ("cell8", "u16"),
+            ("cell9", "u16"),
+            ("cell10", "u16"),
+            ("current_battery", "i16"),
+            ("id", "u8"),
+            ("battery_function", "u8"),
+            ("mavtype", "u8"),
+            ("battery_remaining", "i8"),
+        ],
+    ),
+    178: message(
+        178,
+        "AHRS2",
+        47,
+        [
+            ("roll", "f32"),
+            ("pitch", "f32"),
+            ("yaw", "f32"),
+            ("altitude", "f32"),
+            ("lat", "i32"),
+            ("lng", "i32"),
+        ],
+    ),
+    193: message(
+        193,
+        "EKF_STATUS_REPORT",
+        71,
+        [
+            ("velocity_variance", "f32"),
+            ("pos_horiz_variance", "f32"),
+            ("pos_vert_variance", "f32"),
+            ("compass_variance", "f32"),
+            ("terrain_alt_variance", "f32"),
+            ("flags", "u16"),
+        ],
+        extensions=[
+            ("airspeed_variance", "f32"),
+        ],
+    ),
+    241: message(
+        241,
+        "VIBRATION",
+        90,
+        [
+            ("time_usec", "u64"),
+            ("vibration_x", "f32"),
+            ("vibration_y", "f32"),
+            ("vibration_z", "f32"),
+            ("clipping_0", "u32"),
+            ("clipping_1", "u32"),
+            ("clipping_2", "u32"),
+        ],
+    ),
     74: message(
         74,
         "VFR_HUD",
@@ -907,6 +992,83 @@ class Vehicle:
                     "throttle": 45,
                     "alt": alt,
                     "climb": 0.0,
+                },
+            )
+
+            # The second estimator, which the vehicle compares the first with.
+            self.send(
+                178,
+                {
+                    "roll": roll,
+                    "pitch": pitch,
+                    "yaw": yaw,
+                    "altitude": alt,
+                    "lat": int(lat * 1e7),
+                    "lng": int(lng * 1e7),
+                },
+            )
+
+            # What the controller asks for, against what the vehicle does.
+            self.send(
+                62,
+                {
+                    "nav_roll": roll * 0.95,
+                    "nav_pitch": pitch * 0.95,
+                    "alt_error": 0.0,
+                    "aspd_error": 0.1,
+                    "xtrack_error": 0.5,
+                    "nav_bearing": int(math.degrees(yaw) * 100) % 36000,
+                    "target_bearing": int(math.degrees(yaw) * 100) % 36000,
+                    "wp_dist": 120,
+                },
+            )
+
+            # The state of the estimator: how sure it is of what it has measured.
+            self.send(
+                193,
+                {
+                    "velocity_variance": 0.04,
+                    "pos_horiz_variance": 0.25,
+                    "pos_vert_variance": 0.09,
+                    "compass_variance": 0.02,
+                    "terrain_alt_variance": 0.0,
+                    "flags": 0,
+                },
+            )
+
+            # The vibration of the airframe.
+            self.send(
+                241,
+                {
+                    "time_usec": int(elapsed * 1_000_000),
+                    "vibration_x": 1.2 + 0.3 * math.sin(elapsed * 3.0),
+                    "vibration_y": 0.8 + 0.2 * math.cos(elapsed * 2.5),
+                    "vibration_z": 0.5,
+                    "clipping_0": 0,
+                    "clipping_1": 0,
+                    "clipping_2": 0,
+                },
+            )
+
+            # The bank of the battery: the cells of the pack, one by one.
+            cell = 4200
+            self.send(
+                147,
+                {
+                    "current_consumed": 0,
+                    "energy_consumed": 0,
+                    "temperature": 2500,
+                    "cell1": cell,
+                    "cell2": cell,
+                    "cell3": cell,
+                    "cell4": cell,
+                    "cell5": cell,
+                    "cell6": cell,
+                    "current_battery": -1500,
+                    "id": 0,
+                    "battery_function": 0,
+                    "mavtype": 1,
+                    "battery_remaining": 85,
                 },
             )
 

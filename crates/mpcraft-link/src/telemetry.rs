@@ -13,8 +13,8 @@
 //! distance to home — are computed at decode time rather than on every access.
 
 use mpcraft_vehicle::{
-    Airspeed, Attitude, Barometer, Battery, Controls, FlightMode, GeoPoint, GpsStatus, Imu,
-    MissionProgress, PlanState, Telemetry, Velocity,
+    Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, Ekf, FlightMode,
+    GeoPoint, GpsStatus, Imu, MissionProgress, PlanState, Telemetry, Velocity, Vibration,
 };
 
 use mpcraft_mavlink::dialect::messages::MissionState;
@@ -270,6 +270,76 @@ impl TelemetryAggregator {
                 self.telemetry.controls = Some(controls);
             }
 
+            MavMessage::BATTERY_STATUS(status) => {
+                // The vehicle reports each bank on its own, and says which bank it is.
+                // The voltages of the cells are in millivolts, and the ones the bank does
+                // not have are not reported: a bank of six cells has six entries.
+                let cells: Vec<f64> = status
+                    .voltages
+                    .iter()
+                    .take_while(|voltage| **voltage > 0)
+                    .map(|voltage| f64::from(*voltage) / 1000.0)
+                    .collect();
+
+                let bank = BatteryBank {
+                    id: status.id,
+                    cells,
+                    current: f64::from(status.current_battery) / 100.0,
+                    remaining: f64::from(status.battery_remaining.max(0)),
+                    temperature: f64::from(status.temperature) * 0.01,
+                };
+
+                // The banks are kept in the order the vehicle names them, and a bank that
+                // is reported again replaces the one that was there.
+                let mut batteries = std::mem::take(&mut self.telemetry.batteries);
+                batteries.retain(|known| known.id != bank.id);
+                batteries.push(bank);
+                batteries.sort_by_key(|known| known.id);
+
+                self.telemetry.batteries = batteries;
+            }
+
+            MavMessage::VIBRATION(vibration) => {
+                self.telemetry.vibration = Some(Vibration {
+                    x: f64::from(vibration.vibration_x),
+                    y: f64::from(vibration.vibration_y),
+                    z: f64::from(vibration.vibration_z),
+                });
+            }
+
+            MavMessage::EKF_STATUS_REPORT(report) => {
+                self.telemetry.ekf = Some(Ekf {
+                    velocity_variance: f64::from(report.velocity_variance),
+                    horizontal_variance: f64::from(report.pos_horiz_variance),
+                    vertical_variance: f64::from(report.pos_vert_variance),
+                    compass_variance: f64::from(report.compass_variance),
+                    terrain_variance: f64::from(report.terrain_alt_variance),
+                    airspeed_variance: f64::from(report.airspeed_variance),
+                });
+            }
+
+            MavMessage::AHRS2(ahrs) => {
+                // The second estimator, which is the one the vehicle compares the first
+                // with.
+                self.telemetry.ahrs2 = Some(Attitude {
+                    roll: f64::from(ahrs.roll),
+                    pitch: f64::from(ahrs.pitch),
+                    yaw: f64::from(ahrs.yaw),
+                });
+            }
+
+            MavMessage::NAV_CONTROLLER_OUTPUT(output) => {
+                // What the controller wants, against what the vehicle does.
+                self.telemetry.controller = Some(Controller {
+                    roll: f64::from(output.nav_roll),
+                    pitch: f64::from(output.nav_pitch),
+                    altitude_error: f64::from(output.alt_error),
+                    airspeed_error: f64::from(output.aspd_error),
+                    cross_track_error: f64::from(output.xtrack_error),
+                    waypoint_distance: f64::from(output.wp_dist),
+                });
+            }
+
             MavMessage::MISSION_CURRENT(current) => {
                 // The vehicle streams this whenever the plan changes, so it is the state
                 // of the plan rather than a momentary report.
@@ -323,9 +393,10 @@ fn plan_state_of(state: MissionState) -> PlanState {
 mod tests {
     use super::*;
     use mpcraft_mavlink::dialect::messages::{
-        GLOBAL_POSITION_INT_DATA, GPS_RAW_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA,
-        MISSION_CURRENT_DATA, RAW_IMU_DATA, RC_CHANNELS_DATA, SCALED_PRESSURE_DATA,
-        SERVO_OUTPUT_RAW_DATA, SYS_STATUS_DATA, TIMESYNC_DATA, VFR_HUD_DATA,
+        AHRS2_DATA, BATTERY_STATUS_DATA, EKF_STATUS_REPORT_DATA, GLOBAL_POSITION_INT_DATA,
+        GPS_RAW_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA, MISSION_CURRENT_DATA,
+        NAV_CONTROLLER_OUTPUT_DATA, RAW_IMU_DATA, RC_CHANNELS_DATA, SCALED_PRESSURE_DATA,
+        SERVO_OUTPUT_RAW_DATA, SYS_STATUS_DATA, TIMESYNC_DATA, VFR_HUD_DATA, VIBRATION_DATA,
     };
     use mpcraft_mavlink::{MavGpsFixType, MavType};
 
@@ -687,5 +758,120 @@ mod tests {
         assert!((airspeed.ground_speed - 14.0).abs() < 1e-6);
         assert!((airspeed.climb + 1.5).abs() < 1e-6);
         assert!((airspeed.throttle - 45.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_battery_status_gives_the_cells_of_the_bank() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::BATTERY_STATUS(BATTERY_STATUS_DATA {
+            id: 1,
+            current_battery: -1500,
+            battery_remaining: 85,
+            temperature: 2500,
+            voltages: [16_800, 16_900, 16_950, 16_900, 16_880, 16_870, 0, 0, 0, 0],
+            ..Default::default()
+        });
+
+        aggregator.apply(&message);
+
+        let banks = &aggregator.telemetry().batteries;
+        assert_eq!(banks.len(), 1);
+
+        let bank = &banks[0];
+        assert_eq!(bank.id, 1);
+        // The cells the bank does not have are not reported: a bank of six cells has six
+        // entries, and not ten with four of them empty.
+        assert_eq!(bank.cells.len(), 6);
+        assert!((bank.cells[0] - 16.8).abs() < 1e-6);
+        assert!((bank.current + 15.0).abs() < 1e-6);
+        assert!((bank.remaining - 85.0).abs() < 1e-6);
+        assert!((bank.temperature - 25.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_bank_that_is_reported_again_replaces_the_one_that_was_there() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        for remaining in [90_i8, 80] {
+            aggregator.apply(&MavMessage::BATTERY_STATUS(BATTERY_STATUS_DATA {
+                id: 0,
+                battery_remaining: remaining,
+                voltages: [16_800, 16_900, 0, 0, 0, 0, 0, 0, 0, 0],
+                ..Default::default()
+            }));
+        }
+
+        let banks = &aggregator.telemetry().batteries;
+        assert_eq!(banks.len(), 1);
+        assert!((banks[0].remaining - 80.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_vibration_and_the_estimator_are_reported() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        aggregator.apply(&MavMessage::VIBRATION(VIBRATION_DATA {
+            vibration_x: 1.5,
+            vibration_y: 2.5,
+            vibration_z: 3.5,
+            ..Default::default()
+        }));
+
+        aggregator.apply(&MavMessage::EKF_STATUS_REPORT(EKF_STATUS_REPORT_DATA {
+            velocity_variance: 0.25,
+            pos_horiz_variance: 1.5,
+            pos_vert_variance: 2.5,
+            compass_variance: 0.5,
+            terrain_alt_variance: 3.5,
+            airspeed_variance: 4.5,
+            ..Default::default()
+        }));
+
+        let vibration = aggregator.telemetry().vibration.expect("the vibration");
+        assert!((vibration.x - 1.5).abs() < 1e-6);
+        assert!((vibration.z - 3.5).abs() < 1e-6);
+
+        let ekf = aggregator.telemetry().ekf.expect("the estimator");
+        assert!((ekf.velocity_variance - 0.25).abs() < 1e-6);
+        assert!((ekf.horizontal_variance - 1.5).abs() < 1e-6);
+        assert!((ekf.airspeed_variance - 4.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_second_estimator_and_the_wish_of_the_controller_are_reported() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        aggregator.apply(&MavMessage::AHRS2(AHRS2_DATA {
+            roll: 0.1,
+            pitch: -0.2,
+            yaw: 1.0,
+            ..Default::default()
+        }));
+
+        aggregator.apply(&MavMessage::NAV_CONTROLLER_OUTPUT(
+            NAV_CONTROLLER_OUTPUT_DATA {
+                nav_roll: 0.05,
+                nav_pitch: 0.02,
+                alt_error: -3.0,
+                aspd_error: 0.5,
+                xtrack_error: 12.0,
+                wp_dist: 250,
+                ..Default::default()
+            },
+        ));
+
+        let ahrs2 = aggregator.telemetry().ahrs2.expect("the second estimator");
+        assert!((ahrs2.roll - 0.1).abs() < 1e-6);
+        assert!((ahrs2.pitch + 0.2).abs() < 1e-6);
+
+        let controller = aggregator
+            .telemetry()
+            .controller
+            .expect("the wish of the controller");
+        assert!((controller.roll - 0.05).abs() < 1e-6);
+        assert!((controller.altitude_error + 3.0).abs() < 1e-6);
+        assert!((controller.cross_track_error - 12.0).abs() < 1e-6);
+        assert!((controller.waypoint_distance - 250.0).abs() < 1e-6);
     }
 }

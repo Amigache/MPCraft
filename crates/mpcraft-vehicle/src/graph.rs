@@ -172,6 +172,22 @@ pub enum Field {
     AirspeedClimb,
     /// The throttle, as a percentage.
     AirspeedThrottle,
+    /// The roll of the second estimator, in degrees.
+    Ahrs2Roll,
+    /// The pitch of the second estimator, in degrees.
+    Ahrs2Pitch,
+    /// The yaw of the second estimator, in degrees.
+    Ahrs2Yaw,
+    /// The roll the controller asks for, in degrees.
+    ControllerRoll,
+    /// The pitch the controller asks for, in degrees.
+    ControllerPitch,
+    /// The error of the altitude, in metres.
+    ControllerAltitudeError,
+    /// The error of the cross-track, in metres.
+    ControllerCrossTrackError,
+    /// The distance to the waypoint the vehicle is flying towards, in metres.
+    ControllerWaypointDistance,
 }
 
 /// Every field, in the order they are stored.
@@ -230,6 +246,14 @@ pub const FIELDS: &[Field] = &[
     Field::AirspeedGroundSpeed,
     Field::AirspeedClimb,
     Field::AirspeedThrottle,
+    Field::Ahrs2Roll,
+    Field::Ahrs2Pitch,
+    Field::Ahrs2Yaw,
+    Field::ControllerRoll,
+    Field::ControllerPitch,
+    Field::ControllerAltitudeError,
+    Field::ControllerCrossTrackError,
+    Field::ControllerWaypointDistance,
 ];
 
 impl Field {
@@ -291,6 +315,14 @@ impl Field {
             Self::AirspeedGroundSpeed => "airspeed.groundSpeed",
             Self::AirspeedClimb => "airspeed.climb",
             Self::AirspeedThrottle => "airspeed.throttle",
+            Self::Ahrs2Roll => "ahrs2.roll",
+            Self::Ahrs2Pitch => "ahrs2.pitch",
+            Self::Ahrs2Yaw => "ahrs2.yaw",
+            Self::ControllerRoll => "controller.roll",
+            Self::ControllerPitch => "controller.pitch",
+            Self::ControllerAltitudeError => "controller.altitudeError",
+            Self::ControllerCrossTrackError => "controller.crossTrackError",
+            Self::ControllerWaypointDistance => "controller.waypointDistance",
         }
     }
 
@@ -336,6 +368,11 @@ impl Field {
             Self::RcSignal => "%",
             Self::Airspeed | Self::AirspeedGroundSpeed | Self::AirspeedClimb => "m/s",
             Self::AirspeedThrottle => "%",
+            Self::Ahrs2Roll | Self::Ahrs2Pitch | Self::Ahrs2Yaw => "°",
+            Self::ControllerRoll | Self::ControllerPitch => "°",
+            Self::ControllerAltitudeError
+            | Self::ControllerCrossTrackError
+            | Self::ControllerWaypointDistance => "m",
         }
     }
 
@@ -471,6 +508,29 @@ impl Sample {
             set(Field::AirspeedGroundSpeed, Some(airspeed.ground_speed));
             set(Field::AirspeedClimb, Some(airspeed.climb));
             set(Field::AirspeedThrottle, Some(airspeed.throttle));
+        }
+
+        if let Some(ahrs2) = telemetry.ahrs2 {
+            set(Field::Ahrs2Roll, Some(ahrs2.roll.to_degrees()));
+            set(Field::Ahrs2Pitch, Some(ahrs2.pitch.to_degrees()));
+            set(Field::Ahrs2Yaw, Some(ahrs2.yaw.to_degrees()));
+        }
+
+        if let Some(controller) = telemetry.controller {
+            set(Field::ControllerRoll, Some(controller.roll.to_degrees()));
+            set(Field::ControllerPitch, Some(controller.pitch.to_degrees()));
+            set(
+                Field::ControllerAltitudeError,
+                Some(controller.altitude_error),
+            );
+            set(
+                Field::ControllerCrossTrackError,
+                Some(controller.cross_track_error),
+            );
+            set(
+                Field::ControllerWaypointDistance,
+                Some(controller.waypoint_distance),
+            );
         }
 
         Self { at, values }
@@ -1132,6 +1192,60 @@ pub static PRESETS: &[Preset] = &[
         upstream: false,
     },
     Preset {
+        name: PresetName::new("Attitude", "RP Comparison"),
+        description: "Roll and pitch comparison between primary and secondary attitude estimator",
+        series: &[
+            Series {
+                name: "Roll",
+                expression: "attitude.roll",
+                unit: "°",
+            },
+            Series {
+                name: "Pitch",
+                expression: "attitude.pitch",
+                unit: "°",
+            },
+            Series {
+                name: "Roll 2",
+                expression: "ahrs2.roll",
+                unit: "°",
+            },
+            Series {
+                name: "Pitch 2",
+                expression: "ahrs2.pitch",
+                unit: "°",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
+        name: PresetName::new("Attitude", "Attitude Control"),
+        description: "Desired versus achieved roll and pitch. This shows you how well the attitude controller is tuned",
+        series: &[
+            Series {
+                name: "Desired roll",
+                expression: "controller.roll",
+                unit: "°",
+            },
+            Series {
+                name: "Desired pitch",
+                expression: "controller.pitch",
+                unit: "°",
+            },
+            Series {
+                name: "Roll",
+                expression: "attitude.roll",
+                unit: "°",
+            },
+            Series {
+                name: "Pitch",
+                expression: "attitude.pitch",
+                unit: "°",
+            },
+        ],
+        upstream: true,
+    },
+    Preset {
         name: PresetName::new("Speed", "Ground vs Air Speed"),
         description: "This shows the ground speed of the vehicle versus its air speed",
         series: &[
@@ -1704,6 +1818,8 @@ mod tests {
                 "Speed/Ground Speed",
                 "Attitude/Roll and Pitch",
                 "Attitude/Circular Angle",
+                "Attitude/RP Comparison",
+                "Attitude/Attitude Control",
                 "Speed/Ground vs Air Speed",
                 "Sensors/Accelerometer/Accelerometers",
                 "Sensors/Gyroscope/Gyros",
