@@ -279,9 +279,8 @@
   stroke: var(--colour-warning);
 }
 
-.profileFill {
-  stroke: var(--colour-text-faint);
-  stroke-dasharray: 3 3;
+.profilePlan {
+  stroke: var(--colour-accent);
 }
 
 .profilePlace {

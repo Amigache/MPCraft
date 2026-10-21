@@ -17,9 +17,9 @@ export interface Frame {
 
 /** The frames a plan item can be expressed in. */
 export const FRAMES: readonly Frame[] = [
-  { value: 0, label: "Global (AMSL)" },
-  { value: 3, label: "Relative (AGL)" },
-  { value: 10, label: "Terrain" },
+  { value: 0, label: "Above the sea" },
+  { value: 3, label: "Above the home" },
+  { value: 10, label: "Above the ground" },
 ];
 
 /** The frame a new item is given when there is nothing to copy it from. */

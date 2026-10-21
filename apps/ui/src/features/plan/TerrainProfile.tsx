@@ -18,6 +18,8 @@ export interface TerrainPoint {
   readonly distance: number;
   /** The elevation of the terrain, in metres above the sea. */
   readonly elevation: number;
+  /** The height of the plan above the sea, when it is known. */
+  readonly height: number | null;
   /** Whether the point is a place of the plan. */
   readonly waypoint: boolean;
 }
@@ -66,7 +68,7 @@ export function TerrainProfile({ kind, items, onClose }: TerrainProfileProps) {
     void ask();
   }, [ask]);
 
-  // The shape of the ground, in the units of the drawing.
+  // The shape of the ground and the path of the plan, in the units of the drawing.
   const shape = shapeOf(points);
 
   return (
@@ -117,10 +119,10 @@ export function TerrainProfile({ kind, items, onClose }: TerrainProfileProps) {
             vectorEffect="non-scaling-stroke"
           />
           <polyline
-            className={styles.profileFill}
-            points={shape.fill}
+            className={styles.profilePlan}
+            points={shape.plan}
             fill="none"
-            strokeWidth="1"
+            strokeWidth="2"
             vectorEffect="non-scaling-stroke"
           />
           {shape.places.map((place) => (
@@ -141,7 +143,7 @@ export function TerrainProfile({ kind, items, onClose }: TerrainProfileProps) {
 /** The shape of the ground, in the units of the drawing. */
 function shapeOf(points: readonly TerrainPoint[]): {
   ground: string;
-  fill: string;
+  plan: string;
   places: { x: number; y: number; distance: number; elevation: number }[];
 } | null {
   if (points.length < 2) {
@@ -171,7 +173,12 @@ function shapeOf(points: readonly TerrainPoint[]): {
     .map((point) => `${x(point.distance).toFixed(1)},${y(point.elevation).toFixed(1)}`)
     .join(" ");
 
-  const fill = `${ground} ${WIDTH},${HEIGHT} 0,${HEIGHT}`;
+  // The path of the plan, which is only known where the height of the plan is: the
+  // profile says so by leaving the rest out.
+  const plan = points
+    .filter((point) => point.height !== null)
+    .map((point) => `${x(point.distance).toFixed(1)},${y(point.height as number).toFixed(1)}`)
+    .join(" ");
 
   const places = points
     .filter((point) => point.waypoint)
@@ -182,5 +189,5 @@ function shapeOf(points: readonly TerrainPoint[]): {
       elevation: point.elevation,
     }));
 
-  return { ground, fill, places };
+  return { ground, plan, places };
 }

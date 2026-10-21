@@ -367,6 +367,8 @@ export interface TerrainPoint {
   readonly distance: number;
   /** The elevation of the terrain, in metres above the sea. */
   readonly elevation: number;
+  /** The height of the plan above the sea, when it is known. */
+  readonly height: number | null;
   /** Whether the point is a place of the plan. */
   readonly waypoint: boolean;
 }

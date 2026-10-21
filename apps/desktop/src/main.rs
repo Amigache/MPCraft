@@ -469,6 +469,10 @@ struct PlanWarningEvent {
 /// The profile is the shape of the ground the plan flies over: the elevation of the
 /// terrain at a point every few metres, and the height the plan asks for.
 ///
+/// The height of the plan is written in the frame each of its places says, and the
+/// profile draws the plan and the ground on the same scale, so the height of every
+/// place is told against the sea before it is drawn.
+///
 /// # Errors
 ///
 /// Returns a `CommandError` with a stable code when the plan holds no place, or when
@@ -481,29 +485,43 @@ async fn plan_terrain_profile(
 ) -> CommandResult<Vec<TerrainPointEvent>> {
     let plan = plan_of(kind, &items)?;
 
-    // The places of the plan, in the order they are flown.
-    let places: Vec<(f64, f64)> = plan
+    // The places of the plan, in the order they are flown: where they are, the frame
+    // their height is written in and the height itself.
+    let places: Vec<Place> = plan
         .items
         .iter()
         .filter(|item| mpcraft_mission::mavcmd::is_location_command(item.command))
-        .map(|item| (item.x, item.y))
+        .map(|item| Place {
+            lat: item.x,
+            lng: item.y,
+            frame: item.frame,
+            height: item.z,
+        })
         .collect();
 
     if places.len() < 2 {
         return Ok(Vec::new());
     }
 
-    // The samples of the path: the places of the plan and a few points between them.
+    // The height of the home, when the vehicle has reported one: a height above the
+    // home cannot be told against the sea without it.
+    let home = state
+        .supervisor
+        .state()
+        .and_then(|session| session.telemetry.home)
+        .map(|home| home.alt);
+
+    // The samples of the path: a point every few metres between the places of the plan.
     const SAMPLES_PER_SEGMENT: usize = 8;
 
-    let mut samples: Vec<(f64, f64, bool)> = Vec::new();
+    let mut samples: Vec<Sample> = Vec::new();
 
     for (index, window) in places.windows(2).enumerate() {
-        let (from_lat, from_lng) = window[0];
-        let (to_lat, to_lng) = window[1];
+        let from = window[0];
+        let to = window[1];
 
-        // The last segment has one more step, so that the last place of the plan
-        // is a sample of its own.
+        // The last segment has one more sample, so that the last place of the plan is
+        // a sample of its own.
         let last = index + 1 == places.len() - 1;
         let steps = if last {
             SAMPLES_PER_SEGMENT + 1
@@ -515,49 +533,134 @@ async fn plan_terrain_profile(
             let fraction = step as f64 / SAMPLES_PER_SEGMENT as f64;
 
             // The places of the plan are the samples that fall on one.
-            let waypoint = step == 0 || (last && step == SAMPLES_PER_SEGMENT);
+            let place = if step == 0 {
+                Some(index)
+            } else if last && step == SAMPLES_PER_SEGMENT {
+                Some(index + 1)
+            } else {
+                None
+            };
 
-            samples.push((
-                from_lat + (to_lat - from_lat) * fraction,
-                from_lng + (to_lng - from_lng) * fraction,
-                waypoint,
-            ));
+            samples.push(Sample {
+                lat: from.lat + (to.lat - from.lat) * fraction,
+                lng: from.lng + (to.lng - from.lng) * fraction,
+                place,
+                fraction,
+            });
         }
     }
 
-    let mut points = Vec::with_capacity(samples.len());
-    let mut distance = 0.0;
-    let mut previous: Option<(f64, f64)> = None;
+    // The ground under every sample.
+    let mut grounds: Vec<Option<f64>> = Vec::with_capacity(samples.len());
 
-    for (lat, lng, waypoint) in samples {
-        if let Some((before_lat, before_lng)) = previous {
-            distance += mpcraft_geo::distance_m(
-                mpcraft_geo::GeoPoint::new(before_lat, before_lng),
-                mpcraft_geo::GeoPoint::new(lat, lng),
-            );
-        }
-
-        previous = Some((lat, lng));
-
+    for sample in &samples {
         let elevation = state
             .terrain
-            .elevation(mpcraft_geo::projection::LatLng::new(lat, lng))
+            .elevation(mpcraft_geo::projection::LatLng::new(sample.lat, sample.lng))
             .await;
 
         // A place the survey never reached, or the sea, has no elevation: the profile
         // says so by leaving the point out, and the plan is still drawn.
-        let Ok(elevation) = elevation else {
-            continue;
+        grounds.push(elevation.ok().map(|elevation| elevation.metres));
+    }
+
+    // The height of every place of the plan, told against the sea.
+    let mut heights: Vec<Option<f64>> = Vec::with_capacity(places.len());
+
+    for (index, place) in places.iter().enumerate() {
+        // The ground under the place: the sample that falls on it.
+        let ground = samples
+            .iter()
+            .position(|sample| sample.place == Some(index))
+            .and_then(|position| grounds[position]);
+
+        heights.push(mpcraft_mission::altitude::above_sea(
+            place.frame,
+            place.height,
+            home,
+            ground,
+        ));
+    }
+
+    // The points of the profile.
+    let mut points = Vec::with_capacity(samples.len());
+    let mut distance = 0.0;
+    let mut previous: Option<(f64, f64)> = None;
+
+    for (index, sample) in samples.iter().enumerate() {
+        if let Some((before_lat, before_lng)) = previous {
+            distance += mpcraft_geo::distance_m(
+                mpcraft_geo::GeoPoint::new(before_lat, before_lng),
+                mpcraft_geo::GeoPoint::new(sample.lat, sample.lng),
+            );
+        }
+
+        previous = Some((sample.lat, sample.lng));
+
+        // The height of the plan at this point: between two places of the plan it is
+        // the straight line that joins them, because that is the path the vehicle flies.
+        let height = match sample.place {
+            Some(place) => heights.get(place).copied().flatten(),
+            None => between(
+                heights.get(sample.place_index()),
+                heights.get(sample.place_index() + 1),
+                sample.fraction,
+            ),
         };
 
         points.push(TerrainPointEvent {
             distance,
-            elevation: elevation.metres,
-            waypoint,
+            elevation: grounds[index].unwrap_or(f64::NAN),
+            height,
+            waypoint: sample.place.is_some(),
         });
     }
 
     Ok(points)
+}
+
+/// One place of a plan.
+#[derive(Debug, Clone, Copy)]
+struct Place {
+    /// The latitude, in degrees.
+    lat: f64,
+    /// The longitude, in degrees.
+    lng: f64,
+    /// The frame the height is written in.
+    frame: u32,
+    /// The height, in the frame it is written in.
+    height: f64,
+}
+
+/// One sample of the path of a plan.
+struct Sample {
+    /// The latitude, in degrees.
+    lat: f64,
+    /// The longitude, in degrees.
+    lng: f64,
+    /// The place of the plan the sample falls on, when it falls on one.
+    place: Option<usize>,
+    /// How far along the segment the sample is, from zero to one.
+    fraction: f64,
+}
+
+impl Sample {
+    /// The place of the plan the sample comes after.
+    fn place_index(&self) -> usize {
+        self.place.map_or(0, |place| place.saturating_sub(1))
+    }
+}
+
+/// The height of the plan between two of its places.
+///
+/// The plan flies in a straight line between two places, and the height on that line
+/// changes the same way.
+fn between(from: Option<&Option<f64>>, to: Option<&Option<f64>>, fraction: f64) -> Option<f64> {
+    match (from.and_then(|value| *value), to.and_then(|value| *value)) {
+        (Some(from), Some(to)) => Some(from + (to - from) * fraction),
+        (Some(from), None) | (None, Some(from)) => Some(from),
+        (None, None) => None,
+    }
 }
 
 /// One point of the profile of the terrain.
@@ -568,6 +671,8 @@ struct TerrainPointEvent {
     distance: f64,
     /// The elevation of the terrain, in metres above the sea.
     elevation: f64,
+    /// The height of the plan above the sea, when it is known.
+    height: Option<f64>,
     /// Whether the point is a place of the plan.
     waypoint: bool,
 }

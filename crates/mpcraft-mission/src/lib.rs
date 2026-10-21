@@ -32,6 +32,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use mpcraft_mavlink::MavCmd;
 use serde::{Deserialize, Serialize};
 
+pub mod altitude;
 pub mod kml;
 pub mod mavcmd;
 pub mod qgc;

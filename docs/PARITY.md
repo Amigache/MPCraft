@@ -88,7 +88,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.4 | Waypoint table editor | `GCSViews/FlightPlanner.cs` (Commands grid) | ✅ | 2 |
 | 4.5 | Map-based waypoint add / drag / delete | `FlightPlanner.cs` | ✅ | 2 |
 | 4.6 | MAV_CMD parameter metadata & units | `mavcmd.xml` | 🔜 | 2 |
-| 4.7 | Altitude modes (absolute / relative / terrain) | `FlightPlanner.cs` altmode | 🔜 | 2 |
+| 4.7 | Altitude modes (absolute / relative / terrain) | `FlightPlanner.cs` altmode | ✅ | 2 |
 | 4.8 | Geo-fence polygon drawing & upload | `FlightPlanner.cs` polygon tools | ✅ | 2 |
 | 4.9 | Fence inclusion / exclusion lists | `FenceInclusion/Exclusion` | ✅ | 2 |
 | 4.10 | Rally point upload / download | `getRallyPoint`, `setRallyPoint` | ✅ | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 54 |
-| 🔜 Planned | 98 |
+| ✅ Done | 55 |
+| 🔜 Planned | 97 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 54 rows marked done are the connection, transport, parameter, mission and command
+The 55 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
