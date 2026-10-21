@@ -45,6 +45,7 @@ use mpcraft_mavlink::{MavAutopilot, MavParamType, MavProtocolCapability};
 use serde::{Deserialize, Serialize};
 
 pub mod metadata;
+pub mod param_file;
 
 /// The type of a parameter value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -137,6 +137,124 @@ struct SerialPortEvent {
     description: Option<String>,
 }
 
+/// Writes the parameters of the vehicle to a file.
+///
+/// The format is upstream's: a line per parameter, the name and the value separated by
+/// a comma.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the file
+/// cannot be written.
+#[tauri::command]
+async fn export_parameters(state: State<'_, AppState>, path: String) -> CommandResult<()> {
+    let Some(session) = state.supervisor.state() else {
+        return Err(CommandError::not_connected());
+    };
+
+    let text = mpcraft_params::param_file::write(&session.parameters);
+
+    std::fs::write(&path, text)
+        .map_err(|error| CommandError::internal(format!("the file could not be written: {error}")))
+}
+
+/// Reads the parameters of a file.
+///
+/// The parameters are returned, and not written to the vehicle: the operator sees them
+/// in the table and decides.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, or when it
+/// holds a value that is not a number.
+#[tauri::command]
+async fn import_parameters(path: String) -> CommandResult<Vec<ParameterEvent>> {
+    let text = std::fs::read_to_string(&path).map_err(|error| {
+        CommandError::invalid_request(format!("the file could not be read: {error}"))
+    })?;
+
+    let parameters = mpcraft_params::param_file::read(&text)
+        .map_err(|error| CommandError::invalid_request(error.to_string()))?;
+
+    Ok(parameters
+        .into_iter()
+        .map(|parameter| ParameterEvent {
+            name: parameter.name,
+            value: parameter.value,
+            reported_type: mpcraft_params::ParamType::Real64.as_mavlink() as u8,
+        })
+        .collect())
+}
+
+/// Compares the parameters of the vehicle with the ones of a file.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the file
+/// cannot be read, or when it holds a value that is not a number.
+#[tauri::command]
+async fn compare_parameters(
+    state: State<'_, AppState>,
+    path: String,
+) -> CommandResult<Vec<ParameterDifferenceEvent>> {
+    let Some(session) = state.supervisor.state() else {
+        return Err(CommandError::not_connected());
+    };
+
+    let text = std::fs::read_to_string(&path).map_err(|error| {
+        CommandError::invalid_request(format!("the file could not be read: {error}"))
+    })?;
+
+    let other = mpcraft_params::param_file::read(&text)
+        .map_err(|error| CommandError::invalid_request(error.to_string()))?;
+
+    let mut store = mpcraft_params::ParameterStore::new();
+    for parameter in other {
+        store.insert(parameter);
+    }
+
+    Ok(
+        mpcraft_params::param_file::differences(&session.parameters, &store)
+            .into_iter()
+            .map(|difference| ParameterDifferenceEvent {
+                name: difference.name,
+                current: difference.current,
+                other: difference.other,
+            })
+            .collect(),
+    )
+}
+
+/// How the value of a parameter differs between the vehicle and a file.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParameterDifferenceEvent {
+    /// The name of the parameter.
+    name: String,
+    /// The value the vehicle has, when it has one.
+    current: Option<f64>,
+    /// The value the file has, when it has one.
+    other: Option<f64>,
+}
+
+/// Asks the vehicle to write its parameters to its own memory.
+///
+/// A parameter the vehicle has in its memory but not in the flash is lost when the
+/// vehicle loses power.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle refuses the command.
+#[tauri::command]
+async fn write_parameters_to_flash(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    state.supervisor.write_parameters_to_flash(vehicle).await
+}
+
 /// The parameters the vehicle has reported.
 ///
 /// The store is filled as the vehicle reports them, so the list grows as the vehicle talks.
@@ -423,6 +541,7 @@ async fn parameter_metadata(names: Vec<String>) -> CommandResult<Vec<Option<Para
                 name: meta.name.clone(),
                 display_name: meta.display_name.clone(),
                 group: meta.group.clone(),
+                default: meta.default.clone(),
                 description: meta.description.clone(),
                 long_description: meta.long_description.clone(),
                 unit: meta.unit.clone(),
@@ -432,6 +551,22 @@ async fn parameter_metadata(names: Vec<String>) -> CommandResult<Vec<Option<Para
                 vehicles: meta.vehicles.clone(),
             })
         })
+        .collect())
+}
+
+/// The groups the parameters belong to.
+///
+/// The groups are the subjects the parameters are about — *Radio Calibration*, *EKF2* —
+/// and upstream builds its configuration menu out of them.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn list_parameter_groups() -> CommandResult<Vec<String>> {
+    Ok(mpcraft_params::metadata::groups()
+        .into_iter()
+        .map(str::to_owned)
         .collect())
 }
 
@@ -445,6 +580,9 @@ struct ParameterMetaEvent {
     display_name: String,
     /// The group it belongs to.
     group: String,
+    /// The value it takes when it has never been changed, when the documentation knows
+    /// it.
+    default: String,
     /// What it does, in a line.
     description: String,
     /// What it does, at length.
@@ -459,6 +597,86 @@ struct ParameterMetaEvent {
     values: Vec<String>,
     /// The vehicle families it belongs to.
     vehicles: Vec<String>,
+}
+
+/// The parameters the user has marked as favourites.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the favourites cannot be read.
+#[tauri::command]
+async fn list_favourite_parameters(state: State<'_, AppState>) -> CommandResult<Vec<String>> {
+    state.favourite_parameters()
+}
+
+/// Marks a parameter as a favourite, or takes the mark away.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the favourites cannot be written.
+#[tauri::command]
+async fn set_favourite_parameter(
+    state: State<'_, AppState>,
+    name: String,
+    favourite: bool,
+) -> CommandResult<()> {
+    state.set_favourite_parameter(&name, favourite)
+}
+
+/// The pre-flight checklist, checked against the vehicle.
+///
+/// The rules are the vehicle's: the interface only shows what they say.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link.
+#[tauri::command]
+async fn preflight_checklist(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<ChecklistEntryEvent>> {
+    let session = state
+        .supervisor
+        .state()
+        .ok_or_else(CommandError::not_connected)?;
+
+    let quality = mpcraft_app::checklist::link_quality(
+        session.loss.packets_received,
+        session.loss.packets_lost,
+    );
+
+    let entries = mpcraft_app::checklist::evaluate(
+        mpcraft_app::checklist::items(),
+        &session.telemetry,
+        &session.parameters,
+        quality,
+    );
+
+    Ok(entries
+        .into_iter()
+        .map(|entry| ChecklistEntryEvent {
+            description: entry.description,
+            text: entry.text,
+            passed: entry.passed,
+            known: entry.known,
+            manual: entry.manual,
+        })
+        .collect())
+}
+
+/// One line of the pre-flight checklist.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChecklistEntryEvent {
+    /// What the item is about.
+    description: String,
+    /// The text of the item, with the value in it.
+    text: String,
+    /// Whether the condition holds.
+    passed: bool,
+    /// Whether the value was known at all.
+    known: bool,
+    /// Whether the pilot answers this one by hand.
+    manual: bool,
 }
 
 /// The graphs the user can choose.
@@ -1041,6 +1259,14 @@ fn main() {
             list_flight_modes,
             list_serial_ports,
             list_graphs,
+            preflight_checklist,
+            list_favourite_parameters,
+            list_parameter_groups,
+            export_parameters,
+            import_parameters,
+            compare_parameters,
+            write_parameters_to_flash,
+            set_favourite_parameter,
             parameter_metadata,
             list_mav_commands,
             graph_series,

@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mpcraft_link::{Session, VehicleId};
+use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionType, Plan};
 
 use crate::error::{CommandError, CommandResult};
@@ -80,6 +81,32 @@ impl SessionSupervisor {
                 COMMAND_TIMEOUT,
             )
             .await?;
+        Ok(())
+    }
+
+    /// Asks the vehicle to write its parameters to its own memory.
+    ///
+    /// A parameter the vehicle has in its memory but not in the flash is lost when the
+    /// vehicle loses power, and the vehicle only writes the flash when it is told to.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn write_parameters_to_flash(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        // The first parameter of the command says what to do: one is to write the
+        // settings of the vehicle to its own memory.
+        session
+            .command_long(
+                vehicle,
+                MavCmd::MAV_CMD_PREFLIGHT_STORAGE,
+                [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
         Ok(())
     }
 
