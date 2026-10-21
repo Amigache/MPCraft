@@ -2493,6 +2493,7 @@ name = "mpcraft-app"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "csv",
  "mpcraft-geo",
  "mpcraft-link",
  "mpcraft-log",
