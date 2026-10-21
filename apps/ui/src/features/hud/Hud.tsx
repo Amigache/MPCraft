@@ -31,7 +31,10 @@ const BOTTOM_RESERVE = 36;
 const LADDER_PITCHES = [10, 20, 30] as const;
 const BANK_MARKS = [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60] as const;
 const BANK_LABELS = [-60, -30, 30, 60] as const;
-const RIBBON_HEADINGS = Array.from({ length: 55 }, (_, index) => -90 + index * 10);
+const RIBBON_HEADINGS = Array.from(
+  { length: 55 },
+  (_, index) => -90 + index * 10,
+);
 
 const DEFAULT_WIDTH = 280;
 const DEFAULT_HEIGHT = 245;
@@ -39,6 +42,7 @@ const DEFAULT_HEIGHT = 245;
 type Layout = {
   width: number;
   height: number;
+  bar: number;
   ribbon: number;
   tapeTop: number;
   tapeHeight: number;
@@ -52,9 +56,10 @@ type Layout = {
 };
 
 function layout(width: number, height: number): Layout {
-  const ribbon = Math.min(30, Math.max(20, Math.round(height * 0.1)));
-  const tapeTop = ribbon + 26;
-  const tapeBottom = Math.max(tapeTop + 20, height - BOTTOM_RESERVE);
+  const bar = Math.min(26, Math.max(20, Math.round(height * 0.09)));
+  const ribbon = bar;
+  const tapeTop = bar + ribbon + 10;
+  const tapeBottom = Math.max(tapeTop + 20, height - BOTTOM_RESERVE - 8);
   const tapeHeight = tapeBottom - tapeTop;
   const centreX = width / 2;
   const centreY = tapeTop + tapeHeight / 2;
@@ -62,12 +67,16 @@ function layout(width: number, height: number): Layout {
   return {
     width,
     height,
+    bar,
     ribbon,
     tapeTop,
     tapeHeight,
     centreX,
     centreY,
-    bankRadius: Math.max(24, Math.min(width * 0.34, centreY - ribbon - 30)),
+    bankRadius: Math.max(
+      24,
+      Math.min(width * 0.34, centreY - bar - ribbon - 30),
+    ),
     pitchPixels: Math.max(2.5, height / PITCH_DEGREES_IN_VIEW),
     ribbonPixels: width / RIBBON_DEGREES_IN_VIEW,
     airPixels: tapeHeight / AIRSPEED_IN_VIEW,
@@ -89,7 +98,13 @@ function polar(
   };
 }
 
-function arcPath(centreX: number, centreY: number, radius: number, from: number, to: number): string {
+function arcPath(
+  centreX: number,
+  centreY: number,
+  radius: number,
+  from: number,
+  to: number,
+): string {
   const start = polar(centreX, centreY, radius, from);
   const end = polar(centreX, centreY, radius, to);
   return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 0 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
@@ -98,7 +113,12 @@ function arcPath(centreX: number, centreY: number, radius: number, from: number,
 /** The name a heading is given on the ribbon: the cardinals, or three digits. */
 function compassLabel(heading: number): string {
   const normalised = ((heading % 360) + 360) % 360;
-  const cardinal: Record<number, string> = { 0: "N", 90: "E", 180: "S", 270: "W" };
+  const cardinal: Record<number, string> = {
+    0: "N",
+    90: "E",
+    180: "S",
+    270: "W",
+  };
   return cardinal[normalised] ?? normalised.toString().padStart(3, "0");
 }
 
@@ -138,7 +158,10 @@ export function Hud() {
   const [airBase, setAirBase] = useState(0);
   const [altBase, setAltBase] = useState(0);
 
-  const [size, setSize] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+  const [size, setSize] = useState({
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+  });
 
   useEffect(() => {
     const element = box.current;
@@ -230,7 +253,9 @@ export function Hud() {
 
       const airReading = telemetry.airspeed?.airspeed ?? null;
       const groundSpeed =
-        telemetry.airspeed?.groundSpeed ?? telemetry.velocity?.groundSpeed ?? null;
+        telemetry.airspeed?.groundSpeed ??
+        telemetry.velocity?.groundSpeed ??
+        null;
       const climb = telemetry.airspeed?.climb ?? null;
       const throttle = telemetry.airspeed?.throttle ?? null;
       const battery = telemetry.battery ?? null;
@@ -241,25 +266,41 @@ export function Hud() {
       write(airValue.current, airReading === null ? "" : airReading.toFixed(1));
       write(
         altValue.current,
-        telemetry.position?.alt === undefined || telemetry.position?.alt === null
+        telemetry.position?.alt === undefined ||
+          telemetry.position?.alt === null
           ? ""
           : telemetry.position.alt.toFixed(0),
       );
-      write(groundValue.current, groundSpeed === null ? "" : `GS ${groundSpeed.toFixed(1)}`);
-      write(climbValue.current, climb === null ? "" : `${climb >= 0 ? "+" : ""}${climb.toFixed(1)} m/s`);
+      write(
+        groundValue.current,
+        groundSpeed === null ? "" : `GS ${groundSpeed.toFixed(1)}`,
+      );
+      write(
+        climbValue.current,
+        climb === null ? "" : `${climb >= 0 ? "+" : ""}${climb.toFixed(1)} m/s`,
+      );
       write(
         batteryValue.current,
         battery === null
           ? ""
           : `BAT ${battery.voltage.toFixed(2)} V ${battery.remaining.toFixed(0)}%`,
       );
-      write(gpsValue.current, gps === null ? "GPS --" : `GPS ${gps.satellites}`);
-      write(throttleValue.current, throttle === null ? "" : `${throttle.toFixed(0)}%`);
+      write(
+        gpsValue.current,
+        gps === null ? "GPS --" : `GPS ${gps.satellites}`,
+      );
+      write(
+        throttleValue.current,
+        throttle === null ? "" : `${throttle.toFixed(0)}%`,
+      );
       write(modeValue.current, mode ?? "");
 
       if (armedValue.current !== null) {
-        armedValue.current.textContent = armed === null ? "" : armed ? "ARMED" : "DISARMED";
-        armedValue.current.style.fill = armed ? "var(--colour-accent)" : "var(--colour-danger)";
+        armedValue.current.textContent =
+          armed === null ? "" : armed ? "ARMED" : "DISARMED";
+        armedValue.current.style.fill = armed
+          ? "var(--colour-accent)"
+          : "var(--colour-danger)";
       }
 
       if (throttleBars.current !== null && throttle !== null) {
@@ -302,14 +343,30 @@ export function Hud() {
             <rect x={0} y={0} width={width} height={L.ribbon} />
           </clipPath>
           <clipPath id={id_("air")}>
-            <rect x={TAPE_INSET} y={L.tapeTop} width={TAPE_WIDTH} height={L.tapeHeight} />
+            <rect
+              x={TAPE_INSET}
+              y={L.tapeTop}
+              width={TAPE_WIDTH}
+              height={L.tapeHeight}
+            />
           </clipPath>
           <clipPath id={id_("alt")}>
-            <rect x={altLeft} y={L.tapeTop} width={TAPE_WIDTH} height={L.tapeHeight} />
+            <rect
+              x={altLeft}
+              y={L.tapeTop}
+              width={TAPE_WIDTH}
+              height={L.tapeHeight}
+            />
           </clipPath>
         </defs>
 
-        <rect className={styles.glass} x={0} y={0} width={width} height={height} />
+        <rect
+          className={styles.glass}
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+        />
 
         <g clipPath={`url(#${id_("glass")})`}>
           {/* The picture of the world: the sky, the ground, the horizon and the ladder. */}
@@ -338,11 +395,24 @@ export function Hud() {
             {LADDER_PITCHES.map((pitch) =>
               [pitch, -pitch].map((value) => {
                 const y = L.centreY - value * L.pitchPixels;
-                const className = value > 0 ? styles.ladder : styles.ladderNegative;
+                const className =
+                  value > 0 ? styles.ladder : styles.ladderNegative;
                 return (
                   <g key={value}>
-                    <line className={className} x1={L.centreX - outer} y1={y} x2={L.centreX - inner} y2={y} />
-                    <line className={className} x1={L.centreX + inner} y1={y} x2={L.centreX + outer} y2={y} />
+                    <line
+                      className={className}
+                      x1={L.centreX - outer}
+                      y1={y}
+                      x2={L.centreX - inner}
+                      y2={y}
+                    />
+                    <line
+                      className={className}
+                      x1={L.centreX + inner}
+                      y1={y}
+                      x2={L.centreX + outer}
+                      y2={y}
+                    />
                     {value > 0 ? (
                       <>
                         <text
@@ -425,42 +495,56 @@ export function Hud() {
           />
         </g>
 
-        {/* The heading ribbon across the top. */}
-        <g clipPath={`url(#${id_("ribbon")})`}>
-          <rect className={styles.ribbonBack} x={0} y={0} width={width} height={L.ribbon} />
-          <g ref={ribbon}>
-            {RIBBON_HEADINGS.map((heading) => {
-              const x = heading * L.ribbonPixels;
-              const major = ((heading % 30) + 30) % 30 === 0;
-              return (
-                <g key={heading}>
-                  <line
-                    className={styles.ribbonTick}
-                    x1={x.toFixed(2)}
-                    y1={L.ribbon}
-                    x2={x.toFixed(2)}
-                    y2={L.ribbon - (major ? 9 : 5)}
-                  />
-                  {major ? (
-                    <text
-                      className={styles.ribbonLabel}
-                      x={x.toFixed(2)}
-                      y={L.ribbon - 11}
-                      textAnchor="middle"
-                    >
-                      {compassLabel(heading)}
-                    </text>
-                  ) : null}
-                </g>
-              );
-            })}
+        {/* The heading ribbon, under the bar of the readings. */}
+        <g transform={`translate(0 ${L.bar})`}>
+          <g clipPath={`url(#${id_("ribbon")})`}>
+            <rect
+              className={styles.ribbonBack}
+              x={0}
+              y={0}
+              width={width}
+              height={L.ribbon}
+            />
+            <g ref={ribbon}>
+              {RIBBON_HEADINGS.map((heading) => {
+                const x = heading * L.ribbonPixels;
+                const major = ((heading % 30) + 30) % 30 === 0;
+                return (
+                  <g key={heading}>
+                    <line
+                      className={styles.ribbonTick}
+                      x1={x.toFixed(2)}
+                      y1={L.ribbon}
+                      x2={x.toFixed(2)}
+                      y2={L.ribbon - (major ? 9 : 5)}
+                    />
+                    {major ? (
+                      <text
+                        className={styles.ribbonLabel}
+                        x={x.toFixed(2)}
+                        y={L.ribbon - 11}
+                        textAnchor="middle"
+                      >
+                        {compassLabel(heading)}
+                      </text>
+                    ) : null}
+                  </g>
+                );
+              })}
+            </g>
           </g>
+          <line
+            className={styles.ribbonEdge}
+            x1={0}
+            y1={L.ribbon}
+            x2={width}
+            y2={L.ribbon}
+          />
+          <path
+            className={styles.ribbonMarker}
+            d={`M ${L.centreX} ${L.ribbon - 1} l -5 -6 l 10 0 Z`}
+          />
         </g>
-        <line className={styles.ribbonEdge} x1={0} y1={L.ribbon} x2={width} y2={L.ribbon} />
-        <path
-          className={styles.ribbonMarker}
-          d={`M ${L.centreX} ${L.ribbon - 1} l -5 -6 l 10 0 Z`}
-        />
 
         {/* The airspeed tape on the left: its marks scroll, its value stays in the middle. */}
         <rect
@@ -526,7 +610,10 @@ export function Hud() {
         />
         <g clipPath={`url(#${id_("alt")})`}>
           <g ref={altTape}>
-            {Array.from({ length: 17 }, (_, index) => altBase - 80 + index * 10).map((mark) => {
+            {Array.from(
+              { length: 17 },
+              (_, index) => altBase - 80 + index * 10,
+            ).map((mark) => {
               const y = -(mark - altBase) * L.altPixels;
               const major = mark % 20 === 0;
               return (
@@ -572,18 +659,18 @@ export function Hud() {
           <rect
             className={styles.readBand}
             x={0}
-            y={L.ribbon}
+            y={0}
             width={width}
-            height={L.tapeTop - L.ribbon}
+            height={L.bar}
           />
           <rect
             className={styles.readBand}
             x={0}
-            y={L.tapeTop + L.tapeHeight}
+            y={height - BOTTOM_RESERVE}
             width={width}
-            height={height - (L.tapeTop + L.tapeHeight)}
+            height={BOTTOM_RESERVE}
           />
-          <g ref={throttleBars} transform={`translate(6 ${L.ribbon + 9})`}>
+          <g ref={throttleBars} transform={`translate(6 ${L.bar - 15})`}>
             {Array.from({ length: 10 }, (_, index) => (
               <rect
                 key={index}
@@ -599,24 +686,29 @@ export function Hud() {
             ref={throttleValue}
             className={styles.small}
             x={50}
-            y={L.ribbon + 17}
+            y={L.bar - 6}
           />
           <text
             ref={armedValue}
             className={styles.armed}
             x={L.centreX}
-            y={L.ribbon + 17}
+            y={L.bar - 6}
             textAnchor="middle"
           />
           <text
             ref={clockValue}
             className={styles.small}
             x={width - 6}
-            y={L.ribbon + 17}
+            y={L.bar - 6}
             textAnchor="end"
           />
 
-          <text ref={groundValue} className={styles.small} x={6} y={height - 20} />
+          <text
+            ref={groundValue}
+            className={styles.small}
+            x={6}
+            y={height - 20}
+          />
           <text
             ref={modeValue}
             className={styles.mode}
@@ -631,7 +723,12 @@ export function Hud() {
             y={height - 20}
             textAnchor="end"
           />
-          <text ref={batteryValue} className={styles.small} x={6} y={height - 6} />
+          <text
+            ref={batteryValue}
+            className={styles.small}
+            x={6}
+            y={height - 6}
+          />
           <text
             ref={gpsValue}
             className={styles.small}
