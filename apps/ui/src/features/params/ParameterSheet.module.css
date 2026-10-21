@@ -78,11 +78,26 @@
   white-space: nowrap;
 }
 
-/* The list ------------------------------------------------------------------ */
+/* The body: the tree of the parameters on the left, the list on the right. */
 
 .body {
+  display: flex;
   flex: 1 1 auto;
   min-height: 160px;
+  position: relative;
+}
+
+.treePane {
+  background: var(--colour-bg);
+  border-right: 1px solid var(--colour-border);
+  flex: 0 0 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.listPane {
+  flex: 1 1 auto;
+  min-width: 0;
   position: relative;
 }
 
@@ -97,7 +112,7 @@
   width: 100%;
 }
 
-/* One parameter. The name on the left, the value on the right, the type beside it. */
+/* One parameter. The star, the name, the value and the type. */
 
 .row {
   align-items: center;
@@ -112,14 +127,52 @@
   width: 100%;
 }
 
+/* The star that marks a parameter as one of the favourites. */
+
+.star {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--colour-text-faint);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 20px;
+  height: 22px;
+  justify-content: center;
+  padding: 0;
+  width: 20px;
+}
+
+.star:hover {
+  border-color: var(--colour-border-strong);
+  color: var(--colour-warning);
+}
+
+.star svg {
+  fill: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+  width: 14px;
+}
+
+.starOn {
+  color: var(--colour-warning);
+}
+
+.starOn svg {
+  fill: currentColor;
+}
+
 .name {
-  flex: 1 1 120px;
+  flex: 1 1 140px;
   font-family: var(--font-mono);
   font-size: var(--font-xs);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .value {
@@ -128,10 +181,11 @@
   border-radius: var(--radius-sm);
   color: var(--colour-text);
   cursor: pointer;
-  flex: 0 0 240px;
+  flex: 0 0 160px;
   font-family: var(--font-mono);
   font-size: var(--font-xs);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
   padding: 2px var(--space-2);
   text-align: right;
 }
@@ -149,7 +203,7 @@
 .editor {
   align-items: center;
   display: flex;
-  flex: 0 0 240px;
+  flex: 0 0 220px;
   gap: var(--space-1);
   justify-content: flex-end;
 }
@@ -163,9 +217,10 @@
   font-size: var(--font-xs);
   font-variant-numeric: tabular-nums;
   height: 24px;
+  min-width: 0;
   padding: 0 var(--space-2);
   text-align: right;
-  width: 120px;
+  width: 110px;
 }
 
 .input[aria-invalid="true"] {
@@ -206,7 +261,7 @@
 
 .badgeCell {
   display: flex;
-  flex: 0 0 72px;
+  flex: 0 0 64px;
   justify-content: flex-end;
 }
 
@@ -282,4 +337,11 @@
 
 .failed {
   color: var(--colour-danger);
+}
+
+/* The failure of a favourite, said out loud: the star keeps the mark it had. */
+
+.favouriteError {
+  color: var(--colour-danger);
+  margin: var(--space-1) 0 0;
 }

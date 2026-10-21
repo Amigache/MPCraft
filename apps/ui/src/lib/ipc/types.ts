@@ -152,6 +152,20 @@ export interface PlanWarning {
   readonly reason: string;
 }
 
+/** One line of the pre-flight checklist. */
+export interface ChecklistEntry {
+  /** What the item is about. */
+  readonly description: string;
+  /** The text of the item, with the value in it. */
+  readonly text: string;
+  /** Whether the condition holds. */
+  readonly passed: boolean;
+  /** Whether the value was known at all. */
+  readonly known: boolean;
+  /** Whether the pilot answers this one by hand. */
+  readonly manual: boolean;
+}
+
 /** A graph the user can choose. */
 export interface GraphPreset {
   /** The full name, as the interface shows it. */

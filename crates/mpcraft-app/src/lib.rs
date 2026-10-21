@@ -43,12 +43,14 @@ use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
 pub mod checklist;
+pub mod coordinates;
 pub mod error;
 pub mod graphs;
 pub mod operations;
 pub mod supervisor;
 
 pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
+pub use coordinates::{Coordinates, Utm};
 pub use error::{CommandError, CommandResult};
 pub use graphs::{GraphHistory, PresetInfo, SeriesData, SeriesInfo, SeriesPoints};
 pub use mpcraft_link::SessionState;

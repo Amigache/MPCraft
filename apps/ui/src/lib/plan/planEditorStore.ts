@@ -81,6 +81,10 @@ export interface PlanEditorStore {
   readonly notice: string | null;
   /** The confirmation the editor is waiting for. */
   readonly pending: PendingAction | null;
+  /** The plans that were changed, so that a change can be taken back. */
+  readonly history: readonly (readonly PlanItem[])[];
+  /** The plans that were taken back, so that they can be done again. */
+  readonly future: readonly (readonly PlanItem[])[];
 
   /** Opens the editor. */
   readonly openEditor: () => void;
@@ -114,8 +118,33 @@ export interface PlanEditorStore {
   readonly cancel: () => void;
   /** Writes the plan to a file. */
   readonly saveToFile: (path: string, format: PlanFileFormat) => Promise<void>;
+  /** Takes the last change back. */
+  readonly undo: () => void;
+  /** Does again the change that was taken back. */
+  readonly redo: () => void;
   /** Forgets the last failure. */
   readonly dismissError: () => void;
+}
+
+/** How many changes are remembered. */
+const HISTORY_LIMIT = 50;
+
+/**
+ * Records a change, so that it can be taken back.
+ *
+ * The plan that was replaced goes on the stack, and the stack of things that were taken
+ * back is emptied: a change made after a change that was taken back means the change that
+ * was taken back is not coming back.
+ */
+function withHistory(
+  state: { draft: readonly PlanItem[]; history: readonly (readonly PlanItem[])[] },
+  draft: readonly PlanItem[],
+) {
+  return {
+    draft,
+    history: [...state.history, state.draft].slice(-HISTORY_LIMIT),
+    future: [] as readonly (readonly PlanItem[])[],
+  };
 }
 
 /** The kind of plan the editor is working on. */
@@ -162,6 +191,8 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
   error: null,
   notice: null,
   pending: null,
+  history: [],
+  future: [],
 
   openEditor: () => {
     void useCommandStore.getState().load();
@@ -227,7 +258,7 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
     ),
 
   change: (seq, patch) =>
-    set((state) => ({ draft: patchItem(state.draft, seq, patch) })),
+    set((state) => withHistory(state, patchItem(state.draft, seq, patch))),
 
   move: (seq, delta) =>
     set((state) => {
@@ -251,7 +282,7 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
         }
       }
 
-      return { draft, selected };
+      return { ...withHistory(state, draft), selected };
     }),
 
   remove: (seq) =>
@@ -272,7 +303,7 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
         }
       }
 
-      return { draft, selected };
+      return { ...withHistory(state, draft), selected };
     }),
 
   addAt: (latitude, longitude) => {
@@ -398,6 +429,36 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
       set({ busy: false, error: normaliseError(cause) });
     }
   },
+
+  undo: () =>
+    set((state) => {
+      const previous = state.history[state.history.length - 1];
+      if (previous === undefined) {
+        return {};
+      }
+
+      return {
+        draft: previous,
+        history: state.history.slice(0, -1),
+        future: [state.draft, ...state.future].slice(0, HISTORY_LIMIT),
+        selected: null,
+      };
+    }),
+
+  redo: () =>
+    set((state) => {
+      const next = state.future[0];
+      if (next === undefined) {
+        return {};
+      }
+
+      return {
+        draft: next,
+        history: [...state.history, state.draft].slice(-HISTORY_LIMIT),
+        future: state.future.slice(1),
+        selected: null,
+      };
+    }),
 
   dismissError: () => set({ error: null }),
 }));

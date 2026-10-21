@@ -1,0 +1,95 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  overflow: auto;
+  padding: var(--space-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+/* The mark of a check that is satisfied, of one that is not, and of one that nobody
+   measured. The third is not a failure: it is the absence of a measurement. */
+
+.mark {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  width: 1em;
+}
+
+.row[data-state="passed"] .mark {
+  color: var(--colour-accent);
+}
+
+.row[data-state="failed"] .mark {
+  color: var(--colour-danger);
+}
+
+.row[data-state="unknown"] .mark {
+  color: var(--colour-text-faint);
+}
+
+.description {
+  color: var(--colour-text);
+  flex: 1 1 auto;
+  font-size: var(--font-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value {
+  color: var(--colour-text-dim);
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.manual {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.manual input {
+  accent-color: var(--colour-accent);
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.error {
+  color: var(--colour-danger);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  margin: 0;
+}
+
+.empty {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+  margin: 0;
+}

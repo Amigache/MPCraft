@@ -9,6 +9,7 @@ import { GraphPanel } from "../../features/graphs/GraphPanel";
 import { Hud } from "../../features/hud/Hud";
 import { MessageConsole } from "../../features/messages/MessageConsole";
 import { PlanEditor } from "../../features/plan/PlanEditor";
+import { PreFlightPanel } from "../../features/preflight/PreFlightPanel";
 import { QuickViewPanel } from "../../features/quick-view/QuickViewPanel";
 import { StatusPanel } from "../../features/status/StatusPanel";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
@@ -164,6 +165,15 @@ export function FlightData() {
                 hidden={activeTab !== "status"}
               >
                 <StatusPanel />
+              </div>
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-preflight"
+                aria-labelledby="tab-preflight"
+                hidden={activeTab !== "preflight"}
+              >
+                <PreFlightPanel />
               </div>
             </div>
           </aside>

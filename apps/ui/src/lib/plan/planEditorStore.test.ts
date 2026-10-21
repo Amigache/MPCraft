@@ -76,6 +76,8 @@ beforeEach(() => {
     error: null,
     notice: null,
     pending: null,
+    history: [],
+    future: [],
   });
 });
 
@@ -87,6 +89,42 @@ describe("the plan that is being edited", () => {
     expect(state.open).toBe(true);
     expect(state.draft).toHaveLength(3);
     expect(isChanged(state)).toBe(false);
+  });
+
+  it("takes a change back, and does it again", () => {
+    usePlanEditorStore.getState().openEditor();
+
+    usePlanEditorStore.getState().change(1, { z: 250 });
+    expect(usePlanEditorStore.getState().draft[1]?.z).toBe(250);
+
+    // The change can be taken back.
+    usePlanEditorStore.getState().undo();
+    expect(usePlanEditorStore.getState().draft[1]?.z).toBe(80);
+
+    // And done again.
+    usePlanEditorStore.getState().redo();
+    expect(usePlanEditorStore.getState().draft[1]?.z).toBe(250);
+  });
+
+  it("forgets what was taken back when something else is changed", () => {
+    usePlanEditorStore.getState().openEditor();
+
+    usePlanEditorStore.getState().change(1, { z: 250 });
+    usePlanEditorStore.getState().undo();
+    expect(usePlanEditorStore.getState().future).toHaveLength(1);
+
+    // A change made after a change that was taken back means that change is not coming
+    // back.
+    usePlanEditorStore.getState().change(2, { z: 10 });
+    expect(usePlanEditorStore.getState().future).toHaveLength(0);
+  });
+
+  it("has nothing to take back when nothing was changed", () => {
+    usePlanEditorStore.getState().openEditor();
+
+    usePlanEditorStore.getState().undo();
+    expect(usePlanEditorStore.getState().draft).toHaveLength(3);
+    expect(usePlanEditorStore.getState().future).toHaveLength(0);
   });
 
   it("is not the plan the vehicle holds once it is changed", () => {

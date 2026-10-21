@@ -68,6 +68,8 @@ export function PlanEditor() {
   const error = usePlanEditorStore((state) => state.error);
   const notice = usePlanEditorStore((state) => state.notice);
   const pending = usePlanEditorStore((state) => state.pending);
+  const history = usePlanEditorStore((state) => state.history);
+  const future = usePlanEditorStore((state) => state.future);
 
   const change = usePlanEditorStore((state) => state.change);
   const move = usePlanEditorStore((state) => state.move);
@@ -82,9 +84,30 @@ export function PlanEditor() {
   const saveToFile = usePlanEditorStore((state) => state.saveToFile);
   const closeEditor = usePlanEditorStore((state) => state.closeEditor);
   const dismissError = usePlanEditorStore((state) => state.dismissError);
+  const undo = usePlanEditorStore((state) => state.undo);
+  const redo = usePlanEditorStore((state) => state.redo);
 
   const kind = usePlanStore((state) => state.kind);
 
+  // The keyboard, the way upstream has it: control and Z takes the last change back.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.key.toLowerCase() !== "z") {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (event.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo]);
   const commands = useCommandStore((state) => state.commands);
   const loadCommands = useCommandStore((state) => state.load);
 
@@ -169,6 +192,28 @@ export function PlanEditor() {
   return (
     <section className={styles.editor} aria-label="The plan editor">
       <div className={styles.toolbar}>
+        <button
+          type="button"
+          className="button"
+          aria-label="Take the last change back"
+          disabled={busy || history.length === 0}
+          title="Take the last change back (Ctrl+Z)"
+          onClick={undo}
+        >
+          Undo
+        </button>
+
+        <button
+          type="button"
+          className="button"
+          aria-label="Do again the change that was taken back"
+          disabled={busy || future.length === 0}
+          title="Do again the change that was taken back (Ctrl+Shift+Z)"
+          onClick={redo}
+        >
+          Redo
+        </button>
+
         <button
           type="button"
           className={`button ${adding ? styles.adding : ""}`}

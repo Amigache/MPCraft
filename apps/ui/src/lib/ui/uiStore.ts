@@ -9,7 +9,13 @@ import { create } from "zustand";
  */
 
 /** The tabs of the left column, in the order upstream has them. */
-export type TabId = "quick" | "actions" | "messages" | "gauges" | "status";
+export type TabId =
+  | "quick"
+  | "actions"
+  | "messages"
+  | "gauges"
+  | "status"
+  | "preflight";
 
 /** The tabs, with the names they are given. */
 export const TABS: readonly { id: TabId; label: string }[] = [
@@ -18,6 +24,7 @@ export const TABS: readonly { id: TabId; label: string }[] = [
   { id: "messages", label: "Messages" },
   { id: "gauges", label: "Gauges" },
   { id: "status", label: "Status" },
+  { id: "preflight", label: "Pre-flight" },
 ];
 
 /** The width of the left column when nothing has been changed. */

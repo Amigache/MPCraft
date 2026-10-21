@@ -255,6 +255,71 @@ async fn write_parameters_to_flash(
     state.supervisor.write_parameters_to_flash(vehicle).await
 }
 
+/// Where the vehicle is, in the systems an operator reads.
+///
+/// The decimal degrees, the universal transverse Mercator grid and the military grid
+/// reference system, all of them from the same position.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle has not said where it is.
+#[tauri::command]
+async fn vehicle_coordinates(state: State<'_, AppState>) -> CommandResult<CoordinatesEvent> {
+    let Some(session) = state.supervisor.state() else {
+        return Err(CommandError::not_connected());
+    };
+
+    let Some(position) = session.telemetry.position else {
+        return Err(CommandError::not_connected());
+    };
+
+    let coordinates = mpcraft_app::coordinates::of(position.lat, position.lng, position.alt);
+
+    Ok(CoordinatesEvent {
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+        alt: coordinates.alt,
+        utm: coordinates.utm.map(|utm| UtmEvent {
+            zone: utm.zone,
+            band: utm.band.to_string(),
+            easting: utm.easting,
+            northing: utm.northing,
+        }),
+        mgrs: coordinates.mgrs,
+    })
+}
+
+/// Where the vehicle is.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CoordinatesEvent {
+    /// The latitude in decimal degrees, positive north.
+    lat: f64,
+    /// The longitude in decimal degrees, positive east.
+    lng: f64,
+    /// The altitude above mean sea level, in metres.
+    alt: f64,
+    /// The position in the universal transverse Mercator grid.
+    utm: Option<UtmEvent>,
+    /// The position in the military grid reference system.
+    mgrs: Option<String>,
+}
+
+/// A position in the universal transverse Mercator grid.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UtmEvent {
+    /// The zone number, 1 to 60.
+    zone: u8,
+    /// The latitude band letter.
+    band: String,
+    /// The easting, in metres.
+    easting: f64,
+    /// The northing, in metres.
+    northing: f64,
+}
+
 /// The parameters the vehicle has reported.
 ///
 /// The store is filled as the vehicle reports them, so the list grows as the vehicle talks.
@@ -1266,6 +1331,7 @@ fn main() {
             import_parameters,
             compare_parameters,
             write_parameters_to_flash,
+            vehicle_coordinates,
             set_favourite_parameter,
             parameter_metadata,
             list_mav_commands,

@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 
 import type {
+  ChecklistEntry,
   CommandError,
   ConnectRequest,
   ConnectResponse,
@@ -154,6 +155,11 @@ export async function listSerialPorts(): Promise<SerialPort[]> {
   return call<SerialPort[]>("list_serial_ports");
 }
 
+/** The pre-flight checklist, checked against the vehicle. */
+export async function preflightChecklist(): Promise<ChecklistEntry[]> {
+  return call<ChecklistEntry[]>("preflight_checklist");
+}
+
 /** The graphs the user can choose. */
 export async function listGraphs(): Promise<GraphPreset[]> {
   return call<GraphPreset[]>("list_graphs");
@@ -194,6 +200,23 @@ export async function writeParameter(
     name,
     value,
   });
+}
+
+/**
+ * The parameters the operator has marked as favourites.
+ *
+ * The backend keeps them between two runs, in the order they were marked.
+ */
+export async function listFavouriteParameters(): Promise<string[]> {
+  return call<string[]>("list_favourite_parameters");
+}
+
+/** Marks a parameter as a favourite, or takes the mark away. */
+export async function setFavouriteParameter(
+  name: string,
+  favourite: boolean,
+): Promise<void> {
+  await call<void>("set_favourite_parameter", { name, favourite });
 }
 
 /**

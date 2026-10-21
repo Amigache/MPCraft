@@ -18,6 +18,9 @@ import styles from "./ParameterSheet.module.css";
  * Clicking the value turns it into an input, filled with the value as it is now, so
  * that a mistake is one keystroke away from being undone. Enter writes it, Escape
  * undoes it, and a click somewhere else does the same.
+ *
+ * The star at the front of the row marks the parameter as one of the favourites. The
+ * favourites are the ones the operator looks for, and they are kept between two runs.
  */
 
 export interface ParameterRowProps {
@@ -35,12 +38,16 @@ export interface ParameterRowProps {
   readonly busy: boolean;
   /** Whether any write is in flight, which stops a second one. */
   readonly locked: boolean;
+  /** Whether the parameter is one of the favourites. */
+  readonly favourite: boolean;
   /** Starts the edit. */
   readonly onEdit: () => void;
   /** Abandons the edit. */
   readonly onCancel: () => void;
   /** Writes the value. */
   readonly onWrite: (value: number) => void;
+  /** Marks the parameter as a favourite, or takes the mark away. */
+  readonly onToggleFavourite: () => void;
 }
 
 export function ParameterRow({
@@ -51,9 +58,11 @@ export function ParameterRow({
   editing,
   busy,
   locked,
+  favourite,
   onEdit,
   onCancel,
   onWrite,
+  onToggleFavourite,
 }: ParameterRowProps) {
   const [draft, setDraft] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -120,6 +129,27 @@ export function ParameterRow({
       style={{ transform: `translateY(${start}px)` }}
       role="listitem"
     >
+      <button
+        type="button"
+        className={`${styles.star} ${favourite ? styles.starOn : ""}`}
+        aria-pressed={favourite}
+        aria-label={
+          favourite
+            ? `Take ${parameter.name} out of the favourites`
+            : `Make ${parameter.name} a favourite`
+        }
+        title={
+          favourite
+            ? "Not a favourite any more"
+            : "A favourite — kept between two runs"
+        }
+        onClick={onToggleFavourite}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M8 1.4 L9.9 5.5 L14.4 6.1 L11.1 9.2 L12 13.6 L8 11.5 L4 13.6 L4.9 9.2 L1.6 6.1 L6.1 5.5 Z" />
+        </svg>
+      </button>
+
       <span className={styles.name} title={parameter.name}>
         {parameter.name}
       </span>

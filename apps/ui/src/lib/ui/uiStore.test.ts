@@ -48,6 +48,7 @@ describe("the state of the interface", () => {
       "Messages",
       "Gauges",
       "Status",
+      "Pre-flight",
     ]);
   });
 
