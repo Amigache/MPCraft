@@ -268,6 +268,16 @@ sent to the vehicle and the vehicle counts the positions itself: the acceleromet
 six positions, the compass with the vehicle away from the metal of the bench. The
 compensation of the motors is a parameter, and the sheet takes the operator to it.
 
+The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
+every axis of the stick is, the operator says which axis drives which channel of the
+radio, and the channels are sent to the vehicle twenty times a second, the way a
+transmitter sends them. The radio is let go of when the operator says so.
+
+The **track of the flight** can be written to a file while the vehicle flies, from the
+File menu: the file is a KML document, the one Google Earth reads, and it is written
+again and again with the path so far. The track of a log is written the same way, and
+the two are the same document.
+
 The **engine** of a vehicle that has one is read out in the tab of the state: the
 revolutions, the load, the fuel that flows and the fuel that has been burnt, the
 pressures and the temperatures.
