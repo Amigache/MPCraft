@@ -404,6 +404,37 @@ MESSAGES = {
             ("climb", "f32"),
         ],
     ),
+    124: message(
+        124,
+        "GPS2_RAW",
+        87,
+        [
+            ("time_usec", "u64"),
+            ("lat", "i32"),
+            ("lon", "i32"),
+            ("alt", "i32"),
+            ("dgps_age", "u32"),
+            ("eph", "u16"),
+            ("epv", "u16"),
+            ("vel", "u16"),
+            ("cog", "u16"),
+            # The fix of the second receiver is a byte, and it comes before the
+            # satellites.
+            ("fix_type", "u8"),
+            ("satellites_visible", "u8"),
+            ("dgps_numch", "u8"),
+        ],
+        # The rest of the fields are extensions, and extensions travel after the
+        # message and in the order they are written, without being reordered.
+        extensions=[
+            ("yaw", "u16"),
+            ("alt_ellipsoid", "i32"),
+            ("h_acc", "u32"),
+            ("v_acc", "u32"),
+            ("vel_acc", "u32"),
+            ("hdg_acc", "u32"),
+        ],
+    ),
     30: message(
         30,
         "ATTITUDE",
@@ -1143,6 +1174,26 @@ class Vehicle:
                     "battery_function": 0,
                     "mavtype": 1,
                     "battery_remaining": 85,
+                },
+            )
+
+            # The second receiver, for a vehicle that has one.
+            self.send(
+                124,
+                {
+                    "time_usec": int(elapsed * 1_000_000),
+                    "lat": int(lat * 1e7),
+                    "lon": int(lng * 1e7),
+                    "alt": int(alt * 1000),
+                    "dgps_age": 0,
+                    "eph": 130,
+                    "epv": 160,
+                    "vel": int(ground_speed * 100),
+                    "cog": int(math.degrees(yaw) * 100) % 36000,
+                    "fix_type": 3,
+                    "satellites_visible": 11,
+                    "dgps_numch": 0,
+                    "yaw": 0,
                 },
             )
 

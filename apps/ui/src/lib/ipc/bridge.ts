@@ -533,6 +533,7 @@ const EMPTY_STATE: LinkState = {
     bearingToHome: null,
     mission: null,
     gps: null,
+  gps2: null,
     imu: null,
     barometer: null,
     controls: null,

@@ -48,7 +48,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.8 | STATUSTEXT message console | `FlightData.cs` | ✅ | 1 |
 | 2.9 | Pre-flight checklist | `Controls/PreFlight/CheckListControl.cs` | ✅ | 1 |
 | 2.10 | Battery banks 1–9 monitoring | `CurrentState.cs` | ✅ | 1 |
-| 2.11 | Multi-GPS status | `CurrentState.cs` | 🔜 | 1 |
+| 2.11 | Multi-GPS status | `CurrentState.cs` | ✅ | 1 |
 | 2.12 | EKF status & vibration display | `Controls/EKFStatus.cs`, `Vibration.cs` | ✅ | 3 |
 | 2.13 | Servo & relay output display | `Controls/ServoOptions.cs`, `RelayOptions.cs` | ✅ | 3 |
 | 2.14 | Auxiliary function display | `Controls/AuxOptions.cs` | ✅ | 3 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 65 |
-| 🔜 Planned | 87 |
+| ✅ Done | 66 |
+| 🔜 Planned | 86 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 65 rows marked done are the connection, transport, parameter, mission and command
+The 66 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all

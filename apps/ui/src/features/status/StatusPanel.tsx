@@ -116,6 +116,18 @@ export function StatusPanel() {
             format={(value) => (value as number).toFixed(2)}
           />
         </Row>
+        <Row label="Second receiver">
+          <LiveValue
+            select={(telemetry) => telemetry.gps2?.fixType ?? null}
+            format={(value) => formatFixType(value as number)}
+          />
+        </Row>
+        <Row label="Second satellites">
+          <LiveValue
+            select={(telemetry) => telemetry.gps2?.satellites ?? null}
+            format={(value) => (value as number).toString()}
+          />
+        </Row>
         <Row label="Latitude">
           <LiveValue
             select={(telemetry) => telemetry.position?.lat ?? null}

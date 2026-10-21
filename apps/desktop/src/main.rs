@@ -1464,6 +1464,9 @@ struct TelemetryEvent {
     mission: Option<MissionProgressEvent>,
     /// The state of the global positioning, when it is known.
     gps: Option<GpsEvent>,
+
+    /// The state of the second global positioning, when it is known.
+    gps2: Option<GpsEvent>,
     /// The inertial measurement, when it is known.
     imu: Option<ImuEvent>,
     /// The barometer, when it is known.
@@ -1778,6 +1781,11 @@ fn telemetry_event(state: &SessionState) -> TelemetryEvent {
                 in_mission_mode: mission.in_mission_mode,
             }),
         gps: telemetry.gps.as_ref().map(|gps| GpsEvent {
+            fix_type: gps.fix_type as u8,
+            satellites: gps.satellites,
+            hdop: gps.hdop,
+        }),
+        gps2: telemetry.gps2.as_ref().map(|gps| GpsEvent {
             fix_type: gps.fix_type as u8,
             satellites: gps.satellites,
             hdop: gps.hdop,

@@ -340,6 +340,17 @@ impl TelemetryAggregator {
                 });
             }
 
+            MavMessage::GPS2_RAW(raw) => {
+                // The second receiver, for a vehicle that has one. It reports the same
+                // thing as the first, and it may be looking at a different constellation.
+                self.telemetry.gps2 = Some(GpsStatus {
+                    fix_type: raw.fix_type,
+                    satellites: raw.satellites_visible,
+                    // The vehicle reports the dilution in hundredths.
+                    hdop: f64::from(raw.eph) / 100.0,
+                });
+            }
+
             MavMessage::MISSION_CURRENT(current) => {
                 // The vehicle streams this whenever the plan changes, so it is the state
                 // of the plan rather than a momentary report.

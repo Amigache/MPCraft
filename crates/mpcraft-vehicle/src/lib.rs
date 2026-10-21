@@ -359,6 +359,12 @@ pub struct Telemetry {
     pub mission: Option<MissionProgress>,
     /// The state of the global positioning, once received.
     pub gps: Option<GpsStatus>,
+
+    /// The state of the second global positioning, once received.
+    ///
+    /// A vehicle with two receivers reports them separately, and the operator needs
+    /// to see both: one of them may be looking at a constellation the other is not.
+    pub gps2: Option<GpsStatus>,
     /// The inertial measurement, once received.
     pub imu: Option<Imu>,
     /// The barometer, once received.
@@ -411,6 +417,10 @@ impl Telemetry {
         }
         if let Some(gps) = update.gps {
             self.gps = Some(gps);
+        }
+
+        if let Some(gps) = update.gps2 {
+            self.gps2 = Some(gps);
         }
         if let Some(imu) = update.imu {
             self.imu = Some(imu);
@@ -478,6 +488,9 @@ pub struct TelemetryUpdate {
     pub mission: Option<MissionProgress>,
     /// New state of the global positioning.
     pub gps: Option<GpsStatus>,
+
+    /// New state of the second global positioning.
+    pub gps2: Option<GpsStatus>,
     /// New inertial measurement.
     pub imu: Option<Imu>,
     /// New barometer reading.

@@ -200,6 +200,8 @@ export interface Telemetry {
   readonly bearingToHome: number | null;
   readonly mission: MissionProgress | null;
   readonly gps: GpsStatus | null;
+  /** The state of the second receiver, when the vehicle has one. */
+  readonly gps2: GpsStatus | null;
   readonly imu: Imu | null;
   readonly barometer: Barometer | null;
   readonly controls: Controls | null;
