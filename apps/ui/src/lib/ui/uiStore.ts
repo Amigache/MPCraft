@@ -345,6 +345,12 @@ export interface UiStore {
   readonly showCalibration: () => void;
   /** Closes the sheet of the calibrations. */
   readonly hideCalibration: () => void;
+  /** Whether the sheet of the joystick is open over the window. */
+  readonly joystickOpen: boolean;
+  /** Opens the sheet of the joystick. */
+  readonly showJoystick: () => void;
+  /** Closes the sheet of the joystick. */
+  readonly hideJoystick: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -369,7 +375,10 @@ const clamp = (value: number, low: number, high: number): number =>
 
 export const useUiStore = create<UiStore>((set) => ({
   activeTab: "quick",
-  leftColumnFraction: readFraction("mpcraft.leftFraction", DEFAULT_LEFT_FRACTION),
+  leftColumnFraction: readFraction(
+    "mpcraft.leftFraction",
+    DEFAULT_LEFT_FRACTION,
+  ),
   hudFraction: readFraction("mpcraft.hudFraction", DEFAULT_HUD_FRACTION),
   topFraction: readFraction("mpcraft.topFraction", DEFAULT_TOP_FRACTION),
   showLeftColumn: readFlag("mpcraft.showLeftColumn", true),
@@ -387,6 +396,7 @@ export const useUiStore = create<UiStore>((set) => ({
   parameterGroup: null,
   parameterPrefix: null,
   calibrationOpen: false,
+  joystickOpen: false,
   logOpen: false,
   parameterGroups: [],
 
@@ -475,15 +485,21 @@ export const useUiStore = create<UiStore>((set) => ({
     set({ parametersOpen: true, parameterGroup: group, parameterPrefix: null }),
 
   showParameterPrefix: (prefix) =>
-    set({ parametersOpen: true, parameterGroup: null, parameterPrefix: prefix }),
+    set({
+      parametersOpen: true,
+      parameterGroup: null,
+      parameterPrefix: prefix,
+    }),
 
   showCalibration: () => set({ calibrationOpen: true }),
+  showJoystick: () => set({ joystickOpen: true }),
 
   showLog: () => set({ logOpen: true }),
 
   hideLog: () => set({ logOpen: false }),
 
   hideCalibration: () => set({ calibrationOpen: false }),
+  hideJoystick: () => set({ joystickOpen: false }),
 
   loadParameterGroups: async () => {
     try {

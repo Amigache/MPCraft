@@ -5,6 +5,7 @@ import { MenuBar } from "./MenuBar";
 import { StatusBar } from "./StatusBar";
 import { FlightData } from "../../features/flight-data/FlightData";
 import { CalibrationSheet } from "../../features/calibration/CalibrationSheet";
+import { JoystickSheet } from "../../features/joystick/JoystickSheet";
 import { LogSheet } from "../../features/logs/LogSheet";
 import { ParameterSheet } from "../../features/params/ParameterSheet";
 import styles from "./AppShell.module.css";
@@ -31,7 +32,10 @@ export function AppShell() {
 
   const covered = useUiStore(
     (state) =>
-      state.parametersOpen || state.calibrationOpen || state.logOpen,
+      state.parametersOpen ||
+      state.calibrationOpen ||
+      state.joystickOpen ||
+      state.logOpen,
   );
 
   return (
@@ -49,6 +53,7 @@ export function AppShell() {
       </div>
       <ParameterSheet />
       <CalibrationSheet />
+      <JoystickSheet />
       <LogSheet />
     </div>
   );

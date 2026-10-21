@@ -195,7 +195,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | 🔜 | 6 |
 | 9.4 | Scripting host | `Script.cs` (IronPython) | 🔜 | 6 |
 | 9.5 | Swarm / formation control | `Swarm/` | 🔜 | 6 |
-| 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | 🔜 | 5 |
+| 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
 | 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🔜 | 5 |
 | 9.8 | HTTP server (MJPEG / KML stream) | `ExtLibs/Utilities/httpserver.cs` | 🔜 | 7 |
 | 9.9 | KML live output | `FlightPlanner.writeKML` | ✅ | 2 |
@@ -220,8 +220,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 105 |
-| 🔜 Planned | 48 |
+| ✅ Done | 106 |
+| 🔜 Planned | 47 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 

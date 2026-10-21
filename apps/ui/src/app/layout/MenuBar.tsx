@@ -100,6 +100,7 @@ export function MenuBar() {
   const focusMap = useUiStore((state) => state.focusMap);
   const toggleFocusMap = useUiStore((state) => state.toggleFocusMap);
   const showCalibration = useUiStore((state) => state.showCalibration);
+  const showJoystick = useUiStore((state) => state.showJoystick);
   const showLog = useUiStore((state) => state.showLog);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
@@ -347,6 +348,27 @@ export function MenuBar() {
           checked: undefined,
           separator: false,
           hint: linked ? "" : "no link",
+        },
+        {
+          id: "flight-sep-3",
+          label: "",
+          onSelect: undefined,
+          disabled: false,
+          checked: undefined,
+          separator: true,
+          hint: "",
+        },
+        {
+          id: "joystick",
+          label: "Joystick…",
+          onSelect: () => {
+            close();
+            showJoystick();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
         },
       ],
     },

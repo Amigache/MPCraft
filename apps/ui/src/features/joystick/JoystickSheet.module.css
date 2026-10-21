@@ -1,0 +1,162 @@
+/* The sheet of the joystick.
+ *
+ * It is a panel over the window, like the sheet of the calibrations: the joystick is
+ * set up while the flight is watched, and the window under it stays visible.
+ */
+
+.backdrop {
+  align-items: flex-start;
+  background: var(--colour-overlay);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--space-3);
+  position: fixed;
+  z-index: 60;
+}
+
+.panel {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px var(--colour-shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: hidden;
+  width: min(720px, 100%);
+}
+
+.header {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  margin: 0;
+}
+
+.header button {
+  margin-left: auto;
+}
+
+.block {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.heading {
+  color: var(--colour-text-dim);
+  font-size: var(--font-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.text {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* The channels --------------------------------------------------------------- */
+
+.channels {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) 0;
+}
+
+.channel {
+  align-items: center;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 190px 130px 110px 1fr 56px;
+  padding: var(--space-2) var(--space-4);
+}
+
+.channelName {
+  color: var(--colour-text);
+  font-size: var(--font-xs);
+}
+
+.axisSelect {
+  font-size: var(--font-2xs);
+  height: 24px;
+  min-width: 0;
+  width: 100%;
+}
+
+.invert {
+  align-items: center;
+  color: var(--colour-text-dim);
+  display: flex;
+  font-size: var(--font-2xs);
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.bar {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.fill {
+  background: var(--colour-accent);
+  display: block;
+  height: 100%;
+}
+
+.value {
+  color: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  text-align: right;
+}
+
+/* The actions ---------------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.on {
+  background: var(--colour-accent-wash);
+  border-color: var(--colour-accent-dim);
+  color: var(--colour-accent);
+}
+
+.notice {
+  color: var(--colour-accent);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.error {
+  color: var(--colour-danger);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+}
