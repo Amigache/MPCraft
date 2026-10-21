@@ -64,6 +64,33 @@ const GCS_COMPONENT_ID: u8 = 190;
 /// console only ever shows the recent past.
 const MAX_MESSAGES: usize = 200;
 
+/// The heartbeat that says this end is a ground station.
+///
+/// The ground station identifies itself with the system and component ids that Mission
+/// Planner uses, because the vehicle checks that the items it receives are addressed to
+/// it.
+fn ground_station_heartbeat() -> MavMessage {
+    use mpcraft_mavlink::dialect::messages::HEARTBEAT_DATA;
+    use mpcraft_mavlink::{MavAutopilot, MavModeFlag, MavState, MavType};
+
+    MavMessage::HEARTBEAT(HEARTBEAT_DATA {
+        custom_mode: 0,
+        mavtype: MavType::MAV_TYPE_GCS,
+        autopilot: MavAutopilot::MAV_AUTOPILOT_GENERIC,
+        base_mode: MavModeFlag::empty(),
+        system_status: MavState::MAV_STATE_ACTIVE,
+        mavlink_version: 3,
+    })
+}
+
+/// How often the ground station says that it is there.
+///
+/// A vehicle that only streams telemetry sends its traffic to the last ground station it
+/// heard from, so a ground station that announced itself once and then went silent could
+/// never pick up a vehicle that came up later, and could not recover a link that had been
+/// half open. Upstream sends its heartbeat regularly for the same reason.
+const ANNOUNCE_INTERVAL: Duration = Duration::from_secs(1);
+
 /// The tunables of a session.
 #[derive(Debug, Clone, Copy)]
 pub struct SessionOptions {
@@ -350,19 +377,7 @@ impl Session {
     /// A vehicle that only streams telemetry never learns the ground station's address
     /// otherwise, and its traffic would go nowhere.
     pub async fn announce(&self) {
-        use mpcraft_mavlink::dialect::messages::HEARTBEAT_DATA;
-        use mpcraft_mavlink::{MavAutopilot, MavModeFlag, MavState, MavType};
-
-        let message = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
-            custom_mode: 0,
-            mavtype: MavType::MAV_TYPE_GCS,
-            autopilot: MavAutopilot::MAV_AUTOPILOT_GENERIC,
-            base_mode: MavModeFlag::empty(),
-            system_status: MavState::MAV_STATE_ACTIVE,
-            mavlink_version: 3,
-        });
-
-        if let Err(error) = self.write_message(&message).await {
+        if let Err(error) = self.write_message(&ground_station_heartbeat()).await {
             tracing::warn!("could not announce the ground station: {error}");
         }
     }
@@ -764,7 +779,23 @@ async fn run_reader(
     let mut pending: Vec<PendingRequest> = Vec::new();
     let mut collections: Vec<PendingCollection> = Vec::new();
 
+    let mut last_announce = Instant::now();
+
     loop {
+        // 0. Say that the ground station is there, every now and then.
+        if last_announce.elapsed() >= ANNOUNCE_INTERVAL {
+            last_announce = Instant::now();
+
+            let header = MavHeader {
+                system_id: GCS_SYSTEM_ID,
+                component_id: GCS_COMPONENT_ID,
+                sequence: next_sequence(),
+            };
+
+            let bytes = mpcraft_mavlink::frame::encode_v2(&ground_station_heartbeat(), header);
+            let _ = transport.write(&bytes).await;
+        }
+
         // 1. Serve the queued writes and requests first.
         while let Ok(command) = commands.try_recv() {
             match command {
