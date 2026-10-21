@@ -223,7 +223,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | ✅ Done | 117 |
 | 🔜 Planned | 35 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 2 |
+| 🟡 Partial | 3 |
 
 The 117 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
@@ -280,7 +280,7 @@ board, and the file of that board is fetched to the disk. The file is the firmwa
 the autopilot, the one that is written to a board.
 
 The **firmware** can also be written to a board, from the same sheet: the board has to
-be in its bootloader, and the file is written to it over the port serie ? the board is
+be in its bootloader, and the file is written to it over the port serie — the board is
 waited for, asked what it is, its flash is erased, the firmware is written block by
 block and the board is told to start again. What is not done yet is restarting the
 board into its bootloader by itself, so the link has to be closed and the board
