@@ -234,3 +234,58 @@
   color: var(--colour-accent);
   margin-left: auto;
 }
+
+/* The profile of the terrain along the plan. */
+
+.profile {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+}
+
+.profileHead {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.profileTitle {
+  color: var(--colour-text-dim);
+  font-size: var(--font-2xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.profileNote {
+  color: var(--colour-text-faint);
+  flex: 1 1 auto;
+  font-size: var(--font-2xs);
+}
+
+.profileChart {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  height: 110px;
+  width: 100%;
+}
+
+.profileGround {
+  stroke: var(--colour-warning);
+}
+
+.profileFill {
+  stroke: var(--colour-text-faint);
+  stroke-dasharray: 3 3;
+}
+
+.profilePlace {
+  fill: var(--colour-accent);
+  stroke: var(--colour-bg);
+  stroke-width: 1;
+}

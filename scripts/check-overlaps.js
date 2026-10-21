@@ -40,6 +40,46 @@ const WITH_TEXT = ["button", "label", "span", "td", "th", "div", "p", "legend", 
  * @returns {{clashes: string[], clipped: string[], overflowing: string[]}}
  */
 export function checkOverlaps() {
+  /**
+   * Whether an element is cut away by a container that scrolls.
+   *
+   * A row of a list that is longer than the list is not on the screen, and it
+   * cannot be covered by anything either: it is not there to be pressed. The box of
+   * such a row is measured all the same, and comparing it with the box of a control
+   * that is on the screen would report a clash that nobody can see.
+   */
+  const cutAway = (element) => {
+    const rect = element.getBoundingClientRect();
+
+    let parent = element.parentElement;
+
+    while (parent !== null) {
+      const style = getComputedStyle(parent);
+
+      if (
+        style.overflowY === "auto" ||
+        style.overflowY === "scroll" ||
+        style.overflowX === "auto" ||
+        style.overflowX === "scroll"
+      ) {
+        const box = parent.getBoundingClientRect();
+
+        if (
+          rect.bottom < box.top ||
+          rect.top > box.bottom ||
+          rect.right < box.left ||
+          rect.left > box.right
+        ) {
+          return true;
+        }
+      }
+
+      parent = parent.parentElement;
+    }
+
+    return false;
+  };
+
   const visible = (element) => {
     const style = getComputedStyle(element);
     if (style.display === "none" || style.visibility === "hidden") {
@@ -72,7 +112,9 @@ export function checkOverlaps() {
     // A sheet lies over the window, and the window under it is inert: its
     // controls cannot be reached, so they are not controls that can be
     // covered by another one.
-    .filter((element) => !element.closest("[inert], [aria-hidden=\"true\"]"));
+    .filter((element) => !element.closest("[inert], [aria-hidden=\"true\"]"))
+    // A control that a scrolling container has cut away is not on the screen.
+    .filter((element) => !cutAway(element));
 
   const clashes = [];
 

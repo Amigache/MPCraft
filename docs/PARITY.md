@@ -99,7 +99,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | 🔜 | 2 |
 | 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | ✅ | 2 |
 | 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | ✅ | 2 |
-| 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | 🔜 | 2 |
+| 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | ✅ | 2 |
 | 4.19 | Waypoint radius (loiter) editing | `FlightPlanner.cs` loiter radius | 🔜 | 2 |
 | 4.20 | Spline / smooth path display | `FlightPlanner.cs` | 🔜 | 2 |
 | 4.21 | MAVFTP mission transfer | `chk_usemavftp` path | 🔜 | 5 |
@@ -166,7 +166,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.5 | Tile prefetch for a region | `ExtLibs/GMap.NET.WindowsForms/TilePrefetcher.cs` | 🔜 | 2 |
 | 7.6 | Geofence / rally / home markers | `ExtLibs/Maps/GMapMarker*.cs` | 🔜 | 2 |
 | 7.7 | UTM / MGRS coordinate conversion | `ExtLibs/Utilities/utmpos.cs`, `GeoUtility` | ✅ | 2 |
-| 7.8 | SRTM terrain elevation lookup | `ExtLibs/Utilities/srtm.cs` | 🔜 | 2 |
+| 7.8 | SRTM terrain elevation lookup | `ExtLibs/Utilities/srtm.cs` | ✅ | 2 |
 | 7.9 | DTED local elevation | `ExtLibs/Utilities/DTED.cs` | 🔜 | 5 |
 | 7.10 | Terrain-follow route generation | `srtm.getIntersectionWithTerrain` | 🔜 | 5 |
 | 7.11 | Terrain data protocol server | `ExtLibs/Utilities/TerrainFollow.cs` | 🔜 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 52 |
-| 🔜 Planned | 100 |
+| ✅ Done | 54 |
+| 🔜 Planned | 98 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 52 rows marked done are the connection, transport, parameter, mission and command
+The 54 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -255,8 +255,8 @@ above the map. The waypoints are dragged on the map, the plan is checked before 
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
 unsent changes never looks like the plan on the vehicle.
 
-What is still missing from the window: the elevation profile of the plan, the servo and
-relay outputs, and the auxiliary functions.
+What is still missing from the window: the servo and relay outputs, and the auxiliary
+functions.
 
 The two rows marked partial are the metadata of the parameters and the writing to the
 flash.

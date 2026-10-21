@@ -464,6 +464,114 @@ struct PlanWarningEvent {
     reason: String,
 }
 
+/// The elevation of the terrain along a plan.
+///
+/// The profile is the shape of the ground the plan flies over: the elevation of the
+/// terrain at a point every few metres, and the height the plan asks for.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the plan holds no place, or when
+/// the terrain cannot be reached.
+#[tauri::command]
+async fn plan_terrain_profile(
+    state: State<'_, AppState>,
+    kind: PlanKind,
+    items: Vec<PlanItemRequest>,
+) -> CommandResult<Vec<TerrainPointEvent>> {
+    let plan = plan_of(kind, &items)?;
+
+    // The places of the plan, in the order they are flown.
+    let places: Vec<(f64, f64)> = plan
+        .items
+        .iter()
+        .filter(|item| mpcraft_mission::mavcmd::is_location_command(item.command))
+        .map(|item| (item.x, item.y))
+        .collect();
+
+    if places.len() < 2 {
+        return Ok(Vec::new());
+    }
+
+    // The samples of the path: the places of the plan and a few points between them.
+    const SAMPLES_PER_SEGMENT: usize = 8;
+
+    let mut samples: Vec<(f64, f64, bool)> = Vec::new();
+
+    for (index, window) in places.windows(2).enumerate() {
+        let (from_lat, from_lng) = window[0];
+        let (to_lat, to_lng) = window[1];
+
+        // The last segment has one more step, so that the last place of the plan
+        // is a sample of its own.
+        let last = index + 1 == places.len() - 1;
+        let steps = if last {
+            SAMPLES_PER_SEGMENT + 1
+        } else {
+            SAMPLES_PER_SEGMENT
+        };
+
+        for step in 0..steps {
+            let fraction = step as f64 / SAMPLES_PER_SEGMENT as f64;
+
+            // The places of the plan are the samples that fall on one.
+            let waypoint = step == 0 || (last && step == SAMPLES_PER_SEGMENT);
+
+            samples.push((
+                from_lat + (to_lat - from_lat) * fraction,
+                from_lng + (to_lng - from_lng) * fraction,
+                waypoint,
+            ));
+        }
+    }
+
+    let mut points = Vec::with_capacity(samples.len());
+    let mut distance = 0.0;
+    let mut previous: Option<(f64, f64)> = None;
+
+    for (lat, lng, waypoint) in samples {
+        if let Some((before_lat, before_lng)) = previous {
+            distance += mpcraft_geo::distance_m(
+                mpcraft_geo::GeoPoint::new(before_lat, before_lng),
+                mpcraft_geo::GeoPoint::new(lat, lng),
+            );
+        }
+
+        previous = Some((lat, lng));
+
+        let elevation = state
+            .terrain
+            .elevation(mpcraft_geo::projection::LatLng::new(lat, lng))
+            .await;
+
+        // A place the survey never reached, or the sea, has no elevation: the profile
+        // says so by leaving the point out, and the plan is still drawn.
+        let Ok(elevation) = elevation else {
+            continue;
+        };
+
+        points.push(TerrainPointEvent {
+            distance,
+            elevation: elevation.metres,
+            waypoint,
+        });
+    }
+
+    Ok(points)
+}
+
+/// One point of the profile of the terrain.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TerrainPointEvent {
+    /// The distance from the start of the plan, in metres.
+    distance: f64,
+    /// The elevation of the terrain, in metres above the sea.
+    elevation: f64,
+    /// Whether the point is a place of the plan.
+    waypoint: bool,
+}
+
 /// Writes a plan to a file.
 ///
 /// The format is the one Mission Planner uses: `waypoints` for the QGC file and `kml` for
@@ -1559,6 +1667,7 @@ fn main() {
             import_parameters,
             compare_parameters,
             write_parameters_to_flash,
+            plan_terrain_profile,
             vehicle_coordinates,
             set_favourite_parameter,
             parameter_metadata,

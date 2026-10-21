@@ -39,6 +39,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+use mpcraft_geo::terrain_service::TerrainService;
 use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
@@ -112,6 +113,9 @@ pub struct AppState {
 
     /// The history the graphs are drawn from.
     pub graphs: GraphHistory,
+
+    /// The terrain, fetched from the service and kept on the disk.
+    pub terrain: TerrainService,
 }
 
 impl Default for AppState {
@@ -120,8 +124,20 @@ impl Default for AppState {
             supervisor: SessionSupervisor::new(),
             settings: SettingsStore::platform(),
             graphs: GraphHistory::new(),
+            terrain: TerrainService::new(terrain_cache_dir()),
         }
     }
+}
+
+/// The directory the tiles of the terrain are kept in.
+///
+/// The tiles are kept beside the settings, in the configuration directory of the
+/// application. A machine that has no configuration directory keeps them in the
+/// temporary directory, which is the best that can be done there.
+fn terrain_cache_dir() -> std::path::PathBuf {
+    mpcraft_settings::platform_config_dir()
+        .map(|directory| directory.join("terrain"))
+        .unwrap_or_else(|| std::env::temp_dir().join("mpcraft-terrain"))
 }
 
 impl AppState {
@@ -291,6 +307,7 @@ mod tests {
             supervisor: SessionSupervisor::new(),
             settings: Some(store),
             graphs: GraphHistory::new(),
+            terrain: TerrainService::new(terrain_cache_dir()),
         };
 
         assert!(state
@@ -320,6 +337,7 @@ mod tests {
             supervisor: SessionSupervisor::new(),
             settings: None,
             graphs: GraphHistory::new(),
+            terrain: TerrainService::new(terrain_cache_dir()),
         };
 
         let error = state

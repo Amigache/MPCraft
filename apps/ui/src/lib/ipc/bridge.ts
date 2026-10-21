@@ -24,6 +24,7 @@ import type {
   PlanWarning,
   SerialPort,
   Telemetry,
+  TerrainPoint,
   VehicleEvent,
   VehicleKey,
   VehicleMessage,
@@ -296,6 +297,19 @@ export async function writeParametersToFlash(): Promise<void> {
 /** Where the vehicle is, in the systems an operator reads. */
 export async function vehicleCoordinates(): Promise<Coordinates> {
   return call<Coordinates>("vehicle_coordinates");
+}
+
+/**
+ * The elevation of the terrain along a plan.
+ *
+ * The ground is fetched from the service of ArduPilot, and the tiles it answers with
+ * are kept on the disk, so that the second look at the same place is a look at the disk.
+ */
+export async function planTerrainProfile(
+  kind: PlanKind,
+  items: readonly PlanItem[],
+): Promise<TerrainPoint[]> {
+  return call<TerrainPoint[]>("plan_terrain_profile", { kind, items });
 }
 
 /**

@@ -665,6 +665,17 @@ carries the name the operator reads them with: the plan of the vehicle says
 `MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION` and the interface shows *Fence Polygon
 Vertex*.
 
+The **profile of the terrain** along the plan is the shape of the ground the plan flies
+over: the elevation of the terrain at a point every few metres, and the places of the
+plan on it. The tiles of the terrain come from the service of ArduPilot, compressed, and
+they are kept on the disk, so that the second look at the same place is a look at the disk
+and not at the service.
+
+The **profile can be wrong** in one way only: a place the survey never reached, or the
+sea, has no elevation. Those points are left out of the profile and the plan is still
+drawn: a ground station that invents the height of the sea is a ground station that flies
+the aircraft into it.
+
 The plan can be read from and written to a file — the QGC `.waypoints` format and the KML
 that Google Earth reads — and the file is read and written in Rust, where the formats live.
 

@@ -2536,6 +2536,7 @@ name = "mpcraft-desktop"
 version = "0.1.0"
 dependencies = [
  "mpcraft-app",
+ "mpcraft-geo",
  "mpcraft-link",
  "mpcraft-mavlink",
  "mpcraft-mission",
@@ -2559,6 +2560,7 @@ dependencies = [
 name = "mpcraft-geo"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "geo",
  "geo-types",
  "reqwest 0.12.28",

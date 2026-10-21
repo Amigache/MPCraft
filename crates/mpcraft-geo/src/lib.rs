@@ -14,8 +14,11 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod height;
 pub mod projection;
 pub mod terrain;
+pub mod terrain_service;
+pub mod zip;
 
 pub use projection::{utm_from_lat_lng, utm_to_lat_lng, LatLng, Mgrs, Utm, UtmZone, UtmZoneError};
 pub use terrain::{TerrainError, TerrainProvider};

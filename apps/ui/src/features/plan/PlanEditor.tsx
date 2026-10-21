@@ -15,6 +15,7 @@ import {
 } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { PlanGrid } from "./PlanGrid";
+import { TerrainProfile } from "./TerrainProfile";
 import styles from "./PlanEditor.module.css";
 
 /**
@@ -120,6 +121,8 @@ export function PlanEditor() {
   const loadCommands = useCommandStore((state) => state.load);
 
   const [fileMode, setFileMode] = useState<FileMode>(null);
+  /** Whether the profile of the terrain is shown. */
+  const [profile, setProfile] = useState(false);
   const [path, setPath] = useState("");
   const [dialogNote, setDialogNote] = useState<string | null>(null);
 
@@ -309,6 +312,19 @@ export function PlanEditor() {
 
         <button
           type="button"
+          className={`button ${profile ? styles.adding : ""}`}
+          aria-pressed={profile}
+          disabled={busy || draft.length < 2}
+          title="Show the shape of the ground the plan flies over"
+          onClick={() => {
+            setProfile(!profile);
+          }}
+        >
+          Profile
+        </button>
+
+        <button
+          type="button"
           className="button"
           disabled={busy || draft.length === 0}
           onClick={() => {
@@ -481,6 +497,16 @@ export function PlanEditor() {
         onMove={move}
         onRemove={remove}
       />
+
+      {profile ? (
+        <TerrainProfile
+          kind={kind}
+          items={draft}
+          onClose={() => {
+            setProfile(false);
+          }}
+        />
+      ) : null}
 
       <div className={styles.status}>
         <span className={styles.kind}>{KIND_LABELS[kind] ?? kind}</span>

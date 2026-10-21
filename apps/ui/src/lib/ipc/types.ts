@@ -361,6 +361,16 @@ export interface ChecklistEntry {
 }
 
 /** A graph the user can choose. */
+/** One point of the profile of the terrain along a plan. */
+export interface TerrainPoint {
+  /** The distance from the start of the plan, in metres. */
+  readonly distance: number;
+  /** The elevation of the terrain, in metres above the sea. */
+  readonly elevation: number;
+  /** Whether the point is a place of the plan. */
+  readonly waypoint: boolean;
+}
+
 export interface GraphPreset {
   /** The full name, as the interface shows it. */
   readonly name: string;

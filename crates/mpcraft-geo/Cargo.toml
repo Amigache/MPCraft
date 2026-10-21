@@ -9,6 +9,8 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+# The terrain comes compressed, and the inflater is already in the build.
+flate2.workspace = true
 geo.workspace = true
 geo-types.workspace = true
 reqwest.workspace = true

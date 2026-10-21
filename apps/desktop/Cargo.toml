@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 mpcraft-app.workspace = true
+mpcraft-geo.workspace = true
 mpcraft-link.workspace = true
 mpcraft-mavlink.workspace = true
 mpcraft-mission.workspace = true
