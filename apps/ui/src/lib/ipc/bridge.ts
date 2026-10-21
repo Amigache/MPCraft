@@ -241,6 +241,30 @@ export async function setConnectionProfiles(
 }
 
 /**
+ * Tells the vehicle to go to a place.
+ *
+ * This is the guided mode: the vehicle flies to the place and stays there.
+ */
+export async function setPositionTarget(
+  latitude: number,
+  longitude: number,
+  altitude: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_position_target", {
+    ...vehicleRequest(vehicle),
+    latitude,
+    longitude,
+    altitude,
+  });
+}
+
+/** Asks the vehicle to restart. */
+export async function reboot(vehicle?: VehicleKey): Promise<void> {
+  await call<void>("reboot", vehicleRequest(vehicle));
+}
+
+/**
  * The groups the parameters belong to.
  *
  * The groups are the subjects the parameters are about — *Radio Calibration*, *EKF2* —

@@ -320,6 +320,43 @@ struct UtmEvent {
     northing: f64,
 }
 
+/// Tells the vehicle to go to a place.
+///
+/// This is the guided mode: the vehicle flies to the place and stays there.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link
+/// cannot carry the message.
+#[tauri::command]
+async fn set_position_target(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    latitude: f64,
+    longitude: f64,
+    altitude: f32,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .set_position_target(vehicle, latitude, longitude, altitude)
+        .await
+}
+
+/// Asks the vehicle to restart.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link
+/// cannot carry the command.
+#[tauri::command]
+async fn reboot(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.reboot(vehicle).await
+}
+
 /// The parameters the vehicle has reported.
 ///
 /// The store is filled as the vehicle reports them, so the list grows as the vehicle talks.
@@ -1772,6 +1809,8 @@ fn main() {
             import_parameters,
             compare_parameters,
             write_parameters_to_flash,
+            set_position_target,
+            reboot,
             plan_terrain_profile,
             vehicle_coordinates,
             set_favourite_parameter,

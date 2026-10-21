@@ -6,8 +6,10 @@ import {
   armVehicle,
   changeMode,
   disarmVehicle,
+  flyTo,
   jumpTo,
   makeCurrent,
+  rebootVehicle,
 } from "../../lib/flight/flightActions";
 import type { PlanKind } from "../../lib/ipc/types";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
@@ -88,6 +90,10 @@ export function ActionsPanel() {
   const items = useMemo(() => plan?.items ?? [], [plan]);
 
   const selected = modes.find((entry) => entry.value === mode);
+
+  // The place of the plan that is chosen, when there is one: it is where the
+  // vehicle is told to go when the operator asks it to.
+  const chosen = items.find((entry) => entry.seq === item);
 
   const shown = error ?? planError;
 
@@ -226,6 +232,19 @@ export function ActionsPanel() {
           >
             Jump
           </button>
+          <button
+            type="button"
+            className="button"
+            disabled={chosen === undefined}
+            title="Tell the vehicle to fly to this waypoint"
+            onClick={() => {
+              if (chosen !== undefined) {
+                void flyTo(chosen.x, chosen.y, chosen.z);
+              }
+            }}
+          >
+            Fly to
+          </button>
           <ConfirmButton
             label="Clear plan"
             confirmLabel="Confirm clear"
@@ -293,6 +312,19 @@ export function ActionsPanel() {
             setting the current item and jumping act on the plan the vehicle holds.
           </p>
         ) : null}
+      </section>
+
+      <section className={styles.block}>
+        <div className={styles.row}>
+          <ConfirmButton
+            label="Reboot"
+            confirmLabel="Confirm reboot"
+            variant="danger"
+            onConfirm={() => {
+              void rebootVehicle();
+            }}
+          />
+        </div>
       </section>
 
       {shown ? (

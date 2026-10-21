@@ -197,6 +197,9 @@ export interface UiStore {
 
   /** The provider of the tiles the map is drawn with. */
   readonly mapProvider: string;
+
+  /** Whether the next click on the map tells the vehicle to go there. */
+  readonly mapGoing: boolean;
   /** Whether the sheet of parameters is open over the window. */
   readonly parametersOpen: boolean;
   /**
@@ -235,6 +238,9 @@ export interface UiStore {
 
   /** Chooses the provider of the tiles the map is drawn with. */
   readonly setMapProvider: (provider: string) => void;
+
+  /** Says whether the next click on the map tells the vehicle to go there. */
+  readonly setMapGoing: (going: boolean) => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -275,6 +281,7 @@ export const useUiStore = create<UiStore>((set) => ({
   followVehicle: readFlag("mpcraft.followVehicle", true),
   showMapControls: readFlag("mpcraft.showMapControls", true),
   mapProvider: readText("mpcraft.mapProvider", DEFAULT_PROVIDER),
+  mapGoing: false,
   parametersOpen: false,
   parameterGroup: null,
   parameterGroups: [],
@@ -331,6 +338,8 @@ export const useUiStore = create<UiStore>((set) => ({
     writeText("mpcraft.mapProvider", provider);
     set({ mapProvider: provider });
   },
+
+  setMapGoing: (going) => set({ mapGoing: going }),
 
   // The sheet of parameters is not remembered between runs: it is a thing the operator
   // opens, not a place the window is left in.

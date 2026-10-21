@@ -110,6 +110,45 @@ impl SessionSupervisor {
         Ok(())
     }
 
+    /// Tells the vehicle to go to a place.
+    ///
+    /// This is the guided mode: the vehicle flies to the place and stays there. The
+    /// vehicle has to be in the guided mode for it to obey.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the link cannot carry the
+    /// message.
+    pub async fn set_position_target(
+        &self,
+        vehicle: VehicleId,
+        latitude: f64,
+        longitude: f64,
+        altitude: f32,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .set_position_target(vehicle, latitude, longitude, altitude)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle to restart.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the link cannot carry the
+    /// command.
+    pub async fn reboot(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session.reboot(vehicle).await?;
+
+        Ok(())
+    }
+
     /// Downloads the plan the vehicle holds.
     ///
     /// # Errors

@@ -13,6 +13,7 @@ import {
   circlesOf,
   ringOf,
 } from "../../lib/plan/fence";
+import { flyTo } from "../../lib/flight/flightActions";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -204,6 +205,8 @@ export function FlightMap() {
   const showControls = useUiStore((state) => state.showMapControls);
   const mapProvider = useUiStore((state) => state.mapProvider);
   const setMapProvider = useUiStore((state) => state.setMapProvider);
+  const mapGoing = useUiStore((state) => state.mapGoing);
+  const setMapGoing = useUiStore((state) => state.setMapGoing);
   const setFollow = useUiStore((state) => state.setFollowVehicle);
   const toggleControls = useUiStore((state) => state.toggleMapControls);
 
@@ -443,8 +446,22 @@ export function FlightMap() {
       setFailure(message);
     });
 
-    // A click on the map adds an item, when the editor is armed for it.
+    // A click on the map does one of two things: it tells the vehicle to go there, when
+    // the tool is armed, and it adds an item to the plan, when the editor is armed for
+    // it.
     instance.on("click", (event) => {
+      const going = useUiStore.getState().mapGoing;
+
+      if (going) {
+        useUiStore.getState().setMapGoing(false);
+
+        // The vehicle keeps the height it has: the operator said where, not how high.
+        const altitude = liveTelemetry.value.position?.alt ?? 0;
+
+        void flyTo(event.lngLat.lat, event.lngLat.lng, altitude);
+        return;
+      }
+
       const editor = usePlanEditorStore.getState();
       if (!editor.open || !editor.adding) {
         return;
@@ -840,6 +857,18 @@ export function FlightMap() {
             onClick={() => setFollow(!follow)}
           >
             {follow ? "Following" : "Follow"}
+          </button>
+        ) : null}
+
+        {showControls ? (
+          <button
+            type="button"
+            className={`${styles.follow} ${mapGoing ? styles.followOn : ""}`}
+            aria-pressed={mapGoing}
+            title="Click the map to tell the vehicle to go there"
+            onClick={() => setMapGoing(!mapGoing)}
+          >
+            {mapGoing ? "Click the map" : "Go here"}
           </button>
         ) : null}
         <button

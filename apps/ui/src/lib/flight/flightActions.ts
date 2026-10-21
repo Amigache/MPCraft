@@ -4,8 +4,10 @@ import {
   disarm,
   jumpToItem,
   normaliseError,
+  reboot,
   setCurrentItem,
   setMode,
+  setPositionTarget,
   takeoff,
 } from "../ipc/bridge";
 import type { ConnectResponse } from "../ipc/types";
@@ -80,6 +82,40 @@ export async function jumpTo(seq: number): Promise<void> {
   try {
     await jumpToItem(seq);
     report(null, `the vehicle jumped to item ${seq + 1}`);
+  } catch (cause) {
+    report(normaliseError(cause), null);
+  }
+}
+
+/**
+ * Tells the vehicle to go to a place.
+ *
+ * The vehicle has to be in the guided mode to obey, and the height is the one it is
+ * told to keep.
+ */
+export async function flyTo(
+  latitude: number,
+  longitude: number,
+  altitude: number,
+): Promise<void> {
+  const report = useActivityStore.getState().report;
+  try {
+    await setPositionTarget(latitude, longitude, altitude);
+    report(
+      null,
+      `the vehicle was told to go to ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+    );
+  } catch (cause) {
+    report(normaliseError(cause), null);
+  }
+}
+
+/** Asks the vehicle to restart. */
+export async function rebootVehicle(): Promise<void> {
+  const report = useActivityStore.getState().report;
+  try {
+    await reboot();
+    report(null, "the vehicle was asked to restart");
   } catch (cause) {
     report(normaliseError(cause), null);
   }

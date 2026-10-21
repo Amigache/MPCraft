@@ -36,7 +36,10 @@ use std::time::Duration;
 // carries the custom mode exactly — as a `u32`, without the float rounding the command
 // suffers — and every autopilot still understands it. Both are sent.
 #[allow(deprecated)]
-use mpcraft_mavlink::dialect::messages::{COMMAND_INT_DATA, COMMAND_LONG_DATA, SET_MODE_DATA};
+use mpcraft_mavlink::dialect::messages::{
+    PositionTargetTypemask, COMMAND_INT_DATA, COMMAND_LONG_DATA, SET_MODE_DATA,
+    SET_POSITION_TARGET_GLOBAL_INT_DATA,
+};
 use mpcraft_mavlink::{MavCmd, MavFrame, MavMessage, MavModeFlag, MavResult};
 
 use crate::error::LinkError;
@@ -54,6 +57,9 @@ pub const COMMAND_ACK_ID: u32 = 77;
 
 /// The message id of `SET_MODE`.
 pub const SET_MODE_ID: u32 = 11;
+
+/// The message id of `SET_POSITION_TARGET_GLOBAL_INT`.
+pub const SET_POSITION_TARGET_ID: u32 = 86;
 
 /// How long to wait for the acknowledgement of a command.
 ///
@@ -199,6 +205,88 @@ impl Session {
         )
         .await
         .map(|_| ())
+    }
+
+    /// Tells the vehicle to go to a place.
+    ///
+    /// This is the guided mode: the vehicle flies to the place it is told and stays
+    /// there. The place is given in the integer form of the protocol, so that the
+    /// coordinates do not lose their precision.
+    ///
+    /// The mask says what the vehicle is to change: the three speeds and the three
+    /// accelerations are left alone, so that the vehicle keeps flying as it was flying
+    /// and only the place changes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the message.
+    pub async fn set_position_target(
+        &self,
+        vehicle: VehicleId,
+        latitude: f64,
+        longitude: f64,
+        altitude: f32,
+    ) -> Result<(), LinkError> {
+        let message =
+            MavMessage::SET_POSITION_TARGET_GLOBAL_INT(SET_POSITION_TARGET_GLOBAL_INT_DATA {
+                time_boot_ms: 0,
+                // The integer form scales the coordinates by 1e7.
+                lat_int: (latitude * 1e7).round() as i32,
+                lon_int: (longitude * 1e7).round() as i32,
+                alt: altitude,
+                vx: 0.0,
+                vy: 0.0,
+                vz: 0.0,
+                afx: 0.0,
+                afy: 0.0,
+                afz: 0.0,
+                yaw: 0.0,
+                yaw_rate: 0.0,
+                // The position and the height are what changes; everything else is left
+                // as the vehicle has it.
+                type_mask: PositionTargetTypemask::POSITION_TARGET_TYPEMASK_VX_IGNORE
+                    | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_VY_IGNORE
+                    | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_VZ_IGNORE
+                    | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_AX_IGNORE
+                    | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_AY_IGNORE
+                    | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_AZ_IGNORE
+                    | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_YAW_IGNORE
+                    | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE,
+                target_system: vehicle.system_id,
+                target_component: vehicle.component_id,
+                coordinate_frame: MavFrame::MAV_FRAME_GLOBAL,
+            });
+
+        self.write_message(&message).await
+    }
+
+    /// Asks the vehicle to restart.
+    ///
+    /// The command is sent and nothing is waited for: the vehicle is restarting, and the
+    /// answer it would give is the answer of a vehicle that is no longer there. The link
+    /// notices that the vehicle is gone on its own.
+    ///
+    /// The first parameter says what is restarted: one is the autopilot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the command.
+    pub async fn reboot(&self, vehicle: VehicleId) -> Result<(), LinkError> {
+        let message = MavMessage::COMMAND_LONG(COMMAND_LONG_DATA {
+            param1: 1.0,
+            param2: 0.0,
+            param3: 0.0,
+            param4: 0.0,
+            param5: 0.0,
+            param6: 0.0,
+            param7: 0.0,
+            command: MavCmd::MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+            target_system: vehicle.system_id,
+            target_component: vehicle.component_id,
+            confirmation: 0,
+        });
+
+        self.write_message(&message).await
     }
 
     /// Executes a command with floating-point parameters.
