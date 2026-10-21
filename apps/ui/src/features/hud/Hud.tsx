@@ -10,6 +10,12 @@ import styles from "./Hud.module.css";
  * The sky and the ground are one picture that turns with the roll and slides with the
  * pitch; the pitch ladder, the bank scale and the heading ribbon are drawn on top of it.
  *
+ * The drawing is laid out by proportion, not by accident: the heading and the bank are at
+ * the top, the horizon is in the middle, the tapes of the air and of the height are at
+ * the sides, and the readings are in the four corners. Everything is measured from the
+ * edges of the drawing, so that the instrument keeps its shape when the panel it is in
+ * is dragged wider or narrower.
+ *
  * The drawing is updated by writing attributes on the SVG elements, not by re-rendering
  * the component: a telemetry tick must not cost a reconciliation of the tree.
  */
@@ -23,28 +29,43 @@ const DESIGN_HEIGHT = 216;
 /** The height of the heading ribbon. */
 const RIBBON_HEIGHT = 22;
 
-/** The centre of the glass. */
+/** The centre of the glass: where the horizon is. */
 const CENTRE_X = 160;
 const CENTRE_Y = 132;
 
 /** How many pixels a degree of pitch is worth. */
-const PITCH_PIXELS = 3;
+const PITCH_PIXELS = 2.2;
 
 /** How many pixels a degree of heading is worth on the ribbon. */
 const HEADING_PIXELS = 3;
 
 /** The radius of the bank scale. */
-const BANK_RADIUS = 96;
+const BANK_RADIUS = 100;
+
+/** How far inside the bank scale its numbers are written. */
+const BANK_LABEL_GAP = 12;
+
+/** Where the numbers of the ladder are written: outside the arc of the bank. */
+const LADDER_LABEL_X = 52;
+
+/** Where the lines of the ladder start. */
+const LADDER_LINE_X = 58;
 
 /** The pitch the ladder is marked at. */
 const LADDER_PITCHES = [10, 20, 30] as const;
 
+/** The bank the scale is marked at. */
+const BANK_MARKS = [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60] as const;
+
+/** The bank the scale is written at. */
+const BANK_LABELS = [-60, -45, -30, -20, -10, 10, 20, 30, 45, 60] as const;
+
 /** The tapes of the sides: the airspeed on the left, the height on the right. */
-const TAPE_TOP = 44;
-const TAPE_BOTTOM = 168;
-const TAPE_WIDTH = 30;
-const AIR_TAPE_X = 6;
-const ALT_TAPE_X = DESIGN_WIDTH - TAPE_WIDTH - 6;
+const TAPE_TOP = 46;
+const TAPE_BOTTOM = 170;
+const TAPE_WIDTH = 26;
+const AIR_TAPE_X = 4;
+const ALT_TAPE_X = DESIGN_WIDTH - TAPE_WIDTH - 4;
 
 /** The marks of the tape of the airspeed, in metres per second. */
 const AIR_TAPE_MARKS = [0, 10, 20, 30, 40, 50] as const;
@@ -53,21 +74,8 @@ const AIR_TAPE_MARKS = [0, 10, 20, 30, 40, 50] as const;
 const ALT_TAPE_MARKS = [0, 20, 40, 60, 80, 100] as const;
 
 /** How many metres a second of the tape is worth. */
-const AIR_TAPE_SCALE = 1.6;
-const ALT_TAPE_SCALE = 1.2;
-
-/** The bank the scale is marked at. */
-const BANK_MARKS = [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60] as const;
-
-/** The bank the scale is written at. */
-const BANK_LABELS = [-60, -45, -30, -20, -10, 10, 20, 30, 45, 60] as const;
-
-/** Writes a reading into an element of the drawing. */
-function write(element: SVGTextElement | null, text: string): void {
-  if (element !== null && element.textContent !== text) {
-    element.textContent = text;
-  }
-}
+const AIR_TAPE_SCALE = 1.4;
+const ALT_TAPE_SCALE = 1.1;
 
 /** A point on a circle, with zero at the top and the angle growing clockwise. */
 function polar(radius: number, angle: number): { x: number; y: number } {
@@ -84,6 +92,13 @@ function arc(radius: number, from: number, to: number): string {
   const end = polar(radius, to);
   const large = Math.abs(to - from) > 180 ? 1 : 0;
   return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius} ${radius} 0 ${large} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+}
+
+/** Writes a reading into an element of the drawing. */
+function write(element: SVGTextElement | null, text: string): void {
+  if (element !== null && element.textContent !== text) {
+    element.textContent = text;
+  }
 }
 
 /** The name a heading is given on the ribbon. */
@@ -208,7 +223,8 @@ export function Hud() {
       // The readings of the sides. The numbers are the ones the vehicle sent, and they
       // are said in the unit the operator reads them in.
       const airspeed = telemetry.airspeed?.airspeed ?? null;
-      const groundSpeed = telemetry.airspeed?.groundSpeed ?? telemetry.velocity?.groundSpeed ?? null;
+      const groundSpeed =
+        telemetry.airspeed?.groundSpeed ?? telemetry.velocity?.groundSpeed ?? null;
       const altitude = telemetry.position?.alt ?? null;
       const climb = telemetry.airspeed?.climb ?? null;
       const throttle = telemetry.airspeed?.throttle ?? null;
@@ -235,9 +251,7 @@ export function Hud() {
       );
       write(
         gpsValue.current,
-        gps === null
-          ? "GPS: no fix"
-          : `GPS: ${gps.satellites} sats`,
+        gps === null ? "GPS: no fix" : `GPS: ${gps.satellites} sats`,
       );
       write(climbValue.current, climb === null ? "" : `${climb.toFixed(1)} m/s`);
       write(
@@ -270,10 +284,12 @@ export function Hud() {
     return liveTelemetry.subscribe(draw);
   }, []);
 
-  // The drawing is scaled to fit the box and centred in it.
+  // The drawing is scaled to fit the box and anchored to the top of it: the heading
+  // ribbon is the first thing the panel shows, and the sky and the ground fill the
+  // rest of it.
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
   const offsetX = (width - DESIGN_WIDTH * scale) / 2;
-  const offsetY = (height - DESIGN_HEIGHT * scale) / 2;
+  const offsetY = 0;
   const placement = `translate(${offsetX.toFixed(2)} ${offsetY.toFixed(2)}) scale(${scale.toFixed(4)})`;
 
   return (
@@ -337,14 +353,13 @@ export function Hud() {
               {LADDER_PITCHES.map((pitch) =>
                 [pitch, -pitch].map((value) => {
                   const y = CENTRE_Y - value * PITCH_PIXELS;
-                  const length = 24 + Math.min(18, (Math.abs(value) - 10) * 2);
                   const gap = 11;
                   const label = Math.abs(value).toString();
                   return (
                     <g key={value}>
                       <line
                         className={styles.ladder}
-                        x1={CENTRE_X - length}
+                        x1={LADDER_LINE_X}
                         y1={y}
                         x2={CENTRE_X - gap}
                         y2={y}
@@ -353,40 +368,28 @@ export function Hud() {
                         className={styles.ladder}
                         x1={CENTRE_X + gap}
                         y1={y}
-                        x2={CENTRE_X + length}
+                        x2={DESIGN_WIDTH - LADDER_LINE_X}
                         y2={y}
                       />
-                      <text
-                        className={styles.ladderLabel}
-                        x={CENTRE_X - length - 4}
-                        y={y + 3}
-                        textAnchor="end"
-                      >
-                        {label}
-                      </text>
+                      {value > 0 ? (
+                        <text
+                          className={styles.ladderLabel}
+                          x={LADDER_LABEL_X}
+                          y={y + 3}
+                          textAnchor="end"
+                        >
+                          {label}
+                        </text>
+                      ) : null}
                     </g>
                   );
                 }),
               )}
             </g>
 
-            {/* The bank scale. It is marked with its numbers, the way an
-                instrument is: a pilot reads the bank off the scale. */}
+            {/* The bank scale. Its numbers are written outside the arc, so that they
+                do not fall on the pitch ladder. */}
             <path className={styles.bankArc} d={arc(BANK_RADIUS, -60, 60)} />
-            {BANK_LABELS.map((mark) => {
-              const at = polar(BANK_RADIUS - 14, mark);
-              return (
-                <text
-                  key={mark}
-                  className={styles.bankLabel}
-                  x={at.x.toFixed(2)}
-                  y={(at.y + 3).toFixed(2)}
-                  textAnchor="middle"
-                >
-                  {mark}
-                </text>
-              );
-            })}
             {BANK_MARKS.map((mark) => {
               const major = mark % 30 === 0 || mark === 0;
               const outer = polar(BANK_RADIUS, mark);
@@ -402,12 +405,26 @@ export function Hud() {
                 />
               );
             })}
+            {BANK_LABELS.map((mark) => {
+              const at = polar(BANK_RADIUS - BANK_LABEL_GAP, mark);
+              return (
+                <text
+                  key={mark}
+                  className={styles.bankLabel}
+                  x={at.x.toFixed(2)}
+                  y={(at.y + 3).toFixed(2)}
+                  textAnchor="middle"
+                >
+                  {mark}
+                </text>
+              );
+            })}
 
             {/* The pointer, fixed to the aircraft. */}
             <g ref={pointer}>
               <path
                 className={styles.bankPointer}
-                d={`M ${CENTRE_X} ${CENTRE_Y - BANK_RADIUS + 4} l -5 10 l 10 0 Z`}
+                d={`M ${CENTRE_X} ${CENTRE_Y - BANK_RADIUS + 5} l -5 10 l 10 0 Z`}
               />
             </g>
 
@@ -464,11 +481,18 @@ export function Hud() {
                 </g>
               );
             })}
+            <rect
+              className={styles.tapeBox}
+              x={AIR_TAPE_X}
+              y={TAPE_TOP - 16}
+              width={TAPE_WIDTH + 6}
+              height={16}
+            />
             <text
               ref={airspeedValue}
               className={styles.tapeValue}
-              x={AIR_TAPE_X + TAPE_WIDTH - 2}
-              y={TAPE_TOP + 14}
+              x={AIR_TAPE_X + TAPE_WIDTH + 1}
+              y={TAPE_TOP - 4}
               textAnchor="end"
             />
           </g>
@@ -507,11 +531,18 @@ export function Hud() {
                 </g>
               );
             })}
+            <rect
+              className={styles.tapeBox}
+              x={ALT_TAPE_X - 6}
+              y={TAPE_TOP - 16}
+              width={TAPE_WIDTH + 6}
+              height={16}
+            />
             <text
               ref={altitudeValue}
               className={styles.tapeValue}
-              x={ALT_TAPE_X + 2}
-              y={TAPE_TOP + 14}
+              x={ALT_TAPE_X + 1}
+              y={TAPE_TOP - 4}
             />
           </g>
         </g>
@@ -524,11 +555,11 @@ export function Hud() {
               ref={armedValue}
               className={styles.armed}
               x={CENTRE_X}
-              y={CENTRE_Y - 22}
+              y={36}
               textAnchor="middle"
             />
 
-            <g ref={throttleBars} transform={`translate(${DESIGN_WIDTH - 74} 32)`}>
+            <g ref={throttleBars} transform={`translate(40 28)`}>
               {Array.from({ length: 10 }, (_, index) => (
                 <rect
                   key={index}
@@ -543,40 +574,39 @@ export function Hud() {
             <text
               ref={throttleValue}
               className={styles.small}
-              x={DESIGN_WIDTH - 30}
-              y={41}
-              textAnchor="end"
+              x={86}
+              y={37}
             />
             <text
               ref={clockValue}
               className={styles.clock}
-              x={DESIGN_WIDTH - 8}
-              y={58}
+              x={DESIGN_WIDTH - 34}
+              y={37}
               textAnchor="end"
             />
 
-            <text ref={airValue} className={styles.small} x={8} y={176} />
-            <text ref={groundValue} className={styles.small} x={8} y={190} />
-            <text ref={batteryValue} className={styles.small} x={8} y={204} />
+            <text ref={airValue} className={styles.small} x={6} y={186} />
+            <text ref={groundValue} className={styles.small} x={6} y={198} />
+            <text ref={batteryValue} className={styles.small} x={6} y={210} />
             <text
               ref={modeValue}
               className={styles.mode}
-              x={DESIGN_WIDTH - 8}
-              y={176}
+              x={DESIGN_WIDTH - 6}
+              y={186}
               textAnchor="end"
             />
             <text
               ref={climbValue}
               className={styles.small}
-              x={DESIGN_WIDTH - 8}
-              y={190}
+              x={DESIGN_WIDTH - 6}
+              y={198}
               textAnchor="end"
             />
             <text
               ref={gpsValue}
               className={styles.small}
-              x={DESIGN_WIDTH - 8}
-              y={204}
+              x={DESIGN_WIDTH - 6}
+              y={210}
               textAnchor="end"
             />
           </g>
@@ -585,6 +615,13 @@ export function Hud() {
         {/* The heading ribbon. */}
         <g clipPath={`url(#${ribbonId})`}>
           <g transform={placement}>
+            <rect
+              className={styles.ribbonBack}
+              x={-400}
+              y={0}
+              width={1120}
+              height={RIBBON_HEIGHT}
+            />
             <g ref={ribbon}>
               {RIBBON_HEADINGS.map((heading) => {
                 const x = (heading + 180) * HEADING_PIXELS;
@@ -596,13 +633,13 @@ export function Hud() {
                       x1={x}
                       y1={RIBBON_HEIGHT}
                       x2={x}
-                      y2={major ? RIBBON_HEIGHT - 9 : RIBBON_HEIGHT - 4}
+                      y2={major ? RIBBON_HEIGHT - 10 : RIBBON_HEIGHT - 5}
                     />
                     {major ? (
                       <text
                         className={styles.ribbonLabel}
                         x={x}
-                        y={RIBBON_HEIGHT - 11}
+                        y={RIBBON_HEIGHT - 13}
                         textAnchor="middle"
                       >
                         {compassLabel(heading)}
