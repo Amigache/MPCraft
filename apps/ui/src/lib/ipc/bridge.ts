@@ -30,6 +30,7 @@ import type {
   SerialPort,
   Telemetry,
   TerrainPoint,
+  TileBounds,
   VehicleEvent,
   VehicleKey,
   VehicleLog,
@@ -453,6 +454,26 @@ export async function logMessageSamples(
   limit = 200,
 ): Promise<MessageSamples> {
   return call<MessageSamples>("log_message_samples", { path, name, limit });
+}
+
+/**
+ * Fetches the tiles of a region and keeps them on the disk.
+ *
+ * A survey is flown where there is no signal: the tiles of the field are fetched
+ * before the flight, and the map is drawn with the ones that are there.
+ */
+export async function prefetchTiles(
+  template: string,
+  provider: string,
+  bounds: TileBounds,
+  zooms: readonly number[],
+): Promise<number> {
+  return call<number>("prefetch_tiles", {
+    template,
+    provider,
+    bounds,
+    zooms: [...zooms],
+  });
 }
 
 /** The track of a log: the places the vehicle went through. */

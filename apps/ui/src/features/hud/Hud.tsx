@@ -25,10 +25,10 @@ const RIBBON_HEIGHT = 22;
 
 /** The centre of the glass. */
 const CENTRE_X = 160;
-const CENTRE_Y = 126;
+const CENTRE_Y = 132;
 
 /** How many pixels a degree of pitch is worth. */
-const PITCH_PIXELS = 3.4;
+const PITCH_PIXELS = 3;
 
 /** How many pixels a degree of heading is worth on the ribbon. */
 const HEADING_PIXELS = 3;

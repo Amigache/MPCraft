@@ -96,7 +96,7 @@
 
 .failure {
   background: var(--colour-danger-wash);
-  border: 1px solid #6d2b28;
+  border: 1px solid var(--colour-danger-border);
   border-radius: var(--radius-sm);
   color: var(--colour-danger);
   font-size: var(--font-xs);
@@ -150,7 +150,7 @@
 .itemSelected {
   background: var(--colour-accent);
   border-color: var(--colour-accent);
-  color: #04231b;
+  color: var(--colour-accent-ink);
 }
 
 .itemCurrent {
@@ -159,11 +159,11 @@
 }
 
 .itemSelected.itemCurrent {
-  color: #04231b;
+  color: var(--colour-accent-ink);
 }
 
 .caption {
-  background: rgba(13, 17, 23, 0.75);
+  background: var(--colour-scrim);
   border-radius: var(--radius-sm);
   bottom: var(--space-2);
   color: var(--colour-text-dim);
@@ -193,11 +193,40 @@
 }
 
 .map :global(.maplibregl-ctrl-attrib) {
-  background: rgba(13, 17, 23, 0.75);
+  background: var(--colour-scrim);
   color: var(--colour-text-faint);
   font-size: 10px;
 }
 
 .map :global(.maplibregl-ctrl-attrib a) {
   color: var(--colour-text-dim);
+}
+
+/* The area that is kept for the flight ---------------------------------------- */
+
+.area {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  position: absolute;
+  right: var(--space-3);
+  top: var(--space-3);
+  width: 280px;
+  z-index: 5;
+}
+
+.areaField {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.areaActions {
+  display: flex;
+  gap: var(--space-2);
 }

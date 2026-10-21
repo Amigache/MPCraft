@@ -49,3 +49,23 @@ export function modeValue(
   const found = modes.find((mode) => mode.name.trim().toLowerCase() === wanted);
   return found ? found.value : null;
 }
+
+/**
+ * The name of a mode, by the number the vehicle says.
+ *
+ * The number is what travels; the name is what the operator reads. The list of the modes
+ * comes from the backend, which owns the numbering, so the name is a lookup and not a
+ * guess: a mode the list does not know is shown as the number it has.
+ */
+export function modeName(
+  modes: readonly FlightMode[],
+  value: number | null,
+): string | null {
+  if (value === null) {
+    return null;
+  }
+
+  const found = modes.find((mode) => mode.value === value);
+
+  return found ? found.name : String(value);
+}

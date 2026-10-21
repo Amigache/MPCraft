@@ -81,7 +81,7 @@
 
 .error {
   background: var(--colour-danger-wash);
-  border: 1px solid #6d2b28;
+  border: 1px solid var(--colour-danger-border);
   border-radius: var(--radius-sm);
   color: var(--colour-danger);
   font-size: var(--font-xs);

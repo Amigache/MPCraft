@@ -1,44 +1,44 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_GRAPH_HEIGHT,
-  DEFAULT_HUD_HEIGHT,
-  DEFAULT_LEFT_WIDTH,
-  MAX_GRAPH_HEIGHT,
-  MAX_HUD_HEIGHT,
-  MAX_LEFT_WIDTH,
-  MIN_GRAPH_HEIGHT,
-  MIN_HUD_HEIGHT,
-  MIN_LEFT_WIDTH,
+  DEFAULT_HUD_FRACTION,
+  DEFAULT_LEFT_FRACTION,
+  DEFAULT_TOP_FRACTION,
   TABS,
   useUiStore,
 } from "./uiStore";
 
 describe("the state of the interface", () => {
-  it("keeps the panels within their limits", () => {
+  it("keeps the proportions of the layout within their limits", () => {
     const store = useUiStore.getState();
 
-    store.setLeftColumnWidth(10);
-    expect(useUiStore.getState().leftColumnWidth).toBe(MIN_LEFT_WIDTH);
+    store.setLeftColumnFraction(0.01);
+    expect(useUiStore.getState().leftColumnFraction).toBeCloseTo(0.12, 6);
 
-    store.setLeftColumnWidth(10_000);
-    expect(useUiStore.getState().leftColumnWidth).toBe(MAX_LEFT_WIDTH);
+    store.setLeftColumnFraction(0.99);
+    expect(useUiStore.getState().leftColumnFraction).toBeCloseTo(0.42, 6);
 
-    store.setLeftColumnWidth(DEFAULT_LEFT_WIDTH);
-    expect(useUiStore.getState().leftColumnWidth).toBe(DEFAULT_LEFT_WIDTH);
+    store.setLeftColumnFraction(DEFAULT_LEFT_FRACTION);
+    expect(useUiStore.getState().leftColumnFraction).toBeCloseTo(
+      DEFAULT_LEFT_FRACTION,
+      6,
+    );
   });
 
   it("keeps the attitude indicator within its limits", () => {
     const store = useUiStore.getState();
 
-    store.setHudHeight(10);
-    expect(useUiStore.getState().hudHeight).toBe(MIN_HUD_HEIGHT);
+    store.setHudFraction(0.01);
+    expect(useUiStore.getState().hudFraction).toBeCloseTo(0.2, 6);
 
-    store.setHudHeight(10_000);
-    expect(useUiStore.getState().hudHeight).toBe(MAX_HUD_HEIGHT);
+    store.setHudFraction(0.99);
+    expect(useUiStore.getState().hudFraction).toBeCloseTo(0.65, 6);
 
-    store.setHudHeight(DEFAULT_HUD_HEIGHT);
-    expect(useUiStore.getState().hudHeight).toBe(DEFAULT_HUD_HEIGHT);
+    store.setHudFraction(DEFAULT_HUD_FRACTION);
+    expect(useUiStore.getState().hudFraction).toBeCloseTo(
+      DEFAULT_HUD_FRACTION,
+      6,
+    );
   });
 
   it("names the tabs the way upstream names them", () => {
@@ -54,17 +54,20 @@ describe("the state of the interface", () => {
     ]);
   });
 
-  it("keeps the graphs within their limits", () => {
+  it("keeps the pane above the map within its limits", () => {
     const store = useUiStore.getState();
 
-    store.setGraphHeight(10);
-    expect(useUiStore.getState().graphHeight).toBe(MIN_GRAPH_HEIGHT);
+    store.setTopFraction(0.01);
+    expect(useUiStore.getState().topFraction).toBeCloseTo(0.15, 6);
 
-    store.setGraphHeight(10_000);
-    expect(useUiStore.getState().graphHeight).toBe(MAX_GRAPH_HEIGHT);
+    store.setTopFraction(0.99);
+    expect(useUiStore.getState().topFraction).toBeCloseTo(0.75, 6);
 
-    store.setGraphHeight(DEFAULT_GRAPH_HEIGHT);
-    expect(useUiStore.getState().graphHeight).toBe(DEFAULT_GRAPH_HEIGHT);
+    store.setTopFraction(DEFAULT_TOP_FRACTION);
+    expect(useUiStore.getState().topFraction).toBeCloseTo(
+      DEFAULT_TOP_FRACTION,
+      6,
+    );
   });
 
   it("puts the graphs away and brings them back", () => {

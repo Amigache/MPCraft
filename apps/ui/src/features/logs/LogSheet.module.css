@@ -6,7 +6,7 @@
 
 .backdrop {
   align-items: flex-start;
-  background: rgba(6, 9, 13, 0.55);
+  background: var(--colour-overlay);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -19,7 +19,7 @@
   background: var(--colour-surface);
   border: 1px solid var(--colour-border-strong);
   border-radius: var(--radius);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 16px 48px var(--colour-shadow);
   display: flex;
   flex-direction: column;
   height: 100%;

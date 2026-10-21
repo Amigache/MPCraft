@@ -163,7 +163,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.2 | OSM / satellite / hybrid tile providers | `GMapProviders` registry | 🔜 | 1 |
 | 7.3 | Tile caching on disk | `ExtLibs/Maps/MyImageCache.cs` | 🔜 | 1 |
 | 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | 🔜 | 2 |
-| 7.5 | Tile prefetch for a region | `ExtLibs/GMap.NET.WindowsForms/TilePrefetcher.cs` | 🔜 | 2 |
+| 7.5 | Tile prefetch for a region | `ExtLibs/GMap.NET.WindowsForms/TilePrefetcher.cs` | ✅ | 2 |
 | 7.6 | Geofence / rally / home markers | `ExtLibs/Maps/GMapMarker*.cs` | ✅ | 2 |
 | 7.7 | UTM / MGRS coordinate conversion | `ExtLibs/Utilities/utmpos.cs`, `GeoUtility` | ✅ | 2 |
 | 7.8 | SRTM terrain elevation lookup | `ExtLibs/Utilities/srtm.cs` | ✅ | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 98 |
-| 🔜 Planned | 55 |
+| ✅ Done | 99 |
+| 🔜 Planned | 54 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 98 rows marked done are the connection, transport, parameter, mission and command
+The 99 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -293,6 +293,11 @@ The **samples of a message** are a grid in the sheet of the logs: the fields of 
 message are the columns and the samples are the rows, with the instant each of them
 happened at. Clicking a row moves the flight to that moment, so the grid, the map and
 the play-back are the same thing seen from three sides.
+
+The **tiles of the map** can be fetched before the flight and kept on the disk: a survey
+is flown where there is no signal, and the map of the field is drawn with the pictures
+that are there. The map's button says "Save the area", and the tiles of the region and
+of the levels of zoom below the present one are fetched.
 
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of

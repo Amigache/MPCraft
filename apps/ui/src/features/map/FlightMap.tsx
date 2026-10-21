@@ -2,6 +2,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { normaliseError, prefetchTiles } from "../../lib/ipc/bridge";
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
 import type { MavCommand, Plan, PlanItem, Telemetry } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
@@ -200,7 +201,69 @@ export function FlightMap() {
   } | null>(null);
 
   const [failure, setFailure] = useState<string | null>(null);
+  /**
+   * Fetches the tiles of the area that is on the map and keeps them.
+   *
+   * The tiles are the pictures of the ground, and a survey is flown where there is no
+   * signal: the tiles of the field are fetched before the flight, and the map is drawn
+   * with the ones that are there.
+   */
+  const saveArea = async () => {
+    const instance = map.current;
+    const provider = providerOf(mapProvider);
+
+    if (instance === null || provider.tiles === null) {
+      setSaving(false);
+      return;
+    }
+
+    const bounds = instance.getBounds();
+    const zoom = Math.floor(instance.getZoom());
+
+    const zooms: number[] = [];
+    for (let level = 0; level <= levels; level += 1) {
+      zooms.push(Math.max(0, zoom - level));
+    }
+
+    setBusy(true);
+
+    try {
+      const fetched = await prefetchTiles(
+        provider.tiles,
+        provider.id,
+        {
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest(),
+        },
+        zooms,
+      );
+
+      setNotice(
+        fetched === 0
+          ? "The tiles of the area were already on the disk."
+          : `${fetched} tiles were fetched and kept.`,
+      );
+      setSaving(false);
+    } catch (cause) {
+      setNotice(
+        `${normaliseError(cause).code} — the tiles could not be fetched.`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const [ready, setReady] = useState(false);
+  /** Whether the tiles of the area are being fetched. */
+  const [saving, setSaving] = useState(false);
+  /** How many levels of zoom below the present one are fetched. */
+  const [levels, setLevels] = useState(2);
+  /** What the last thing the map did said. */
+  const [notice, setNotice] = useState<string | null>(null);
+  /** Whether something is being done. */
+  const [busy, setBusy] = useState(false);
 
   const follow = useUiStore((state) => state.followVehicle);
   const showControls = useUiStore((state) => state.showMapControls);
@@ -881,6 +944,18 @@ export function FlightMap() {
             {mapGoing ? "Click the map" : "Go here"}
           </button>
         ) : null}
+        {providerOf(mapProvider).tiles !== null ? (
+          <button
+            type="button"
+            className={styles.control}
+            title="Fetch the tiles of this area and keep them, for a flight without a signal"
+            onClick={() => {
+              setSaving(true);
+            }}
+          >
+            Save the area
+          </button>
+        ) : null}
         <button
           type="button"
           className={styles.control}
@@ -890,6 +965,59 @@ export function FlightMap() {
           {showControls ? "Hide controls" : "Show controls"}
         </button>
       </div>
+
+      {saving ? (
+        <div className={styles.area} role="group" aria-label="Save the area">
+          <p className={styles.hint}>
+            The tiles of the area are fetched and kept, so that the map is drawn with
+            them when there is no signal.
+          </p>
+
+          <label className={styles.areaField}>
+            <span className={styles.hint}>Levels below</span>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={8}
+              value={levels}
+              aria-label="How many levels of zoom below the present one are fetched"
+              onChange={(event) => {
+                setLevels(Number(event.target.value));
+              }}
+            />
+          </label>
+
+          <div className={styles.areaActions}>
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={busy}
+              onClick={() => {
+                void saveArea();
+              }}
+            >
+              {busy ? "Fetching…" : "Fetch the tiles"}
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setSaving(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {notice !== null ? (
+        <p className={styles.hint} role="status">
+          {notice}
+        </p>
+      ) : null}
 
       <div className={styles.messages}>
         {adding ? (

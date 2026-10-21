@@ -52,8 +52,17 @@ export const TABS: readonly { id: TabId; label: string }[] = [
   { id: "aux", label: "Aux" },
 ];
 
-/** The width of the left column when nothing has been changed. */
-export const DEFAULT_LEFT_WIDTH = 320;
+/**
+ * The proportions of the layout.
+ *
+ * The layout is kept as proportions of the window, not as pixels: a ground station is
+ * used on a laptop, on a tablet in the field and on a screen in the van, and the same
+ * arrangement has to work on all three. The pixels are worked out when the window is
+ * measured, and the floors are what the proportions are not allowed to go under.
+ */
+
+/** The width of the left column, as a part of the window. */
+export const DEFAULT_LEFT_FRACTION = 0.22;
 
 /** The narrowest the left column may be dragged. */
 export const MIN_LEFT_WIDTH = 260;
@@ -61,8 +70,8 @@ export const MIN_LEFT_WIDTH = 260;
 /** The widest the left column may be dragged. */
 export const MAX_LEFT_WIDTH = 520;
 
-/** The height of the attitude indicator when nothing has been changed. */
-export const DEFAULT_HUD_HEIGHT = 216;
+/** The height of the attitude indicator, as a part of the column. */
+export const DEFAULT_HUD_FRACTION = 0.42;
 
 /** The narrowest the attitude indicator may be dragged. */
 export const MIN_HUD_HEIGHT = 140;
@@ -70,8 +79,8 @@ export const MIN_HUD_HEIGHT = 140;
 /** The tallest the attitude indicator may be dragged. */
 export const MAX_HUD_HEIGHT = 420;
 
-/** The height of the graphs when nothing has been changed. */
-export const DEFAULT_GRAPH_HEIGHT = 240;
+/** The height of the pane above the map, as a part of the area it shares. */
+export const DEFAULT_TOP_FRACTION = 0.3;
 
 /** The narrowest the graphs may be dragged. */
 export const MIN_GRAPH_HEIGHT = 100;
@@ -89,6 +98,23 @@ export const MAX_GRAPH_HEIGHT = 720;
 
 /** The narrowest the map may be left when the graphs are above it. */
 export const MIN_MAP_HEIGHT = 160;
+
+/**
+ * Reads a stored proportion, ignoring anything that is not one.
+ *
+ * The layout was kept in pixels before, and those pixels are read once and turned into
+ * a proportion: the arrangement of an installation that was set up with them is kept,
+ * and from then on it follows the window.
+ */
+function readFraction(key: string, fallback: number): number {
+  const stored = readNumber(key, Number.NaN);
+
+  if (Number.isFinite(stored)) {
+    return clamp(stored, 0.05, 0.95);
+  }
+
+  return fallback;
+}
 
 /** Reads a stored number, ignoring anything that is not one. */
 function readNumber(key: string, fallback: number): number {
@@ -200,12 +226,17 @@ function writeString(key: string, value: string): void {
 export interface UiStore {
   /** The tab that is open. */
   readonly activeTab: TabId;
-  /** The width of the left column, in pixels. */
-  readonly leftColumnWidth: number;
-  /** The height of the attitude indicator, in pixels. */
-  readonly hudHeight: number;
-  /** The height of the graphs, in pixels. */
-  readonly graphHeight: number;
+  /**
+   * The width of the left column, as a part of the window.
+   *
+   * The layout is kept as a proportion so that it survives a change of resolution: a
+   * column that is a fifth of the window is a fifth of it on every screen.
+   */
+  readonly leftColumnFraction: number;
+  /** The height of the attitude indicator, as a part of the column. */
+  readonly hudFraction: number;
+  /** The height of the pane above the map, as a part of the area it shares. */
+  readonly topFraction: number;
   /** Whether the left column is shown at all. */
   readonly showLeftColumn: boolean;
   /** Whether the graphs are shown at all. */
@@ -264,11 +295,11 @@ export interface UiStore {
   /** Opens a tab. */
   readonly setActiveTab: (tab: TabId) => void;
   /** Moves the edge of the left column. */
-  readonly setLeftColumnWidth: (width: number) => void;
+  readonly setLeftColumnFraction: (fraction: number) => void;
   /** Moves the edge of the attitude indicator. */
-  readonly setHudHeight: (height: number) => void;
-  /** Moves the edge of the graphs. */
-  readonly setGraphHeight: (height: number) => void;
+  readonly setHudFraction: (fraction: number) => void;
+  /** Moves the edge of the pane above the map. */
+  readonly setTopFraction: (fraction: number) => void;
   /** Shows or hides the left column. */
   readonly toggleLeftColumn: () => void;
   /** Shows or hides the graphs. */
@@ -328,21 +359,9 @@ const clamp = (value: number, low: number, high: number): number =>
 
 export const useUiStore = create<UiStore>((set) => ({
   activeTab: "quick",
-  leftColumnWidth: clamp(
-    readNumber("mpcraft.leftWidth", DEFAULT_LEFT_WIDTH),
-    MIN_LEFT_WIDTH,
-    MAX_LEFT_WIDTH,
-  ),
-  hudHeight: clamp(
-    readNumber("mpcraft.hudHeight", DEFAULT_HUD_HEIGHT),
-    MIN_HUD_HEIGHT,
-    MAX_HUD_HEIGHT,
-  ),
-  graphHeight: clamp(
-    readNumber("mpcraft.graphHeight", DEFAULT_GRAPH_HEIGHT),
-    MIN_GRAPH_HEIGHT,
-    MAX_GRAPH_HEIGHT,
-  ),
+  leftColumnFraction: readFraction("mpcraft.leftFraction", DEFAULT_LEFT_FRACTION),
+  hudFraction: readFraction("mpcraft.hudFraction", DEFAULT_HUD_FRACTION),
+  topFraction: readFraction("mpcraft.topFraction", DEFAULT_TOP_FRACTION),
   showLeftColumn: readFlag("mpcraft.showLeftColumn", true),
   showGraphs: readFlag("mpcraft.showGraphs", true),
   graphPreset: readString("mpcraft.graphPreset", ""),
@@ -362,22 +381,22 @@ export const useUiStore = create<UiStore>((set) => ({
 
   setActiveTab: (activeTab) => set({ activeTab }),
 
-  setLeftColumnWidth: (width) => {
-    const clamped = clamp(width, MIN_LEFT_WIDTH, MAX_LEFT_WIDTH);
-    writeNumber("mpcraft.leftWidth", clamped);
-    set({ leftColumnWidth: clamped });
+  setLeftColumnFraction: (fraction) => {
+    const clamped = clamp(fraction, 0.12, 0.42);
+    writeNumber("mpcraft.leftFraction", clamped);
+    set({ leftColumnFraction: clamped });
   },
 
-  setHudHeight: (height) => {
-    const clamped = clamp(height, MIN_HUD_HEIGHT, MAX_HUD_HEIGHT);
-    writeNumber("mpcraft.hudHeight", clamped);
-    set({ hudHeight: clamped });
+  setHudFraction: (fraction) => {
+    const clamped = clamp(fraction, 0.2, 0.65);
+    writeNumber("mpcraft.hudFraction", clamped);
+    set({ hudFraction: clamped });
   },
 
-  setGraphHeight: (height) => {
-    const clamped = clamp(height, MIN_GRAPH_HEIGHT, MAX_GRAPH_HEIGHT);
-    writeNumber("mpcraft.graphHeight", clamped);
-    set({ graphHeight: clamped });
+  setTopFraction: (fraction) => {
+    const clamped = clamp(fraction, 0.15, 0.75);
+    writeNumber("mpcraft.topFraction", clamped);
+    set({ topFraction: clamped });
   },
 
   toggleLeftColumn: () =>

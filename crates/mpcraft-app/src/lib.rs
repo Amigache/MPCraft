@@ -40,6 +40,7 @@
 #![warn(missing_docs)]
 
 use mpcraft_geo::terrain_service::TerrainService;
+use mpcraft_geo::tiles::TileService;
 use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
@@ -120,6 +121,14 @@ pub struct AppState {
     pub terrain: TerrainService,
 
     ///
+    /// The tiles of the map, fetched and kept on the disk.
+    ///
+    /// A map that is drawn without a link is a map that was drawn before the
+    /// flight: the tiles of the field are fetched and kept, and the map reads
+    /// them from the disk.
+    pub tiles: TileService,
+
+    ///
     /// The flight that is being played back, when one is.
     ///
     /// A log can be played back as if it were happening: the window shows the
@@ -135,6 +144,7 @@ impl Default for AppState {
             settings: SettingsStore::platform(),
             graphs: GraphHistory::new(),
             terrain: TerrainService::new(terrain_cache_dir()),
+            tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
         }
     }
@@ -145,6 +155,16 @@ impl Default for AppState {
 /// The tiles are kept beside the settings, in the configuration directory of the
 /// application. A machine that has no configuration directory keeps them in the
 /// temporary directory, which is the best that can be done there.
+/// The directory the tiles of the map are kept in.
+///
+/// The tiles are the pictures of the ground, and there are a great many of them: the
+/// folder is beside the one of the terrain.
+fn tile_cache_dir() -> std::path::PathBuf {
+    mpcraft_settings::platform_config_dir()
+        .map(|directory| directory.join("tiles"))
+        .unwrap_or_else(|| std::env::temp_dir().join("mpcraft-tiles"))
+}
+
 fn terrain_cache_dir() -> std::path::PathBuf {
     mpcraft_settings::platform_config_dir()
         .map(|directory| directory.join("terrain"))
@@ -319,6 +339,7 @@ mod tests {
             settings: Some(store),
             graphs: GraphHistory::new(),
             terrain: TerrainService::new(terrain_cache_dir()),
+            tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
         };
 
@@ -350,6 +371,7 @@ mod tests {
             settings: None,
             graphs: GraphHistory::new(),
             terrain: TerrainService::new(terrain_cache_dir()),
+            tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
         };
 

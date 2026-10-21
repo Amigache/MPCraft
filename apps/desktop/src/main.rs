@@ -1360,6 +1360,31 @@ async fn log_message_samples(
     mpcraft_app::logs::message_samples(std::path::Path::new(&path), &name, limit)
 }
 
+/// Fetches the tiles of a region and keeps them on the disk.
+///
+/// The tiles are the pictures of the ground, and a survey is flown where there is no
+/// signal: the tiles of the field are fetched before the flight, and the map is drawn
+/// with the ones that are there.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when a tile cannot be fetched, or when it
+/// cannot be kept.
+#[tauri::command]
+async fn prefetch_tiles(
+    state: State<'_, AppState>,
+    template: String,
+    provider: String,
+    bounds: mpcraft_geo::tiles::Bounds,
+    zooms: Vec<u8>,
+) -> CommandResult<usize> {
+    state
+        .tiles
+        .prefetch(&template, &provider, bounds, &zooms)
+        .await
+        .map_err(|error| CommandError::internal(error.to_string()))
+}
+
 /// The track of a log: the places the vehicle went through.
 ///
 /// # Errors
@@ -2271,9 +2296,17 @@ fn telemetry_of(telemetry: &Telemetry) -> TelemetryEvent {
             remaining: battery.remaining,
         }),
         mode: telemetry.mode.as_ref().map(|mode| {
-            mode.name
-                .clone()
-                .unwrap_or_else(|| format!("mode {}", mode.custom_mode))
+            // The name of the mode is the one the vehicle calls it: the list of the
+            // modes is the backend's, and the number the vehicle says is looked up in
+            // it. A mode the list does not know is shown by its number, because the
+            // operator would rather see the number than nothing.
+            mode.name.clone().unwrap_or_else(|| {
+                flight_modes()
+                    .iter()
+                    .find(|entry| entry.value == mode.custom_mode)
+                    .map(|entry| entry.name.clone())
+                    .unwrap_or_else(|| format!("mode {}", mode.custom_mode))
+            })
         }),
         armed: telemetry.armed,
         distance_to_home: telemetry.distance_to_home,
@@ -2470,6 +2503,7 @@ fn main() {
             list_mav_commands,
             graph_series,
             log_summary,
+            prefetch_tiles,
             log_message_samples,
             vehicle_logs,
             download_log,

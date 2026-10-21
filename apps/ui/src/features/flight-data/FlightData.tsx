@@ -27,6 +27,7 @@ import {
   TABS,
   useUiStore,
 } from "../../lib/ui/uiStore";
+import { useWindowSize } from "../../lib/ui/windowSize";
 import styles from "./FlightData.module.css";
 
 /**
@@ -46,20 +47,23 @@ import styles from "./FlightData.module.css";
  */
 export function FlightData() {
   const showLeftColumn = useUiStore((state) => state.showLeftColumn);
-  const leftColumnWidth = useUiStore((state) => state.leftColumnWidth);
-  const hudHeight = useUiStore((state) => state.hudHeight);
-  const graphHeight = useUiStore((state) => state.graphHeight);
+  const leftColumnFraction = useUiStore((state) => state.leftColumnFraction);
+  const hudFraction = useUiStore((state) => state.hudFraction);
+  const topFraction = useUiStore((state) => state.topFraction);
   const showGraphs = useUiStore((state) => state.showGraphs);
   const activeTab = useUiStore((state) => state.activeTab);
   const setActiveTab = useUiStore((state) => state.setActiveTab);
-  const setLeftColumnWidth = useUiStore((state) => state.setLeftColumnWidth);
-  const setHudHeight = useUiStore((state) => state.setHudHeight);
-  const setGraphHeight = useUiStore((state) => state.setGraphHeight);
+  const setLeftColumnFraction = useUiStore(
+    (state) => state.setLeftColumnFraction,
+  );
+  const setHudFraction = useUiStore((state) => state.setHudFraction);
+  const setTopFraction = useUiStore((state) => state.setTopFraction);
 
   const editorOpen = usePlanEditorStore((state) => state.open);
 
-  // The height of the area the graphs and the map share. It decides how tall the
-  // graphs may be: the map is never left smaller than it can be worked in.
+  // The size of the window, and the height of the area the graphs and the map share.
+  // They decide how many pixels the proportions are worth.
+  const windowSize = useWindowSize();
   const split = useRef<HTMLDivElement | null>(null);
   const [available, setAvailable] = useState(0);
 
@@ -89,7 +93,27 @@ export function FlightData() {
   // buttons, and a grid that is two rows tall is not a grid.
   const minTop = editorOpen ? MIN_PLAN_HEIGHT : MIN_GRAPH_HEIGHT;
   const maxTop = Math.max(minTop, tallestGraph);
-  const drawnGraphHeight = Math.min(Math.max(graphHeight, minTop), maxTop);
+
+  // The layout is kept as proportions, and the pixels are worked out here: the column
+  // is a part of the window, the attitude indicator a part of the column, and the pane
+  // above the map a part of the area it shares with the map.
+  const leftColumnWidth = Math.min(
+    MAX_LEFT_WIDTH,
+    Math.max(MIN_LEFT_WIDTH, Math.round(windowSize.width * leftColumnFraction)),
+  );
+
+  const hudHeight = Math.min(
+    MAX_HUD_HEIGHT,
+    Math.max(
+      MIN_HUD_HEIGHT,
+      Math.round(windowSize.height * hudFraction),
+    ),
+  );
+
+  const drawnGraphHeight = Math.min(
+    Math.max(Math.round(available * topFraction), minTop),
+    maxTop,
+  );
 
   // The graphs are put away while the plan is being edited.
   const graphsVisible = showGraphs && !editorOpen;
@@ -113,7 +137,9 @@ export function FlightData() {
               value={hudHeight}
               min={MIN_HUD_HEIGHT}
               max={MAX_HUD_HEIGHT}
-              onChange={setHudHeight}
+              onChange={(height) => {
+                setHudFraction(height / Math.max(1, windowSize.height));
+              }}
             />
 
             <div className={styles.tabs}>
@@ -204,7 +230,9 @@ export function FlightData() {
             value={leftColumnWidth}
             min={MIN_LEFT_WIDTH}
             max={MAX_LEFT_WIDTH}
-            onChange={setLeftColumnWidth}
+            onChange={(width) => {
+              setLeftColumnFraction(width / Math.max(1, windowSize.width));
+            }}
           />
         </>
       ) : null}
@@ -226,7 +254,9 @@ export function FlightData() {
                 value={drawnGraphHeight}
                 min={minTop}
                 max={maxTop}
-                onChange={setGraphHeight}
+                onChange={(height) => {
+                  setTopFraction(height / Math.max(1, available));
+                }}
               />
             </>
           ) : graphsVisible ? (
@@ -244,7 +274,9 @@ export function FlightData() {
                 value={drawnGraphHeight}
                 min={MIN_GRAPH_HEIGHT}
                 max={maxTop}
-                onChange={setGraphHeight}
+                onChange={(height) => {
+                  setTopFraction(height / Math.max(1, available));
+                }}
               />
             </>
           ) : null}

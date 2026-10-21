@@ -170,7 +170,7 @@
 }
 
 .iconButton:hover:not(:disabled) {
-  background: #232c3a;
+  background: var(--colour-hover);
   border-color: var(--colour-border-strong);
   color: var(--colour-text);
 }

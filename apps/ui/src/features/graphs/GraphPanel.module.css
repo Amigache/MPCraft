@@ -93,7 +93,7 @@
 
 .error {
   background: var(--colour-danger-wash);
-  border-top: 1px solid #6d2b28;
+  border-top: 1px solid var(--colour-danger-border);
   color: var(--colour-danger);
   flex: 0 0 auto;
   font-size: var(--font-2xs);

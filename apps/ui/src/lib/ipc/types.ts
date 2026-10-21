@@ -584,6 +584,20 @@ export interface MessageSamples {
   readonly instants: readonly number[];
 }
 
+/**
+ * The place a region of the ground covers.
+ */
+export interface TileBounds {
+  /** The latitude of the northern side, in degrees. */
+  readonly north: number;
+  /** The latitude of the southern side, in degrees. */
+  readonly south: number;
+  /** The longitude of the eastern side, in degrees. */
+  readonly east: number;
+  /** The longitude of the western side, in degrees. */
+  readonly west: number;
+}
+
 export interface GraphPreset {
   /** The full name, as the interface shows it. */
   readonly name: string;

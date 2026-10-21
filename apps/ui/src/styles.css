@@ -38,6 +38,17 @@
   --colour-warning: #d29922;
   --colour-warning-wash: rgba(210, 153, 34, 0.14);
 
+  /* The colours that are not a surface and not a text: the states of the controls,
+     the borders of the danger zones, the shade over a window, the shadow of a sheet.
+     They are here so that no component has to know a colour of its own. */
+  --colour-hover: #232c3a;
+  --colour-danger-border: #6d2b28;
+  --colour-accent-ink: #04231b;
+  --colour-on-accent: #eafff7;
+  --colour-overlay: rgba(6, 9, 13, 0.55);
+  --colour-shadow: rgba(0, 0, 0, 0.55);
+  --colour-scrim: rgba(13, 17, 23, 0.75);
+
   /* The horizon. The sky and the ground of the attitude indicator. */
   --colour-sky: #1d3550;
   --colour-ground: #3a2f1c;
@@ -58,8 +69,17 @@
   --font-md: 15px;
   --font-lg: 18px;
 
-  --radius-sm: 4px;
+  --radius-sm: 3px;
   --radius: 6px;
+
+  /* The size of the controls. A desktop tool has small controls, and the space they
+     take is the space a dozen of them do not. */
+  --control-h: 24px;
+  --control-h-sm: 20px;
+  --control-pad-x: 8px;
+  --row-h: 24px;
+  --pane-title-h: 24px;
+  --weight-strong: 600;
 
   --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -96,6 +116,14 @@
 
     --colour-sky: #a8cbe8;
     --colour-ground: #d9c9a3;
+
+    --colour-hover: #d8dee4;
+    --colour-danger-border: #cf222e;
+    --colour-accent-ink: #ffffff;
+    --colour-on-accent: #ffffff;
+    --colour-overlay: rgba(31, 35, 40, 0.35);
+    --colour-shadow: rgba(0, 0, 0, 0.2);
+    --colour-scrim: rgba(255, 255, 255, 0.88);
   }
 
   /* The theme of the contrast.
@@ -127,6 +155,14 @@
 
     --colour-sky: #003366;
     --colour-ground: #663300;
+
+    --colour-hover: #202020;
+    --colour-danger-border: #ff6b6b;
+    --colour-accent-ink: #000000;
+    --colour-on-accent: #000000;
+    --colour-overlay: rgba(0, 0, 0, 0.72);
+    --colour-shadow: rgba(0, 0, 0, 0.9);
+    --colour-scrim: rgba(0, 0, 0, 0.88);
   }
 
 * {
@@ -201,14 +237,14 @@ body {
   font-family: var(--font-ui);
   font-size: var(--font-xs);
   gap: var(--space-1);
+  height: var(--control-h);
   justify-content: center;
-  min-height: 26px;
-  padding: 0 var(--space-3);
+  padding: 0 var(--control-pad-x);
   white-space: nowrap;
 }
 
 .button:hover:not(:disabled) {
-  background: #232c3a;
+  background: var(--colour-hover);
   border-color: var(--colour-border-strong);
 }
 
@@ -221,20 +257,35 @@ body {
   opacity: 0.45;
 }
 
+/* The tool button: flat, and it takes the shape of the tool it is. It is the button of
+   a row of tools, and a row of tools is not a row of chips. */
+
+.button--tool {
+  background: transparent;
+  border-color: transparent;
+  color: var(--colour-text-dim);
+}
+
+.button--tool:hover:not(:disabled) {
+  background: var(--colour-hover);
+  border-color: var(--colour-border);
+  color: var(--colour-text);
+}
+
 .button--primary {
   background: var(--colour-accent-dim);
   border-color: var(--colour-accent-dim);
-  color: #eafff7;
+  color: var(--colour-on-accent);
 }
 
 .button--primary:hover:not(:disabled) {
   background: var(--colour-accent);
   border-color: var(--colour-accent);
-  color: #04231b;
+  color: var(--colour-accent-ink);
 }
 
 .button--danger {
-  border-color: #6d2b28;
+  border-color: var(--colour-danger-border);
   color: var(--colour-danger);
 }
 
@@ -255,7 +306,7 @@ body {
   color: var(--colour-text);
   font-family: var(--font-ui);
   font-size: var(--font-xs);
-  min-height: 26px;
+  min-height: var(--control-h);
   padding: 0 var(--space-2);
 }
 
