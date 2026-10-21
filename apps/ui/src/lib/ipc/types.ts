@@ -187,6 +187,30 @@ export interface Coordinates {
   readonly mgrs: string | null;
 }
 
+/**
+ * The state of the engine of a vehicle that has one.
+ */
+export interface Efi {
+  /** The revolutions of the engine per minute. */
+  readonly rpm: number;
+  /** The fuel that has been burnt, in cubic centimetres. */
+  readonly fuelConsumed: number;
+  /** The fuel that flows now, in cubic centimetres per hour. */
+  readonly fuelFlow: number;
+  /** The load of the engine, as a percentage. */
+  readonly engineLoad: number;
+  /** The pressure of the barometric, in kilopascals. */
+  readonly barometricPressure: number;
+  /** The pressure of the fuel, in kilopascals. */
+  readonly fuelPressure: number;
+  /** The temperature of the intake, in degrees Celsius. */
+  readonly intakeTemperature: number;
+  /** The temperature of the head of the cylinder, in degrees Celsius. */
+  readonly headTemperature: number;
+  /** The temperature of the exhaust, in degrees Celsius. */
+  readonly exhaustTemperature: number;
+}
+
 /** The wind where the vehicle is. */
 export interface Wind {
   /** The direction the wind comes from, in degrees. */
@@ -215,6 +239,8 @@ export interface Telemetry {
 
   /** The wind where the vehicle is. */
   readonly wind: Wind | null;
+  /** The state of the engine, when the vehicle has told it. */
+  readonly efi: Efi | null;
   readonly imu: Imu | null;
   readonly barometer: Barometer | null;
   readonly controls: Controls | null;

@@ -13,8 +13,9 @@
 //! distance to home — are computed at decode time rather than on every access.
 
 use mpcraft_vehicle::{
-    Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, Ekf, FlightMode,
-    GeoPoint, GpsStatus, Imu, MissionProgress, PlanState, Telemetry, Velocity, Vibration, Wind,
+    Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, Efi, Ekf,
+    FlightMode, GeoPoint, GpsStatus, Imu, MissionProgress, PlanState, Telemetry, Velocity,
+    Vibration, Wind,
 };
 
 use mpcraft_mavlink::dialect::messages::MissionState;
@@ -337,6 +338,22 @@ impl TelemetryAggregator {
                     airspeed_error: f64::from(output.aspd_error),
                     cross_track_error: f64::from(output.xtrack_error),
                     waypoint_distance: f64::from(output.wp_dist),
+                });
+            }
+
+            MavMessage::EFI_STATUS(efi) => {
+                // The state of the engine. Only the vehicles that have one say anything
+                // about it.
+                self.telemetry.efi = Some(Efi {
+                    rpm: f64::from(efi.rpm),
+                    fuel_consumed: f64::from(efi.fuel_consumed),
+                    fuel_flow: f64::from(efi.fuel_flow),
+                    engine_load: f64::from(efi.engine_load),
+                    barometric_pressure: f64::from(efi.barometric_pressure),
+                    fuel_pressure: f64::from(efi.fuel_pressure),
+                    intake_temperature: f64::from(efi.intake_manifold_temperature),
+                    head_temperature: f64::from(efi.cylinder_head_temperature),
+                    exhaust_temperature: f64::from(efi.exhaust_gas_temperature),
                 });
             }
 

@@ -103,6 +103,33 @@ pub struct Battery {
     pub remaining: f64,
 }
 
+/// The state of the engine of a vehicle that has one.
+///
+/// A vehicle without an engine says nothing about it: the readings are there for the
+/// vehicles that have one — a helicopter with a fuel injection, a boat with an engine of
+/// its own — and the operator reads them the way upstream reads them.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Efi {
+    /// The revolutions of the engine per minute.
+    pub rpm: f64,
+    /// The fuel that has been burnt, in cubic centimetres.
+    pub fuel_consumed: f64,
+    /// The fuel that flows now, in cubic centimetres per hour.
+    pub fuel_flow: f64,
+    /// The load of the engine, as a percentage.
+    pub engine_load: f64,
+    /// The pressure of the barometric, in kilopascals.
+    pub barometric_pressure: f64,
+    /// The pressure of the fuel, in kilopascals.
+    pub fuel_pressure: f64,
+    /// The temperature of the intake, in degrees Celsius.
+    pub intake_temperature: f64,
+    /// The temperature of the head of the cylinder, in degrees Celsius.
+    pub head_temperature: f64,
+    /// The temperature of the exhaust, in degrees Celsius.
+    pub exhaust_temperature: f64,
+}
+
 /// The wind where the vehicle is.
 ///
 /// The direction is the one the wind comes **from**, in degrees, and the speed is in
@@ -382,6 +409,8 @@ pub struct Telemetry {
 
     /// The wind, once it is known.
     pub wind: Option<Wind>,
+    /// The state of the engine, when the vehicle has told it.
+    pub efi: Option<Efi>,
     /// The inertial measurement, once received.
     pub imu: Option<Imu>,
     /// The barometer, once received.
@@ -442,6 +471,10 @@ impl Telemetry {
 
         if let Some(wind) = update.wind {
             self.wind = Some(wind);
+        }
+
+        if let Some(efi) = update.efi {
+            self.efi = Some(efi);
         }
         if let Some(imu) = update.imu {
             self.imu = Some(imu);
@@ -515,6 +548,8 @@ pub struct TelemetryUpdate {
 
     /// New wind.
     pub wind: Option<Wind>,
+    /// New state of the engine.
+    pub efi: Option<Efi>,
     /// New inertial measurement.
     pub imu: Option<Imu>,
     /// New barometer reading.

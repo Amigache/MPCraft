@@ -360,6 +360,34 @@ MESSAGES = {
             ("speed_z", "f32"),
         ],
     ),
+    225: message(
+        225,
+        "EFI_STATUS",
+        208,
+        [
+            ("ecu_index", "f32"),
+            ("rpm", "f32"),
+            ("fuel_consumed", "f32"),
+            ("fuel_flow", "f32"),
+            ("engine_load", "f32"),
+            ("throttle_position", "f32"),
+            ("spark_dwell_time", "f32"),
+            ("barometric_pressure", "f32"),
+            ("intake_manifold_pressure", "f32"),
+            ("intake_manifold_temperature", "f32"),
+            ("cylinder_head_temperature", "f32"),
+            ("ignition_timing", "f32"),
+            ("injection_time", "f32"),
+            ("exhaust_gas_temperature", "f32"),
+            ("throttle_out", "f32"),
+            ("pt_compensation", "f32"),
+            ("health", "u8"),
+        ],
+        [
+            ("ignition_voltage", "f32"),
+            ("fuel_pressure", "f32"),
+        ],
+    ),
     178: message(
         178,
         "AHRS2",
@@ -767,6 +795,8 @@ PARAMETERS = [
     ("PWM_AUX_DISARMED", 1000, PARAM_UINT16),
     # A parameter that is a mask: several switches in one number.
     ("ACRO_OPTIONS", 1, PARAM_UINT16),
+    # The calibration of the electronic speed controllers.
+    ("ESC_CALIBRATION", 0, PARAM_UINT8),
     ("SERIAL0_BAUD", 57600, PARAM_UINT32),
     ("INS_GYR_ID", 1, PARAM_UINT8),
     # What the outputs are for: the first four drive the motors, the fifth is a
@@ -1213,6 +1243,32 @@ class Vehicle:
                     "satellites_visible": 11,
                     "dgps_numch": 0,
                     "yaw": 0,
+                },
+            )
+
+            # The engine: it turns at a thousand revolutions and it is not loaded.
+            self.send(
+                225,
+                {
+                    "ecu_index": 0.0,
+                    "rpm": 1000.0,
+                    "fuel_consumed": 120.0,
+                    "fuel_flow": 900.0,
+                    "engine_load": 35.0,
+                    "throttle_position": 30.0,
+                    "spark_dwell_time": 2.0,
+                    "barometric_pressure": 101.3,
+                    "intake_manifold_pressure": 45.0,
+                    "intake_manifold_temperature": 32.0,
+                    "cylinder_head_temperature": 88.0,
+                    "ignition_timing": 12.0,
+                    "injection_time": 2.5,
+                    "exhaust_gas_temperature": 310.0,
+                    "throttle_out": 30.0,
+                    "pt_compensation": 0.0,
+                    "health": 0,
+                    "ignition_voltage": 13.8,
+                    "fuel_pressure": 250.0,
                 },
             )
 

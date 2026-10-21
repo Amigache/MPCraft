@@ -215,6 +215,58 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
+        <h3 className={styles.heading}>Engine</h3>
+        <Row label="Revolutions">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.rpm ?? null}
+            format={(value) => `${Math.round(value as number)} rpm`}
+          />
+        </Row>
+        <Row label="Load">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.engineLoad ?? null}
+            format={(value) => `${(value as number).toFixed(0)} %`}
+          />
+        </Row>
+        <Row label="Fuel flow">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.fuelFlow ?? null}
+            format={(value) => `${(value as number).toFixed(0)} cm³/h`}
+          />
+        </Row>
+        <Row label="Fuel burnt">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.fuelConsumed ?? null}
+            format={(value) => `${(value as number).toFixed(0)} cm³`}
+          />
+        </Row>
+        <Row label="Fuel pressure">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.fuelPressure ?? null}
+            format={(value) => `${(value as number).toFixed(1)} kPa`}
+          />
+        </Row>
+        <Row label="Intake">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.intakeTemperature ?? null}
+            format={(value) => `${(value as number).toFixed(1)} °C`}
+          />
+        </Row>
+        <Row label="Head">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.headTemperature ?? null}
+            format={(value) => `${(value as number).toFixed(1)} °C`}
+          />
+        </Row>
+        <Row label="Exhaust">
+          <LiveValue
+            select={(telemetry) => telemetry.efi?.exhaustTemperature ?? null}
+            format={(value) => `${(value as number).toFixed(1)} °C`}
+          />
+        </Row>
+      </section>
+
+      <section className={styles.section}>
         <h3 className={styles.heading}>Estimator</h3>
         <Row label="Velocity">
           <LiveValue

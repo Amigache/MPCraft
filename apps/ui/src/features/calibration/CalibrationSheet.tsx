@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { ConfirmButton } from "../../components/ConfirmButton";
-import { calibrate, normaliseError } from "../../lib/ipc/bridge";
+import { calibrate, normaliseError, writeParameter } from "../../lib/ipc/bridge";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./CalibrationSheet.module.css";
@@ -46,6 +46,29 @@ export function CalibrationSheet() {
     try {
       await calibrate(kind);
       setNotice(said);
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Asks the vehicle to calibrate the electronic speed controllers.
+   *
+   * The number is the one the autopilot understands: three tells the controllers to
+   * listen and learn. It is the same number upstream writes.
+   */
+  const runEsc = async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      await writeParameter("ESC_CALIBRATION", 3);
+      setNotice(
+        "The vehicle was told to calibrate the electronic speed controllers.",
+      );
     } catch (cause) {
       setError(normaliseError(cause).message);
     } finally {
@@ -166,6 +189,40 @@ export function CalibrationSheet() {
               The compensation of the motors is a parameter of the vehicle — the
               compass of a vehicle with motors is never quite right without it.
             </p>
+          </section>
+
+          <section className={styles.block}>
+            <h3 className={styles.heading}>ESC</h3>
+
+            <p className={styles.text}>
+              The electronic speed controllers have a calibration of their own: the
+              vehicle tells them to listen, they learn the position of the throttle and
+              the timing of the signal, and then they are ready. The width of the pulse
+              the vehicle sends them is a parameter of the vehicle.
+            </p>
+
+            <div className={styles.actions}>
+              <ConfirmButton
+                label="Calibrate the ESC"
+                confirmLabel="Start the calibration of the ESC"
+                variant="primary"
+                disabled={busy || !linked}
+                onConfirm={() => {
+                  void runEsc();
+                }}
+              />
+
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  hide();
+                  showParameterPrefix("MOT_PWM");
+                }}
+              >
+                The pulse of the motors
+              </button>
+            </div>
           </section>
 
           {notice !== null ? (

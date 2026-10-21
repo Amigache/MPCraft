@@ -78,6 +78,7 @@ export function MenuBar() {
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
   const showParameters = useUiStore((state) => state.showParameters);
   const showCalibration = useUiStore((state) => state.showCalibration);
+  const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
   const loadParameterGroups = useUiStore(
     (state) => state.loadParameterGroups,
@@ -379,7 +380,7 @@ export function MenuBar() {
           label: "Flight modes",
           onSelect: () => {
             close();
-            setActiveTab("actions");
+            showParameterPrefix("FLTMODE");
           },
           disabled: false,
           checked: undefined,
@@ -413,6 +414,66 @@ export function MenuBar() {
           onSelect: () => {
             close();
             showCalibration();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-frame",
+          label: "Frame type",
+          onSelect: () => {
+            close();
+            showParameterPrefix("FRAME_");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-gps",
+          label: "GPS",
+          onSelect: () => {
+            close();
+            showParameterPrefix("GPS_");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-serial",
+          label: "Serial ports",
+          onSelect: () => {
+            close();
+            showParameterPrefix("SERIAL");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-radio",
+          label: "Radio",
+          onSelect: () => {
+            close();
+            showParameterPrefix("RC_");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-failsafe",
+          label: "Fail safe",
+          onSelect: () => {
+            close();
+            showParameterPrefix("FS_");
           },
           disabled: false,
           checked: undefined,

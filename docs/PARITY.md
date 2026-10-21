@@ -53,7 +53,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.13 | Servo & relay output display | `Controls/ServoOptions.cs`, `RelayOptions.cs` | ✅ | 3 |
 | 2.14 | Auxiliary function display | `Controls/AuxOptions.cs` | ✅ | 3 |
 | 2.15 | Transponder (Mode-S) control | `FlightData.cs` tabTransponder | 🔜 | 5 |
-| 2.16 | EFI / generator telemetry | `CurrentState.cs` | 🔜 | 5 |
+| 2.16 | EFI / generator telemetry | `CurrentState.cs` | ✅ | 5 |
 | 2.17 | OpenDroneID display | `ExtLibs/ArduPilot/OpenDroneID.cs` | 🔜 | 5 |
 | 2.18 | Wind direction indicator | `Controls/WindDir.cs` | ✅ | 2 |
 | 2.19 | Distance-to-target bar | `Controls/DistanceBar.cs` | ✅ | 2 |
@@ -121,18 +121,18 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 5.11 | Parameter diff against a file | `Controls/paramcompare.cs` | ✅ | 3 |
 | 5.12 | Write-to-flash / reset-to-defaults | `ConfigRawParams` | ✅ | 3 |
 | 5.13 | Reboot-required detection & prompt | `GetParameterRebootRequired` | ✅ | 3 |
-| 5.14 | Frame type selection | `ConfigFrameType.cs` | 🔜 | 3 |
+| 5.14 | Frame type selection | `ConfigFrameType.cs` | ✅ | 3 |
 | 5.15 | Accelerometer calibration | `ConfigAccelerometerCalibration.cs` | ✅ | 3 |
 | 5.16 | Compass calibration & motor compensation | `ConfigCompassMot.cs` | ✅ | 3 |
 | 5.17 | Motor test | `ConfigMotorTest.cs` | ✅ | 3 |
-| 5.18 | GPS ordering / auto-detect | `ConfigGPSOrder.cs` | 🔜 | 3 |
-| 5.19 | Serial port configuration | `ConfigSerial.cs` | 🔜 | 3 |
-| 5.20 | RC input / output configuration | `ConfigRadioInput.cs`, `ConfigRadioOutput.cs` | 🔜 | 3 |
-| 5.21 | Failsafe configuration | `ConfigFailSafe.cs` | 🔜 | 3 |
-| 5.22 | Flight modes configuration | `ConfigFlightModes.cs` | 🔜 | 3 |
+| 5.18 | GPS ordering / auto-detect | `ConfigGPSOrder.cs` | ✅ | 3 |
+| 5.19 | Serial port configuration | `ConfigSerial.cs` | ✅ | 3 |
+| 5.20 | RC input / output configuration | `ConfigRadioInput.cs`, `ConfigRadioOutput.cs` | ✅ | 3 |
+| 5.21 | Failsafe configuration | `ConfigFailSafe.cs` | ✅ | 3 |
+| 5.22 | Flight modes configuration | `ConfigFlightModes.cs` | ✅ | 3 |
 | 5.23 | OSD configuration | `ConfigOSD.cs` | 🔜 | 3 |
 | 5.24 | Mount / gimbal configuration | `ConfigMount.cs` | 🔜 | 5 |
-| 5.25 | ESC calibration | `ConfigESCCalibration.cs` | 🔜 | 3 |
+| 5.25 | ESC calibration | `ConfigESCCalibration.cs` | ✅ | 3 |
 | 5.26 | Hardware device detection | `ExtLibs/ArduPilot/BoardDetect.cs` | 🔜 | 5 |
 | 5.27 | DroneCAN device configuration | `ConfigDroneCAN.cs` | 🔜 | 5 |
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 76 |
-| 🔜 Planned | 77 |
+| ✅ Done | 84 |
+| 🔜 Planned | 69 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 76 rows marked done are the connection, transport, parameter, mission and command
+The 84 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -256,11 +256,21 @@ above the map. The waypoints are dragged on the map, the plan is checked before 
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
 unsent changes never looks like the plan on the vehicle.
 
+The **Setup menu** carries the screens of the configuration, the way upstream's does:
+the frame of the vehicle, the receivers, the serial ports, the radio, the failsafe and
+the flight modes. Each of them is the sheet of the parameters of that subject, and the
+parameters that are a choice are drawn as the list of what they can be — the mode of a
+slot, the protocol of a port, the action of a failsafe.
+
 The **calibrations** are a sheet of their own, opened from the Setup menu, the way
 upstream has a screen for the accelerometer and another for the compass. The order is
 sent to the vehicle and the vehicle counts the positions itself: the accelerometer in its
 six positions, the compass with the vehicle away from the metal of the bench. The
 compensation of the motors is a parameter, and the sheet takes the operator to it.
+
+The **engine** of a vehicle that has one is read out in the tab of the state: the
+revolutions, the load, the fuel that flows and the fuel that has been burnt, the
+pressures and the temperatures.
 
 What is still missing from the window: the transponder, the generator of the vehicle, the
 open drone identification, the splines of the survey and the way of injecting a map of one's

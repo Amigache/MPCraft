@@ -1608,6 +1608,8 @@ struct TelemetryEvent {
 
     /// The wind, when it is known.
     wind: Option<WindEvent>,
+    /// The state of the engine, when the vehicle has told it.
+    efi: Option<EfiEvent>,
     /// The inertial measurement, when it is known.
     imu: Option<ImuEvent>,
     /// The barometer, when it is known.
@@ -1768,6 +1770,30 @@ struct ControllerEvent {
     cross_track_error: f64,
     /// The distance to the waypoint the vehicle is flying towards, in metres.
     waypoint_distance: f64,
+}
+
+/// The state of the engine of a vehicle that has one.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EfiEvent {
+    /// The revolutions of the engine per minute.
+    rpm: f64,
+    /// The fuel that has been burnt, in cubic centimetres.
+    fuel_consumed: f64,
+    /// The fuel that flows now, in cubic centimetres per hour.
+    fuel_flow: f64,
+    /// The load of the engine, as a percentage.
+    engine_load: f64,
+    /// The pressure of the barometric, in kilopascals.
+    barometric_pressure: f64,
+    /// The pressure of the fuel, in kilopascals.
+    fuel_pressure: f64,
+    /// The temperature of the intake, in degrees Celsius.
+    intake_temperature: f64,
+    /// The temperature of the head of the cylinder, in degrees Celsius.
+    head_temperature: f64,
+    /// The temperature of the exhaust, in degrees Celsius.
+    exhaust_temperature: f64,
 }
 
 /// The wind where the vehicle is.
@@ -1948,6 +1974,18 @@ fn telemetry_event(state: &SessionState) -> TelemetryEvent {
             direction: wind.direction,
             speed: wind.speed,
             vertical_speed: wind.vertical_speed,
+        }),
+
+        efi: telemetry.efi.map(|efi| EfiEvent {
+            rpm: efi.rpm,
+            fuel_consumed: efi.fuel_consumed,
+            fuel_flow: efi.fuel_flow,
+            engine_load: efi.engine_load,
+            barometric_pressure: efi.barometric_pressure,
+            fuel_pressure: efi.fuel_pressure,
+            intake_temperature: efi.intake_temperature,
+            head_temperature: efi.head_temperature,
+            exhaust_temperature: efi.exhaust_temperature,
         }),
         imu: telemetry.imu.map(|imu| ImuEvent {
             acceleration: imu.acceleration,

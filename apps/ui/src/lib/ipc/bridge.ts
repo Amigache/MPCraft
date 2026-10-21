@@ -562,6 +562,7 @@ const EMPTY_STATE: LinkState = {
     mission: null,
     gps: null,
   gps2: null,
+  efi: null,
   wind: null,
     imu: null,
     barometer: null,
