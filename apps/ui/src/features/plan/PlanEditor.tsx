@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { OverflowMenu, type OverflowItem } from "../../app/layout/OverflowMenu";
 import { useCommandStore } from "../../lib/plan/commandStore";
 import { pickOpenPath, pickSavePath } from "../../lib/ipc/dialog";
 import type { PlanKind, PlanWarning } from "../../lib/ipc/types";
@@ -237,9 +238,66 @@ export function PlanEditor() {
   /** The kinds of plan the vehicle holds, in the order upstream has them. */
   const kinds: readonly PlanKind[] = ["mission", "fence", "rally"];
 
+  // The tools that are not used every minute go into the menu of the bar: a bar that
+  // wraps is read twice, and on a narrow window the last button ends up alone on a row
+  // of its own.
+  const moreItems: readonly OverflowItem[] = [
+    ...(kind === "mission"
+      ? [
+          {
+            id: "survey",
+            label: "Add a survey",
+            hint: "Add the reticle of a survey to the plan",
+            disabled: busy || draft.length === 0,
+            onSelect: () => {
+              setSurvey(true);
+            },
+          },
+          {
+            id: "circle",
+            label: "Add a circle",
+            hint: "Add a circle of points to the plan",
+            disabled: busy || draft.length === 0,
+            onSelect: () => {
+              setCircle(true);
+            },
+          },
+        ]
+      : []),
+    {
+      id: "profile",
+      label: "Profile of the ground",
+      hint: "Show the shape of the ground the plan flies over",
+      disabled: busy || draft.length < 2,
+      onSelect: () => {
+        setProfile(true);
+      },
+    },
+    {
+      id: "save",
+      label: "Save to a file",
+      disabled: busy || draft.length === 0,
+      onSelect: () => {
+        openFile("save");
+      },
+    },
+    {
+      id: "load",
+      label: "Load from a file",
+      disabled: busy,
+      onSelect: () => {
+        openFile("load");
+      },
+    },
+  ];
+
   return (
     <section className={styles.editor} aria-label="The plan editor">
-      <div className={styles.kinds} role="tablist" aria-label="The kind of plan">
+      <div
+        className={styles.kinds}
+        role="tablist"
+        aria-label="The kind of plan"
+      >
         {kinds.map((entry) => (
           <button
             key={entry}
@@ -257,169 +315,116 @@ export function PlanEditor() {
       </div>
 
       <div className={styles.toolbar}>
-        <button
-          type="button"
-          className="button"
-          aria-label="Take the last change back"
-          disabled={busy || history.length === 0}
-          title="Take the last change back (Ctrl+Z)"
-          onClick={undo}
-        >
-          Undo
-        </button>
-
-        <button
-          type="button"
-          className="button"
-          aria-label="Do again the change that was taken back"
-          disabled={busy || future.length === 0}
-          title="Do again the change that was taken back (Ctrl+Shift+Z)"
-          onClick={redo}
-        >
-          Redo
-        </button>
-
-        <button
-          type="button"
-          className={`button ${adding && addKind === planAddKind ? styles.adding : ""}`}
-          aria-label={`Add an ${addLabel} on the map`}
-          aria-pressed={adding && addKind === planAddKind}
-          disabled={busy}
-          title={`Click the map to add an ${addLabel}`}
-          onClick={() => {
-            setAddKind(planAddKind);
-            setAdding(!(adding && addKind === planAddKind));
-          }}
-        >
-          {adding && addKind === planAddKind
-            ? `Click the map to add an ${addLabel}`
-            : `Add ${addLabel}`}
-        </button>
-
-        {kind === "fence" ? (
+        <div className={styles.group}>
           <button
             type="button"
-            className={`button ${adding && addKind === "exclusion" ? styles.adding : ""}`}
-            aria-label="Add an excluded vertex on the map"
-            aria-pressed={adding && addKind === "exclusion"}
+            className="button"
+            aria-label="Take the last change back"
+            disabled={busy || history.length === 0}
+            title="Take the last change back (Ctrl+Z)"
+            onClick={undo}
+          >
+            Undo
+          </button>
+
+          <button
+            type="button"
+            className="button"
+            aria-label="Do again the change that was taken back"
+            disabled={busy || future.length === 0}
+            title="Do again the change that was taken back (Ctrl+Shift+Z)"
+            onClick={redo}
+          >
+            Redo
+          </button>
+        </div>
+
+        <div className={styles.group}>
+          <button
+            type="button"
+            className={`button ${adding && addKind === planAddKind ? styles.adding : ""}`}
+            aria-label={`Add an ${addLabel} on the map`}
+            aria-pressed={adding && addKind === planAddKind}
             disabled={busy}
-            title="Click the map to add a point that is excluded from the polygon"
+            title={`Click the map to add an ${addLabel}`}
             onClick={() => {
-              setAddKind("exclusion");
-              setAdding(!(adding && addKind === "exclusion"));
+              setAddKind(planAddKind);
+              setAdding(!(adding && addKind === planAddKind));
             }}
           >
-            Add exclusion
+            {adding && addKind === planAddKind
+              ? `Adding an ${addLabel}`
+              : `Add ${addLabel}`}
           </button>
-        ) : null}
 
-        <button
-          type="button"
-          className="button"
-          disabled={busy || draft.length === 0}
-          onClick={() => {
-            void askUpload();
-          }}
-        >
-          Upload plan
-        </button>
+          {kind === "fence" ? (
+            <button
+              type="button"
+              className={`button ${adding && addKind === "exclusion" ? styles.adding : ""}`}
+              aria-label="Add an excluded vertex on the map"
+              aria-pressed={adding && addKind === "exclusion"}
+              disabled={busy}
+              title="Click the map to add a point that is excluded from the polygon"
+              onClick={() => {
+                setAddKind("exclusion");
+                setAdding(!(adding && addKind === "exclusion"));
+              }}
+            >
+              Add exclusion
+            </button>
+          ) : null}
+        </div>
 
-        <label className={styles.spline}>
-          <input
-            type="checkbox"
-            checked={spline}
-            aria-label="Draw the path of the plan as a smooth curve"
-            onChange={(event) => {
-              setSpline(event.target.checked);
-            }}
-          />
-          <span>Spline</span>
-        </label>
-
-        {kind === "mission" ? (
+        <div className={styles.group}>
           <button
             type="button"
-            className={`button ${survey ? styles.adding : ""}`}
-            aria-pressed={survey}
+            className="button"
             disabled={busy || draft.length === 0}
-            title="Add the reticle of a survey to the plan"
             onClick={() => {
-              setSurvey(!survey);
+              void askUpload();
             }}
           >
-            Add a survey
+            Upload plan
           </button>
-        ) : null}
 
-        {kind === "mission" ? (
           <button
             type="button"
-            className={`button ${circle ? styles.adding : ""}`}
-            aria-pressed={circle}
-            disabled={busy || draft.length === 0}
-            title="Add a circle of points to the plan"
+            className="button"
+            disabled={busy}
             onClick={() => {
-              setCircle(!circle);
+              void askDownload();
             }}
           >
-            Add a circle
+            Download plan
           </button>
-        ) : null}
+        </div>
 
-        <button
-          type="button"
-          className="button"
-          disabled={busy}
-          onClick={() => {
-            void askDownload();
-          }}
-        >
-          Download plan
-        </button>
+        <div className={styles.group}>
+          <label className={styles.spline}>
+            <input
+              type="checkbox"
+              checked={spline}
+              aria-label="Draw the path of the plan as a smooth curve"
+              onChange={(event) => {
+                setSpline(event.target.checked);
+              }}
+            />
+            <span>Spline</span>
+          </label>
+        </div>
 
-        <button
-          type="button"
-          className={`button ${profile ? styles.adding : ""}`}
-          aria-pressed={profile}
-          disabled={busy || draft.length < 2}
-          title="Show the shape of the ground the plan flies over"
-          onClick={() => {
-            setProfile(!profile);
-          }}
-        >
-          Profile
-        </button>
+        <div className={`${styles.group} ${styles.end}`}>
+          <OverflowMenu items={moreItems} />
 
-        <button
-          type="button"
-          className="button"
-          disabled={busy || draft.length === 0}
-          onClick={() => {
-            openFile("save");
-          }}
-        >
-          Save to a file
-        </button>
-
-        <button
-          type="button"
-          className="button"
-          disabled={busy}
-          onClick={() => {
-            openFile("load");
-          }}
-        >
-          Load from a file
-        </button>
-
-        <button
-          type="button"
-          className={`button ${styles.close}`}
-          onClick={closeEditor}
-          title="Put the graphs back and close the editor"
-        >
-          Close
-        </button>
+          <button
+            type="button"
+            className="button"
+            onClick={closeEditor}
+            title="Put the graphs back and close the editor"
+          >
+            Close
+          </button>
+        </div>
       </div>
 
       {fileMode !== null ? (
@@ -455,7 +460,11 @@ export function PlanEditor() {
               : labelOfFormat(format)}
           </span>
 
-          <button type="button" className="button" onClick={() => void browse()}>
+          <button
+            type="button"
+            className="button"
+            onClick={() => void browse()}
+          >
             Browse…
           </button>
 
@@ -503,8 +512,8 @@ export function PlanEditor() {
                 </>
               ) : (
                 <span>
-                  Write {draft.length} item{draft.length === 1 ? "" : "s"} to the
-                  vehicle?
+                  Write {draft.length} item{draft.length === 1 ? "" : "s"} to
+                  the vehicle?
                 </span>
               )
             ) : pending.kind === "download" ? (
@@ -600,7 +609,8 @@ export function PlanEditor() {
             className="button button--primary"
             disabled={busy}
             onClick={() => {
-              const centre = draft.find((item) => item.seq === selected) ?? draft[0];
+              const centre =
+                draft.find((item) => item.seq === selected) ?? draft[0];
 
               if (centre === undefined) {
                 return;
@@ -658,7 +668,9 @@ export function PlanEditor() {
                 max={200}
                 value={circlePoints}
                 aria-label="How many points the circle has"
-                onChange={(event) => setCirclePoints(Number(event.target.value))}
+                onChange={(event) =>
+                  setCirclePoints(Number(event.target.value))
+                }
               />
             </label>
 
@@ -668,7 +680,9 @@ export function PlanEditor() {
                 className="select"
                 value={clockwise ? "clockwise" : "anticlockwise"}
                 aria-label="The direction of the circle"
-                onChange={(event) => setClockwise(event.target.value === "clockwise")}
+                onChange={(event) =>
+                  setClockwise(event.target.value === "clockwise")
+                }
               >
                 <option value="anticlockwise">Anticlockwise</option>
                 <option value="clockwise">Clockwise</option>
@@ -680,7 +694,8 @@ export function PlanEditor() {
               className="button button--primary"
               disabled={busy}
               onClick={() => {
-                const centre = draft.find((item) => item.seq === selected) ?? draft[0];
+                const centre =
+                  draft.find((item) => item.seq === selected) ?? draft[0];
 
                 if (centre === undefined) {
                   return;
@@ -712,8 +727,8 @@ export function PlanEditor() {
           </div>
 
           <p className={styles.hint}>
-            The circle is centred on the waypoint that is selected, and it is added to the
-            plan without throwing anything away.
+            The circle is centred on the waypoint that is selected, and it is
+            added to the plan without throwing anything away.
           </p>
         </>
       ) : null}
@@ -759,7 +774,10 @@ export function PlanEditor() {
         </span>
 
         {changed ? (
-          <span className={styles.changed} title="The edits are not on the vehicle yet">
+          <span
+            className={styles.changed}
+            title="The edits are not on the vehicle yet"
+          >
             unsent changes
           </span>
         ) : (

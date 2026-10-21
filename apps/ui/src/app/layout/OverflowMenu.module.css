@@ -1,0 +1,50 @@
+/* The menu of the tools that do not fit on the bar. */
+
+.root {
+  position: relative;
+}
+
+.menu {
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 18px var(--colour-shadow);
+  display: flex;
+  flex-direction: column;
+  left: 0;
+  min-width: 180px;
+  padding: var(--space-1);
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 40;
+}
+
+/* The menu opens towards the side that has room. */
+
+.menuEnd {
+  left: auto;
+  right: 0;
+}
+
+.item {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.item:hover:not(:disabled) {
+  background: var(--colour-hover);
+}
+
+.item:disabled {
+  color: var(--colour-text-faint);
+  cursor: default;
+}

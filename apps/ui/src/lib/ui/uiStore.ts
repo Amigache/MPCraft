@@ -91,7 +91,7 @@ export const MIN_GRAPH_HEIGHT = 100;
  * The editor holds a grid of the items of a plan and a row of buttons: less than this
  * and there is nothing to read.
  */
-export const MIN_PLAN_HEIGHT = 220;
+export const MIN_PLAN_HEIGHT = 260;
 
 /** The tallest the graphs may be dragged. */
 export const MAX_GRAPH_HEIGHT = 720;
