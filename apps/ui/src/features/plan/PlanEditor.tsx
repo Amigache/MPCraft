@@ -14,6 +14,7 @@ import {
   usePlanEditorStore,
 } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
+import { useUiStore } from "../../lib/ui/uiStore";
 import { PlanGrid } from "./PlanGrid";
 import { TerrainProfile } from "./TerrainProfile";
 import styles from "./PlanEditor.module.css";
@@ -88,6 +89,10 @@ export function PlanEditor() {
   const select = usePlanEditorStore((state) => state.select);
   const setAdding = usePlanEditorStore((state) => state.setAdding);
   const generateCircle = usePlanEditorStore((state) => state.generateCircle);
+  const generateSurvey = usePlanEditorStore((state) => state.generateSurvey);
+
+  const spline = useUiStore((state) => state.spline);
+  const setSpline = useUiStore((state) => state.setSpline);
   const askUpload = usePlanEditorStore((state) => state.askUpload);
   const askDownload = usePlanEditorStore((state) => state.askDownload);
   const askImport = usePlanEditorStore((state) => state.askImport);
@@ -124,6 +129,16 @@ export function PlanEditor() {
   const [fileMode, setFileMode] = useState<FileMode>(null);
   /** Whether the profile of the terrain is shown. */
 
+  /** Whether the reticle of a survey is being drawn. */
+  const [survey, setSurvey] = useState(false);
+  /** How long the strips of the survey are, in metres. */
+  const [stripLength, setStripLength] = useState(200);
+  /** How far apart the strips of the survey are, in metres. */
+  const [stripSpacing, setStripSpacing] = useState(50);
+  /** How many strips the survey has. */
+  const [strips, setStrips] = useState(5);
+  /** The angle of the survey, in degrees from the north. */
+  const [heading, setHeading] = useState(0);
   /** Whether the circle of a survey is being drawn. */
   const [circle, setCircle] = useState(false);
   /** The radius of the circle, in metres. */
@@ -308,6 +323,33 @@ export function PlanEditor() {
         >
           Upload plan
         </button>
+
+        <label className={styles.spline}>
+          <input
+            type="checkbox"
+            checked={spline}
+            aria-label="Draw the path of the plan as a smooth curve"
+            onChange={(event) => {
+              setSpline(event.target.checked);
+            }}
+          />
+          <span>Spline</span>
+        </label>
+
+        {kind === "mission" ? (
+          <button
+            type="button"
+            className={`button ${survey ? styles.adding : ""}`}
+            aria-pressed={survey}
+            disabled={busy || draft.length === 0}
+            title="Add the reticle of a survey to the plan"
+            onClick={() => {
+              setSurvey(!survey);
+            }}
+          >
+            Add a survey
+          </button>
+        ) : null}
 
         {kind === "mission" ? (
           <button
@@ -496,6 +538,98 @@ export function PlanEditor() {
               {pending.kind === "upload" ? "Upload" : "Go on"}
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {survey ? (
+        <div className={styles.fileBar}>
+          <label className={styles.fileField}>
+            <span className={styles.fileLabel}>Strip m</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={100000}
+              value={stripLength}
+              aria-label="How long the strips are"
+              onChange={(event) => setStripLength(Number(event.target.value))}
+            />
+          </label>
+
+          <label className={styles.fileField}>
+            <span className={styles.fileLabel}>Apart m</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={10000}
+              value={stripSpacing}
+              aria-label="How far apart the strips are"
+              onChange={(event) => setStripSpacing(Number(event.target.value))}
+            />
+          </label>
+
+          <label className={styles.fileField}>
+            <span className={styles.fileLabel}>Strips</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={200}
+              value={strips}
+              aria-label="How many strips the survey has"
+              onChange={(event) => setStrips(Number(event.target.value))}
+            />
+          </label>
+
+          <label className={styles.fileField}>
+            <span className={styles.fileLabel}>Angle</span>
+            <input
+              className="input"
+              type="number"
+              min={-180}
+              max={180}
+              value={heading}
+              aria-label="The angle of the survey"
+              onChange={(event) => setHeading(Number(event.target.value))}
+            />
+          </label>
+
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={busy}
+            onClick={() => {
+              const centre = draft.find((item) => item.seq === selected) ?? draft[0];
+
+              if (centre === undefined) {
+                return;
+              }
+
+              generateSurvey(
+                { lat: centre.x, lng: centre.y },
+                stripLength,
+                stripSpacing,
+                strips,
+                heading,
+                centre.z,
+              );
+
+              setSurvey(false);
+            }}
+          >
+            Add the reticle
+          </button>
+
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              setSurvey(false);
+            }}
+          >
+            Cancel
+          </button>
         </div>
       ) : null}
 

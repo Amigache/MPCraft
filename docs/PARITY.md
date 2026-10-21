@@ -96,7 +96,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.12 | QGC `.waypoints` import / export | `FlightPlanner.cs` readQGC110wpfile | ✅ | 2 |
 | 4.13 | KML import / export | `FlightPlanner.cs` processKML | ✅ | 2 |
 | 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | 🔜 | 2 |
-| 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | 🟡 | 2 |
+| 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | ✅ | 2 |
 | 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | ✅ | 2 |
 | 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | ✅ | 2 |
 | 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | ✅ | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 97 |
+| ✅ Done | 98 |
 | 🔜 Planned | 55 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 2 |
+| 🟡 Partial | 1 |
 
-The 97 rows marked done are the connection, transport, parameter, mission and command
+The 98 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -303,11 +303,14 @@ number, what kind of vehicle it is, where it says it is and what the operator sa
 it. The parts arrive in three different messages, and each one keeps what the others
 said.
 
-What is still missing from the window: the transponder, the generator of the vehicle, the
-splines of the survey and the way of injecting a map of one's own.
+What is still missing from the window: the transponder, the generator of the vehicle
+and the way of injecting a map of one's own.
 
-The single row marked partial is the generators of a survey: the circle is there, the
-splines are not.
+The **generators of a survey** are three: the circle, the reticle of a field — the
+strips the vehicle flies one after the other, apart by the distance its sensor sweeps —
+and the smooth path, the curve the vehicle follows when it is told to follow a spline.
+The plan draws the path as a straight line from one place to the next, and the smooth
+one when the operator asks for it.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not

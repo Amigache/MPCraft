@@ -223,6 +223,15 @@ export interface UiStore {
   /** Whether the next click on the map tells the vehicle to go there. */
   readonly mapGoing: boolean;
 
+  /**
+   * Whether the path of the plan is drawn as a smooth curve.
+   *
+   * The plan is a list of places and the vehicle goes from one to the next in
+   * a straight line. The smooth path is what the plan looks like when the
+   * vehicle is told to follow a spline, and it is what the map draws when the
+   * operator asks for it.
+   */
+  readonly spline: boolean;
   /** The theme the interface is drawn in. */
   readonly theme: Theme;
   /** The system of units the operator reads the measurements in. */
@@ -281,6 +290,8 @@ export interface UiStore {
   readonly setUnits: (units: UnitSystem) => void;
   /** Chooses the theme. */
   readonly setTheme: (theme: Theme) => void;
+  /** Chooses whether the path of the plan is drawn as a smooth curve. */
+  readonly setSpline: (spline: boolean) => void;
   /** Whether the sheet of the logs is open over the window. */
   readonly logOpen: boolean;
   /** Opens the sheet of the logs. */
@@ -341,6 +352,7 @@ export const useUiStore = create<UiStore>((set) => ({
   mapGoing: false,
   units: readText("mpcraft.units", DEFAULT_UNITS) as UnitSystem,
   theme: readText("mpcraft.theme", DEFAULT_THEME) as Theme,
+  spline: readFlag("mpcraft.spline", false),
   parametersOpen: false,
   parameterGroup: null,
   parameterPrefix: null,
@@ -411,6 +423,11 @@ export const useUiStore = create<UiStore>((set) => ({
   setTheme: (theme) => {
     writeString("mpcraft.theme", theme);
     set({ theme });
+  },
+
+  setSpline: (spline) => {
+    writeFlag("mpcraft.spline", spline);
+    set({ spline });
   },
 
   // The sheet of parameters is not remembered between runs: it is a thing the operator

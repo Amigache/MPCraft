@@ -16,6 +16,7 @@ import {
 import { flyTo } from "../../lib/flight/flightActions";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
+import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
 import {
   DEFAULT_CENTRE,
@@ -577,7 +578,16 @@ export function FlightMap() {
     }
 
     const places = positioned(shown.items, commands);
-    const coordinates = coordinatesOf(places);
+
+    // The path of the plan is a straight line from one place to the next, unless the
+    // operator asks for the smooth one: the curve the vehicle follows when it is told
+    // to follow a spline.
+    const coordinates =
+      useUiStore.getState().spline && shown.kind !== "fence"
+        ? splinePath(places).map(
+            (place) => [place.y, place.x] as [number, number],
+          )
+        : coordinatesOf(places);
 
     const line = instance.getSource(PLAN_SOURCE);
     if (line) {

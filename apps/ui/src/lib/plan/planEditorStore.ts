@@ -31,6 +31,7 @@ import {
 } from "./planItems";
 import { usePlanStore } from "./planStore";
 import { circlePoints } from "./circle";
+import { surveyPoints } from "./survey";
 
 /**
  * The plan that is being edited.
@@ -127,6 +128,15 @@ export interface PlanEditorStore {
     points: number,
     altitude: number,
     clockwise: boolean,
+  ) => void;
+  /** Adds a reticle of a survey to the plan. */
+  readonly generateSurvey: (
+    centre: { lat: number; lng: number },
+    length: number,
+    spacing: number,
+    strips: number,
+    heading: number,
+    altitude: number,
   ) => void;
   /** Adds an item at a position, with the altitude of the item before it. */
   readonly addAt: (latitude: number, longitude: number) => void;
@@ -359,6 +369,32 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
       }
 
       return { ...withHistory(state, draft), selected };
+    }),
+
+  generateSurvey: (centre, length, spacing, strips, heading, altitude) =>
+    set((state) => {
+      const generated = surveyPoints({
+        centre,
+        length,
+        spacing,
+        strips,
+        heading,
+        altitude,
+      });
+
+      if (generated.length === 0) {
+        return { notice: "The survey needs at least one strip and a spacing." };
+      }
+
+      // The reticle is added to the plan and nothing is thrown away: the operator can
+      // take it back with the same key that takes back any other change.
+      const draft = [...state.draft, ...generated];
+
+      return {
+        ...withHistory(state, renumber(draft)),
+        selected: state.draft.length,
+        notice: `${generated.length} points were added to the plan.`,
+      };
     }),
 
   generateCircle: (centre, radius, points, altitude, clockwise) =>

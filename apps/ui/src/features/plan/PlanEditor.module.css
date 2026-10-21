@@ -288,3 +288,14 @@
   stroke: var(--colour-bg);
   stroke-width: 1;
 }
+
+/* The smooth path ------------------------------------------------------------ */
+
+.spline {
+  align-items: center;
+  color: var(--colour-text-dim);
+  display: inline-flex;
+  font-size: var(--font-xs);
+  gap: var(--space-1);
+  white-space: nowrap;
+}
