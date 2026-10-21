@@ -45,6 +45,23 @@ export async function pickSavePath(
   }
 }
 
+/** Asks the shell for the name of a folder. */
+export async function pickFolder(): Promise<PickedPath> {
+  try {
+    const path = await invoke<string | null>("plugin:dialog|open", {
+      directory: true,
+      multiple: false,
+      title: "Open the folder",
+    });
+
+    return path === null
+      ? { ok: false, reason: "cancelled" }
+      : { ok: true, path };
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
+}
+
 /** Asks the shell for the name of a file to read from. */
 export async function pickOpenPath(
   filters: readonly DialogFilter[],

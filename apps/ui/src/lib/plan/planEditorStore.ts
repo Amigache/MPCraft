@@ -148,6 +148,16 @@ export interface PlanEditorStore {
    * from uploading the whole plan.
    */
   readonly uploadPartial: (start: number) => Promise<void>;
+
+  /**
+   * Adds points to the plan, the way a survey or a circle does.
+   *
+   * The points are added and nothing is thrown away: the operator can take them back
+   * with the same key that takes back any other change.
+   */
+  readonly addPath: (
+    points: readonly { lat: number; lng: number; alt: number }[],
+  ) => void;
   /** Asks whether the edits may be thrown away for a file. */
   readonly askImport: (path: string, format: PlanFileFormat) => Promise<void>;
   /** Carries out the action the operator has confirmed. */
@@ -428,6 +438,34 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
         ...withHistory(state, renumber(draft)),
         selected: state.draft.length,
         notice: `${generated.length} points were added to the plan.`,
+      };
+    }),
+
+  addPath: (points) =>
+    set((state) => {
+      if (points.length === 0) {
+        return { notice: "The path has no points." };
+      }
+
+      const items: PlanItem[] = points.map((point) => ({
+        seq: 0,
+        command: "MAV_CMD_NAV_WAYPOINT",
+        commandValue: 16,
+        frame: 3,
+        params: [0, 0, 0, 0],
+        x: point.lat,
+        y: point.lng,
+        z: point.alt,
+        current: false,
+        autocontinue: true,
+      }));
+
+      const draft = [...state.draft, ...items];
+
+      return {
+        ...withHistory(state, renumber(draft)),
+        selected: state.draft.length,
+        notice: `${items.length} points were added to the plan.`,
       };
     }),
 

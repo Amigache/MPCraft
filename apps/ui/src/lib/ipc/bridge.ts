@@ -10,6 +10,7 @@ import type {
   ConnectResponse,
   ConnectionStatus,
   Coordinates,
+  DtedLibraryInfo,
   FlightMode,
   GraphPreset,
   GraphSeries,
@@ -30,6 +31,7 @@ import type {
   PlanWarning,
   SerialPort,
   Telemetry,
+  TerrainPathPoint,
   TerrainPoint,
   TileBounds,
   VehicleEvent,
@@ -455,6 +457,52 @@ export async function setHomePosition(
   await call<void>("set_home_position", {
     ...vehicleRequest(vehicle),
     position,
+  });
+}
+
+/**
+ * Opens a folder of DTED cells.
+ *
+ * The cells are the heights of the ground in the military format, and they are what a
+ * survey of a field is planned with.
+ */
+export async function openDtedFolder(path: string): Promise<DtedLibraryInfo> {
+  return call<DtedLibraryInfo>("open_dted_folder", { path });
+}
+
+/**
+ * The height of the ground at a place, in metres above the sea.
+ *
+ * The height comes from the folder of cells that is open.
+ */
+export async function dtedElevation(
+  latitude: number,
+  longitude: number,
+): Promise<number> {
+  return call<number>("dted_elevation", { latitude, longitude });
+}
+
+/**
+ * The zigzag of a survey that follows the ground.
+ *
+ * The vehicle flies at a constant height above the ground, which is what a camera that
+ * needs the same distance to the ground everywhere needs.
+ */
+export async function dtedPath(
+  from: GeoPoint,
+  to: GeoPoint,
+  stripLength: number,
+  stripSpacing: number,
+  clearance: number,
+  sampleStep: number,
+): Promise<TerrainPathPoint[]> {
+  return call<TerrainPathPoint[]>("dted_path", {
+    from,
+    to,
+    stripLength,
+    stripSpacing,
+    clearance,
+    sampleStep,
   });
 }
 

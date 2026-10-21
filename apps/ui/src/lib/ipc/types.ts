@@ -16,17 +16,40 @@ export interface VehicleKey {
 
 /** The connection state of the application. */
 export type ConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "failed";
+  "disconnected" | "connecting" | "connected" | "reconnecting" | "failed";
 
 /** A geographic position. */
 export interface GeoPoint {
   readonly lat: number;
   readonly lng: number;
   readonly alt: number;
+}
+
+/** One cell of a folder of DTED files. */
+export interface DtedCell {
+  readonly name: string;
+  readonly level: string;
+  readonly originLat: number;
+  readonly originLng: number;
+  readonly spacingLat: number;
+  readonly spacingLng: number;
+  readonly columns: number;
+  readonly rows: number;
+  readonly checksumFailures: number;
+}
+
+/** What a folder of DTED files holds. */
+export interface DtedLibraryInfo {
+  readonly cells: readonly DtedCell[];
+  readonly failures: number;
+}
+
+/** One point of a path that follows the ground. */
+export interface TerrainPathPoint {
+  readonly lat: number;
+  readonly lng: number;
+  readonly groundM: number;
+  readonly altM: number;
 }
 
 /** Vehicle attitude. */

@@ -261,6 +261,8 @@ impl From<DtedError> for TerrainError {
 pub struct DtedFile {
     header: DtedHeader,
     layout: DtedLayout,
+    /// The file the cell was read from, when it was read from the disk.
+    path: Option<std::path::PathBuf>,
     /// The posts, from the west to the east and from the south to the north within a column.
     posts: Vec<i16>,
     /// The number of records whose checksum did not add up.
@@ -274,8 +276,17 @@ impl DtedFile {
     ///
     /// Returns an error when the file cannot be read or when it is not a DTED file.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, DtedError> {
+        let path = path.as_ref();
         let bytes = std::fs::read(path)?;
-        Self::parse(&bytes)
+        let mut cell = Self::parse(&bytes)?;
+        cell.path = Some(path.to_path_buf());
+        Ok(cell)
+    }
+
+    /// The file the cell was read from, when it was read from the disk.
+    #[must_use]
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
     }
 
     /// Reads a DTED file from the bytes of one.
@@ -309,6 +320,7 @@ impl DtedFile {
         Ok(Self {
             header,
             layout,
+            path: None,
             posts,
             checksum_failures,
         })

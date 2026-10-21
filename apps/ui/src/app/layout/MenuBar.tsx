@@ -101,6 +101,7 @@ export function MenuBar() {
   const toggleFocusMap = useUiStore((state) => state.toggleFocusMap);
   const showCalibration = useUiStore((state) => state.showCalibration);
   const showJoystick = useUiStore((state) => state.showJoystick);
+  const showTerrain = useUiStore((state) => state.showTerrain);
   const showLog = useUiStore((state) => state.showLog);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
@@ -651,6 +652,18 @@ export function MenuBar() {
           onSelect: () => {
             close();
             showParameterPrefix("CAN_");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-terrain",
+          label: "Terrain…",
+          onSelect: () => {
+            close();
+            showTerrain();
           },
           disabled: false,
           checked: undefined,

@@ -52,6 +52,7 @@ pub mod live_kml;
 pub mod logs;
 pub mod operations;
 pub mod supervisor;
+pub mod terrain;
 pub mod ulog;
 
 pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
@@ -146,6 +147,14 @@ pub struct AppState {
     /// the flight as it happens. It is fed from the state the link publishes, which is
     /// the only place the position of the vehicle is known.
     pub live_track: std::sync::Arc<std::sync::Mutex<Option<live_kml::LiveTrack>>>,
+
+    ///
+    /// The folder of DTED cells that is open, when there is one.
+    ///
+    /// The cells are the heights of the ground in the military format, and they are what
+    /// a survey of a field is planned with: the vehicle flies at a constant height over
+    /// the ground, and the ground is read from these files.
+    pub dted: std::sync::Arc<std::sync::Mutex<Option<mpcraft_geo::dted::DtedLibrary>>>,
 }
 
 impl Default for AppState {
@@ -158,6 +167,7 @@ impl Default for AppState {
             tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
         }
     }
 }
@@ -386,6 +396,7 @@ mod tests {
             tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
 
         assert!(state
@@ -419,6 +430,7 @@ mod tests {
             tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
 
         let error = state

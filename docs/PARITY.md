@@ -167,8 +167,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.6 | Geofence / rally / home markers | `ExtLibs/Maps/GMapMarker*.cs` | ✅ | 2 |
 | 7.7 | UTM / MGRS coordinate conversion | `ExtLibs/Utilities/utmpos.cs`, `GeoUtility` | ✅ | 2 |
 | 7.8 | SRTM terrain elevation lookup | `ExtLibs/Utilities/srtm.cs` | ✅ | 2 |
-| 7.9 | DTED local elevation | `ExtLibs/Utilities/DTED.cs` | 🔜 | 5 |
-| 7.10 | Terrain-follow route generation | `srtm.getIntersectionWithTerrain` | 🔜 | 5 |
+| 7.9 | DTED local elevation | `ExtLibs/Utilities/DTED.cs` | ✅ | 5 |
+| 7.10 | Terrain-follow route generation | `srtm.getIntersectionWithTerrain` | ✅ | 5 |
 | 7.11 | Terrain data protocol server | `ExtLibs/Utilities/TerrainFollow.cs` | 🔜 | 5 |
 | 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | 🔜 | 5 |
 | 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | 🔜 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 110 |
-| 🔜 Planned | 43 |
+| ✅ Done | 112 |
+| 🔜 Planned | 41 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 110 rows marked done are the connection, transport, parameter, mission and command
+The 112 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -265,6 +265,14 @@ refuses it keeps the one it had.
 A **part of the plan** can be written to the vehicle without touching the rest of it:
 the editor writes the plan from the item that is selected onwards, and the items
 before it stay on the vehicle as they are.
+
+The **ground** can also be read from a folder of DTED cells, which is what the heights
+of the military format are called. The folder is opened from the Setup menu, the sheet
+says what is in it, and the height of the ground under the vehicle is read from it. From
+those heights a **survey that follows the ground** is worked out: the strips run across
+the line that joins the two places, one after the other, and the vehicle flies at the
+same height over the ground everywhere, which is what a camera that needs the same
+distance to the ground everywhere needs. The survey is added to the plan.
 
 The **Setup menu** carries the screens of the configuration, the way upstream's does:
 the frame of the vehicle, the receivers, the serial ports, the radio, the failsafe and

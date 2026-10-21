@@ -1256,6 +1256,105 @@ async fn set_home_position(
         .await
 }
 
+/// Opens a folder of DTED cells.
+///
+/// The cells are the heights of the ground in the military format, and they are what a
+/// survey of a field is planned with: the vehicle flies at a constant height over the
+/// ground, and the ground is read from these files.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the folder cannot be read, or when
+/// it holds no cell.
+#[tauri::command]
+async fn open_dted_folder(
+    state: State<'_, AppState>,
+    path: String,
+) -> CommandResult<mpcraft_app::terrain::DtedLibraryInfo> {
+    let (info, library) = mpcraft_app::terrain::open_dted(std::path::Path::new(&path))?;
+
+    let mut cell = state
+        .dted
+        .lock()
+        .map_err(|_| CommandError::internal("the cells are locked"))?;
+    *cell = Some(library);
+
+    Ok(info)
+}
+
+/// The height of the ground at a place, in metres above the sea.
+///
+/// The height comes from the folder of DTED cells that is open.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when no folder is open, or when the
+/// height of that place is not known.
+#[tauri::command]
+async fn dted_elevation(
+    state: State<'_, AppState>,
+    latitude: f64,
+    longitude: f64,
+) -> CommandResult<f64> {
+    let cell = state
+        .dted
+        .lock()
+        .map_err(|_| CommandError::internal("the cells are locked"))?;
+
+    let Some(library) = cell.as_ref() else {
+        return Err(CommandError::invalid_request(
+            "there is no folder of DTED cells open",
+        ));
+    };
+
+    mpcraft_app::terrain::dted_elevation(library, latitude, longitude)
+}
+
+/// The zigzag of a survey that follows the ground.
+///
+/// The strips run across the line that joins the two places, and the vehicle flies at a
+/// constant height above the ground.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when no folder is open, or when the
+/// ground under the path is not known.
+#[tauri::command]
+async fn dted_path(
+    state: State<'_, AppState>,
+    from: PositionEvent,
+    to: PositionEvent,
+    strip_length: f64,
+    strip_spacing: f64,
+    clearance: f64,
+    sample_step: f64,
+) -> CommandResult<Vec<mpcraft_app::terrain::TerrainPathPoint>> {
+    let cell = state
+        .dted
+        .lock()
+        .map_err(|_| CommandError::internal("the cells are locked"))?;
+
+    let Some(library) = cell.as_ref() else {
+        return Err(CommandError::invalid_request(
+            "there is no folder of DTED cells open",
+        ));
+    };
+
+    let options = mpcraft_geo::terrain_path::TerrainPathOptions {
+        strip_length_m: strip_length,
+        strip_spacing_m: strip_spacing,
+        clearance_m: clearance,
+        sample_step_m: sample_step,
+    };
+
+    mpcraft_app::terrain::terrain_path(
+        library,
+        (from.lat, from.lng),
+        (to.lat, to.lng),
+        options,
+    )
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -2663,6 +2762,9 @@ fn main() {
             stop_live_kml,
             home_position,
             set_home_position,
+            open_dted_folder,
+            dted_elevation,
+            dted_path,
             list_parameters,
             read_parameters,
             write_parameter,
