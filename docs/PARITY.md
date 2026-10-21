@@ -142,13 +142,13 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 6.1 | DataFlash `.log` parser | `ExtLibs/Utilities/DFLog.cs` | 🔜 | 4 |
 | 6.2 | DataFlash `.bin` parser | `ExtLibs/Utilities/BinaryLog.cs` | 🔜 | 4 |
-| 6.3 | MAVLink `.tlog` parser | `Log/MavlinkLog.cs` | 🔜 | 4 |
+| 6.3 | MAVLink `.tlog` parser | `Log/MavlinkLog.cs` | ✅ | 4 |
 | 6.4 | PX4 ULog parser | `ExtLibs/Utilities/ULog.cs` (upstream: unwired) | 🔜 | 4 |
 | 6.5 | Log download over MAVLink | `Log/LogDownloadMavLink.cs` | 🔜 | 4 |
 | 6.6 | Log download over SCP | `Log/LogDownloadscp.cs` | 🔜 | 5 |
 | 6.7 | Log browser — message tree + sample grid | `Log/LogBrowse.cs` | 🔜 | 4 |
-| 6.8 | Log graphing with multi-axis | `LogBrowse.CreateChart` | 🔜 | 4 |
-| 6.9 | Graph preset definitions | `graphs/mavgraphs.xml` | 🔜 | 4 |
+| 6.8 | Log graphing with multi-axis | `LogBrowse.CreateChart` | ✅ | 4 |
+| 6.9 | Graph preset definitions | `graphs/mavgraphs.xml` | ✅ | 4 |
 | 6.10 | Cross-highlight grid ↔ graph ↔ map | `LogBrowse.GoToSample` | 🔜 | 4 |
 | 6.11 | tlog playback with scrub timeline | `FlightData.cs` tracklog | 🔜 | 4 |
 | 6.12 | KML export of flight track | `Log/LogOutput.cs` | 🔜 | 4 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 84 |
-| 🔜 Planned | 69 |
+| ✅ Done | 87 |
+| 🔜 Planned | 66 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 84 rows marked done are the connection, transport, parameter, mission and command
+The 87 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -271,6 +271,13 @@ compensation of the motors is a parameter, and the sheet takes the operator to i
 The **engine** of a vehicle that has one is read out in the tab of the state: the
 revolutions, the load, the fuel that flows and the fuel that has been burnt, the
 pressures and the temperatures.
+
+The **logs** are a sheet of their own, opened from the View menu. A log is what a flight
+is remembered by: the stream of the frames that crossed the link, each of them with the
+instant it was seen. The sheet says what the log holds — how many records, how long it
+lasts and how many of each kind of message — and draws the graphs of the catalogue over
+it. The graphs are the same ones the live view draws: the log is fed to the same
+aggregator the vehicle feeds, and the samples are the same samples.
 
 What is still missing from the window: the transponder, the generator of the vehicle, the
 open drone identification, the splines of the survey and the way of injecting a map of one's

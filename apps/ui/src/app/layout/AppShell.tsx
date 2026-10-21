@@ -3,6 +3,7 @@ import { MenuBar } from "./MenuBar";
 import { StatusBar } from "./StatusBar";
 import { FlightData } from "../../features/flight-data/FlightData";
 import { CalibrationSheet } from "../../features/calibration/CalibrationSheet";
+import { LogSheet } from "../../features/logs/LogSheet";
 import { ParameterSheet } from "../../features/params/ParameterSheet";
 import styles from "./AppShell.module.css";
 
@@ -19,7 +20,8 @@ export function AppShell() {
   // While a sheet lies over the window, the window is not there for the person:
   // its controls cannot be reached, and a screen reader is told so.
   const covered = useUiStore(
-    (state) => state.parametersOpen || state.calibrationOpen,
+    (state) =>
+      state.parametersOpen || state.calibrationOpen || state.logOpen,
   );
 
   return (
@@ -37,6 +39,7 @@ export function AppShell() {
       </div>
       <ParameterSheet />
       <CalibrationSheet />
+      <LogSheet />
     </div>
   );
 }

@@ -13,6 +13,8 @@ import type {
   FlightMode,
   GraphPreset,
   GraphSeries,
+  LogSummary,
+  LogTrackPoint,
   LossStats,
   MavCommand,
   OutputFunction,
@@ -349,6 +351,30 @@ export async function outputFunctions(): Promise<OutputFunction[]> {
  * The groups are the subjects the parameters are about — *Radio Calibration*, *EKF2* —
  * and upstream builds its configuration menu out of them.
  */
+/**
+ * What a log of a flight holds.
+ *
+ * The messages it holds and how many of each there are.
+ */
+export async function logSummary(path: string): Promise<LogSummary> {
+  return call<LogSummary>("log_summary", { path });
+}
+
+/**
+ * The values of a graph over a log.
+ *
+ * The graph is the same one the live view draws, read from the log instead of from the
+ * link.
+ */
+export async function logSeries(path: string, name: string): Promise<GraphSeries> {
+  return call<GraphSeries>("log_series", { path, name });
+}
+
+/** The track of a log: the places the vehicle went through. */
+export async function logTrack(path: string): Promise<LogTrackPoint[]> {
+  return call<LogTrackPoint[]>("log_track", { path });
+}
+
 export async function listParameterGroups(): Promise<string[]> {
   return call<string[]>("list_parameter_groups");
 }

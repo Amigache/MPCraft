@@ -265,6 +265,12 @@ export interface UiStore {
 
   /** Chooses the system of units. */
   readonly setUnits: (units: UnitSystem) => void;
+  /** Whether the sheet of the logs is open over the window. */
+  readonly logOpen: boolean;
+  /** Opens the sheet of the logs. */
+  readonly showLog: () => void;
+  /** Closes the sheet of the logs. */
+  readonly hideLog: () => void;
   /** Whether the sheet of the calibrations is open over the window. */
   readonly calibrationOpen: boolean;
   /** Opens the sheet of the calibrations. */
@@ -322,6 +328,7 @@ export const useUiStore = create<UiStore>((set) => ({
   parameterGroup: null,
   parameterPrefix: null,
   calibrationOpen: false,
+  logOpen: false,
   parameterGroups: [],
 
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -395,6 +402,10 @@ export const useUiStore = create<UiStore>((set) => ({
     set({ parametersOpen: true, parameterGroup: null, parameterPrefix: prefix }),
 
   showCalibration: () => set({ calibrationOpen: true }),
+
+  showLog: () => set({ logOpen: true }),
+
+  hideLog: () => set({ logOpen: false }),
 
   hideCalibration: () => set({ calibrationOpen: false }),
 

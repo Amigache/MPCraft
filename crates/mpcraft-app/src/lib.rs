@@ -47,6 +47,7 @@ pub mod checklist;
 pub mod coordinates;
 pub mod error;
 pub mod graphs;
+pub mod logs;
 pub mod operations;
 pub mod supervisor;
 

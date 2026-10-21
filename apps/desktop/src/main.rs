@@ -1084,6 +1084,45 @@ async fn parameter_metadata(names: Vec<String>) -> CommandResult<Vec<Option<Para
         .collect())
 }
 
+/// What a log of a flight holds.
+///
+/// The log is read once, and what it says is the list of the messages it holds and how
+/// many of each there are.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, or when it
+/// does not hold a log.
+#[tauri::command]
+async fn log_summary(path: String) -> CommandResult<mpcraft_app::logs::LogSummary> {
+    mpcraft_app::logs::summarise(std::path::Path::new(&path))
+}
+
+/// The values of a graph over a log.
+///
+/// The graph is the same one the live view draws, read from the log instead of from the
+/// link.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, when it
+/// does not hold a log, or when there is no graph with that name.
+#[tauri::command]
+async fn log_series(path: String, name: String) -> CommandResult<mpcraft_app::graphs::SeriesData> {
+    mpcraft_app::logs::series(std::path::Path::new(&path), &name)
+}
+
+/// The track of a log: the places the vehicle went through.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, or when it
+/// does not hold a log.
+#[tauri::command]
+async fn log_track(path: String) -> CommandResult<Vec<mpcraft_app::logs::TrackPoint>> {
+    mpcraft_app::logs::track(std::path::Path::new(&path))
+}
+
 /// The groups the parameters belong to.
 ///
 /// The groups are the subjects the parameters are about — *Radio Calibration*, *EKF2* —
@@ -2120,6 +2159,9 @@ fn main() {
             parameter_metadata,
             list_mav_commands,
             graph_series,
+            log_summary,
+            log_series,
+            log_track,
             list_parameters,
             read_parameters,
             write_parameter,

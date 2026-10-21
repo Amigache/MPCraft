@@ -450,6 +450,41 @@ export interface OutputFunction {
   readonly motor: number | null;
 }
 
+/**
+ * What a log of a flight holds.
+ */
+export interface LogSummary {
+  /** The messages the log holds, and how many of each there are. */
+  readonly messages: readonly {
+    /** The name of the message. */
+    readonly name: string;
+    /** How many of them the log holds. */
+    readonly count: number;
+  }[];
+  /** The instant the log starts at, in microseconds since the epoch. */
+  readonly start: number;
+  /** The instant the log ends at, in microseconds since the epoch. */
+  readonly end: number;
+  /** How many records the log holds. */
+  readonly records: number;
+  /** How many records could not be read. */
+  readonly broken: number;
+}
+
+/**
+ * One of the places of the track of a log.
+ */
+export interface LogTrackPoint {
+  /** The latitude, in degrees. */
+  readonly latitude: number;
+  /** The longitude, in degrees. */
+  readonly longitude: number;
+  /** The height over the sea, in metres. */
+  readonly altitude: number;
+  /** When the vehicle was there, in microseconds since the epoch. */
+  readonly at: number;
+}
+
 export interface GraphPreset {
   /** The full name, as the interface shows it. */
   readonly name: string;

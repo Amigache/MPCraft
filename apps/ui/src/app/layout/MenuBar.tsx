@@ -78,6 +78,7 @@ export function MenuBar() {
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
   const showParameters = useUiStore((state) => state.showParameters);
   const showCalibration = useUiStore((state) => state.showCalibration);
+  const showLog = useUiStore((state) => state.showLog);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
   const loadParameterGroups = useUiStore(
@@ -286,6 +287,27 @@ export function MenuBar() {
       id: "view",
       label: "View",
       items: [
+        {
+          id: "logs",
+          label: "Logs",
+          onSelect: () => {
+            close();
+            showLog();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "view-sep",
+          label: "",
+          onSelect: undefined,
+          disabled: false,
+          checked: undefined,
+          separator: true,
+          hint: "",
+        },
         {
           id: "units",
           label: "Units in feet and miles",
