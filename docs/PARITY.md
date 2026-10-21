@@ -180,7 +180,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 8.1 | Firmware manifest download | `GCSViews/ConfigurationView/ConfigFirmwareManifest.cs` | ✅ | 5 |
 | 8.2 | Firmware selection by board | `ConfigFirmware.cs` | ✅ | 5 |
-| 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | 🔜 | 5 |
+| 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | 🔽 | 5 |
 | 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔜 | 5 |
 | 8.5 | Board auto-detect | `BoardDetect.cs` | ✅ | 5 |
 | 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | 🔜 | 5 |
@@ -221,7 +221,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 117 |
-| 🔜 Planned | 36 |
+| 🔜 Planned | 35 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
@@ -278,6 +278,13 @@ The **firmware** of the vehicles is chosen from the Setup menu: the manifest tha
 ArduPilot publishes is read, and the operator picks the vehicle, the version and the
 board, and the file of that board is fetched to the disk. The file is the firmware of
 the autopilot, the one that is written to a board.
+
+The **firmware** can also be written to a board, from the same sheet: the board has to
+be in its bootloader, and the file is written to it over the port serie ? the board is
+waited for, asked what it is, its flash is erased, the firmware is written block by
+block and the board is told to start again. What is not done yet is restarting the
+board into its bootloader by itself, so the link has to be closed and the board
+restarted by hand.
 
 The **board** that is on the other end of the link is told by the output it prints when
 it starts, and that output is already captured: the link keeps the text that is not

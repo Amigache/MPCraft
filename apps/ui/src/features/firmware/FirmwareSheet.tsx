@@ -4,9 +4,16 @@ import { pickSavePath } from "../../lib/ipc/dialog";
 import {
   firmwareDownload,
   firmwareManifest,
+  firmwareWriteToBoard,
+  listSerialPorts,
   normaliseError,
 } from "../../lib/ipc/bridge";
-import type { FirmwareBoard, FirmwareManifest } from "../../lib/ipc/types";
+import type {
+  BoardInfo,
+  FirmwareBoard,
+  FirmwareManifest,
+  SerialPort,
+} from "../../lib/ipc/types";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./FirmwareSheet.module.css";
 
@@ -48,6 +55,11 @@ export function FirmwareSheet() {
   const [version, setVersion] = useState("");
   const [platform, setPlatform] = useState("");
 
+  const [ports, setPorts] = useState<readonly SerialPort[]>([]);
+  const [port, setPort] = useState("");
+  const [file, setFile] = useState<string | null>(null);
+  const [boardInfo, setBoardInfo] = useState<BoardInfo | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -63,6 +75,23 @@ export function FirmwareSheet() {
 
     setBusy(true);
     setError(null);
+
+    void listSerialPorts()
+      .then((found) => {
+        if (cancelled) {
+          return;
+        }
+
+        setPorts(found);
+        setPort((before) =>
+          before === "" ? (found[0]?.device ?? "") : before,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPorts([]);
+        }
+      });
 
     void firmwareManifest()
       .then((read) => {
@@ -156,9 +185,31 @@ export function FirmwareSheet() {
 
     try {
       const length = await firmwareDownload(chosenFile.url, picked.path);
+      setFile(picked.path);
       setNotice(
         `The file was written to ${picked.path} (${showSize(length)}).`,
       );
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const writeToBoard = async () => {
+    if (file === null) {
+      setError("there is no file to write.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const info = await firmwareWriteToBoard(port, file);
+      setBoardInfo(info);
+      setNotice("The board was written and told to start again.");
     } catch (cause) {
       setError(normaliseError(cause).message);
     } finally {
@@ -268,10 +319,66 @@ export function FirmwareSheet() {
           </div>
 
           <p className={styles.text}>
-            The file is fetched to the disk. Writing it to the vehicle is the
-            work of the bootloader of the vehicle, and this build does not do it
-            yet.
+            The file is fetched to the disk. It can then be written to a board
+            that is in its bootloader: the board answers the questions of the
+            bootloader instead of the MAVLink of a flight, and the file is
+            written to it block by block.
           </p>
+        </section>
+
+        <section className={styles.block}>
+          <h3 className={styles.heading}>Writing it to a board</h3>
+
+          <div className={styles.fields}>
+            <label className={styles.field}>
+              <span className={styles.label}>Port</span>
+              <select
+                className="select"
+                value={port}
+                aria-label="The port the board is on"
+                onChange={(event) => {
+                  setPort(event.target.value);
+                }}
+              >
+                {ports.length === 0 ? <option value="">no ports</option> : null}
+                {ports.map((entry) => (
+                  <option key={entry.device} value={entry.device}>
+                    {entry.device}
+                    {entry.description ? ` — ${entry.description}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className={styles.row}>
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={busy || port === "" || file === null}
+              onClick={() => {
+                void writeToBoard();
+              }}
+            >
+              Write it to the board
+            </button>
+          </div>
+
+          <p className={styles.text}>
+            The board has to be in its bootloader for this to work: the link has
+            to be closed, the board has to be restarted into the bootloader, and
+            the file is written over the port. The board is asked what it is
+            before anything is erased, and the file is not written if it does
+            not fit in the flash.
+          </p>
+
+          {boardInfo !== null ? (
+            <p className={styles.text}>
+              The board is the {boardInfo.boardId} (revision{" "}
+              {boardInfo.boardRev}), with {Math.round(boardInfo.flashSize / 1024)}{" "}
+              kB of flash, speaking the protocol {boardInfo.blRev}.
+            </p>
+          ) : null}
         </section>
 
         {notice !== null ? (

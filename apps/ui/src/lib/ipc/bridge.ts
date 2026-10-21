@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 
 import type {
+  BoardInfo,
   ChecklistEntry,
   CommandError,
   ConnectRequest,
@@ -526,6 +527,19 @@ export async function firmwareDownload(
   output: string,
 ): Promise<number> {
   return call<number>("firmware_download", { url, output });
+}
+
+/**
+ * Writes a firmware to a board, over the port the board is on.
+ *
+ * The board has to be in its bootloader: it answers the questions of the protocol
+ * instead of the MAVLink of a flight. The answer is what the board said about itself.
+ */
+export async function firmwareWriteToBoard(
+  port: string,
+  file: string,
+): Promise<BoardInfo> {
+  return call<BoardInfo>("firmware_write_to_board", { port, file });
 }
 
 /**

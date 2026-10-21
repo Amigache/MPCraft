@@ -44,6 +44,14 @@ export interface DtedLibraryInfo {
   readonly failures: number;
 }
 
+/** What a board said about itself. */
+export interface BoardInfo {
+  readonly blRev: number;
+  readonly boardId: number;
+  readonly boardRev: number;
+  readonly flashSize: number;
+}
+
 /** One vehicle of the manifest of the firmware. */
 export interface FirmwareBoard {
   readonly name: string;
