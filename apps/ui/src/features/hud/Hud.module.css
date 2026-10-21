@@ -1,5 +1,9 @@
 .box {
+  border: 1px solid var(--colour-border);
+  border-radius: 6px;
+  box-sizing: border-box;
   height: 100%;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -14,6 +18,8 @@
   fill: var(--colour-bg);
 }
 
+/* The picture of the world ---------------------------------------------------- */
+
 .sky {
   fill: var(--colour-sky);
 }
@@ -24,34 +30,55 @@
 
 .horizon {
   stroke: var(--colour-text);
-  stroke-width: 1.2;
+  stroke-width: 1.5;
 }
 
 .ladder {
   stroke: var(--colour-text);
-  stroke-width: 1;
+  stroke-width: 1.2;
+}
+
+.ladderNegative {
+  stroke: var(--colour-text);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.2;
 }
 
 .ladderLabel {
   fill: var(--colour-text);
   font-family: var(--font-mono);
-  font-size: 9px;
-  opacity: 0.85;
+  font-size: 10px;
 }
+
+/* The bank scale, the pointer and the aircraft -------------------------------- */
 
 .bankArc {
   fill: none;
   stroke: var(--colour-text-dim);
-  stroke-width: 1;
+  stroke-width: 1.2;
 }
 
 .bankTick {
   stroke: var(--colour-text-dim);
-  stroke-width: 1;
+  stroke-width: 1.2;
+}
+
+.bankLabel {
+  fill: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
 }
 
 .bankPointer {
   fill: var(--colour-accent);
+}
+
+.symbolHalo {
+  fill: none;
+  stroke: var(--colour-bg);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
 }
 
 .symbol {
@@ -59,16 +86,19 @@
   stroke: var(--colour-accent);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2;
+  stroke-width: 2.5;
 }
 
-.symbolDot {
-  fill: var(--colour-accent);
-}
+/* The heading ribbon ---------------------------------------------------------- */
 
 .ribbonBack {
   fill: var(--colour-bg);
-  opacity: 0.72;
+  opacity: 0.85;
+}
+
+.ribbonEdge {
+  stroke: var(--colour-border);
+  stroke-width: 1;
 }
 
 .ribbonTick {
@@ -77,27 +107,20 @@
 }
 
 .ribbonLabel {
-  fill: var(--colour-text-dim);
+  fill: var(--colour-text);
   font-family: var(--font-mono);
-  font-size: 8px;
-}
-
-.ribbonEdge {
-  stroke: var(--colour-border);
-  stroke-width: 1;
+  font-size: 10px;
 }
 
 .ribbonMarker {
   fill: var(--colour-accent);
 }
 
-/* The tapes of the sides ----------------------------------------------------- */
+/* The tapes of the sides ------------------------------------------------------ */
 
 .tapeBack {
   fill: var(--colour-bg);
-  opacity: 0.35;
-  stroke: var(--colour-border);
-  stroke-width: 1;
+  opacity: 0.55;
 }
 
 .tapeTick {
@@ -108,39 +131,34 @@
 .tapeLabel {
   fill: var(--colour-text-dim);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .tapeBox {
   fill: var(--colour-bg);
-  opacity: 0.85;
-  stroke: var(--colour-border);
+  stroke: var(--colour-accent);
   stroke-width: 1;
 }
 
 .tapeValue {
   fill: var(--colour-text);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
-/* The numbers of the bank scale ---------------------------------------------- */
-
-.bankLabel {
-  fill: var(--colour-text-dim);
-  font-family: var(--font-mono);
-  font-size: 8px;
-}
-
-/* The readings over the glass ------------------------------------------------ */
+/* The readings ---------------------------------------------------------------- */
 
 .readouts {
   pointer-events: none;
 }
 
+.readBand {
+  fill: var(--colour-bg);
+  opacity: 0.92;
+}
+
 .armed {
-  fill: var(--colour-danger);
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
@@ -151,18 +169,14 @@
   fill: var(--colour-text);
   font-family: var(--font-ui);
   font-size: 12px;
+  font-weight: 600;
 }
 
-.clock {
-  fill: var(--colour-text);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
+.clock,
 .small {
   fill: var(--colour-text);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .throttleCell {
