@@ -46,7 +46,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.6 | Quick-view configurable tiles | `ExtLibs/Controls/QuickView.cs` | ✅ | 1 |
 | 2.7 | Gauges (speed / altitude / vspeed) | `Controls/AGauge.cs`, `HSI.cs` | ✅ | 1 |
 | 2.8 | STATUSTEXT message console | `FlightData.cs` | ✅ | 1 |
-| 2.9 | Pre-flight checklist | `Controls/PreFlight/CheckListControl.cs` | 🔜 | 1 |
+| 2.9 | Pre-flight checklist | `Controls/PreFlight/CheckListControl.cs` | ✅ | 1 |
 | 2.10 | Battery banks 1–9 monitoring | `CurrentState.cs` | 🔜 | 1 |
 | 2.11 | Multi-GPS status | `CurrentState.cs` | 🔜 | 1 |
 | 2.12 | EKF status & vibration display | `Controls/EKFStatus.cs`, `Vibration.cs` | 🔜 | 3 |
@@ -98,7 +98,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | 🔜 | 2 |
 | 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | 🔜 | 2 |
 | 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | ✅ | 2 |
-| 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | 🟡 | 2 |
+| 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | ✅ | 2 |
 | 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | 🔜 | 2 |
 | 4.19 | Waypoint radius (loiter) editing | `FlightPlanner.cs` loiter radius | 🔜 | 2 |
 | 4.20 | Spline / smooth path display | `FlightPlanner.cs` | 🔜 | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 39 |
-| 🔜 Planned | 110 |
+| ✅ Done | 41 |
+| 🔜 Planned | 109 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 5 |
+| 🟡 Partial | 4 |
 
-The 39 rows marked done are the connection, transport, parameter, mission and command
+The 41 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -248,11 +248,10 @@ above the map. The waypoints are dragged on the map, the plan is checked before 
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
 unsent changes never looks like the plan on the vehicle.
 
-What is still missing from the window: the pre-flight checklist, the history buffer of
-the plan editor, and the tree of the parameters by prefix.
+What is still missing from the window: the tree of the parameters by prefix, the
+favourites among them, and the elevation profile of the plan.
 
-The five rows marked partial are the fence, the connection profiles, the map and the
-history buffer of the plan editor.
+The four rows marked partial are the fence, the connection profiles and the map.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not

@@ -191,6 +191,25 @@ MESSAGES = {
         [("param_value", "f32"), ("target_system", "u8"), ("target_component", "u8")],
         [("param_id", "char16"), ("param_type", "u8")],
     ),
+    24: message(
+        24,
+        "GPS_RAW_INT",
+        24,
+        [
+            # The fields of MAVLink 2 travel in the order of their size, so the
+            # sixty-four bit ones come first and the eight bit ones last.
+            ("time_usec", "u64"),
+            ("lat", "i32"),
+            ("lon", "i32"),
+            ("alt", "i32"),
+            ("eph", "u16"),
+            ("epv", "u16"),
+            ("vel", "u16"),
+            ("cog", "u16"),
+            ("fix_type", "u8"),
+            ("satellites_visible", "u8"),
+        ],
+    ),
     30: message(
         30,
         "ATTITUDE",
@@ -687,6 +706,24 @@ class Vehicle:
                 },
             )
 
+            # The raw state of the global positioning, which is what the pre-flight
+            # checklist watches: the fix, the satellites and the dilution of precision.
+            self.send(
+                24,
+                {
+                    "time_usec": int(elapsed * 1_000_000),
+                    "lat": int(lat * 1e7),
+                    "lon": int(lng * 1e7),
+                    "alt": int(alt * 1000),
+                    "eph": 110,
+                    "epv": 150,
+                    "vel": int(ground_speed * 100),
+                    "cog": int(math.degrees(yaw) * 100) % 36000,
+                    "fix_type": 3,
+                    "satellites_visible": 14,
+                },
+            )
+
             # The battery, slowly draining.
             remaining = max(0.0, 87.0 - elapsed * 0.05)
             self.send(
@@ -696,8 +733,9 @@ class Vehicle:
                     "onboard_control_sensors_enabled": 0,
                     "onboard_control_sensors_health": 0,
                     "load": 0,
-                    "voltage_battery": int((12.6 - elapsed * 0.001) * 1000),
-                    "current_battery": int(-4.2 * 100),
+                    # A six cell pack, which is what a multirotor of this size carries.
+                    "voltage_battery": int((25.2 - elapsed * 0.002) * 1000),
+                    "current_battery": int(-15.0 * 100),
                     "drop_rate_comm": 0,
                     "errors_comm": 0,
                     "errors_count1": 0,

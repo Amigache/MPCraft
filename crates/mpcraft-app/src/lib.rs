@@ -42,11 +42,13 @@
 use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
+pub mod checklist;
 pub mod error;
 pub mod graphs;
 pub mod operations;
 pub mod supervisor;
 
+pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
 pub use error::{CommandError, CommandResult};
 pub use graphs::{GraphHistory, PresetInfo, SeriesData, SeriesInfo, SeriesPoints};
 pub use mpcraft_link::SessionState;
@@ -167,6 +169,48 @@ impl AppState {
                 "this machine has no configuration directory to keep the settings in",
             )
         })
+    }
+
+    /// The parameters the user has marked as favourites.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, or when the
+    /// settings file cannot be read.
+    pub fn favourite_parameters(&self) -> CommandResult<Vec<String>> {
+        let store = self.store()?;
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.favourite_parameters)
+    }
+
+    /// Marks a parameter as a favourite, or takes the mark away.
+    ///
+    /// The other settings are left alone: the file is read, the favourites are replaced,
+    /// and the file is written back.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, when the settings
+    /// file cannot be read, or when it cannot be written.
+    pub fn set_favourite_parameter(&self, name: &str, favourite: bool) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.favourite_parameters.retain(|known| known != name);
+
+        if favourite {
+            settings.favourite_parameters.push(name.to_owned());
+        }
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))
     }
 }
 

@@ -1,0 +1,62 @@
+# The pre-flight checklist.
+#
+# It is converted from Mission Planner's `checklistDefault.xml`, which is a domain
+# specification: what has to be true before the vehicle flies is the vehicle's
+# knowledge, and the interface only shows what the rules say.
+#
+# The conversion is made by `scripts/convert-checklist.py`.
+
+[[items]]
+description = "Veryify GPS"
+source = "gpsStatus"
+condition = "gte"
+trigger = 3
+text = "{value} >= 3"
+[[items]]
+description = "Gps Sat Count"
+source = "satCount"
+condition = "gte"
+trigger = 5
+text = "{value} Sats"
+[[items]]
+description = "Telemetry Signal"
+source = "linkQuality"
+condition = "gt"
+trigger = 95
+text = "{value}%"
+[[items]]
+description = "Battery Level"
+source = "batteryVoltage"
+condition = "gt"
+trigger = 22
+text = "{value} V"
+[[items]]
+description = "Mode"
+source = "mode"
+condition = "none"
+trigger = 0
+text = "{value}"
+[[items]]
+description = "Check Altitude"
+source = "altitude"
+condition = "lt"
+trigger = 5
+text = "{value} < 5m"
+[[items]]
+description = "Tail and wings secured?"
+source = "manual"
+[[items]]
+description = "All servos respond to input?"
+source = "manual"
+[[items]]
+description = "All servos respond to pitch and roll?"
+source = "manual"
+[[items]]
+description = "Center of gravity at indicated point?"
+source = "manual"
+[[items]]
+description = "Servo linkages are secure?"
+source = "manual"
+[[items]]
+description = "Camera is on and ready to fly?"
+source = "manual"

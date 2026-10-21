@@ -28,6 +28,13 @@ static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub struct Settings {
     /// The connection profiles the user has saved.
     pub connection_profiles: Vec<ConnectionProfile>,
+
+    /// The parameters the user has marked as favourites.
+    ///
+    /// Upstream has a column of stars in its parameter window, and the stars are worth
+    /// keeping between two runs: the parameters an operator touches are the ones they
+    /// touch every time.
+    pub favourite_parameters: Vec<String>,
 }
 
 /// A store of the persisted settings.
@@ -269,6 +276,7 @@ mod tests {
 
         store
             .save(&Settings {
+                favourite_parameters: Vec::new(),
                 connection_profiles: profiles.clone(),
             })
             .expect("the settings should be written");
@@ -331,6 +339,7 @@ mod tests {
         )];
         store
             .save(&Settings {
+                favourite_parameters: Vec::new(),
                 connection_profiles: first.clone(),
             })
             .expect("the first write should succeed");
@@ -362,6 +371,7 @@ mod tests {
 
         store
             .save(&Settings {
+                favourite_parameters: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::auto_connect(
                     "SITL",
                     "udp:127.0.0.1:14550",
@@ -384,6 +394,7 @@ mod tests {
 
         store
             .save(&Settings {
+                favourite_parameters: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::new("SITL", "udp:127.0.0.1:14550")],
             })
             .expect("the settings should be written");
