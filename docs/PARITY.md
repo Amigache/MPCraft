@@ -178,8 +178,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 8.1 | Firmware manifest download | `GCSViews/ConfigurationView/ConfigFirmwareManifest.cs` | 🔜 | 5 |
-| 8.2 | Firmware selection by board | `ConfigFirmware.cs` | 🔜 | 5 |
+| 8.1 | Firmware manifest download | `GCSViews/ConfigurationView/ConfigFirmwareManifest.cs` | ✅ | 5 |
+| 8.2 | Firmware selection by board | `ConfigFirmware.cs` | ✅ | 5 |
 | 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | 🔜 | 5 |
 | 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔜 | 5 |
 | 8.5 | Board auto-detect | `BoardDetect.cs` | 🔜 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 112 |
-| 🔜 Planned | 41 |
+| ✅ Done | 114 |
+| 🔜 Planned | 39 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 112 rows marked done are the connection, transport, parameter, mission and command
+The 114 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -273,6 +273,11 @@ those heights a **survey that follows the ground** is worked out: the strips run
 the line that joins the two places, one after the other, and the vehicle flies at the
 same height over the ground everywhere, which is what a camera that needs the same
 distance to the ground everywhere needs. The survey is added to the plan.
+
+The **firmware** of the vehicles is chosen from the Setup menu: the manifest that
+ArduPilot publishes is read, and the operator picks the vehicle, the version and the
+board, and the file of that board is fetched to the disk. The file is the firmware of
+the autopilot, the one that is written to a board.
 
 The **Setup menu** carries the screens of the configuration, the way upstream's does:
 the frame of the vehicle, the receivers, the serial ports, the radio, the failsafe and

@@ -6,6 +6,7 @@ import { StatusBar } from "./StatusBar";
 import { FlightData } from "../../features/flight-data/FlightData";
 import { CalibrationSheet } from "../../features/calibration/CalibrationSheet";
 import { JoystickSheet } from "../../features/joystick/JoystickSheet";
+import { FirmwareSheet } from "../../features/firmware/FirmwareSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
 import { LogSheet } from "../../features/logs/LogSheet";
 import { ParameterSheet } from "../../features/params/ParameterSheet";
@@ -37,6 +38,7 @@ export function AppShell() {
       state.calibrationOpen ||
       state.joystickOpen ||
       state.terrainOpen ||
+      state.firmwareOpen ||
       state.logOpen,
   );
 
@@ -57,6 +59,7 @@ export function AppShell() {
       <CalibrationSheet />
       <JoystickSheet />
       <TerrainSheet />
+      <FirmwareSheet />
       <LogSheet />
     </div>
   );

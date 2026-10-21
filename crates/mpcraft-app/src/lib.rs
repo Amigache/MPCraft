@@ -47,6 +47,7 @@ use serde::{Deserialize, Serialize};
 pub mod checklist;
 pub mod coordinates;
 pub mod error;
+pub mod firmware;
 pub mod graphs;
 pub mod live_kml;
 pub mod logs;

@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 csv = { workspace = true }
+flate2 = { workspace = true }
 mpcraft-geo = { workspace = true }
 mpcraft-link = { workspace = true }
 mpcraft-log = { workspace = true }
@@ -20,6 +21,7 @@ mpcraft-params = { workspace = true }
 mpcraft-settings = { workspace = true }
 mpcraft-transport = { workspace = true }
 mpcraft-vehicle = { workspace = true }
+reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

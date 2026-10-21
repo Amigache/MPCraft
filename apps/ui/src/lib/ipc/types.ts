@@ -44,6 +44,32 @@ export interface DtedLibraryInfo {
   readonly failures: number;
 }
 
+/** One vehicle of the manifest of the firmware. */
+export interface FirmwareBoard {
+  readonly name: string;
+  readonly versions: readonly FirmwareVersion[];
+}
+
+/** One version of the firmware of a vehicle. */
+export interface FirmwareVersion {
+  readonly version: string;
+  readonly files: readonly FirmwareFile[];
+}
+
+/** The file of the firmware of one board. */
+export interface FirmwareFile {
+  readonly platform: string;
+  readonly url: string;
+  readonly format: string;
+  readonly size: number;
+  readonly sha256: string;
+}
+
+/** The manifest of the firmware. */
+export interface FirmwareManifest {
+  readonly boards: readonly FirmwareBoard[];
+}
+
 /** One point of a path that follows the ground. */
 export interface TerrainPathPoint {
   readonly lat: number;

@@ -102,6 +102,7 @@ export function MenuBar() {
   const showCalibration = useUiStore((state) => state.showCalibration);
   const showJoystick = useUiStore((state) => state.showJoystick);
   const showTerrain = useUiStore((state) => state.showTerrain);
+  const showFirmware = useUiStore((state) => state.showFirmware);
   const showLog = useUiStore((state) => state.showLog);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
@@ -720,11 +721,14 @@ export function MenuBar() {
         {
           id: "firmware",
           label: "Firmware…",
-          onSelect: undefined,
-          disabled: true,
+          onSelect: () => {
+            close();
+            showFirmware();
+          },
+          disabled: false,
           checked: undefined,
           separator: false,
-          hint: "not in this build",
+          hint: "",
         },
       ],
     },

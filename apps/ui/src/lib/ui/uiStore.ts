@@ -357,6 +357,12 @@ export interface UiStore {
   readonly showTerrain: () => void;
   /** Closes the sheet of the terrain. */
   readonly hideTerrain: () => void;
+  /** Whether the sheet of the firmware is open over the window. */
+  readonly firmwareOpen: boolean;
+  /** Opens the sheet of the firmware. */
+  readonly showFirmware: () => void;
+  /** Closes the sheet of the firmware. */
+  readonly hideFirmware: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -404,6 +410,7 @@ export const useUiStore = create<UiStore>((set) => ({
   calibrationOpen: false,
   joystickOpen: false,
   terrainOpen: false,
+  firmwareOpen: false,
   logOpen: false,
   parameterGroups: [],
 
@@ -501,6 +508,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showCalibration: () => set({ calibrationOpen: true }),
   showJoystick: () => set({ joystickOpen: true }),
   showTerrain: () => set({ terrainOpen: true }),
+  showFirmware: () => set({ firmwareOpen: true }),
 
   showLog: () => set({ logOpen: true }),
 
@@ -509,6 +517,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hideCalibration: () => set({ calibrationOpen: false }),
   hideJoystick: () => set({ joystickOpen: false }),
   hideTerrain: () => set({ terrainOpen: false }),
+  hideFirmware: () => set({ firmwareOpen: false }),
 
   loadParameterGroups: async () => {
     try {

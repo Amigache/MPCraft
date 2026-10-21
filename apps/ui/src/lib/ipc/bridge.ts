@@ -11,6 +11,7 @@ import type {
   ConnectionStatus,
   Coordinates,
   DtedLibraryInfo,
+  FirmwareManifest,
   FlightMode,
   GraphPreset,
   GraphSeries,
@@ -504,6 +505,27 @@ export async function dtedPath(
     clearance,
     sampleStep,
   });
+}
+
+/**
+ * The manifest of the firmware: the vehicles and the versions of their firmware.
+ *
+ * The manifest is published by ArduPilot, and it is the list of what can be installed.
+ */
+export async function firmwareManifest(): Promise<FirmwareManifest> {
+  return call<FirmwareManifest>("firmware_manifest");
+}
+
+/**
+ * Fetches the file of a version of the firmware and writes it down.
+ *
+ * The answer is how many bytes were written.
+ */
+export async function firmwareDownload(
+  url: string,
+  output: string,
+): Promise<number> {
+  return call<number>("firmware_download", { url, output });
 }
 
 /**

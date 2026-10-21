@@ -1355,6 +1355,30 @@ async fn dted_path(
     )
 }
 
+/// The manifest of the firmware: the vehicles and the versions of their firmware.
+///
+/// The manifest is published by ArduPilot, and it is the list of what can be installed.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the manifest cannot be fetched, or
+/// when it is not the document that was expected.
+#[tauri::command]
+async fn firmware_manifest() -> CommandResult<mpcraft_app::firmware::FirmwareManifest> {
+    mpcraft_app::firmware::download_manifest(mpcraft_app::firmware::MANIFEST_URL).await
+}
+
+/// Fetches the file of a version of the firmware and writes it down.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be fetched or
+/// cannot be written.
+#[tauri::command]
+async fn firmware_download(url: String, output: String) -> CommandResult<u64> {
+    mpcraft_app::firmware::download_file(&url, std::path::Path::new(&output)).await
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -2765,6 +2789,8 @@ fn main() {
             open_dted_folder,
             dted_elevation,
             dted_path,
+            firmware_manifest,
+            firmware_download,
             list_parameters,
             read_parameters,
             write_parameter,
