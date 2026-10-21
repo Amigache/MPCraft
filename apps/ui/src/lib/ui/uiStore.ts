@@ -12,6 +12,18 @@ import { listParameterGroups } from "../ipc/bridge";
  * and the map all read it, and a change in one of them must not re-render the others.
  */
 
+/**
+ * The theme the interface is drawn in.
+ *
+ * The dark one is the default, because a ground station is used in a dim room and next
+ * to an aircraft. The light one is for the sun, and the one of the contrast is for the
+ * eyes that need it.
+ */
+export type Theme = "dark" | "light" | "contrast";
+
+/** The theme the interface is drawn in when nothing has been chosen. */
+export const DEFAULT_THEME: Theme = "dark";
+
 /** The tabs of the left column, in the order upstream has them. */
 export type TabId =
   | "quick"
@@ -211,6 +223,8 @@ export interface UiStore {
   /** Whether the next click on the map tells the vehicle to go there. */
   readonly mapGoing: boolean;
 
+  /** The theme the interface is drawn in. */
+  readonly theme: Theme;
   /** The system of units the operator reads the measurements in. */
   readonly units: UnitSystem;
   /** Whether the sheet of parameters is open over the window. */
@@ -265,6 +279,8 @@ export interface UiStore {
 
   /** Chooses the system of units. */
   readonly setUnits: (units: UnitSystem) => void;
+  /** Chooses the theme. */
+  readonly setTheme: (theme: Theme) => void;
   /** Whether the sheet of the logs is open over the window. */
   readonly logOpen: boolean;
   /** Opens the sheet of the logs. */
@@ -324,6 +340,7 @@ export const useUiStore = create<UiStore>((set) => ({
   mapProvider: readText("mpcraft.mapProvider", DEFAULT_PROVIDER),
   mapGoing: false,
   units: readText("mpcraft.units", DEFAULT_UNITS) as UnitSystem,
+  theme: readText("mpcraft.theme", DEFAULT_THEME) as Theme,
   parametersOpen: false,
   parameterGroup: null,
   parameterPrefix: null,
@@ -389,6 +406,11 @@ export const useUiStore = create<UiStore>((set) => ({
   setUnits: (units) => {
     writeText("mpcraft.units", units);
     set({ units });
+  },
+
+  setTheme: (theme) => {
+    writeString("mpcraft.theme", theme);
+    set({ theme });
   },
 
   // The sheet of parameters is not remembered between runs: it is a thing the operator

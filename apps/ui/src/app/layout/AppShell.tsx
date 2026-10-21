@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { useUiStore } from "../../lib/ui/uiStore";
 import { MenuBar } from "./MenuBar";
 import { StatusBar } from "./StatusBar";
@@ -19,6 +21,14 @@ import styles from "./AppShell.module.css";
 export function AppShell() {
   // While a sheet lies over the window, the window is not there for the person:
   // its controls cannot be reached, and a screen reader is told so.
+  const theme = useUiStore((state) => state.theme);
+
+  // The theme is a property of the document, not of a component: the whole
+  // interface reads it, and the sheets over the window are of it too.
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
   const covered = useUiStore(
     (state) =>
       state.parametersOpen || state.calibrationOpen || state.logOpen,

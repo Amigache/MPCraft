@@ -67,6 +67,68 @@
   --focus-ring: 0 0 0 2px var(--colour-bg), 0 0 0 4px var(--colour-accent);
 }
 
+  /* The light theme.
+   *
+   * The same interface, read in a room with the sun in it. The variables are the same
+   * ones, with the other values: nothing else in the interface has to know.
+   */
+
+  [data-theme="light"] {
+    color-scheme: light;
+
+    --colour-bg: #f6f8fa;
+    --colour-surface: #ffffff;
+    --colour-surface-raised: #eaeef2;
+    --colour-border: #d0d7de;
+    --colour-border-strong: #afb8c1;
+
+    --colour-text: #1f2328;
+    --colour-text-dim: #59636e;
+    --colour-text-faint: #818b98;
+
+    --colour-accent: #00875a;
+    --colour-accent-dim: #006a49;
+    --colour-accent-wash: rgba(0, 135, 90, 0.12);
+    --colour-danger: #cf222e;
+    --colour-danger-wash: rgba(207, 34, 46, 0.12);
+    --colour-warning: #9a6700;
+    --colour-warning-wash: rgba(154, 103, 0, 0.12);
+
+    --colour-sky: #a8cbe8;
+    --colour-ground: #d9c9a3;
+  }
+
+  /* The theme of the contrast.
+   *
+   * For the sun, for the small screen and for the eyes that need it: the blackest
+   * ground, the whitest text and the borders that cannot be missed.
+   */
+
+  [data-theme="contrast"] {
+    color-scheme: dark;
+
+    --colour-bg: #000000;
+    --colour-surface: #000000;
+    --colour-surface-raised: #101010;
+    --colour-border: #7d7d7d;
+    --colour-border-strong: #ffffff;
+
+    --colour-text: #ffffff;
+    --colour-text-dim: #e6e6e6;
+    --colour-text-faint: #cccccc;
+
+    --colour-accent: #00ff9c;
+    --colour-accent-dim: #00cc7d;
+    --colour-accent-wash: rgba(0, 255, 156, 0.2);
+    --colour-danger: #ff6b6b;
+    --colour-danger-wash: rgba(255, 107, 107, 0.2);
+    --colour-warning: #ffd700;
+    --colour-warning-wash: rgba(255, 215, 0, 0.2);
+
+    --colour-sky: #003366;
+    --colour-ground: #663300;
+  }
+
 * {
   box-sizing: border-box;
 }

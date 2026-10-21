@@ -58,7 +58,7 @@ const MIN_TREE_WIDTH = 140;
 const MAX_TREE_WIDTH = 480;
 
 /** The width of the sheet, in pixels, when nothing has been changed. */
-const DEFAULT_SHEET_WIDTH = 760;
+const DEFAULT_SHEET_WIDTH = 1040;
 
 /**
  * The room the list needs beside the tree, in pixels.
@@ -66,7 +66,7 @@ const DEFAULT_SHEET_WIDTH = 760;
  * A row is a star, a name, a value and a type: the name needs room to be read, and the
  * value and the type need room of their own.
  */
-const LIST_WIDTH = 440;
+const LIST_WIDTH = 620;
 
 /** The kinds of file the parameter dialog offers. */
 const PARAMETER_FILTERS = [
@@ -75,7 +75,7 @@ const PARAMETER_FILTERS = [
 ];
 
 /** The widest the sheet may grow. */
-const MAX_SHEET_WIDTH = 1080;
+const MAX_SHEET_WIDTH = 1440;
 
 export function ParameterSheet() {
   const open = useUiStore((state) => state.parametersOpen);

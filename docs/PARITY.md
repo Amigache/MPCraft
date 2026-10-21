@@ -205,7 +205,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
 | 10.1 | Screen-switching shell | `ExtLibs/Controls/MainSwitcher.cs` | 🔜 | 1 |
-| 10.2 | Theme system (light / dark / high-contrast) | `ThemeManager.cs`, `*.mpsystheme` | 🔜 | 7 |
+| 10.2 | Theme system (light / dark / high-contrast) | `ThemeManager.cs`, `*.mpsystheme` | ✅ | 7 |
 | 10.3 | Internationalisation | `Strings.resx` + Crowdin | 🔜 | 7 |
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | 🔜 | 0 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 94 |
-| 🔜 Planned | 58 |
+| ✅ Done | 95 |
+| 🔜 Planned | 57 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 94 rows marked done are the connection, transport, parameter, mission and command
+The 95 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -283,6 +283,10 @@ The **samples of a message** are a grid in the sheet of the logs: the fields of 
 message are the columns and the samples are the rows, with the instant each of them
 happened at. Clicking a row moves the flight to that moment, so the grid, the map and
 the play-back are the same thing seen from three sides.
+
+The **theme** of the interface is chosen in the View menu: the dark one, the light one
+for the sun and the one of the contrast for the eyes that need it. The theme is a set of
+variables and nothing else: no component knows which one is in use.
 
 The **identification of the vehicle** is in the tab of the state: what it is, its
 number, what kind of vehicle it is, where it says it is and what the operator says about

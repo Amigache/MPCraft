@@ -11,7 +11,7 @@ import { useModesStore } from "../../lib/flight/modesStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
-import { TABS, useUiStore } from "../../lib/ui/uiStore";
+import { TABS, useUiStore, type Theme } from "../../lib/ui/uiStore";
 import styles from "./MenuBar.module.css";
 
 /**
@@ -45,6 +45,18 @@ interface Menu {
   readonly items: readonly MenuItem[];
 }
 
+/**
+ * The themes the interface can be drawn in.
+ *
+ * The dark one is the default, the light one is for the sun and the one of the contrast
+ * is for the eyes that need it.
+ */
+const THEMES: readonly { id: Theme; label: string }[] = [
+  { id: "dark", label: "Dark" },
+  { id: "light", label: "Light" },
+  { id: "contrast", label: "High contrast" },
+];
+
 /** The version shown in the About box. */
 const VERSION = "0.1.0";
 
@@ -75,6 +87,8 @@ export function MenuBar() {
   const showMapControls = useUiStore((state) => state.showMapControls);
   const units = useUiStore((state) => state.units);
   const setUnits = useUiStore((state) => state.setUnits);
+  const theme = useUiStore((state) => state.theme);
+  const setTheme = useUiStore((state) => state.setTheme);
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
   const showParameters = useUiStore((state) => state.showParameters);
   const showCalibration = useUiStore((state) => state.showCalibration);
@@ -301,6 +315,36 @@ export function MenuBar() {
         },
         {
           id: "view-sep",
+          label: "",
+          onSelect: undefined,
+          disabled: false,
+          checked: undefined,
+          separator: true,
+          hint: "",
+        },
+        {
+          id: "theme",
+          label: "The theme",
+          onSelect: undefined,
+          disabled: true,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        ...THEMES.map((entry): MenuItem => ({
+          id: `theme-${entry.id}`,
+          label: entry.label,
+          onSelect: () => {
+            close();
+            setTheme(entry.id);
+          },
+          disabled: false,
+          checked: theme === entry.id,
+          separator: false,
+          hint: "",
+        })),
+        {
+          id: "view-sep-theme",
           label: "",
           onSelect: undefined,
           disabled: false,
