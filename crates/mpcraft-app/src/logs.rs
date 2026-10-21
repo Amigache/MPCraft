@@ -63,6 +63,8 @@ pub enum LogFormat {
     /// The binary log of DataFlash: a marker, the number of the message and its
     /// values.
     Binary,
+    /// The log of PX4: a stream of topics, each of them with its samples.
+    ULog,
 }
 
 /// The format a log is written in, told by the name of the file.
@@ -80,6 +82,7 @@ pub fn format_of(path: &Path) -> LogFormat {
     {
         Some("log") => LogFormat::DataFlash,
         Some("bin") => LogFormat::Binary,
+        Some("ulg") => LogFormat::ULog,
         _ => LogFormat::Tlog,
     }
 }
@@ -120,6 +123,7 @@ pub fn summarise(path: &Path) -> CommandResult<LogSummary> {
     match format_of(path) {
         LogFormat::DataFlash => return dataflash_summary(path),
         LogFormat::Binary => return binary_summary(path),
+        LogFormat::ULog => return crate::ulog::summary(path),
         LogFormat::Tlog => {}
     }
 
@@ -332,6 +336,10 @@ pub fn series(path: &Path, name: &str) -> CommandResult<SeriesData> {
 ///
 /// Returns an error when the file cannot be read, or when it does not hold a log.
 pub fn track(path: &Path) -> CommandResult<Vec<TrackPoint>> {
+    if format_of(path) == LogFormat::ULog {
+        return crate::ulog::track(path);
+    }
+
     let file = File::open(path).map_err(|error| {
         CommandError::invalid_request(format!("the log could not be opened: {error}"))
     })?;
@@ -511,6 +519,7 @@ pub fn message_samples(path: &Path, name: &str, limit: usize) -> CommandResult<M
     match format_of(path) {
         LogFormat::DataFlash => return dataflash_samples(path, name, limit),
         LogFormat::Binary => return binary_samples(path, name, limit),
+        LogFormat::ULog => return crate::ulog::samples(path, name, limit),
         LogFormat::Tlog => {}
     }
 
@@ -822,6 +831,10 @@ impl Playback {
 
 /// Reads a log and builds the history of its telemetry.
 fn read_history(path: &Path) -> CommandResult<History> {
+    if format_of(path) == LogFormat::ULog {
+        return crate::ulog::history(path);
+    }
+
     let file = File::open(path).map_err(|error| {
         CommandError::invalid_request(format!("the log could not be opened: {error}"))
     })?;

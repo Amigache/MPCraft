@@ -42,6 +42,7 @@ import styles from "./LogSheet.module.css";
 /** The kinds of file the dialog offers. */
 const LOG_FILTERS = [
   { name: "Telemetry log", extensions: ["tlog"] },
+  { name: "Log of PX4", extensions: ["ulg"] },
   { name: "All files", extensions: ["*"] },
 ];
 

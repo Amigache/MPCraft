@@ -52,6 +52,7 @@ pub mod live_kml;
 pub mod logs;
 pub mod operations;
 pub mod supervisor;
+pub mod ulog;
 
 pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
 pub use coordinates::{Coordinates, Utm};
@@ -183,6 +184,38 @@ fn terrain_cache_dir() -> std::path::PathBuf {
 }
 
 impl AppState {
+    /// Feeds the state the link publishes into the parts of the application that keep
+    /// a history of the flight.
+    ///
+    /// The graphs are drawn from the history of the telemetry, and the track that is
+    /// being streamed to a file is written from the place of the vehicle. Both are fed
+    /// here, so that every way of opening a link feeds them the same way.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the track that is being written cannot be written. The
+    /// history of the graphs is never a failure: it is a memory.
+    pub fn feed(&self, session: &SessionState) -> CommandResult<()> {
+        self.graphs.record(&session.telemetry);
+
+        let Some(position) = session.telemetry.position else {
+            return Ok(());
+        };
+
+        let Ok(mut cell) = self.live_track.lock() else {
+            return Ok(());
+        };
+
+        let Some(track) = cell.as_mut() else {
+            return Ok(());
+        };
+
+        track.push(position.lat, position.lng, position.alt);
+        track.write()?;
+
+        Ok(())
+    }
+
     /// The connection profiles the user has saved.
     ///
     /// # Errors
