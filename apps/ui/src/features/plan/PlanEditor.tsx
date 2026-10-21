@@ -96,6 +96,7 @@ export function PlanEditor() {
   const setSpline = useUiStore((state) => state.setSpline);
   const askUpload = usePlanEditorStore((state) => state.askUpload);
   const askDownload = usePlanEditorStore((state) => state.askDownload);
+  const uploadPartial = usePlanEditorStore((state) => state.uploadPartial);
   const askImport = usePlanEditorStore((state) => state.askImport);
   const confirm = usePlanEditorStore((state) => state.confirm);
   const cancel = usePlanEditorStore((state) => state.cancel);
@@ -271,6 +272,17 @@ export function PlanEditor() {
       disabled: busy || draft.length < 2,
       onSelect: () => {
         setProfile(true);
+      },
+    },
+    {
+      id: "partial",
+      label: "Write the plan from the item that is selected",
+      hint: "The items before it are left on the vehicle as they are",
+      disabled: busy || selected === null || draft.length === 0,
+      onSelect: () => {
+        if (selected !== null) {
+          void uploadPartial(selected);
+        }
       },
     },
     {

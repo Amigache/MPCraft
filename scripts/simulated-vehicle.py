@@ -103,6 +103,13 @@ CMD_DO_JUMP = 177
 # The calibration of a sensor: the vehicle counts the positions itself.
 CMD_PREFLIGHT_CALIBRATION = 241
 CMD_COMPONENT_ARM_DISARM = 400
+CMD_GET_HOME_POSITION = 410
+CMD_DO_SET_HOME = 179
+
+# The messages of the home.
+HOME_POSITION = 242
+SET_HOME_POSITION = 243
+MISSION_WRITE_PARTIAL_LIST = 38
 
 
 class Message:
@@ -217,6 +224,57 @@ MESSAGES = {
             ("cog", "u16"),
             ("fix_type", "u8"),
             ("satellites_visible", "u8"),
+        ],
+    ),
+    38: message(
+        38,
+        "MISSION_WRITE_PARTIAL_LIST",
+        9,
+        [
+            ("start_index", "i16"),
+            ("end_index", "i16"),
+            ("target_system", "u8"),
+            ("target_component", "u8"),
+        ],
+    ),
+    242: message(
+        242,
+        "HOME_POSITION",
+        104,
+        [
+            ("latitude", "i32"),
+            ("longitude", "i32"),
+            ("altitude", "i32"),
+            ("x", "f32"),
+            ("y", "f32"),
+            ("z", "f32"),
+            ("q0", "f32"),
+            ("q1", "f32"),
+            ("q2", "f32"),
+            ("q3", "f32"),
+            ("approach_x", "f32"),
+            ("approach_y", "f32"),
+            ("approach_z", "f32"),
+        ],
+    ),
+    243: message(
+        243,
+        "SET_HOME_POSITION",
+        85,
+        [
+            ("latitude", "i32"),
+            ("longitude", "i32"),
+            ("altitude", "i32"),
+            ("x", "f32"),
+            ("y", "f32"),
+            ("z", "f32"),
+            ("q0", "f32"),
+            ("q1", "f32"),
+            ("q2", "f32"),
+            ("q3", "f32"),
+            ("approach_x", "f32"),
+            ("approach_y", "f32"),
+            ("approach_z", "f32"),
         ],
     ),
     27: message(
@@ -920,6 +978,9 @@ class Vehicle:
         self.armed = False
         self.mode = 5  # GUIDED
 
+        # The home is where the vehicle was when it started.
+        self.home = {"lat": -35.2809, "lng": 149.1300, "alt": 584.0}
+
     @staticmethod
     def default_mission():
         """The plan the vehicle starts with: home, then a square."""
@@ -1479,12 +1540,14 @@ class Vehicle:
             39: self.on_mission_item,
             40: self.on_mission_request,
             41: self.on_mission_set_current,
+            38: self.on_mission_write_partial_list,
             43: self.on_mission_request_list,
             44: self.on_mission_count,
             45: self.on_mission_clear_all,
             51: self.on_mission_request,
             73: self.on_mission_item,
             76: self.on_command_long,
+            243: self.on_set_home_position,
         }.get(message_id)
 
         if handler is not None:
@@ -1663,6 +1726,35 @@ class Vehicle:
 
         self.request_item(0)
 
+    def on_mission_write_partial_list(self, values):
+        """The ground station is writing a part of the plan.
+
+        The range is announced, the vehicle asks for the items of it one at a time, and
+        the items that were already on the vehicle are kept.
+        """
+        start = values.get("start_index", 0)
+        end = values.get("end_index", 0)
+        mission_type = MISSION_MISSION
+
+        self.upload = {
+            "count": end - start + 1,
+            "mission_type": mission_type,
+            "items": [],
+            "partial": True,
+            "start": start,
+        }
+
+        print(
+            f"{self.upload['count']} items of the plan are being written from {start}",
+            flush=True,
+        )
+
+        if self.upload["count"] <= 0:
+            self.finish_upload()
+            return
+
+        self.request_item(start)
+
     def request_item(self, seq):
         """Asks the ground station for the next item of the plan."""
         self.send(
@@ -1705,7 +1797,10 @@ class Vehicle:
         self.upload["items"].append(item)
 
         if len(self.upload["items"]) < self.upload["count"]:
-            self.request_item(len(self.upload["items"]))
+            if self.upload.get("partial"):
+                self.request_item(self.upload["start"] + len(self.upload["items"]))
+            else:
+                self.request_item(len(self.upload["items"]))
             return
 
         self.finish_upload()
@@ -1717,10 +1812,18 @@ class Vehicle:
 
         mission_type = self.upload["mission_type"]
         items = self.upload["items"]
+        partial = self.upload.get("partial", False)
+        start = self.upload.get("start", 0)
         self.upload = None
 
-        self.plans[mission_type] = items
-        self.current = 0
+        if partial:
+            # The items that were before the range stay as they were, and the ones of
+            # the range take their place.
+            kept = self.plans.get(mission_type, [])[:start]
+            self.plans[mission_type] = kept + items
+        else:
+            self.plans[mission_type] = items
+            self.current = 0
 
         print(f"the plan of {len(items)} items was accepted", flush=True)
 
@@ -1732,6 +1835,28 @@ class Vehicle:
                 "mavtype": 0,  # MAV_MISSION_ACCEPTED
                 "mission_type": mission_type,
                 "opaque_id": 1,
+            },
+        )
+
+    def on_set_home_position(self, values):
+        """The ground station is moving the home."""
+        self.home = {
+            "lat": values.get("latitude", 0) / 1e7,
+            "lng": values.get("longitude", 0) / 1e7,
+            "alt": values.get("altitude", 0) / 1000.0,
+        }
+
+        print(f"the home was moved to {self.home['lat']}, {self.home['lng']}", flush=True)
+        self.send_home()
+
+    def send_home(self):
+        """Says where the home is."""
+        self.send(
+            242,
+            {
+                "latitude": int(self.home["lat"] * 1e7),
+                "longitude": int(self.home["lng"] * 1e7),
+                "altitude": int(self.home["alt"] * 1000),
             },
         )
 
@@ -1803,6 +1928,24 @@ class Vehicle:
 
         if command == CMD_NAV_RETURN_TO_LAUNCH:
             self.send_status_text("returning to launch")
+            self.acknowledge(command, RESULT_ACCEPTED)
+            return
+
+        if command == CMD_GET_HOME_POSITION:
+            # The vehicle is asked where its home is, and it says.
+            self.send_home()
+            self.acknowledge(command, RESULT_ACCEPTED)
+            return
+
+        if command == CMD_DO_SET_HOME:
+            # The first parameter is the latitude, the second the longitude and the
+            # third the height, in the units of the command.
+            self.home = {
+                "lat": values.get("param1", self.home["lat"]),
+                "lng": values.get("param2", self.home["lng"]),
+                "alt": values.get("param3", self.home["alt"]),
+            }
+            self.send_home()
             self.acknowledge(command, RESULT_ACCEPTED)
             return
 

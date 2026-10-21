@@ -5,6 +5,7 @@ import {
   importPlan,
   normaliseError,
   uploadMission,
+  uploadMissionPartial,
   validateMission,
 } from "../ipc/bridge";
 import type {
@@ -15,11 +16,7 @@ import type {
   PlanWarning,
 } from "../ipc/types";
 import { useCommandStore } from "./commandStore";
-import {
-  RALLY_POINT,
-  VERTEX_EXCLUSION,
-  VERTEX_INCLUSION,
-} from "./fence";
+import { RALLY_POINT, VERTEX_EXCLUSION, VERTEX_INCLUSION } from "./fence";
 import type { PlanFileFormat } from "./planFiles";
 import {
   insertItem,
@@ -82,7 +79,6 @@ export interface PlanEditorStore {
   /** Says what the next click on the map adds. */
   readonly setAddKind: (kind: AddKind) => void;
 
-
   /** What the next click on the map adds. */
   readonly addKind: AddKind;
   /** How many items of the plan the map has given a marker. */
@@ -144,6 +140,14 @@ export interface PlanEditorStore {
   readonly askUpload: () => Promise<void>;
   /** Asks whether the plan on the vehicle may be read again. */
   readonly askDownload: () => Promise<void>;
+
+  /**
+   * Writes the plan from an item onwards, and leaves the rest of it on the vehicle.
+   *
+   * The items before the range are not touched, which is what makes this different
+   * from uploading the whole plan.
+   */
+  readonly uploadPartial: (start: number) => Promise<void>;
   /** Asks whether the edits may be thrown away for a file. */
   readonly askImport: (path: string, format: PlanFileFormat) => Promise<void>;
   /** Carries out the action the operator has confirmed. */
@@ -171,7 +175,10 @@ const HISTORY_LIMIT = 50;
  * was taken back is not coming back.
  */
 function withHistory(
-  state: { draft: readonly PlanItem[]; history: readonly (readonly PlanItem[])[] },
+  state: {
+    draft: readonly PlanItem[];
+    history: readonly (readonly PlanItem[])[];
+  },
   draft: readonly PlanItem[],
 ) {
   return {
@@ -408,7 +415,9 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
       });
 
       if (generated.length === 0) {
-        return { notice: "The circle needs at least three points and a radius." };
+        return {
+          notice: "The circle needs at least three points and a radius.",
+        };
       }
 
       // The circle is added to the plan and nothing is thrown away: the operator can
@@ -488,6 +497,42 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
 
   askDownload: async () => {
     set({ pending: { kind: "download" } });
+  },
+
+  /**
+   * Writes the plan from an item onwards, and leaves the rest of it on the vehicle.
+   *
+   * The vehicle is told which range of the plan is coming, and it asks for the items one
+   * at a time. The items before the range are not touched, which is what makes this
+   * different from uploading the whole plan.
+   */
+  uploadPartial: async (start: number) => {
+    const draft = get().draft;
+    const items = draft.slice(start);
+
+    if (items.length === 0) {
+      set({
+        error: {
+          code: "invalid_request",
+          message: "there is no item to write",
+        },
+      });
+      return;
+    }
+
+    set({ busy: true, error: null, notice: null });
+
+    try {
+      const report = await uploadMissionPartial(kindOf(), start, items);
+      set({
+        busy: false,
+        notice: `The vehicle took ${report.accepted.length} item${
+          report.accepted.length === 1 ? "" : "s"
+        } from the item ${report.start + 1}.`,
+      });
+    } catch (cause) {
+      set({ busy: false, error: normaliseError(cause) });
+    }
   },
 
   askImport: async (path, format) => {
@@ -636,7 +681,7 @@ usePlanStore.subscribe((state, previous) => {
   if (isChanged(editor)) {
     usePlanEditorStore.setState({
       notice:
-        "The plan being edited has changes that have not been sent. They are still here."
+        "The plan being edited has changes that have not been sent. They are still here.",
     });
     return;
   }

@@ -4,13 +4,16 @@ import { ConfirmButton } from "../../components/ConfirmButton";
 import { modeValue, useModesStore } from "../../lib/flight/modesStore";
 import {
   armVehicle,
+  askHome,
   changeMode,
   disarmVehicle,
   flyTo,
   jumpTo,
   makeCurrent,
+  moveHome,
   rebootVehicle,
 } from "../../lib/flight/flightActions";
+import { useLiveValue } from "../../lib/link/liveTelemetry";
 import type { PlanKind } from "../../lib/ipc/types";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { FlightTestPanel } from "./FlightTestPanel";
@@ -74,6 +77,9 @@ export function ActionsPanel() {
   const [item, setItem] = useState<number | "">("");
 
   const plan = plans[kind];
+
+  // Where the vehicle is: the home can be moved to the place it is in.
+  const position = useLiveValue((telemetry) => telemetry.position ?? null);
 
   useEffect(() => {
     if (modes.length === 0) {
@@ -309,8 +315,9 @@ export function ActionsPanel() {
 
         {editorOpen ? (
           <p className={styles.editingNote}>
-            The plan above the map is being edited. Uploading sends the edited plan;
-            setting the current item and jumping act on the plan the vehicle holds.
+            The plan above the map is being edited. Uploading sends the edited
+            plan; setting the current item and jumping act on the plan the
+            vehicle holds.
           </p>
         ) : null}
       </section>
@@ -326,6 +333,36 @@ export function ActionsPanel() {
             }}
           />
         </div>
+      </section>
+
+      <section className={styles.block}>
+        <h3 className={styles.heading}>Home</h3>
+        <div className={styles.row}>
+          <ConfirmButton
+            label="Set the home here"
+            confirmLabel="Confirm the home"
+            onConfirm={() => {
+              if (position !== null) {
+                void moveHome(position.lat, position.lng, position.alt);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="button"
+            title="Ask the vehicle where its home is"
+            onClick={() => {
+              void askHome();
+            }}
+          >
+            Ask the vehicle
+          </button>
+        </div>
+        <p className={styles.hint}>
+          The home is the place the vehicle measures the distance from. Moving
+          it is what an operator does when the vehicle was armed in the wrong
+          place.
+        </p>
       </section>
 
       <FlightTestPanel />

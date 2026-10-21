@@ -7,15 +7,23 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use mpcraft_link::{Calibration, Session, VehicleId};
+use mpcraft_link::{
+    Calibration, HomeRequest, PartialUpdate, PartialUpdatePolicy, Session, VehicleId,
+};
 use mpcraft_mavlink::MavCmd;
-use mpcraft_mission::{MissionType, Plan};
+use mpcraft_mission::{MissionItem, MissionType, Plan};
+use mpcraft_vehicle::GeoPoint;
 
 use crate::error::{CommandError, CommandResult};
 use crate::supervisor::SessionSupervisor;
 
 /// How long to wait for the vehicle to answer a command.
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long to wait for the vehicle to say where its home is.
+///
+/// The answer is one message, and upstream waits less than a second for it.
+const HOME_TIMEOUT: Duration = Duration::from_millis(700);
 
 /// How long to wait for a plan to be transferred.
 ///
@@ -327,6 +335,49 @@ impl SessionSupervisor {
         Ok(())
     }
 
+    /// Asks the vehicle where its home is.
+    ///
+    /// The vehicle is asked with the command that upstream sends, and the answer is the
+    /// `HOME_POSITION` message the vehicle sends.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle does not answer
+    /// in time.
+    pub async fn home_position(&self, vehicle: VehicleId) -> CommandResult<GeoPoint> {
+        let session = self.open_session()?;
+
+        let home = session
+            .request_home_position(vehicle, HomeRequest::Command, HOME_TIMEOUT)
+            .await?;
+
+        Ok(home)
+    }
+
+    /// Moves the home of the vehicle.
+    ///
+    /// The vehicle is told where the home is, and it confirms the move by reporting the
+    /// home it now holds. A vehicle that refuses the move keeps the one it had, and the
+    /// error says so.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle does not confirm
+    /// the move, or when it reports a different home.
+    pub async fn set_home_position(
+        &self,
+        vehicle: VehicleId,
+        home: GeoPoint,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .set_home_position(vehicle, home, HOME_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
     /// Downloads the plan the vehicle holds.
     ///
     /// # Errors
@@ -352,6 +403,37 @@ impl SessionSupervisor {
         let session = self.open_session()?;
         session.upload_mission(vehicle, plan, PLAN_TIMEOUT).await?;
         Ok(())
+    }
+
+    /// Writes a part of a plan to the vehicle, leaving the rest of it alone.
+    ///
+    /// The vehicle is told which range of the plan is coming, and it asks for the items
+    /// one at a time. The answer says which items the vehicle took.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the range is refused, or when
+    /// the vehicle does not answer.
+    pub async fn upload_mission_partial(
+        &self,
+        vehicle: VehicleId,
+        mission_type: MissionType,
+        start: u16,
+        items: &[MissionItem],
+    ) -> CommandResult<PartialUpdate> {
+        let session = self.open_session()?;
+
+        let report = session
+            .upload_mission_partial(
+                vehicle,
+                mission_type,
+                start,
+                items,
+                PartialUpdatePolicy::default(),
+            )
+            .await?;
+
+        Ok(report)
     }
 
     /// Says which item of the plan the vehicle is executing.

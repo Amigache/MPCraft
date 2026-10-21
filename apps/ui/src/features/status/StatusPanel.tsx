@@ -79,10 +79,7 @@ export function StatusPanel() {
     (telemetry) => telemetry.position ?? null,
   );
 
-  const banks = useLiveValue(
-    (telemetry) => telemetry.batteries,
-    sameBanks,
-  );
+  const banks = useLiveValue((telemetry) => telemetry.batteries, sameBanks);
 
   return (
     <div className={styles.panel}>
@@ -156,7 +153,24 @@ export function StatusPanel() {
               ).toLocaleString("en-US")} N`}
         </Row>
         <Row label="MGRS">{coordinates?.mgrs ?? "—"}</Row>
-
+        <Row label="Home latitude">
+          <LiveValue
+            select={(telemetry) => telemetry.home?.lat ?? null}
+            format={(value) => `${(value as number).toFixed(6)}°`}
+          />
+        </Row>
+        <Row label="Home longitude">
+          <LiveValue
+            select={(telemetry) => telemetry.home?.lng ?? null}
+            format={(value) => `${(value as number).toFixed(6)}°`}
+          />
+        </Row>
+        <Row label="Home altitude">
+          <LiveValue
+            select={(telemetry) => telemetry.home?.alt ?? null}
+            format={(value) => `${Math.round(value as number)} m`}
+          />
+        </Row>
       </section>
 
       <section className={styles.section}>
@@ -422,7 +436,10 @@ function BankCells({ id }: { id: number }) {
  * Only the shape matters: the banks themselves and how many cells each of them has.
  * The values drift, and they are written into the text of the rows.
  */
-function sameBanks(left: readonly BatteryBank[], right: readonly BatteryBank[]) {
+function sameBanks(
+  left: readonly BatteryBank[],
+  right: readonly BatteryBank[],
+) {
   return (
     left.length === right.length &&
     left.every(

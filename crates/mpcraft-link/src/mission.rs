@@ -44,13 +44,29 @@
 //! that is asked for the wrong type answers with the wrong plan. Upstream carries it the
 //! same way: `MAVLinkInterface.cs:3277` (`getWPCountAsync`), `:3409` (`getWPAsync`),
 //! `:3756` (`setWPTotalAsync`) and `:3986` (`setWPAsync`).
+//!
+//! # Updating part of a plan
+//!
+//! A plan can be written in part, without touching the rest of it. The range is announced
+//! with `MISSION_WRITE_PARTIAL_LIST` and the vehicle then asks for the items of that range
+//! one at a time, exactly as it does for a whole plan.
+//!
+//! ```text
+//! GCS  ──MISSION_WRITE_PARTIAL_LIST(start, end)──▶  vehicle
+//! GCS  ◀────MISSION_REQUEST(seq=start)────────────  vehicle
+//! GCS  ──MISSION_ITEM(seq=start)─────────────────▶  vehicle
+//! GCS  ◀────MISSION_REQUEST(seq=start+1)─────────  vehicle
+//! GCS  ──MISSION_ITEM(seq=start+1)──────────────▶  vehicle
+//! GCS  ◀────MISSION_ACK(accepted)────────────────  vehicle      (the range is written)
+//! ```
 
 use std::time::Duration;
 
 #[allow(deprecated)]
 use mpcraft_mavlink::dialect::messages::{
-    MISSION_CLEAR_ALL_DATA, MISSION_COUNT_DATA, MISSION_REQUEST_DATA, MISSION_REQUEST_INT_DATA,
-    MISSION_REQUEST_LIST_DATA, MISSION_SET_CURRENT_DATA,
+    MISSION_ACK_DATA, MISSION_CLEAR_ALL_DATA, MISSION_COUNT_DATA, MISSION_REQUEST_DATA,
+    MISSION_REQUEST_INT_DATA, MISSION_REQUEST_LIST_DATA, MISSION_SET_CURRENT_DATA,
+    MISSION_WRITE_PARTIAL_LIST_DATA,
 };
 use mpcraft_mavlink::{MavMessage, MavMissionResult, MavMissionType, MavProtocolCapability};
 use mpcraft_mission::{MissionItem, MissionType, Plan};
@@ -81,11 +97,23 @@ pub const MISSION_REQUEST_INT_ID: u32 = 51;
 /// The message id of `MISSION_ITEM_INT`.
 pub const MISSION_ITEM_INT_ID: u32 = 73;
 
+/// The message id of `MISSION_WRITE_PARTIAL_LIST`.
+pub const MISSION_WRITE_PARTIAL_LIST_ID: u32 = 38;
+
 /// How long to wait for one item.
 pub const DEFAULT_ITEM_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// How long to wait for the vehicle to confirm a change to the plan.
 pub const DEFAULT_PLAN_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// How long to wait for the vehicle to ask for the next item of a partial update.
+///
+/// Upstream waits seven hundred milliseconds for the answer to a parameter and for the
+/// home position; the wait for one item of a plan is the same order of magnitude.
+pub const DEFAULT_PARTIAL_ITEM_TIMEOUT: Duration = Duration::from_millis(700);
+
+/// How many times the wait for the next item of a partial update is repeated.
+pub const DEFAULT_PARTIAL_ITEM_RETRIES: u32 = 3;
 
 /// The reasons a mission operation can fail.
 #[derive(Debug, Clone, PartialEq)]
@@ -124,6 +152,81 @@ impl std::fmt::Display for MissionError {
 }
 
 impl std::error::Error for MissionError {}
+
+/// The policy of a partial update of a plan.
+///
+/// The two numbers are the ones upstream hard-codes — the wait for one answer and the
+/// number of times it is repeated — but they are parameters here, because a link that is
+/// slow needs more patience than a link that is fast.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartialUpdatePolicy {
+    /// How long to wait for the vehicle to ask for the next item.
+    pub item_timeout: Duration,
+    /// How many times the wait is repeated before the update is given up.
+    pub item_retries: u32,
+}
+
+impl Default for PartialUpdatePolicy {
+    fn default() -> Self {
+        Self {
+            item_timeout: DEFAULT_PARTIAL_ITEM_TIMEOUT,
+            item_retries: DEFAULT_PARTIAL_ITEM_RETRIES,
+        }
+    }
+}
+
+/// What a partial update of a plan did.
+///
+/// The report says which items the vehicle took, so that the caller can tell a range
+/// that was written from one that was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartialUpdate {
+    /// The sequence number of the first item of the range.
+    pub start: u16,
+    /// The sequence numbers of the items the vehicle took, in order.
+    pub accepted: Vec<u16>,
+}
+
+/// The reasons a partial update of a plan can fail.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PartialUpdateError {
+    /// The vehicle refused the range.
+    Rejected {
+        /// The result the vehicle reported.
+        result: MavMissionResult,
+    },
+    /// The vehicle asked for an item that was not the one that was expected.
+    UnexpectedSequence {
+        /// The sequence number the vehicle asked for.
+        seq: u16,
+        /// The sequence number that was expected.
+        expected: u16,
+    },
+    /// There was nothing to write.
+    Empty,
+    /// The range does not fit in the sequence numbers of the protocol.
+    TooLarge,
+}
+
+impl std::fmt::Display for PartialUpdateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rejected { result } => {
+                write!(f, "the vehicle rejected the range: {result:?}")
+            }
+            Self::UnexpectedSequence { seq, expected } => {
+                write!(
+                    f,
+                    "the vehicle asked for item {seq} of a range that was at {expected}"
+                )
+            }
+            Self::Empty => write!(f, "the range has no items"),
+            Self::TooLarge => write!(f, "the range is too large for the protocol"),
+        }
+    }
+}
+
+impl std::error::Error for PartialUpdateError {}
 
 /// The mission operations of a session.
 impl Session {
@@ -303,6 +406,225 @@ impl Session {
                 _ => {}
             }
         }
+    }
+
+    /// Writes part of a plan to the vehicle.
+    ///
+    /// The range is announced with `MISSION_WRITE_PARTIAL_LIST`, and the vehicle then
+    /// asks for the items of that range one at a time, the same way it asks for the
+    /// items of a whole plan. The items outside the range are left alone.
+    ///
+    /// The last index of the range is **inclusive**: the vehicle expects the items from
+    /// `start` to `start + items.len() - 1`. Upstream announces `start + items.len()`
+    /// (`mav_mission.cs:182`), which asks the vehicle for one item more than the ground
+    /// station sends; the vehicle is left waiting for an item that never comes.
+    ///
+    /// The vehicle confirms the range with a `MISSION_ACK` once the last item of it has
+    /// been taken. An acknowledgement that carries a refusal ends the update there and
+    /// then.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the range, when it asks for an item
+    /// that was not the one that was expected, or when it does not answer in time.
+    pub async fn upload_mission_partial(
+        &self,
+        vehicle: VehicleId,
+        mission_type: MissionType,
+        start: u16,
+        items: &[MissionItem],
+        policy: PartialUpdatePolicy,
+    ) -> Result<PartialUpdate, LinkError> {
+        if items.is_empty() {
+            return Err(LinkError::Rejected(PartialUpdateError::Empty.to_string()));
+        }
+
+        let count = u16::try_from(items.len())
+            .map_err(|_| LinkError::Rejected(PartialUpdateError::TooLarge.to_string()))?;
+
+        // The last item of the range. The index is inclusive: the vehicle expects the
+        // items from `start` to `last`, both of them.
+        let Some(last) = start.checked_add(count - 1) else {
+            return Err(LinkError::Rejected(
+                PartialUpdateError::TooLarge.to_string(),
+            ));
+        };
+
+        // The indices of the protocol are sixteen bit signed numbers.
+        if last > i16::MAX as u16 {
+            return Err(LinkError::Rejected(
+                PartialUpdateError::TooLarge.to_string(),
+            ));
+        }
+
+        let use_int = self.uses_mission_int();
+
+        // The matcher is registered before the range is announced: the vehicle answers
+        // the announcement by asking for the first item of it, and a fast vehicle would
+        // ask before the announcement has even left the session.
+        let mut request = self.begin_request(partial_word_matcher(vehicle)).await?;
+
+        self.write_message(&MavMessage::MISSION_WRITE_PARTIAL_LIST(
+            MISSION_WRITE_PARTIAL_LIST_DATA {
+                start_index: start as i16,
+                end_index: last as i16,
+                target_system: vehicle.system_id,
+                target_component: vehicle.component_id,
+                mission_type: mission_type_of(mission_type),
+            },
+        ))
+        .await?;
+
+        // The last item that was sent. The vehicle names the item it wants, so this is
+        // also the last item the vehicle asked for.
+        let mut sent: Option<u16> = None;
+        let mut accepted: Vec<u16> = Vec::new();
+        let mut attempts = 0u32;
+
+        loop {
+            let message = match request.wait_for(policy.item_timeout).await {
+                Ok(message) => {
+                    attempts = 0;
+                    message
+                }
+                Err(LinkError::Timeout(_)) if attempts < policy.item_retries => {
+                    // The wait is repeated rather than the item being sent again: an
+                    // item the vehicle has already taken must not be sent a second
+                    // time. The vehicle asks again by itself after a second.
+                    attempts += 1;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+
+            // The next matcher is registered before the message is acted upon, so that
+            // a message that arrives in between is not lost.
+            request = self.begin_request(partial_word_matcher(vehicle)).await?;
+
+            match message.message_id {
+                MISSION_ACK_ID => {
+                    let ack = mission_ack_data_of(&message).ok_or(LinkError::Protocol(
+                        mpcraft_mavlink::ProtocolError::Malformed(
+                            "the acknowledgement carried no result",
+                        ),
+                    ))?;
+                    let result = ack.mavtype;
+
+                    // The vehicle wanted a different item. It asks again, and the
+                    // exchange continues from there.
+                    if result == MavMissionResult::MAV_MISSION_INVALID_SEQUENCE {
+                        continue;
+                    }
+
+                    // The acknowledgement of another plan is not the answer to this
+                    // one: a link can carry a plan and a fence at once.
+                    if ack.mission_type != mission_type_of(mission_type) {
+                        continue;
+                    }
+
+                    if result != MavMissionResult::MAV_MISSION_ACCEPTED {
+                        return Err(LinkError::Rejected(
+                            PartialUpdateError::Rejected { result }.to_string(),
+                        ));
+                    }
+
+                    // The vehicle accepts the range. It is either the
+                    // acknowledgement of the announcement — the items of the range
+                    // are to be sent — or the acknowledgement of the last item of it,
+                    // which ends the write.
+                    let next = match sent {
+                        None => start,
+                        Some(last_sent) if last_sent == last => {
+                            return Ok(PartialUpdate { start, accepted });
+                        }
+                        Some(last_sent) => last_sent + 1,
+                    };
+
+                    let Some(item) = items.get((next - start) as usize) else {
+                        return Err(LinkError::Rejected(
+                            PartialUpdateError::UnexpectedSequence {
+                                seq: next,
+                                expected: next,
+                            }
+                            .to_string(),
+                        ));
+                    };
+
+                    self.write_partial_item(mission_type, next, item, use_int)
+                        .await?;
+                    sent = Some(next);
+                    accepted.push(next);
+                }
+
+                MISSION_REQUEST_ID | MISSION_REQUEST_INT_ID => {
+                    let seq = mission_request_seq_of(&message).ok_or(LinkError::Protocol(
+                        mpcraft_mavlink::ProtocolError::Malformed(
+                            "the request carried no sequence number",
+                        ),
+                    ))?;
+
+                    let expected = sent.map_or(start, |last_sent| last_sent + 1);
+
+                    // A request for an item that has already been written is a stale
+                    // one: the vehicle has moved on.
+                    if seq < expected {
+                        continue;
+                    }
+
+                    // The vehicle asks for an item that was never announced: the two
+                    // ends do not agree on the plan.
+                    if seq > expected {
+                        return Err(LinkError::Rejected(
+                            PartialUpdateError::UnexpectedSequence { seq, expected }.to_string(),
+                        ));
+                    }
+
+                    // The vehicle asks for the item, and it is sent. A request for an
+                    // item that was already sent means the item was lost, and it is
+                    // sent again.
+                    let Some(item) = items.get((seq - start) as usize) else {
+                        return Err(LinkError::Rejected(
+                            PartialUpdateError::UnexpectedSequence { seq, expected }.to_string(),
+                        ));
+                    };
+
+                    self.write_partial_item(mission_type, seq, item, use_int)
+                        .await?;
+
+                    if sent != Some(seq) {
+                        accepted.push(seq);
+                    }
+                    sent = Some(seq);
+                }
+
+                _ => {}
+            }
+        }
+    }
+
+    /// Writes one item of a range to the vehicle.
+    ///
+    /// The integer form of the item is the one a vehicle that advertises `MISSION_INT`
+    /// wants; the float form is the one every other vehicle expects.
+    ///
+    /// The addressing of the item is left as the encoder of the plan produces it, the
+    /// same way [`Session::upload_mission`] does it: the vehicle accepts an item that
+    /// is not addressed to anybody in particular.
+    async fn write_partial_item(
+        &self,
+        mission_type: MissionType,
+        seq: u16,
+        item: &MissionItem,
+        use_int: bool,
+    ) -> Result<(), LinkError> {
+        #[allow(deprecated)]
+        let message = if use_int {
+            MavMessage::MISSION_ITEM_INT(item.to_int_message(seq, mission_type))
+        } else {
+            MavMessage::MISSION_ITEM(item.to_float_message(seq, mission_type))
+        };
+
+        self.write_message(&message).await
     }
 
     /// Requests one item of a plan and waits for it.
@@ -544,6 +866,17 @@ fn mission_ack_of(message: &ReceivedMessage) -> Option<MavMissionResult> {
     }
 }
 
+/// The `MISSION_ACK` payload of a message, if it is one.
+///
+/// The acknowledgement carries the type of the plan it is about, which is what tells
+/// the acknowledgement of a plan from the acknowledgement of a fence.
+fn mission_ack_data_of(message: &ReceivedMessage) -> Option<&MISSION_ACK_DATA> {
+    match &message.message {
+        MavMessage::MISSION_ACK(ack) => Some(ack),
+        _ => None,
+    }
+}
+
 /// The sequence a `MISSION_REQUEST` asks for.
 #[allow(deprecated)]
 fn mission_request_seq_of(message: &ReceivedMessage) -> Option<u16> {
@@ -551,5 +884,20 @@ fn mission_request_seq_of(message: &ReceivedMessage) -> Option<u16> {
         MavMessage::MISSION_REQUEST(request) => Some(request.seq),
         MavMessage::MISSION_REQUEST_INT(request) => Some(request.seq),
         _ => None,
+    }
+}
+
+/// The matcher of the words a vehicle sends while a range is being written.
+///
+/// The vehicle either asks for an item or acknowledges the range. The matcher is on the
+/// vehicle as well as on the message: a link can carry several vehicles, and each of
+/// them writes its own plan.
+fn partial_word_matcher(vehicle: VehicleId) -> impl Fn(&ReceivedMessage) -> bool + Send + 'static {
+    move |message| {
+        message.system_id == vehicle.system_id
+            && message.component_id == vehicle.component_id
+            && (message.message_id == MISSION_REQUEST_ID
+                || message.message_id == MISSION_REQUEST_INT_ID
+                || message.message_id == MISSION_ACK_ID)
     }
 }

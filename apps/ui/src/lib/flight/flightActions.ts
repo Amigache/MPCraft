@@ -2,10 +2,12 @@ import {
   arm,
   call,
   disarm,
+  homePosition,
   jumpToItem,
   normaliseError,
   reboot,
   setCurrentItem,
+  setHomePosition,
   setMode,
   setPositionTarget,
   takeoff,
@@ -104,6 +106,43 @@ export async function flyTo(
     report(
       null,
       `the vehicle was told to go to ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+    );
+  } catch (cause) {
+    report(normaliseError(cause), null);
+  }
+}
+
+/**
+ * Moves the home of the vehicle to a place.
+ *
+ * The vehicle is told where the home is, and it confirms the move by reporting the home
+ * it now holds.
+ */
+export async function moveHome(
+  latitude: number,
+  longitude: number,
+  altitude: number,
+): Promise<void> {
+  const report = useActivityStore.getState().report;
+  try {
+    await setHomePosition({ lat: latitude, lng: longitude, alt: altitude });
+    report(
+      null,
+      `the home was moved to ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+    );
+  } catch (cause) {
+    report(normaliseError(cause), null);
+  }
+}
+
+/** Asks the vehicle where its home is. */
+export async function askHome(): Promise<void> {
+  const report = useActivityStore.getState().report;
+  try {
+    const home = await homePosition();
+    report(
+      null,
+      `the home is at ${home.lat.toFixed(5)}, ${home.lng.toFixed(5)}`,
     );
   } catch (cause) {
     report(normaliseError(cause), null);

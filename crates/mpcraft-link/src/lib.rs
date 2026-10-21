@@ -14,6 +14,7 @@
 //! | [`plaintext`] | Capturing the board's own output, which explains a silent link |
 //! | [`params`] | The parameter protocol |
 //! | [`mission`] | The mission protocol |
+//! | [`home`] | The home position of a vehicle |
 //! | [`commands`] | The command protocol: arming, taking off, changing the mode |
 //!
 //! # The concurrency model
@@ -58,6 +59,7 @@
 pub mod commands;
 pub mod error;
 pub mod heartbeat;
+pub mod home;
 pub mod logs;
 pub mod loss;
 pub mod mission;
@@ -70,8 +72,15 @@ pub mod vehicle;
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
 pub use heartbeat::{Heartbeat, HeartbeatCollector, HeartbeatRejection};
+pub use home::{
+    HomeError, HomeRequest, DEFAULT_HOME_RETRIES, DEFAULT_HOME_TIMEOUT, HOME_POSITION_ID,
+    SET_HOME_POSITION_ID,
+};
 pub use loss::{LossAccountant, LossStats};
-pub use mission::{MissionError, DEFAULT_ITEM_TIMEOUT};
+pub use mission::{
+    MissionError, PartialUpdate, PartialUpdateError, PartialUpdatePolicy, DEFAULT_ITEM_TIMEOUT,
+    DEFAULT_PARTIAL_ITEM_RETRIES, DEFAULT_PARTIAL_ITEM_TIMEOUT,
+};
 pub use params::{ParamError, DEFAULT_LIST_TIMEOUT, DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT};
 pub use plaintext::PlaintextSniffer;
 pub use session::{ReceivedMessage, Session, SessionOptions, SessionState};

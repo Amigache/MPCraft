@@ -41,6 +41,10 @@ pub enum TerrainError {
     /// The local cache could not be read or written.
     #[error("terrain cache error: {0}")]
     Cache(String),
+
+    /// The request does not make sense.
+    #[error("invalid terrain request: {0}")]
+    InvalidRequest(String),
 }
 
 /// An elevation sample, in metres above sea level.

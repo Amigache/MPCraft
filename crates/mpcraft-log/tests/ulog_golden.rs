@@ -106,6 +106,32 @@ fn the_declarations_of_a_real_log_are_read() {
 }
 
 #[test]
+fn a_topic_that_uses_another_one_is_spread_over_its_columns() {
+    let mut reader = reader();
+
+    while reader.next_sample().expect("the log is read").is_some() {}
+
+    // The topic of the telemetry holds four heartbeats, and a heartbeat is a topic
+    // of its own.
+    let status = reader
+        .formats()
+        .get("telemetry_status")
+        .expect("the log declares the topic");
+
+    let names: Vec<&str> = status
+        .fields
+        .iter()
+        .map(|field| field.name.as_str())
+        .collect();
+
+    assert_eq!(names[13], "heartbeats[0].timestamp");
+    assert_eq!(names[17], "heartbeats[0].state");
+    assert_eq!(names[18], "heartbeats[1].timestamp");
+    assert_eq!(names[32], "heartbeats[3].state");
+    assert_eq!(names.len(), 33);
+}
+
+#[test]
 fn the_units_of_a_real_log_are_known() {
     let mut reader = reader();
 
@@ -338,4 +364,8 @@ fn a_whole_log_holds_its_topics() {
     // the clock of the world.
     assert_eq!(log.header().start_timestamp_us, 20_309_082);
     assert_eq!(log.epoch_us(0), Some(20_309_082));
+
+    // The first and the last sample of the log bound the flight.
+    assert!(log.start_us().expect("the log holds a sample") > 0);
+    assert!(log.end_us().expect("the log holds a sample") > log.start_us().unwrap_or(0));
 }

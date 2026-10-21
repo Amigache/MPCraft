@@ -42,7 +42,7 @@
 //! convention of PX4, and it is applied only to the fields of a whole number, because
 //! a value of a floating type is already in its unit.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Read;
 
 use crate::dataflash::Value;
@@ -431,6 +431,8 @@ pub struct ULogReader<R: Read> {
     dropouts: Vec<ULogDropout>,
     /// The places of the log that could not be read.
     damage: Vec<ULogDamage>,
+    /// Where the data that was appended to the log begins, when there is some.
+    appended_offset: Option<u64>,
     /// Whether the end of the log has been reached.
     finished: bool,
 }
@@ -456,6 +458,7 @@ impl<R: Read> ULogReader<R> {
             messages: Vec::new(),
             dropouts: Vec::new(),
             damage: Vec::new(),
+            appended_offset: None,
             finished: false,
         }
     }
@@ -612,6 +615,25 @@ impl<R: Read> ULogReader<R> {
             return Ok(None);
         }
 
+        // A log that had data appended to it says where that data begins. The
+        // message that was cut in half cannot be read across that place, so the
+        // reader leaves it and follows the log where it was continued.
+        if let Some(offset) = self.appended_offset {
+            if self.position < offset && self.position + total as u64 > offset {
+                self.damage.push(ULogDamage {
+                    offset: self.position,
+                    reason: format!("the log was cut in the middle of a message of {size} bytes"),
+                });
+
+                if self.skip_to(offset)? {
+                    return self.read_message();
+                }
+
+                self.finished = true;
+                return Ok(None);
+            }
+        }
+
         if !self.fill(total)? {
             // The log ends in the middle of a message. Everything that came before is
             // still good, and the reader says where the log is broken.
@@ -619,6 +641,15 @@ impl<R: Read> ULogReader<R> {
                 offset: self.position,
                 reason: format!("the log ends in the middle of a message of {size} bytes"),
             });
+
+            // A log that was cut and had data appended to it says where that data
+            // begins, and the reader follows it.
+            if let Some(offset) = self.appended_offset {
+                if offset > self.position && self.skip_to(offset)? {
+                    return self.read_message();
+                }
+            }
+
             self.finished = true;
             return Ok(None);
         }
@@ -637,8 +668,11 @@ impl<R: Read> ULogReader<R> {
             return;
         };
 
-        self.declared.insert(declared.name.clone(), declared);
-        self.rebuild();
+        let name = declared.name.clone();
+
+        self.declared.insert(name.clone(), declared);
+
+        self.rebuild_affected(&name);
     }
 
     /// Reads the announcement of a topic.
@@ -803,17 +837,39 @@ impl<R: Read> ULogReader<R> {
         // second eight are the ones it does not. A log that sets a flag of the second
         // group holds something that breaks the format, and reading it would be
         // reading something else than what the log says it is.
-        let unknown = self.payload[8..16]
-            .iter()
-            .enumerate()
-            .filter(|(index, byte)| **byte != 0 && (*index != 0 || **byte & 0xFE != 0))
-            .map(|(index, byte)| (index, *byte))
-            .collect::<Vec<_>>();
+        for (index, byte) in self.payload[8..16].iter().enumerate() {
+            let unknown = if index == 0 {
+                // The first flag of the group says that data was appended to the log
+                // after it was cut, and a reader can follow it.
+                *byte & 0xFE
+            } else {
+                *byte
+            };
 
-        if !unknown.is_empty() {
-            return Err(LogError::Unsupported(format!(
-                "the log sets the flags {unknown:?}, which this reader does not understand"
-            )));
+            if unknown != 0 {
+                return Err(LogError::Unsupported(format!(
+                    "the log sets the flag {unknown:#04x} of the group {index}, which this reader does not understand"
+                )));
+            }
+        }
+
+        // The log may hold data that was appended to it after it was cut, and it says
+        // where that data begins.
+        if self.payload[8] & 0x01 != 0 && self.payload.len() >= 24 {
+            let offset = u64::from_le_bytes([
+                self.payload[16],
+                self.payload[17],
+                self.payload[18],
+                self.payload[19],
+                self.payload[20],
+                self.payload[21],
+                self.payload[22],
+                self.payload[23],
+            ]);
+
+            if offset != 0 {
+                self.appended_offset = Some(offset);
+            }
         }
 
         Ok(())
@@ -827,10 +883,26 @@ impl<R: Read> ULogReader<R> {
 
         let id = u16::from_le_bytes([self.payload[0], self.payload[1]]);
 
-        let subscription = self.subscriptions.get(&id)?;
+        let Some(subscription) = self.subscriptions.get(&id).cloned() else {
+            self.damage.push(ULogDamage {
+                offset: self.position,
+                reason: format!("a sample of the subscription {id}, which was never announced"),
+            });
 
-        let topic = subscription.topic.clone();
+            return None;
+        };
+
+        let topic = subscription.topic;
         let multi_id = subscription.multi_id;
+
+        if !self.layouts.contains_key(&topic) {
+            self.damage.push(ULogDamage {
+                offset: self.position,
+                reason: format!("a sample of the topic {topic:?}, which was never declared"),
+            });
+
+            return None;
+        }
 
         let columns = self.layouts.get(&topic)?;
 
@@ -846,27 +918,52 @@ impl<R: Read> ULogReader<R> {
         })
     }
 
-    /// Builds the columns and the description of every topic of the log.
+    /// Builds the columns of the topics that the given one takes part in.
     ///
     /// A topic can use another topic as the type of one of its fields, and the other
-    /// one can be declared after it, so the columns of a topic are built again every
-    /// time a topic is declared.
-    fn rebuild(&mut self) {
-        let declared = &self.declared;
+    /// one can be declared after it, so the columns of the topics that use it are
+    /// built again when it is declared.
+    fn rebuild_affected(&mut self, name: &str) {
+        self.build_one(name);
 
-        self.layouts.clear();
-        self.formats.clear();
+        let mut pending = vec![name.to_owned()];
+        let mut done: HashSet<String> = HashSet::new();
 
-        for (name, format) in declared {
-            let mut columns = Vec::new();
+        while let Some(current) = pending.pop() {
+            let users: Vec<String> = self
+                .declared
+                .iter()
+                .filter(|(other, format)| !done.contains(*other) && uses_type(format, &current))
+                .map(|(other, _)| other.clone())
+                .collect();
 
-            if !build_columns(format, declared, name, "", 0, &mut columns) {
-                continue;
+            for user in users {
+                done.insert(user.clone());
+                pending.push(user.clone());
+                self.build_one(&user);
             }
+        }
+    }
 
-            self.layouts.insert(name.clone(), columns.clone());
+    /// Builds the columns of one topic and says what it is.
+    ///
+    /// A topic that uses a topic that has not been declared yet cannot be built, and
+    /// it is built again when the other one is declared.
+    fn build_one(&mut self, name: &str) {
+        let Some(format) = self.declared.get(name) else {
+            return;
+        };
+
+        let declared = &self.declared;
+        let mut columns = Vec::new();
+
+        if build_columns(format, declared, name, "", 0, &mut columns) {
+            self.layouts.insert(name.to_owned(), columns.clone());
             self.formats
-                .insert(name.clone(), describe(format, &columns));
+                .insert(name.to_owned(), describe(format, &columns));
+        } else {
+            self.layouts.remove(name);
+            self.formats.remove(name);
         }
     }
 
@@ -907,6 +1004,24 @@ impl<R: Read> ULogReader<R> {
             self.buffer.clear();
             self.start = 0;
         }
+    }
+
+    /// Throws away the bytes of the log until that place is reached.
+    ///
+    /// Says whether the place was reached: the end of the log comes first.
+    fn skip_to(&mut self, offset: u64) -> Result<bool, LogError> {
+        while self.position < offset {
+            let wanted = usize::try_from(offset - self.position).unwrap_or(usize::MAX);
+
+            if !self.fill(wanted.min(16 * 1024))? {
+                return Ok(false);
+            }
+
+            let take = wanted.min(self.unread().len());
+            self.consume(take);
+        }
+
+        Ok(true)
     }
 }
 
@@ -1051,6 +1166,28 @@ impl ULog {
     #[must_use]
     pub fn damage(&self) -> &[ULogDamage] {
         &self.damage
+    }
+
+    /// When the first sample of the log was taken, in microseconds since the vehicle
+    /// booted.
+    #[must_use]
+    pub fn start_us(&self) -> Option<u64> {
+        self.topics
+            .iter()
+            .flat_map(|topic| topic.samples.iter())
+            .map(|sample| sample.timestamp_us)
+            .min()
+    }
+
+    /// When the last sample of the log was taken, in microseconds since the vehicle
+    /// booted.
+    #[must_use]
+    pub fn end_us(&self) -> Option<u64> {
+        self.topics
+            .iter()
+            .flat_map(|topic| topic.samples.iter())
+            .map(|sample| sample.timestamp_us)
+            .max()
     }
 
     /// The instant of a sample, in microseconds since the epoch.
@@ -1228,6 +1365,18 @@ fn parse_field(field: &str) -> Option<(ULogType, String)> {
     Some((kind, name.to_owned()))
 }
 
+/// Says whether a topic uses another one as the type of one of its fields.
+fn uses_type(format: &DeclaredFormat, name: &str) -> bool {
+    format.fields.iter().any(|field| match &field.kind {
+        ULogType::Nested(other) => other == name,
+        ULogType::Array(inner, _) => match &**inner {
+            ULogType::Nested(other) => other == name,
+            _ => false,
+        },
+        _ => false,
+    })
+}
+
 /// Builds the columns of the samples of a topic.
 ///
 /// A field of a list of values is one column per value, and a topic used as the type
@@ -1364,7 +1513,7 @@ fn describe(format: &DeclaredFormat, columns: &[Column]) -> ULogFormat {
 
 /// Reads the values of a sample out of the bytes of the message that carries it.
 fn decode_columns(columns: &[Column], data: &[u8]) -> Vec<Value> {
-    let mut values = Vec::new();
+    let mut values = Vec::with_capacity(columns.len());
     let mut offset = 0_usize;
 
     for (index, column) in columns.iter().enumerate() {
@@ -1465,11 +1614,9 @@ fn read_value(kind: &ULogType, bytes: &[u8], scale: f64, offset: f64) -> Value {
             *bytes.get(6).unwrap_or(&0),
             *bytes.get(7).unwrap_or(&0),
         ]),
-        ULogType::Array(inner, _) => {
-            if matches!(**inner, ULogType::Char) {
-                return Value::Text(text_of(bytes));
-            }
-
+        ULogType::Array(..) => {
+            // The only list of values that is a column of its own is a list of
+            // characters, and a list of characters is a text.
             return Value::Text(text_of(bytes));
         }
         ULogType::Nested(_) => 0.0,
@@ -1921,6 +2068,84 @@ mod tests {
             reader.next_sample(),
             Err(LogError::Unsupported(_))
         ));
+    }
+
+    #[test]
+    fn the_data_that_was_appended_to_a_log_is_followed() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1_000_u64.to_le_bytes());
+        data.extend_from_slice(&2.5_f32.to_le_bytes());
+
+        let head = header(1, 0);
+        let declaration = format("a_topic", "uint64_t timestamp;float value");
+        let announced = subscription(0, 0, "a_topic");
+        let first = sample(0, &data);
+
+        // The log was cut in the middle of a message.
+        let mut cut = Vec::new();
+        cut.extend_from_slice(&100_u16.to_le_bytes());
+        cut.push(b'D');
+        cut.extend_from_slice(&[0_u8; 20]);
+
+        // The data that was appended to the log begins where the log was cut.
+        let offset =
+            (head.len() + 43 + declaration.len() + announced.len() + first.len() + cut.len())
+                as u64;
+
+        let mut flags = vec![0_u8; 40];
+        flags[8] = 0x01;
+        flags[16..24].copy_from_slice(&offset.to_le_bytes());
+
+        let bytes = [
+            head,
+            message(b'B', &flags),
+            declaration,
+            announced,
+            first,
+            cut,
+            subscription(0, 1, "a_topic"),
+            sample(1, &data),
+        ]
+        .concat();
+
+        let mut reader = ULogReader::new(&bytes[..]);
+
+        let mut samples = Vec::new();
+
+        while let Some(sample) = reader.next_sample().expect("the log is read") {
+            samples.push(sample);
+        }
+
+        // The sample that came before the cut and the one that came after it are
+        // both there.
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0].values[1].number(), Some(2.5));
+        assert_eq!(samples[1].values[1].number(), Some(2.5));
+
+        // The place where the log was cut is said.
+        assert_eq!(reader.damage().len(), 1);
+        assert!(reader.damage()[0].reason.contains("cut"));
+    }
+
+    #[test]
+    fn a_sample_of_a_topic_that_was_never_announced_is_said_so() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1_000_u64.to_le_bytes());
+        data.extend_from_slice(&2.5_f32.to_le_bytes());
+
+        let bytes = [
+            header(1, 0),
+            format("a_topic", "uint64_t timestamp;float value"),
+            sample(7, &data),
+        ]
+        .concat();
+
+        let mut reader = ULogReader::new(&bytes[..]);
+
+        while reader.next_sample().expect("the log is read").is_some() {}
+
+        assert_eq!(reader.damage().len(), 1);
+        assert!(reader.damage()[0].reason.contains("never announced"));
     }
 
     #[test]

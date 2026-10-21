@@ -13,6 +13,7 @@ import type {
   FlightMode,
   GraphPreset,
   GraphSeries,
+  GeoPoint,
   LogSummary,
   PlaybackInfo,
   LogTrackPoint,
@@ -132,6 +133,26 @@ export async function uploadMission(
   await call<void>("upload_mission", {
     ...vehicleRequest(vehicle),
     kind,
+    items,
+  });
+}
+
+/**
+ * Writes a part of a plan to the vehicle, leaving the rest of it alone.
+ *
+ * The vehicle is told which range of the plan is coming, and it asks for the items one
+ * at a time. The answer says which items the vehicle took.
+ */
+export async function uploadMissionPartial(
+  kind: PlanKind,
+  start: number,
+  items: readonly PlanItem[],
+  vehicle?: VehicleKey,
+): Promise<{ start: number; accepted: number[] }> {
+  return call<{ start: number; accepted: number[] }>("upload_mission_partial", {
+    ...vehicleRequest(vehicle),
+    kind,
+    start,
     items,
   });
 }
@@ -409,6 +430,32 @@ export async function logExportCsv(
   output: string,
 ): Promise<void> {
   await call<void>("log_export_csv", { log, name, output });
+}
+
+/**
+ * Asks the vehicle where its home is.
+ *
+ * The vehicle is asked with the command that upstream sends, and the answer is the
+ * message the vehicle sends when its home is known.
+ */
+export async function homePosition(vehicle?: VehicleKey): Promise<GeoPoint> {
+  return call<GeoPoint>("home_position", vehicleRequest(vehicle));
+}
+
+/**
+ * Moves the home of the vehicle.
+ *
+ * The vehicle is told where the home is, and it confirms the move by reporting the home
+ * it now holds. A vehicle that refuses the move keeps the one it had.
+ */
+export async function setHomePosition(
+  position: GeoPoint,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_home_position", {
+    ...vehicleRequest(vehicle),
+    position,
+  });
 }
 
 /**

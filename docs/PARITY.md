@@ -84,7 +84,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 4.1 | Mission download / upload | `ExtLibs/ArduPilot/mav_mission.cs` | ✅ | 2 |
 | 4.2 | `MISSION_ITEM_INT` support | `getWPAsync` (capability-gated) | ✅ | 2 |
-| 4.3 | Partial mission update | `mav_mission.uploadPartial` | 🔜 | 2 |
+| 4.3 | Partial mission update | `mav_mission.uploadPartial` | ✅ | 2 |
 | 4.4 | Waypoint table editor | `GCSViews/FlightPlanner.cs` (Commands grid) | ✅ | 2 |
 | 4.5 | Map-based waypoint add / drag / delete | `FlightPlanner.cs` | ✅ | 2 |
 | 4.6 | MAV_CMD parameter metadata & units | `mavcmd.xml` | ✅ | 2 |
@@ -92,7 +92,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.8 | Geo-fence polygon drawing & upload | `FlightPlanner.cs` polygon tools | ✅ | 2 |
 | 4.9 | Fence inclusion / exclusion lists | `FenceInclusion/Exclusion` | ✅ | 2 |
 | 4.10 | Rally point upload / download | `getRallyPoint`, `setRallyPoint` | ✅ | 2 |
-| 4.11 | Home position management | `getHomePositionAsync` | 🔜 | 2 |
+| 4.11 | Home position management | `getHomePositionAsync` | ✅ | 2 |
 | 4.12 | QGC `.waypoints` import / export | `FlightPlanner.cs` readQGC110wpfile | ✅ | 2 |
 | 4.13 | KML import / export | `FlightPlanner.cs` processKML | ✅ | 2 |
 | 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | 🔜 | 2 |
@@ -143,7 +143,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 6.1 | DataFlash `.log` parser | `ExtLibs/Utilities/DFLog.cs` | ✅ | 4 |
 | 6.2 | DataFlash `.bin` parser | `ExtLibs/Utilities/BinaryLog.cs` | ✅ | 4 |
 | 6.3 | MAVLink `.tlog` parser | `Log/MavlinkLog.cs` | ✅ | 4 |
-| 6.4 | PX4 ULog parser | `ExtLibs/Utilities/ULog.cs` (upstream: unwired) | 🔜 | 4 |
+| 6.4 | PX4 ULog parser | `ExtLibs/Utilities/ULog.cs` (upstream: unwired) | ✅ | 4 |
 | 6.5 | Log download over MAVLink | `Log/LogDownloadMavLink.cs` | ✅ | 4 |
 | 6.6 | Log download over SCP | `Log/LogDownloadscp.cs` | 🔜 | 5 |
 | 6.7 | Log browser — message tree + sample grid | `Log/LogBrowse.cs` | ✅ | 4 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 107 |
-| 🔜 Planned | 46 |
+| ✅ Done | 110 |
+| 🔜 Planned | 43 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 107 rows marked done are the connection, transport, parameter, mission and command
+The 110 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -255,6 +255,16 @@ The **plan editor** takes the place of the graphs, the way upstream's planner pu
 above the map. The waypoints are dragged on the map, the plan is checked before it is
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
 unsent changes never looks like the plan on the vehicle.
+
+The **home** of the vehicle is read and moved from the actions tab: the vehicle is
+asked where its home is, and the home can be moved to the place the vehicle is in,
+which is what an operator does when the vehicle was armed in the wrong place. The
+vehicle confirms the move by reporting the home it now holds, and a vehicle that
+refuses it keeps the one it had.
+
+A **part of the plan** can be written to the vehicle without touching the rest of it:
+the editor writes the plan from the item that is selected onwards, and the items
+before it stay on the vehicle as they are.
 
 The **Setup menu** carries the screens of the configuration, the way upstream's does:
 the frame of the vehicle, the receivers, the serial ports, the radio, the failsafe and
@@ -298,6 +308,19 @@ The **text log of DataFlash** is read as well as the telemetry log: the declarat
 at the top of the file say what every message is, and the samples that follow are read
 with the types they were declared with — a position in millionths of a degree is said in
 degrees, and a value in hundredths is said in the unit it is in.
+
+The **log of PX4** is read too, which upstream ships without ever wiring it to
+anything. The file begins with a header, and what follows is a stream of messages: the
+declarations of the topics, the information of the vehicle, its parameters, the strings
+it printed, the places where messages were lost, and the samples of each topic. The
+declaration of a topic says the name of the topic, its fields and the type of each of
+them, and the samples that follow are read with those types. A topic that uses another
+topic as the type of one of its fields is spread over the columns of both, and a list
+of values is one column per value. The log does not say what a whole number means, so
+the reader knows the convention of PX4 and gives the values in the unit they belong to:
+a latitude in hundred-millionths of a degree is said in degrees, and a height in
+millimetres is said in metres. A log that ends in the middle of a message is not
+thrown away: what came before is kept and the place where the log is broken is said.
 
 The **samples of a message** are a grid in the sheet of the logs: the fields of the
 message are the columns and the samples are the rows, with the instant each of them

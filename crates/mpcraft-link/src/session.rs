@@ -691,11 +691,26 @@ impl RequestHandle {
     ///
     /// Returns an error when the session closes before the message arrives, or when the
     /// timeout expires.
-    pub async fn wait(self, timeout: Duration) -> Result<ReceivedMessage, LinkError> {
-        match tokio::time::timeout(timeout, self.wait).await {
+    pub async fn wait(mut self, timeout: Duration) -> Result<ReceivedMessage, LinkError> {
+        self.wait_for(timeout).await
+    }
+
+    /// Waits for the message, for at most the given budget.
+    ///
+    /// The handle is **not** consumed, so a transaction that re-sends its request can
+    /// keep waiting on the same matcher. Registering a fresh matcher for the retry
+    /// would leave a window in which the vehicle's answer arrives with nobody
+    /// listening — the very race the matcher exists to prevent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes before the message arrives, or when
+    /// the budget runs out.
+    pub async fn wait_for(&mut self, budget: Duration) -> Result<ReceivedMessage, LinkError> {
+        match tokio::time::timeout(budget, &mut self.wait).await {
             Ok(Ok(result)) => result,
             Ok(Err(_)) => Err(LinkError::SessionClosed),
-            Err(_) => Err(LinkError::Timeout(timeout)),
+            Err(_) => Err(LinkError::Timeout(budget)),
         }
     }
 }

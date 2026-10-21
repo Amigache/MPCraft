@@ -1205,6 +1205,57 @@ async fn stop_live_kml(state: State<'_, AppState>) -> CommandResult<String> {
     Ok(path)
 }
 
+/// Asks the vehicle where its home is.
+///
+/// The vehicle is asked with the command that upstream sends, and the answer is the
+/// message the vehicle sends when its home is known.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle does not answer in time.
+#[tauri::command]
+async fn home_position(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<PositionEvent> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let home = state.supervisor.home_position(vehicle).await?;
+
+    Ok(PositionEvent {
+        lat: home.lat,
+        lng: home.lng,
+        alt: home.alt,
+    })
+}
+
+/// Moves the home of the vehicle.
+///
+/// The vehicle is told where the home is, and it confirms the move by reporting the
+/// home it now holds.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// does not confirm the move, or when it reports a different home.
+#[tauri::command]
+async fn set_home_position(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    position: PositionEvent,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .set_home_position(
+            vehicle,
+            mpcraft_vehicle::GeoPoint {
+                lat: position.lat,
+                lng: position.lng,
+                alt: position.alt,
+            },
+        )
+        .await
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -1734,6 +1785,47 @@ async fn upload_mission(
     state.supervisor.upload_mission(vehicle, &plan).await
 }
 
+/// Writes a part of a plan to the vehicle, leaving the rest of it alone.
+///
+/// The vehicle is told which range of the plan is coming, and it asks for the items one
+/// at a time. The answer says which items the vehicle took.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// refuses the range, or when it does not answer.
+#[tauri::command]
+async fn upload_mission_partial(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    kind: PlanKind,
+    start: u16,
+    items: Vec<PlanItemRequest>,
+) -> CommandResult<PartialUpdateInfo> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let plan = plan_of(kind, &items)?;
+
+    let report = state
+        .supervisor
+        .upload_mission_partial(vehicle, plan.mission_type, start, &plan.items)
+        .await?;
+
+    Ok(PartialUpdateInfo {
+        start: report.start,
+        accepted: report.accepted,
+    })
+}
+
+/// What a partial update of a plan was.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PartialUpdateInfo {
+    /// The first item that was written.
+    start: u16,
+    /// The items the vehicle took.
+    accepted: Vec<u16>,
+}
+
 /// Says which item of the plan the vehicle is executing.
 ///
 /// # Errors
@@ -2212,7 +2304,7 @@ struct WindEvent {
 }
 
 /// A position.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PositionEvent {
     /// The latitude, in degrees.
@@ -2569,6 +2661,8 @@ fn main() {
             log_export_csv,
             start_live_kml,
             stop_live_kml,
+            home_position,
+            set_home_position,
             list_parameters,
             read_parameters,
             write_parameter,
@@ -2582,6 +2676,7 @@ fn main() {
             set_mode,
             download_mission,
             upload_mission,
+            upload_mission_partial,
             set_current_item,
             clear_mission,
             jump_to_item
