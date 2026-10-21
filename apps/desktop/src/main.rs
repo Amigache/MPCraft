@@ -1088,6 +1088,24 @@ struct TelemetryEvent {
     mission: Option<MissionProgressEvent>,
     /// The state of the global positioning, when it is known.
     gps: Option<GpsEvent>,
+    /// The inertial measurement, when it is known.
+    imu: Option<ImuEvent>,
+    /// The barometer, when it is known.
+    barometer: Option<BarometerEvent>,
+    /// The servos and the radio control, when they are known.
+    controls: Option<ControlsEvent>,
+    /// The air data, when it is known.
+    airspeed: Option<AirspeedEvent>,
+    /// The state of the estimator, when it is known.
+    ekf: Option<EkfEvent>,
+    /// The vibration of the airframe, when it is known.
+    vibration: Option<VibrationEvent>,
+    /// The battery banks the vehicle has reported.
+    batteries: Vec<BatteryBankEvent>,
+    /// The attitude of the second estimator, when it is known.
+    ahrs2: Option<AttitudeEvent>,
+    /// What the flight controller is asking for, when it is known.
+    controller: Option<ControllerEvent>,
 }
 
 /// The progress of the plan on the vehicle.
@@ -1114,6 +1132,122 @@ struct GpsEvent {
     pub satellites: u8,
     /// The horizontal dilution of precision.
     pub hdop: f64,
+}
+
+/// The inertial measurement of the vehicle.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImuEvent {
+    /// The acceleration on each axis, in metres per second squared.
+    acceleration: [f64; 3],
+    /// The angular rate on each axis, in radians per second.
+    angular_rate: [f64; 3],
+    /// The magnetic field on each axis, in gauss.
+    magnetic_field: [f64; 3],
+    /// The temperature of the sensor, in degrees Celsius.
+    temperature: f64,
+}
+
+/// The barometer of the vehicle.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BarometerEvent {
+    /// The absolute pressure, in hectopascals.
+    absolute_pressure: f64,
+    /// The differential pressure, in hectopascals.
+    differential_pressure: f64,
+    /// The temperature, in degrees Celsius.
+    temperature: f64,
+}
+
+/// The servos and the radio control.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ControlsEvent {
+    /// The pulse width of each of the first eight outputs, in microseconds.
+    outputs: [Option<f64>; 8],
+    /// The value of each of the first eight radio channels.
+    inputs: [Option<f64>; 8],
+    /// The strength of the radio signal, as a percentage.
+    signal: Option<f64>,
+}
+
+/// The air data of the vehicle.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AirspeedEvent {
+    /// The speed through the air, in metres per second.
+    airspeed: Option<f64>,
+    /// The speed over the ground, in metres per second.
+    ground_speed: f64,
+    /// The rate of climb, in metres per second.
+    climb: f64,
+    /// The throttle, as a percentage.
+    throttle: f64,
+}
+
+/// The state of the estimator of the vehicle.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EkfEvent {
+    /// The variance of the velocity estimate.
+    velocity_variance: f64,
+    /// The variance of the horizontal position estimate.
+    horizontal_variance: f64,
+    /// The variance of the vertical position estimate.
+    vertical_variance: f64,
+    /// The variance of the compass.
+    compass_variance: f64,
+    /// The variance of the terrain altitude.
+    terrain_variance: f64,
+    /// The variance of the airspeed estimate.
+    airspeed_variance: f64,
+}
+
+/// The vibration of the airframe.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VibrationEvent {
+    /// The vibration on the first axis, in metres per second squared.
+    x: f64,
+    /// The vibration on the second axis, in metres per second squared.
+    y: f64,
+    /// The vibration on the third axis, in metres per second squared.
+    z: f64,
+}
+
+/// The state of one battery bank.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BatteryBankEvent {
+    /// The identifier the vehicle gives the bank.
+    id: u8,
+    /// The voltage of each cell, in volts.
+    cells: Vec<f64>,
+    /// The current of the bank, in amperes.
+    current: f64,
+    /// The remaining charge of the bank, as a percentage.
+    remaining: f64,
+    /// The temperature of the bank, in degrees Celsius.
+    temperature: f64,
+}
+
+/// What the flight controller is asking the vehicle to do.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ControllerEvent {
+    /// The roll the controller asks for, in radians.
+    roll: f64,
+    /// The pitch the controller asks for, in radians.
+    pitch: f64,
+    /// The error of the altitude, in metres.
+    altitude_error: f64,
+    /// The error of the airspeed.
+    airspeed_error: f64,
+    /// The error of the cross-track, in metres.
+    cross_track_error: f64,
+    /// The distance to the waypoint the vehicle is flying towards, in metres.
+    waypoint_distance: f64,
 }
 
 /// A position.
@@ -1271,6 +1405,65 @@ fn telemetry_event(state: &SessionState) -> TelemetryEvent {
             fix_type: gps.fix_type as u8,
             satellites: gps.satellites,
             hdop: gps.hdop,
+        }),
+        imu: telemetry.imu.map(|imu| ImuEvent {
+            acceleration: imu.acceleration,
+            angular_rate: imu.angular_rate,
+            magnetic_field: imu.magnetic_field,
+            temperature: imu.temperature,
+        }),
+        barometer: telemetry.barometer.map(|barometer| BarometerEvent {
+            absolute_pressure: barometer.absolute_pressure,
+            differential_pressure: barometer.differential_pressure,
+            temperature: barometer.temperature,
+        }),
+        controls: telemetry.controls.map(|controls| ControlsEvent {
+            outputs: controls.outputs,
+            inputs: controls.inputs,
+            signal: controls.signal,
+        }),
+        airspeed: telemetry.airspeed.map(|airspeed| AirspeedEvent {
+            airspeed: airspeed.airspeed,
+            ground_speed: airspeed.ground_speed,
+            climb: airspeed.climb,
+            throttle: airspeed.throttle,
+        }),
+        ekf: telemetry.ekf.map(|ekf| EkfEvent {
+            velocity_variance: ekf.velocity_variance,
+            horizontal_variance: ekf.horizontal_variance,
+            vertical_variance: ekf.vertical_variance,
+            compass_variance: ekf.compass_variance,
+            terrain_variance: ekf.terrain_variance,
+            airspeed_variance: ekf.airspeed_variance,
+        }),
+        vibration: telemetry.vibration.map(|vibration| VibrationEvent {
+            x: vibration.x,
+            y: vibration.y,
+            z: vibration.z,
+        }),
+        batteries: telemetry
+            .batteries
+            .iter()
+            .map(|bank| BatteryBankEvent {
+                id: bank.id,
+                cells: bank.cells.clone(),
+                current: bank.current,
+                remaining: bank.remaining,
+                temperature: bank.temperature,
+            })
+            .collect(),
+        ahrs2: telemetry.ahrs2.map(|attitude| AttitudeEvent {
+            roll: attitude.roll.to_degrees(),
+            pitch: attitude.pitch.to_degrees(),
+            yaw: attitude.yaw.to_degrees(),
+        }),
+        controller: telemetry.controller.map(|controller| ControllerEvent {
+            roll: controller.roll,
+            pitch: controller.pitch,
+            altitude_error: controller.altitude_error,
+            airspeed_error: controller.airspeed_error,
+            cross_track_error: controller.cross_track_error,
+            waypoint_distance: controller.waypoint_distance,
         }),
     }
 }
@@ -1441,6 +1634,50 @@ fn target_from_arguments() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The name the model gives a field, in the spelling the interface uses.
+    fn camel(name: &str) -> String {
+        let mut out = String::new();
+        let mut upper = false;
+
+        for character in name.chars() {
+            if character == '_' {
+                upper = true;
+                continue;
+            }
+
+            if upper {
+                out.extend(character.to_uppercase());
+                upper = false;
+            } else {
+                out.push(character);
+            }
+        }
+
+        out
+    }
+
+    #[test]
+    fn the_event_carries_every_field_of_the_telemetry() {
+        // The event is written by hand, and a field of the model that is forgotten in it
+        // is a value the interface never sees. The model is the specification, and this
+        // is what says that the event has caught up with it.
+        let model = serde_json::to_value(mpcraft_vehicle::Telemetry::default())
+            .expect("the telemetry is written");
+        let event = serde_json::to_value(TelemetryEvent::default()).expect("the event is written");
+
+        let model = model.as_object().expect("the telemetry is an object");
+        let event = event.as_object().expect("the event is an object");
+
+        for name in model.keys() {
+            let name = camel(name);
+
+            assert!(
+                event.contains_key(&name),
+                "the event does not carry {name}, so the interface never sees it"
+            );
+        }
+    }
 
     #[test]
     fn a_snapshot_without_a_session_has_no_vehicles() {

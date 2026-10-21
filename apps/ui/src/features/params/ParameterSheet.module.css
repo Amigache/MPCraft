@@ -78,6 +78,28 @@
   white-space: nowrap;
 }
 
+/* The group of parameters that is being shown, and the way back to all of them. */
+
+.groupChip {
+  align-items: center;
+  background: var(--colour-accent-wash);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  max-width: 260px;
+  padding: 0 var(--space-1) 0 var(--space-2);
+}
+
+.groupName {
+  color: var(--colour-text);
+  font-size: var(--font-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The body: the tree of the parameters on the left, the list on the right. */
 
 .body {
@@ -198,6 +220,36 @@
 .value:disabled {
   cursor: default;
   opacity: 0.6;
+}
+
+/* The value and the unit it is in. */
+
+.valueCell {
+  align-items: baseline;
+  display: flex;
+  flex: 0 0 190px;
+  gap: var(--space-1);
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.valueCell .value {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.unit {
+  color: var(--colour-text-faint);
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+}
+
+/* A value that is outside the range the documentation gives: the vehicle has clamped
+   it, or it was written wrong. */
+
+.outOfRange {
+  color: var(--colour-warning);
 }
 
 .editor {

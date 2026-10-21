@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useState } from "react";
 
+import type { MetadataIndex } from "../../lib/params/metadataStore";
 import type { KnownParameter } from "../../lib/params/paramsStore";
 import { ParameterRow } from "./ParameterRow";
 import styles from "./ParameterSheet.module.css";
@@ -28,6 +29,8 @@ export interface ParameterListProps {
   readonly writing: string | null;
   /** The names of the favourites, in the order the operator marked them. */
   readonly favourites: readonly string[];
+  /** What is known about the parameters, by name. */
+  readonly metadata: MetadataIndex;
   /** Starts the edit of a row. */
   readonly onEdit: (name: string) => void;
   /** Abandons the edit. */
@@ -43,6 +46,7 @@ export function ParameterList({
   editing,
   writing,
   favourites,
+  metadata,
   onEdit,
   onCancel,
   onWrite,
@@ -84,6 +88,7 @@ export function ParameterList({
               busy={writing === parameter.name}
               locked={writing !== null}
               favourite={favourites.includes(parameter.name)}
+              metadata={metadata.get(parameter.name)}
               onEdit={() => {
                 onEdit(parameter.name);
               }}

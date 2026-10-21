@@ -1,5 +1,16 @@
 .shell {
   display: grid;
+  grid-template-rows: 1fr;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+}
+
+/* The window under the sheet: the menu strip, the screen and the status strip. It
+   becomes inert while a sheet lies over it. */
+
+.under {
+  display: grid;
   grid-template-rows: auto 1fr auto;
   height: 100%;
   min-height: 0;

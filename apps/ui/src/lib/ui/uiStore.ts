@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { listParameterGroups } from "../ipc/bridge";
+
 /**
  * The state of the interface itself: which tab is open, how wide the panels are and what
  * is switched on.
@@ -168,6 +170,21 @@ export interface UiStore {
   readonly showMapControls: boolean;
   /** Whether the sheet of parameters is open over the window. */
   readonly parametersOpen: boolean;
+  /**
+   * The group of parameters that are shown, when one is chosen.
+   *
+   * The groups are the subjects the parameters are about, and upstream builds its
+   * configuration menu out of them. The Setup menu chooses one and the sheet shows
+   * the parameters of that group.
+   */
+  readonly parameterGroup: string | null;
+  /**
+   * The groups the parameters belong to.
+   *
+   * The groups are the subjects the parameters are about, and upstream builds its
+   * configuration menu out of them.
+   */
+  readonly parameterGroups: readonly string[];
   /** Opens a tab. */
   readonly setActiveTab: (tab: TabId) => void;
   /** Moves the edge of the left column. */
@@ -188,6 +205,14 @@ export interface UiStore {
   readonly toggleMapControls: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
+  /**
+   * Opens the sheet of parameters, showing the parameters of one group.
+   *
+   * A group of nothing shows every parameter.
+   */
+  readonly showParameterGroup: (group: string | null) => void;
+  /** Reads the groups the parameters belong to. */
+  readonly loadParameterGroups: () => Promise<void>;
   /** Closes the sheet of parameters. */
   readonly hideParameters: () => void;
 }
@@ -218,6 +243,8 @@ export const useUiStore = create<UiStore>((set) => ({
   followVehicle: readFlag("mpcraft.followVehicle", true),
   showMapControls: readFlag("mpcraft.showMapControls", true),
   parametersOpen: false,
+  parameterGroup: null,
+  parameterGroups: [],
 
   setActiveTab: (activeTab) => set({ activeTab }),
 
@@ -270,6 +297,20 @@ export const useUiStore = create<UiStore>((set) => ({
   // The sheet of parameters is not remembered between runs: it is a thing the operator
   // opens, not a place the window is left in.
   showParameters: () => set({ parametersOpen: true }),
+
+  showParameterGroup: (group) =>
+    set({ parametersOpen: true, parameterGroup: group }),
+
+  loadParameterGroups: async () => {
+    try {
+      const groups = await listParameterGroups();
+      set({ parameterGroups: groups });
+    } catch (cause) {
+      // A catalogue that could not be read is an empty one, and an empty
+      // configuration menu is better than one that lies about the groups.
+      set({ parameterGroups: [] });
+    }
+  },
 
   hideParameters: () => set({ parametersOpen: false }),
 }));

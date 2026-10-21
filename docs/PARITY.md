@@ -47,9 +47,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.7 | Gauges (speed / altitude / vspeed) | `Controls/AGauge.cs`, `HSI.cs` | ✅ | 1 |
 | 2.8 | STATUSTEXT message console | `FlightData.cs` | ✅ | 1 |
 | 2.9 | Pre-flight checklist | `Controls/PreFlight/CheckListControl.cs` | ✅ | 1 |
-| 2.10 | Battery banks 1–9 monitoring | `CurrentState.cs` | 🔜 | 1 |
+| 2.10 | Battery banks 1–9 monitoring | `CurrentState.cs` | ✅ | 1 |
 | 2.11 | Multi-GPS status | `CurrentState.cs` | 🔜 | 1 |
-| 2.12 | EKF status & vibration display | `Controls/EKFStatus.cs`, `Vibration.cs` | 🔜 | 3 |
+| 2.12 | EKF status & vibration display | `Controls/EKFStatus.cs`, `Vibration.cs` | ✅ | 3 |
 | 2.13 | Servo & relay output display | `Controls/ServoOptions.cs`, `RelayOptions.cs` | 🔜 | 3 |
 | 2.14 | Auxiliary function display | `Controls/AuxOptions.cs` | 🔜 | 3 |
 | 2.15 | Transponder (Mode-S) control | `FlightData.cs` tabTransponder | 🔜 | 5 |
@@ -112,14 +112,14 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 5.2 | Parameter write with echo confirmation | `setParamAsync` | ✅ | 3 |
 | 5.3 | Batched write with `*_ENABLE` ordering | `ConfigRawParams.SortENABLE` | 🔜 | 3 |
 | 5.4 | Live parameter updates | `processInfoFromStream` PARAM_VALUE | ✅ | 3 |
-| 5.5 | Parameter metadata (ranges, bitmasks, options, units) | `ParameterMetaData.xml` | 🔜 | 3 |
-| 5.6 | Parameter tree by prefix | `ConfigRawParams.BuildTree` | 🔜 | 3 |
+| 5.5 | Parameter metadata (ranges, bitmasks, options, units) | `ParameterMetaData.xml` | 🟡 | 3 |
+| 5.6 | Parameter tree by prefix | `ConfigRawParams.BuildTree` | ✅ | 3 |
 | 5.7 | Parameter search | `ConfigRawParams.txt_search` | ✅ | 3 |
-| 5.8 | Favourites | `ConfigRawParams` Fav column | 🔜 | 3 |
+| 5.8 | Favourites | `ConfigRawParams` Fav column | ✅ | 3 |
 | 5.9 | Friendly (metadata-driven) parameter UI | `ConfigFriendlyParams.cs` | ✅ | 3 |
-| 5.10 | `.param` file import / export | `ExtLibs/Utilities/ParamFile.cs` | 🔜 | 3 |
-| 5.11 | Parameter diff against a file | `Controls/paramcompare.cs` | 🔜 | 3 |
-| 5.12 | Write-to-flash / reset-to-defaults | `ConfigRawParams` | 🔜 | 3 |
+| 5.10 | `.param` file import / export | `ExtLibs/Utilities/ParamFile.cs` | ✅ | 3 |
+| 5.11 | Parameter diff against a file | `Controls/paramcompare.cs` | ✅ | 3 |
+| 5.12 | Write-to-flash / reset-to-defaults | `ConfigRawParams` | 🟡 | 3 |
 | 5.13 | Reboot-required detection & prompt | `GetParameterRebootRequired` | 🔜 | 3 |
 | 5.14 | Frame type selection | `ConfigFrameType.cs` | 🔜 | 3 |
 | 5.15 | Accelerometer calibration | `ConfigAccelerometerCalibration.cs` | 🔜 | 3 |
@@ -165,7 +165,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | 🔜 | 2 |
 | 7.5 | Tile prefetch for a region | `ExtLibs/GMap.NET.WindowsForms/TilePrefetcher.cs` | 🔜 | 2 |
 | 7.6 | Geofence / rally / home markers | `ExtLibs/Maps/GMapMarker*.cs` | 🔜 | 2 |
-| 7.7 | UTM / MGRS coordinate conversion | `ExtLibs/Utilities/utmpos.cs`, `GeoUtility` | 🔜 | 2 |
+| 7.7 | UTM / MGRS coordinate conversion | `ExtLibs/Utilities/utmpos.cs`, `GeoUtility` | ✅ | 2 |
 | 7.8 | SRTM terrain elevation lookup | `ExtLibs/Utilities/srtm.cs` | 🔜 | 2 |
 | 7.9 | DTED local elevation | `ExtLibs/Utilities/DTED.cs` | 🔜 | 5 |
 | 7.10 | Terrain-follow route generation | `srtm.getIntersectionWithTerrain` | 🔜 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 41 |
-| 🔜 Planned | 109 |
+| ✅ Done | 48 |
+| 🔜 Planned | 100 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 4 |
+| 🟡 Partial | 6 |
 
-The 41 rows marked done are the connection, transport, parameter, mission and command
+The 48 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -237,21 +237,29 @@ gauges and status - the map filling everything else, and a status strip. The liv
 the attitude indicator, the map with the vehicle and the track, the plan drawn on it, the
 dials, the tiles and the vehicle's own messages are all on screen.
 
-The **parameter editor** is a sheet over the window: the parameters the vehicle has
-reported, a search box, and a value that can be edited in place. The write waits for the
-vehicle to confirm it, and the interface shows the value the vehicle stored, which is not
-always the one that was asked for: a vehicle clamps to its range, and the operator has to
-see what the vehicle has rather than what they wanted.
+The **parameter editor** is a sheet over the window: the tree of the groups by prefix on
+the left, the parameters on the right, a search box, and a value that can be edited in
+place. The write waits for the vehicle to confirm it, and the interface shows the value
+the vehicle stored, which is not always the one that was asked for: a vehicle clamps to
+its range, and the operator has to see what the vehicle has rather than what they
+wanted.
+
+The parameters the operator marks as **favourites** come first in the list and are kept
+between two runs, and the Setup menu carries the **groups** the parameters belong to, the
+way upstream's carries its configuration screens. The description, the unit, the range
+and the value a parameter had before anybody changed it are shown with the parameter, and
+the parameters of a file can be read, written and compared with the vehicle's.
 
 The **plan editor** takes the place of the graphs, the way upstream's planner puts its grid
 above the map. The waypoints are dragged on the map, the plan is checked before it is
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
 unsent changes never looks like the plan on the vehicle.
 
-What is still missing from the window: the tree of the parameters by prefix, the
-favourites among them, and the elevation profile of the plan.
+What is still missing from the window: the elevation profile of the plan, the servo and
+relay outputs, and the auxiliary functions.
 
-The four rows marked partial are the fence, the connection profiles and the map.
+The six rows marked partial are the fence, the connection profiles, the map, the
+metadata of the parameters, and the writing to the flash.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not
@@ -267,8 +275,16 @@ screen that edits them.
 The map works, and it draws the vehicle, the track and the plan; what is missing is the
 choice of the tile provider, which upstream offers as a registry of sources.
 
-The plan editor keeps the edits apart from the plan the vehicle holds, and says so when they
-differ; what is missing is the history buffer, so that a change can be taken back.
+The plan editor keeps the edits apart from the plan the vehicle holds, and says so when
+they differ, and a change can be taken back with the button or with control and Z.
+
+The **metadata** of a parameter is shown with it - the description, the unit, the range
+and the value it had before anybody changed it - but the values a parameter can be given
+when it is a choice, and the masks of the parameters that are a mask, are not shown yet.
+
+The **flash** can be written, so that a parameter the vehicle has in its memory but not
+in its own memory survives a loss of power; what is missing is the reset to the defaults,
+although the catalogue knows the value every parameter had before anybody changed it.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

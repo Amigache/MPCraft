@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import type { Telemetry } from "../ipc/types";
 
 /**
@@ -29,6 +31,15 @@ export const EMPTY_TELEMETRY: Telemetry = {
   bearingToHome: null,
   mission: null,
   gps: null,
+  imu: null,
+  barometer: null,
+  controls: null,
+  airspeed: null,
+  ekf: null,
+  vibration: null,
+  batteries: [],
+  ahrs2: null,
+  controller: null,
 };
 
 class LiveTelemetry {
@@ -65,3 +76,48 @@ class LiveTelemetry {
 
 /** The live telemetry of the primary vehicle. */
 export const liveTelemetry = new LiveTelemetry();
+
+/**
+ * Reads a value of the live telemetry, re-rendering the component when it changes.
+ *
+ * Most of the interface does not need to re-render when a snapshot arrives, and uses
+ * {@link LiveValue} for that. A value whose *shape* changes — the battery banks, which
+ * appear and disappear — cannot be written into the text of an element, so the
+ * component that draws it has to be told.
+ *
+ * The equality decides when the component is re-rendered. Without one, the value is
+ * compared by identity, which is the right answer for a number and the wrong one for an
+ * array that is rebuilt on every snapshot.
+ */
+export function useLiveValue<T>(
+  select: (telemetry: Telemetry) => T,
+  isEqual?: (left: T, right: T) => boolean,
+): T {
+  const [value, setValue] = useState(() => select(liveTelemetry.value));
+
+  const selectRef = useRef(select);
+  const isEqualRef = useRef(isEqual);
+
+  selectRef.current = select;
+  isEqualRef.current = isEqual;
+
+  useEffect(() => {
+    const write = (telemetry: Telemetry) => {
+      const next = selectRef.current(telemetry);
+
+      setValue((current) => {
+        const equal = isEqualRef.current
+          ? isEqualRef.current(current, next)
+          : Object.is(current, next);
+
+        return equal ? current : next;
+      });
+    };
+
+    write(liveTelemetry.value);
+
+    return liveTelemetry.subscribe(write);
+  }, []);
+
+  return value;
+}

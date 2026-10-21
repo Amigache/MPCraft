@@ -75,9 +75,20 @@ export function MenuBar() {
   const showMapControls = useUiStore((state) => state.showMapControls);
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
   const showParameters = useUiStore((state) => state.showParameters);
+  const parameterGroups = useUiStore((state) => state.parameterGroups);
+  const loadParameterGroups = useUiStore(
+    (state) => state.loadParameterGroups,
+  );
+  const showParameterGroup = useUiStore((state) => state.showParameterGroup);
 
   const editorOpen = usePlanEditorStore((state) => state.open);
   const openEditor = usePlanEditorStore((state) => state.openEditor);
+
+  // The groups of the parameters are the same for every vehicle, so they are read
+  // once and then they are only looked at.
+  useEffect(() => {
+    void loadParameterGroups();
+  }, [loadParameterGroups]);
 
   const close = useCallback(() => setOpen(null), []);
   // A click anywhere else closes the menu.
@@ -395,6 +406,29 @@ export function MenuBar() {
           separator: false,
           hint: "",
         },
+        {
+          id: "setup-sep-groups",
+          label: "",
+          onSelect: undefined,
+          disabled: false,
+          checked: undefined,
+          separator: true,
+          hint: "",
+        },
+        ...parameterGroups.map((group): MenuItem => (
+          {
+            id: `group-${group}`,
+            label: group,
+            onSelect: () => {
+              close();
+              showParameterGroup(group);
+            },
+            disabled: false,
+            checked: undefined,
+            separator: false,
+            hint: "",
+          }
+        )),
         {
           id: "firmware",
           label: "Firmware…",

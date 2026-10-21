@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { LiveValue } from "../../components/LiveValue";
+import { vehicleCoordinates } from "../../lib/ipc/bridge";
 import {
   formatAltitude,
   formatCurrent,
@@ -10,7 +11,9 @@ import {
   formatVoltage,
   formatYesNo,
 } from "../../lib/format";
+import type { BatteryBank, Coordinates } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
+import { useLiveValue } from "../../lib/link/liveTelemetry";
 import { currentItemNumber, usePlanStore } from "../../lib/plan/planStore";
 import styles from "./StatusPanel.module.css";
 
@@ -29,6 +32,51 @@ export function StatusPanel() {
 
   const vehicle = vehicles[0] ?? null;
   const item = currentItemNumber(plan);
+  const linked = status === "connected" || status === "reconnecting";
+
+  // The battery banks are read from the live telemetry rather than from the state, so
+  // that a bank the vehicle reports appears without the panel having to re-render.
+  // The grid coordinates are made here, once, and not twenty times a second: the
+  // projection is the same while the vehicle flies.
+  const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
+
+  useEffect(() => {
+    if (!linked) {
+      setCoordinates(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const read = () => {
+      void vehicleCoordinates()
+        .then((found) => {
+          if (!cancelled) {
+            setCoordinates(found);
+          }
+        })
+        .catch(() => {
+          // The vehicle has not said where it is yet: the coordinates are simply
+          // not there.
+          if (!cancelled) {
+            setCoordinates(null);
+          }
+        });
+    };
+
+    read();
+    const timer = window.setInterval(read, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [linked]);
+
+  const banks = useLiveValue(
+    (telemetry) => telemetry.batteries,
+    sameBanks,
+  );
 
   return (
     <div className={styles.panel}>
@@ -80,6 +128,17 @@ export function StatusPanel() {
             format={(value) => `${(value as number).toFixed(6)}°`}
           />
         </Row>
+        <Row label="UTM">
+          {coordinates?.utm === null || coordinates?.utm === undefined
+            ? "—"
+            : `${coordinates.utm.zone}${coordinates.utm.band} ${Math.round(
+                coordinates.utm.easting,
+              ).toLocaleString("en-US")} E ${Math.round(
+                coordinates.utm.northing,
+              ).toLocaleString("en-US")} N`}
+        </Row>
+        <Row label="MGRS">{coordinates?.mgrs ?? "—"}</Row>
+
       </section>
 
       <section className={styles.section}>
@@ -114,6 +173,61 @@ export function StatusPanel() {
             format={(value) => formatSpeed(value as number)}
           />
         </Row>
+        {banks.map((bank) => (
+          <Row key={bank.id} label={`Bank ${bank.id + 1}`}>
+            <BankCells id={bank.id} />
+          </Row>
+        ))}
+      </section>
+
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Estimator</h3>
+        <Row label="Velocity">
+          <LiveValue
+            select={(telemetry) => telemetry.ekf?.velocityVariance ?? null}
+            format={(value) => formatVariance(value as number)}
+          />
+        </Row>
+        <Row label="Horizontal">
+          <LiveValue
+            select={(telemetry) => telemetry.ekf?.horizontalVariance ?? null}
+            format={(value) => formatVariance(value as number)}
+          />
+        </Row>
+        <Row label="Vertical">
+          <LiveValue
+            select={(telemetry) => telemetry.ekf?.verticalVariance ?? null}
+            format={(value) => formatVariance(value as number)}
+          />
+        </Row>
+        <Row label="Compass">
+          <LiveValue
+            select={(telemetry) => telemetry.ekf?.compassVariance ?? null}
+            format={(value) => formatVariance(value as number)}
+          />
+        </Row>
+      </section>
+
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Vibration</h3>
+        <Row label="X">
+          <LiveValue
+            select={(telemetry) => telemetry.vibration?.x ?? null}
+            format={(value) => formatAcceleration(value as number)}
+          />
+        </Row>
+        <Row label="Y">
+          <LiveValue
+            select={(telemetry) => telemetry.vibration?.y ?? null}
+            format={(value) => formatAcceleration(value as number)}
+          />
+        </Row>
+        <Row label="Z">
+          <LiveValue
+            select={(telemetry) => telemetry.vibration?.z ?? null}
+            format={(value) => formatAcceleration(value as number)}
+          />
+        </Row>
       </section>
 
       <section className={styles.section}>
@@ -142,6 +256,57 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
       <span className={styles.rowValue}>{children}</span>
     </div>
   );
+}
+
+/**
+ * The cells of one battery bank.
+ *
+ * The voltages drift, so they are written straight into the text of the element: a
+ * battery that discharges twenty times a second must not re-render the panel twenty
+ * times a second.
+ */
+function BankCells({ id }: { id: number }) {
+  return (
+    <LiveValue
+      select={(telemetry) => {
+        const bank = telemetry.batteries.find(
+          (candidate) => candidate.id === id,
+        );
+
+        return bank === undefined
+          ? null
+          : `${bank.cells.map((cell) => cell.toFixed(2)).join(" ")} V  ${formatPercent(bank.remaining)}`;
+      }}
+      format={(value) => String(value)}
+    />
+  );
+}
+
+/**
+ * Whether two sets of banks are the same.
+ *
+ * Only the shape matters: the banks themselves and how many cells each of them has.
+ * The values drift, and they are written into the text of the rows.
+ */
+function sameBanks(left: readonly BatteryBank[], right: readonly BatteryBank[]) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (bank, index) =>
+        bank.id === right[index]?.id &&
+        bank.cells.length === right[index]?.cells.length,
+    )
+  );
+}
+
+/** A variance, which is the square of a standard deviation. */
+function formatVariance(value: number): string {
+  return value.toFixed(3);
+}
+
+/** An acceleration, in metres per second squared. */
+function formatAcceleration(value: number): string {
+  return `${value.toFixed(2)} m/s²`;
 }
 
 /** The name of the GPS fix, as the MAVLink specification calls it. */

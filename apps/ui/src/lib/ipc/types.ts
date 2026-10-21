@@ -61,6 +61,132 @@ export interface GpsStatus {
   readonly hdop: number;
 }
 
+/** The inertial measurement of the vehicle. */
+export interface Imu {
+  /** The acceleration on each axis, in metres per second squared. */
+  readonly acceleration: readonly [number, number, number];
+  /** The angular rate on each axis, in radians per second. */
+  readonly angularRate: readonly [number, number, number];
+  /** The magnetic field on each axis, in gauss. */
+  readonly magneticField: readonly [number, number, number];
+  /** The temperature of the sensor, in degrees Celsius. */
+  readonly temperature: number;
+}
+
+/** The barometer of the vehicle. */
+export interface Barometer {
+  /** The absolute pressure, in hectopascals. */
+  readonly absolutePressure: number;
+  /** The differential pressure, in hectopascals. */
+  readonly differentialPressure: number;
+  /** The temperature, in degrees Celsius. */
+  readonly temperature: number;
+}
+
+/** The servos and the radio control. */
+export interface Controls {
+  /** The pulse width of each of the first eight outputs, in microseconds. */
+  readonly outputs: readonly (number | null)[];
+  /** The value of each of the first eight radio channels, in microseconds. */
+  readonly inputs: readonly (number | null)[];
+  /** The strength of the radio signal, as a percentage. */
+  readonly signal: number | null;
+}
+
+/** The air data of the vehicle. */
+export interface Airspeed {
+  /** The speed through the air, in metres per second. */
+  readonly airspeed: number | null;
+  /** The speed over the ground, in metres per second. */
+  readonly groundSpeed: number;
+  /** The rate of climb, in metres per second. */
+  readonly climb: number;
+  /** The throttle, as a percentage. */
+  readonly throttle: number;
+}
+
+/** The state of the estimator of the vehicle. */
+export interface Ekf {
+  /** The variance of the velocity estimate. */
+  readonly velocityVariance: number;
+  /** The variance of the horizontal position estimate. */
+  readonly horizontalVariance: number;
+  /** The variance of the vertical position estimate. */
+  readonly verticalVariance: number;
+  /** The variance of the compass. */
+  readonly compassVariance: number;
+  /** The variance of the terrain altitude. */
+  readonly terrainVariance: number;
+  /** The variance of the airspeed estimate. */
+  readonly airspeedVariance: number;
+}
+
+/** The vibration of the airframe. */
+export interface Vibration {
+  /** The vibration on the first axis, in metres per second squared. */
+  readonly x: number;
+  /** The vibration on the second axis, in metres per second squared. */
+  readonly y: number;
+  /** The vibration on the third axis, in metres per second squared. */
+  readonly z: number;
+}
+
+/** The state of one battery bank. */
+export interface BatteryBank {
+  /** The identifier the vehicle gives the bank. */
+  readonly id: number;
+  /** The voltage of each cell, in volts. */
+  readonly cells: readonly number[];
+  /** The current of the bank, in amperes. */
+  readonly current: number;
+  /** The remaining charge of the bank, as a percentage. */
+  readonly remaining: number;
+  /** The temperature of the bank, in degrees Celsius. */
+  readonly temperature: number;
+}
+
+/** What the flight controller is asking the vehicle to do. */
+export interface Controller {
+  /** The roll the controller asks for, in radians. */
+  readonly roll: number;
+  /** The pitch the controller asks for, in radians. */
+  readonly pitch: number;
+  /** The error of the altitude, in metres. */
+  readonly altitudeError: number;
+  /** The error of the airspeed. */
+  readonly airspeedError: number;
+  /** The error of the cross-track, in metres. */
+  readonly crossTrackError: number;
+  /** The distance to the waypoint the vehicle is flying towards, in metres. */
+  readonly waypointDistance: number;
+}
+
+/** Where the vehicle is, in the universal transverse Mercator grid. */
+export interface Utm {
+  /** The zone number, 1 to 60. */
+  readonly zone: number;
+  /** The latitude band letter. */
+  readonly band: string;
+  /** The easting, in metres. */
+  readonly easting: number;
+  /** The northing, in metres. */
+  readonly northing: number;
+}
+
+/** Where the vehicle is, in the three systems an operator reads. */
+export interface Coordinates {
+  /** The latitude in decimal degrees, positive north. */
+  readonly lat: number;
+  /** The longitude in decimal degrees, positive east. */
+  readonly lng: number;
+  /** The altitude above mean sea level, in metres. */
+  readonly alt: number;
+  /** The position in the universal transverse Mercator grid. */
+  readonly utm: Utm | null;
+  /** The position in the military grid reference system. */
+  readonly mgrs: string | null;
+}
+
 /** The decoded telemetry snapshot for one vehicle. */
 export interface Telemetry {
   readonly attitude: Attitude | null;
@@ -74,6 +200,15 @@ export interface Telemetry {
   readonly bearingToHome: number | null;
   readonly mission: MissionProgress | null;
   readonly gps: GpsStatus | null;
+  readonly imu: Imu | null;
+  readonly barometer: Barometer | null;
+  readonly controls: Controls | null;
+  readonly airspeed: Airspeed | null;
+  readonly ekf: Ekf | null;
+  readonly vibration: Vibration | null;
+  readonly batteries: readonly BatteryBank[];
+  readonly ahrs2: Attitude | null;
+  readonly controller: Controller | null;
 }
 
 /** The progress of the plan on the vehicle. */
@@ -130,6 +265,48 @@ export interface Parameter {
   readonly value: number;
   /** The type the vehicle reported, as the MAVLink enumeration. */
   readonly reportedType: number;
+}
+
+/** How the value of a parameter differs between the vehicle and a file. */
+export interface ParameterDifference {
+  /** The name of the parameter. */
+  readonly name: string;
+  /** The value the vehicle has, when it has one. */
+  readonly current: number | null;
+  /** The value the file has, when it has one. */
+  readonly other: number | null;
+}
+
+/**
+ * What is known about a parameter.
+ *
+ * The description, the unit, the range it takes and the value it had before anybody
+ * changed it are the autopilots' knowledge, and the catalogue the backend keeps has
+ * them for four thousand parameters.
+ */
+export interface ParameterMetadata {
+  /** The name of the parameter. */
+  readonly name: string;
+  /** The name it is shown with. */
+  readonly displayName: string;
+  /** The group it belongs to, when the documentation knows one. */
+  readonly group: string;
+  /** The value it takes when it has never been changed. */
+  readonly default: string;
+  /** What it does, in a line. */
+  readonly description: string;
+  /** What it does, at length. */
+  readonly longDescription: string;
+  /** The unit the value is in. */
+  readonly unit: string;
+  /** The smallest value it takes. */
+  readonly minimum: string;
+  /** The largest value it takes. */
+  readonly maximum: string;
+  /** The values it can be given, when it is a choice. */
+  readonly values: readonly string[];
+  /** The vehicle families it belongs to. */
+  readonly vehicles: readonly string[];
 }
 
 /** A command a plan can hold. */

@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Splitter } from "../../app/layout/Splitter";
+import { pickOpenPath, pickSavePath } from "../../lib/ipc/dialog";
+import {
+  compareParameters,
+  exportParameters,
+  importParameters,
+  normaliseError,
+  writeParametersToFlash,
+} from "../../lib/ipc/bridge";
+import type { Parameter } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
 import {
   orderParameters,
   useFavouritesStore,
 } from "../../lib/params/favouritesStore";
+import { useMetadata } from "../../lib/params/metadataStore";
 import { buildParamTree, findNode, isUnder } from "../../lib/params/paramTree";
 import { useParamsStore } from "../../lib/params/paramsStore";
 import { formatParameterValue } from "../../lib/params/paramValues";
@@ -58,12 +68,20 @@ const DEFAULT_SHEET_WIDTH = 760;
  */
 const LIST_WIDTH = 440;
 
+/** The kinds of file the parameter dialog offers. */
+const PARAMETER_FILTERS = [
+  { name: "Parameter file", extensions: ["param", "parm"] },
+  { name: "All files", extensions: ["*"] },
+];
+
 /** The widest the sheet may grow. */
 const MAX_SHEET_WIDTH = 1080;
 
 export function ParameterSheet() {
   const open = useUiStore((state) => state.parametersOpen);
   const hide = useUiStore((state) => state.hideParameters);
+  const group = useUiStore((state) => state.parameterGroup);
+  const showParameterGroup = useUiStore((state) => state.showParameterGroup);
 
   const parameters = useParamsStore((state) => state.parameters);
   const reading = useParamsStore((state) => state.reading);
@@ -88,6 +106,15 @@ export function ParameterSheet() {
   /** The width of the tree, in pixels. */
   const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
 
+  /** The parameters a file holds, waiting to be written to the vehicle. */
+  const [pendingLoad, setPendingLoad] = useState<readonly Parameter[] | null>(
+    null,
+  );
+  /** What the last file operation said. */
+  const [fileNotice, setFileNotice] = useState<string | null>(null);
+  /** Whether a file operation is in flight. */
+  const [fileBusy, setFileBusy] = useState(false);
+
   const panel = useRef<HTMLDivElement | null>(null);
   const search = useRef<HTMLInputElement | null>(null);
   /** Whether the last pointerdown cancelled the edit. */
@@ -108,6 +135,12 @@ export function ParameterSheet() {
     );
   }, [parameters, query]);
 
+  // What is known about the parameters: the description, the unit, the range and the
+  // value a parameter had before anybody changed it.
+  const { index: metadata, error: metadataError } = useMetadata(
+    parameters.map((parameter) => parameter.name),
+  );
+
   const tree = useMemo(
     () => buildParamTree(matched.map((parameter) => parameter.name)),
     [matched],
@@ -123,10 +156,14 @@ export function ParameterSheet() {
   const rows = useMemo(
     () =>
       orderParameters(
-        matched.filter((parameter) => isUnder(node, parameter.name)),
+        matched.filter((parameter) =>
+          isUnder(node, parameter.name) &&
+          (group === null ||
+            (metadata.get(parameter.name)?.group ?? "") === group),
+        ),
         favourites,
       ),
-    [favourites, matched, node],
+    [favourites, group, matched, metadata, node],
   );
 
   // The sheet grows when the tree is dragged wider, so that the list keeps the room it
@@ -274,6 +311,144 @@ export function ParameterSheet() {
     };
   }, [editing]);
 
+  /**
+   * Writes the parameters of the vehicle to a file.
+   *
+   * The format is upstream's: a line per parameter, the name and the value separated by
+   * a comma.
+   */
+  const saveFile = useCallback(async () => {
+    const picked = await pickSavePath("vehicle.param", PARAMETER_FILTERS);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setFileBusy(true);
+
+    try {
+      await exportParameters(picked.path);
+      setFileNotice(`The parameters were written to ${picked.path}.`);
+      setPendingLoad(null);
+    } catch (cause) {
+      setFileNotice(`${normaliseError(cause).code} — the file was not written.`);
+    } finally {
+      setFileBusy(false);
+    }
+  }, []);
+
+  /**
+   * Reads the parameters of a file.
+   *
+   * They are not written to the vehicle yet: the operator is asked first, because
+   * writing a parameter is the vehicle's own memory changing.
+   */
+  const openFile = useCallback(async () => {
+    const picked = await pickOpenPath(PARAMETER_FILTERS);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setFileBusy(true);
+
+    try {
+      const parameters = await importParameters(picked.path);
+      setPendingLoad(parameters);
+      setFileNotice(
+        `${parameters.length} parameters were read from ${picked.path}.`,
+      );
+    } catch (cause) {
+      setFileNotice(`${normaliseError(cause).code} — the file was not read.`);
+    } finally {
+      setFileBusy(false);
+    }
+  }, []);
+
+  /**
+   * Says how the parameters of the vehicle differ from the ones of a file.
+   *
+   * The differences are what the operator needs to know before writing anything: a
+   * parameter the vehicle has and the file does not, and a parameter whose value is not
+   * the one that was asked for.
+   */
+  const compareFile = useCallback(async () => {
+    const picked = await pickOpenPath(PARAMETER_FILTERS);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setFileBusy(true);
+
+    try {
+      const differences = await compareParameters(picked.path);
+
+      if (differences.length === 0) {
+        setFileNotice("The vehicle and the file agree.");
+      } else {
+        const lines = differences
+          .slice(0, 8)
+          .map(
+            (difference) =>
+              `${difference.name}: the vehicle has ${difference.current ?? "-"}, the file has ${difference.other ?? "-"}`,
+          );
+
+        setFileNotice(
+          `${differences.length} parameters differ. ${lines.join(" · ")}`,
+        );
+      }
+
+      setPendingLoad(null);
+    } catch (cause) {
+      setFileNotice(`${normaliseError(cause).code} — the file was not read.`);
+    } finally {
+      setFileBusy(false);
+    }
+  }, []);
+
+  /**
+   * Writes the parameters of a file to the vehicle.
+   *
+   * They are written one by one, because the vehicle confirms each of them: a file of
+   * two hundred parameters is two hundred writes, and a vehicle that refuses one of them
+   * says which.
+   */
+  const confirmLoad = useCallback(async () => {
+    const parameters = pendingLoad;
+    setPendingLoad(null);
+
+    if (parameters === null) {
+      return;
+    }
+
+    setFileBusy(true);
+
+    let written = 0;
+
+    for (const parameter of parameters) {
+      await write(parameter.name, parameter.value);
+      written += 1;
+    }
+
+    setFileNotice(`${written} parameters were written to the vehicle.`);
+    setFileBusy(false);
+  }, [pendingLoad, write]);
+
+  /** Asks the vehicle to write its parameters to its own memory. */
+  const writeToFlash = useCallback(async () => {
+    setFileBusy(true);
+
+    try {
+      await writeParametersToFlash();
+      setFileNotice("The vehicle has written its parameters to its own memory.");
+    } catch (cause) {
+      setFileNotice(`${normaliseError(cause).code} — the vehicle did not write them.`);
+    } finally {
+      setFileBusy(false);
+    }
+  }, []);
+
   const handleWrite = useCallback(
     (name: string, value: number) => {
       void write(name, value).then(() => {
@@ -330,6 +505,54 @@ export function ParameterSheet() {
             >
               {reading ? "Reading…" : "Read all"}
             </button>
+            <button
+              type="button"
+              className="button"
+              disabled={fileBusy || !linked}
+              title="Read the parameters of a file and write them to the vehicle"
+              onClick={() => {
+                void openFile();
+              }}
+            >
+              Load…
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={fileBusy || !linked}
+              title="Write the parameters of the vehicle to a file"
+              onClick={() => {
+                void saveFile();
+              }}
+            >
+              Save…
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={fileBusy || !linked}
+              title="Say how the parameters of the vehicle differ from the ones of a file"
+              onClick={() => {
+                void compareFile();
+              }}
+            >
+              Compare…
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={fileBusy || !linked}
+              title="Ask the vehicle to write its parameters to its own memory"
+              onClick={() => {
+                void writeToFlash();
+              }}
+            >
+              Write to flash
+            </button>
+
             <button type="button" className="button" onClick={hide}>
               Close
             </button>
@@ -339,6 +562,14 @@ export function ParameterSheet() {
         {error !== null ? (
           <p className={styles.errorBar} role="alert">
             <span className={styles.code}>{error.code}</span> {error.message}
+          </p>
+        ) : null}
+
+        {metadataError !== null ? (
+          <p className={styles.errorBar} role="alert">
+            <span className={styles.code}>{metadataError.code}</span>{" "}
+            {metadataError.message} — the descriptions of the parameters are not
+            shown.
           </p>
         ) : null}
 
@@ -359,6 +590,22 @@ export function ParameterSheet() {
           {query.trim().length > 0 ? (
             <span className={styles.filtered}>
               {rows.length} of {parameters.length}
+            </span>
+          ) : null}
+
+          {group !== null ? (
+            <span className={styles.groupChip}>
+              <span className={styles.groupName}>{group}</span>
+              <button
+                type="button"
+                className="button"
+                title="Show every parameter again"
+                onClick={() => {
+                  showParameterGroup(null);
+                }}
+              >
+                All
+              </button>
             </span>
           ) : null}
         </div>
@@ -390,6 +637,7 @@ export function ParameterSheet() {
                 editing={editing}
                 writing={writing}
                 favourites={favourites}
+                metadata={metadata}
                 onEdit={setEditing}
                 onCancel={() => {
                   setEditing(null);
@@ -449,6 +697,37 @@ export function ParameterSheet() {
               {lastWrite.message}
             </span>
           )}
+
+          {fileNotice !== null ? (
+            <p className={styles.favouriteError} role="status">
+              {fileNotice}
+            </p>
+          ) : null}
+
+          {pendingLoad !== null ? (
+            <p className={styles.favouriteError} role="alert">
+              {pendingLoad.length} parameters are waiting to be written to the
+              vehicle.
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setPendingLoad(null);
+                }}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  void confirmLoad();
+                }}
+              >
+                Yes
+              </button>
+            </p>
+          ) : null}
 
           {favouriteError !== null ? (
             <p className={styles.favouriteError} role="alert">

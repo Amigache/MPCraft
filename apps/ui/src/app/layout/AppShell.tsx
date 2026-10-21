@@ -1,3 +1,4 @@
+import { useUiStore } from "../../lib/ui/uiStore";
 import { MenuBar } from "./MenuBar";
 import { StatusBar } from "./StatusBar";
 import { FlightData } from "../../features/flight-data/FlightData";
@@ -14,13 +15,23 @@ import styles from "./AppShell.module.css";
  * and cover the screen rather than opening a window of their own.
  */
 export function AppShell() {
+  // While a sheet lies over the window, the window is not there for the person:
+  // its controls cannot be reached, and a screen reader is told so.
+  const covered = useUiStore((state) => state.parametersOpen);
+
   return (
     <div className={styles.shell}>
-      <MenuBar />
-      <main className={styles.body}>
-        <FlightData />
-      </main>
-      <StatusBar />
+      <div
+        className={styles.under}
+        inert={covered}
+        aria-hidden={covered ? true : undefined}
+      >
+        <MenuBar />
+        <main className={styles.body}>
+          <FlightData />
+        </main>
+        <StatusBar />
+      </div>
       <ParameterSheet />
     </div>
   );

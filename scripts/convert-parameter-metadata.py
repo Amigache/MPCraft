@@ -215,6 +215,18 @@ def main():
             if field not in entry and field in documentation:
                 entry[field] = documentation[field]
 
+        # The range of a parameter is written as the smallest and the largest value it
+        # takes, separated by a space. The facts file gives them apart for the few
+        # hundred parameters it knows; the documentation gives them together for the
+        # thousands it does not, and they are split here so that the interface can say
+        # whether a value is out of the range in the same way for all of them.
+        if "minimum" not in entry and "maximum" not in entry:
+            parts = entry.get("range", "").split()
+
+            if len(parts) == 2:
+                entry["minimum"] = parts[0]
+                entry["maximum"] = parts[1]
+
         vehicles = documentation.get("vehicles", [])
         if vehicles:
             entry["vehicles"] = sorted(set(vehicles))

@@ -42,7 +42,11 @@
   border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   left: 0;
+  /* The Setup menu carries the groups of the parameters, and there are more of them
+     than fit on a screen. The menu scrolls rather than reaching past the window. */
+  max-height: min(70vh, 640px);
   min-width: 220px;
+  overflow-y: auto;
   padding: var(--space-1);
   position: absolute;
   top: 100%;

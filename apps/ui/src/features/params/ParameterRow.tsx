@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import type { ParameterMetadata } from "../../lib/ipc/types";
+import { isOutOfRange } from "../../lib/params/metadataStore";
 import type { KnownParameter } from "../../lib/params/paramsStore";
 import {
   formatParameterValue,
@@ -26,6 +28,8 @@ import styles from "./ParameterSheet.module.css";
 export interface ParameterRowProps {
   /** The parameter the row draws. */
   readonly parameter: KnownParameter;
+  /** What is known about the parameter, when the documentation knows it. */
+  readonly metadata: ParameterMetadata | undefined;
   /** Where the row is in the list, for the virtualiser. */
   readonly index: number;
   /** How far down the list the row is, in pixels. */
@@ -50,8 +54,45 @@ export interface ParameterRowProps {
   readonly onToggleFavourite: () => void;
 }
 
+/**
+ * What the row says about the parameter when the pointer rests on it.
+ *
+ * The description, the value it had before anybody changed it, the range it takes and
+ * the group it belongs to are the autopilots' knowledge, and they are what an operator
+ * reads when they do not know what a parameter does.
+ */
+function describe(
+  metadata: ParameterMetadata | undefined,
+  parameter: KnownParameter,
+): string {
+  if (metadata === undefined) {
+    return parameter.name;
+  }
+
+  const parts: string[] = [];
+
+  if (metadata.description !== "") {
+    parts.push(metadata.description);
+  }
+
+  if (metadata.default !== "") {
+    parts.push(`Default: ${metadata.default}`);
+  }
+
+  if (metadata.minimum !== "" || metadata.maximum !== "") {
+    parts.push(`Range: ${metadata.minimum} to ${metadata.maximum}`);
+  }
+
+  if (metadata.group !== "") {
+    parts.push(`Group: ${metadata.group}`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : parameter.name;
+}
+
 export function ParameterRow({
   parameter,
+  metadata,
   index,
   start,
   measure,
@@ -72,6 +113,7 @@ export function ParameterRow({
   const typeName = paramTypeName(parameter.reportedType);
   const shown = formatParameterValue(parameter.value, parameter.reportedType);
   const integral = isIntegralType(parameter.reportedType);
+  const outOfRange = isOutOfRange(metadata, parameter.value);
 
   // The edit starts with the value the vehicle has now.
   //
@@ -150,7 +192,7 @@ export function ParameterRow({
         </svg>
       </button>
 
-      <span className={styles.name} title={parameter.name}>
+      <span className={styles.name} title={describe(metadata, parameter)}>
         {parameter.name}
       </span>
 
@@ -202,16 +244,25 @@ export function ParameterRow({
           </button>
         </span>
       ) : (
-        <button
-          type="button"
-          className={styles.value}
-          disabled={locked}
-          title="Click to change the value"
-          aria-label={`${parameter.name}, ${shown}. Change the value`}
-          onClick={onEdit}
-        >
-          {shown}
-        </button>
+        <span className={styles.valueCell}>
+          <button
+            type="button"
+            className={`${styles.value} ${outOfRange ? styles.outOfRange : ""}`}
+            disabled={locked}
+            title={
+              outOfRange
+                ? "The value is outside the range the documentation gives"
+                : "Click to change the value"
+            }
+            aria-label={`${parameter.name}, ${shown}. Change the value`}
+            onClick={onEdit}
+          >
+            {shown}
+          </button>
+          {metadata !== undefined && metadata.unit !== "" ? (
+            <span className={styles.unit}>{metadata.unit}</span>
+          ) : null}
+        </span>
       )}
 
       <span className={styles.badgeCell}>

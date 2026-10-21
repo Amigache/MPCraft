@@ -68,7 +68,11 @@ export function checkOverlaps() {
   // Its items are left out, so that what is left is a layout fault and not a menu.
   const controls = Array.from(document.querySelectorAll(INTERACTIVE.join(",")))
     .filter(visible)
-    .filter((element) => !element.closest('[role="menu"]'));
+    .filter((element) => !element.closest('[role="menu"]'))
+    // A sheet lies over the window, and the window under it is inert: its
+    // controls cannot be reached, so they are not controls that can be
+    // covered by another one.
+    .filter((element) => !element.closest("[inert], [aria-hidden=\"true\"]"));
 
   const clashes = [];
 

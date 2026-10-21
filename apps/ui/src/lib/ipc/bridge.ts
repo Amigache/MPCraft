@@ -8,12 +8,15 @@ import type {
   ConnectRequest,
   ConnectResponse,
   ConnectionStatus,
+  Coordinates,
   FlightMode,
   GraphPreset,
   GraphSeries,
   LossStats,
   MavCommand,
   Parameter,
+  ParameterDifference,
+  ParameterMetadata,
   Plan,
   PlanItem,
   PlanKind,
@@ -220,6 +223,65 @@ export async function setFavouriteParameter(
 }
 
 /**
+ * The groups the parameters belong to.
+ *
+ * The groups are the subjects the parameters are about — *Radio Calibration*, *EKF2* —
+ * and upstream builds its configuration menu out of them.
+ */
+export async function listParameterGroups(): Promise<string[]> {
+  return call<string[]>("list_parameter_groups");
+}
+
+/**
+ * What is known about some parameters.
+ *
+ * The answer holds one entry per name asked for, and a null for the ones the
+ * documentation does not know.
+ */
+export async function parameterMetadata(
+  names: readonly string[],
+): Promise<(ParameterMetadata | null)[]> {
+  return call<(ParameterMetadata | null)[]>("parameter_metadata", {
+    names: [...names],
+  });
+}
+
+/**
+ * The parameters of the vehicle, written to a file.
+ *
+ * The format is upstream's: a line per parameter, the name and the value separated by a
+ * comma.
+ */
+export async function exportParameters(path: string): Promise<void> {
+  await call<void>("export_parameters", { path });
+}
+
+/**
+ * The parameters of a file, read by the operator before they are written to the
+ * vehicle.
+ */
+export async function importParameters(path: string): Promise<Parameter[]> {
+  return call<Parameter[]>("import_parameters", { path });
+}
+
+/** How the parameters of the vehicle differ from the ones of a file. */
+export async function compareParameters(
+  path: string,
+): Promise<ParameterDifference[]> {
+  return call<ParameterDifference[]>("compare_parameters", { path });
+}
+
+/** Asks the vehicle to write its parameters to its own memory. */
+export async function writeParametersToFlash(): Promise<void> {
+  await call<void>("write_parameters_to_flash", {});
+}
+
+/** Where the vehicle is, in the systems an operator reads. */
+export async function vehicleCoordinates(): Promise<Coordinates> {
+  return call<Coordinates>("vehicle_coordinates");
+}
+
+/**
  * The warnings about a plan, before it is flown.
  *
  * The rule is the autopilot's, so it is evaluated in the model: the interface shows what
@@ -365,6 +427,15 @@ const EMPTY_STATE: LinkState = {
     bearingToHome: null,
     mission: null,
     gps: null,
+    imu: null,
+    barometer: null,
+    controls: null,
+    airspeed: null,
+    ekf: null,
+    vibration: null,
+    batteries: [],
+    ahrs2: null,
+    controller: null,
   },
   loss: { received: 0, lost: 0 },
   messages: [],

@@ -8,6 +8,7 @@ import {
   formatHeading,
   formatPercent,
   formatSpeed,
+  formatVerticalSpeed,
   formatVoltage,
   formatYesNo,
 } from "../../lib/format";
@@ -88,9 +89,32 @@ const TILES: readonly Tile[] = [
   {
     id: "satellites",
     label: "Satellites",
-    // The number of satellites is not part of the telemetry the backend publishes yet,
-    // so the tile stays empty rather than showing a number that was invented.
-    select: () => null,
+    select: (telemetry) => telemetry.gps?.satellites ?? null,
+    format: (value) => (value as number).toString(),
+  },
+  {
+    id: "throttle",
+    label: "Throttle",
+    select: (telemetry) => telemetry.airspeed?.throttle ?? null,
+    format: (value) => formatPercent(value as number),
+  },
+  {
+    id: "airspeed",
+    label: "Air speed",
+    select: (telemetry) => telemetry.airspeed?.airspeed ?? null,
+    format: (value) => formatSpeed(value as number),
+  },
+  {
+    id: "climb",
+    label: "Climb",
+    select: (telemetry) => telemetry.airspeed?.climb ?? null,
+    format: (value) => formatVerticalSpeed(value as number),
+  },
+  {
+    id: "signal",
+    label: "Signal",
+    select: (telemetry) => telemetry.controls?.signal ?? null,
+    format: (value) => formatPercent(value as number),
   },
 ];
 
