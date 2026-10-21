@@ -614,6 +614,23 @@ MPCraft decodes are kept, with the expressions rewritten over its own fields, an
 that draw on messages it does not decode yet are left out rather than shown empty. The
 presets MPCraft adds for the values upstream does not graph are marked as its own.
 
+**Thirteen of upstream's hundred and eight are ported so far.** The limit was never the
+interface but the model: a preset draws on a message, and a message nobody decodes is a
+preset with nothing to draw. The vehicle model now knows the inertial measurement, the
+barometer, the servos, the radio control and the air data, and the link decodes
+`RAW_IMU`, `SCALED_IMU`, `SCALED_PRESSURE`, `SERVO_OUTPUT_RAW`, `RC_CHANNELS` and
+`VFR_HUD`.
+
+The units are the ones an operator reads, and the conversion happens once, where the
+packet is decoded: the accelerometers are in thousandths of a g, the gyroscopes in
+thousandths of a radian per second, the magnetometers in thousandths of a gauss, the
+temperatures in hundredths of a degree and the pulse widths in microseconds. The graph
+engine reads the rate of the gyroscope in degrees, the way the attitude is read.
+
+A value the vehicle did not report stays unknown rather than becoming zero: a servo at
+zero microseconds is a fault, not the absence of a report, and the radio channels beyond
+the count the vehicle says it has are not reported at all.
+
 The expression language is the one upstream uses: the arithmetic operators, the power, and
 a handful of functions. It is read once, when the catalogue is first needed, because a
 graph that is redrawn twenty times a second must not parse its expressions twenty times a
@@ -638,6 +655,19 @@ and does not know why.
 
 The plan can be read from and written to a file — the QGC `.waypoints` format and the KML
 that Google Earth reads — and the file is read and written in Rust, where the formats live.
+
+The **parameter file** is the same story: a line per parameter, the name and the value
+separated by a comma, the comments starting with a hash. The format is upstream's, and the
+parameters the vehicle writes for its own bookkeeping — the number of the mission, the
+ground pressure of the last boot — are not part of the configuration and are left out.
+
+The **configuration groups** are the subjects the parameters are about — *Radio
+Calibration*, *EKF2*, *Multicopter Attitude Control* — and upstream builds its
+configuration menu out of them. The catalogue knows seven hundred and fifty-nine of them.
+
+A parameter the vehicle has in its memory but not in its **flash** is lost when the
+vehicle loses power, and the vehicle only writes the flash when it is told to. That is
+one command, and it is the one upstream asks for when the operator presses *Write*.
 
 ---
 
