@@ -8,6 +8,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod dataflash;
 pub mod tlog;
 
+pub use dataflash::{DataFlashReader, MessageFormat, Sample, Value};
 pub use tlog::{LogError, Record, TlogReader};

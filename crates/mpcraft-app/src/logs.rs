@@ -52,6 +52,35 @@ const MAX_SAMPLES: usize = 20_000;
 /// flight that lasted longer would lose its beginning.
 const SPAN: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// The format a log is written in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogFormat {
+    /// The telemetry log of MAVLink: a stream of the frames that crossed the link.
+    Tlog,
+    /// The text log of DataFlash: a line per sample, with the name of the message
+    /// first.
+    DataFlash,
+}
+
+/// The format a log is written in, told by the name of the file.
+///
+/// The two formats are told apart by their name: a `.tlog` is the telemetry log of
+/// MAVLink and a `.log` is the text log of DataFlash. A file with another name is
+/// tried as a telemetry log, because that is the one that carries the frames.
+#[must_use]
+pub fn format_of(path: &Path) -> LogFormat {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("log") => LogFormat::DataFlash,
+        _ => LogFormat::Tlog,
+    }
+}
+
+/// What a log holds.
 /// What a log holds.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -84,6 +113,10 @@ pub struct MessageCount {
 ///
 /// Returns an error when the file cannot be read, or when it does not hold a log.
 pub fn summarise(path: &Path) -> CommandResult<LogSummary> {
+    if format_of(path) == LogFormat::DataFlash {
+        return dataflash_summary(path);
+    }
+
     let file = File::open(path).map_err(|error| {
         CommandError::invalid_request(format!("the log could not be opened: {error}"))
     })?;
@@ -131,6 +164,106 @@ pub fn summarise(path: &Path) -> CommandResult<LogSummary> {
         end,
         records,
         broken,
+    })
+}
+
+/// What a log of DataFlash holds.
+///
+/// The log declares its messages at the top, and the samples follow. The summary says
+/// what the log holds and how many samples of each message there are.
+pub fn dataflash_summary(path: &Path) -> CommandResult<LogSummary> {
+    let file = File::open(path).map_err(|error| {
+        CommandError::invalid_request(format!("the log could not be opened: {error}"))
+    })?;
+
+    let mut reader = mpcraft_log::DataFlashReader::new(std::io::BufReader::new(file));
+
+    let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+    let mut total = 0_u64;
+
+    while let Some(sample) = reader
+        .next_sample()
+        .map_err(|error| CommandError::invalid_request(error.to_string()))?
+    {
+        *counts.entry(sample.name.clone()).or_insert(0) += 1;
+        total += 1;
+    }
+
+    let messages = counts
+        .into_iter()
+        .map(|(name, count)| MessageCount { name, count })
+        .collect();
+
+    Ok(LogSummary {
+        messages,
+        start: 0,
+        end: 0,
+        records: total,
+        broken: 0,
+    })
+}
+
+/// The samples of one message of a log of DataFlash.
+///
+/// # Errors
+///
+/// Returns an error when the file cannot be read, or when the log holds no message of
+/// that name.
+pub fn dataflash_samples(path: &Path, name: &str, limit: usize) -> CommandResult<MessageSamples> {
+    let file = File::open(path).map_err(|error| {
+        CommandError::invalid_request(format!("the log could not be opened: {error}"))
+    })?;
+
+    let mut reader = mpcraft_log::DataFlashReader::new(std::io::BufReader::new(file));
+
+    let mut fields: Vec<String> = Vec::new();
+    let mut rows: Vec<Vec<serde_json::Value>> = Vec::new();
+    let mut total = 0_u64;
+
+    while let Some(sample) = reader
+        .next_sample()
+        .map_err(|error| CommandError::invalid_request(error.to_string()))?
+    {
+        if sample.name != name {
+            continue;
+        }
+
+        total += 1;
+
+        if rows.len() >= limit {
+            continue;
+        }
+
+        if fields.is_empty() {
+            if let Some(format) = reader.formats().get(name) {
+                fields = format.fields.clone();
+            }
+        }
+
+        let values: Vec<serde_json::Value> = sample
+            .values
+            .iter()
+            .map(|value| match value {
+                mpcraft_log::Value::Number(number) => serde_json::Value::from(*number),
+                mpcraft_log::Value::Text(text) => serde_json::Value::String(text.clone()),
+            })
+            .collect();
+
+        rows.push(values);
+    }
+
+    if total == 0 {
+        return Err(CommandError::invalid_request(format!(
+            "the log holds no message called {name:?}"
+        )));
+    }
+
+    Ok(MessageSamples {
+        name: name.to_owned(),
+        fields,
+        rows,
+        total,
+        instants: Vec::new(),
     })
 }
 
@@ -265,6 +398,10 @@ pub struct MessageSamples {
 /// Returns an error when the file cannot be read, when it does not hold a log, or when
 /// the log holds no message of that name.
 pub fn message_samples(path: &Path, name: &str, limit: usize) -> CommandResult<MessageSamples> {
+    if format_of(path) == LogFormat::DataFlash {
+        return dataflash_samples(path, name, limit);
+    }
+
     let file = File::open(path).map_err(|error| {
         CommandError::invalid_request(format!("the log could not be opened: {error}"))
     })?;

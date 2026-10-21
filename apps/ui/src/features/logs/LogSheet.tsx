@@ -84,6 +84,14 @@ export function LogSheet() {
   const [error, setError] = useState<CommandError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * How many times the log has been asked for.
+   *
+   * Reading the same log again is reading it again: the effect that reads it
+   * only runs when the path changes, and the path does not change when the
+   * operator presses the button again.
+   */
+  const [revision, setRevision] = useState(0);
   /** The samples of the message that is chosen. */
   const [samples, setSamples] = useState<MessageSamples | null>(null);
   /** The message the samples are of. */
@@ -141,12 +149,9 @@ export function LogSheet() {
 
       try {
         const read = await logSummary(path);
-        const playback = await playbackOpen(path);
 
         if (!cancelled) {
           setSummary(read);
-          setFlight(playback.duration);
-          setPosition(0);
           setError(null);
         }
       } catch (cause) {
@@ -159,6 +164,21 @@ export function LogSheet() {
           setBusy(false);
         }
       }
+
+      // The play-back is only for the logs that carry the frames of the link: a log
+      // that carries its samples in another way is read, but not played back.
+      try {
+        const playback = await playbackOpen(path);
+
+        if (!cancelled) {
+          setFlight(playback.duration);
+          setPosition(0);
+        }
+      } catch {
+        if (!cancelled) {
+          setFlight(0);
+        }
+      }
     };
 
     void read();
@@ -166,7 +186,7 @@ export function LogSheet() {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, revision]);
 
   useEffect(() => {
     if (path === null || preset === "") {
@@ -428,6 +448,7 @@ export function LogSheet() {
                 setSummary(null);
                 setValues(null);
                 setPath(typed);
+                setRevision((count) => count + 1);
               }}
             >
               Read

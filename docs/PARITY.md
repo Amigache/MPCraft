@@ -140,7 +140,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 6.1 | DataFlash `.log` parser | `ExtLibs/Utilities/DFLog.cs` | 🔜 | 4 |
+| 6.1 | DataFlash `.log` parser | `ExtLibs/Utilities/DFLog.cs` | ✅ | 4 |
 | 6.2 | DataFlash `.bin` parser | `ExtLibs/Utilities/BinaryLog.cs` | 🔜 | 4 |
 | 6.3 | MAVLink `.tlog` parser | `Log/MavlinkLog.cs` | ✅ | 4 |
 | 6.4 | PX4 ULog parser | `ExtLibs/Utilities/ULog.cs` (upstream: unwired) | 🔜 | 4 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 95 |
-| 🔜 Planned | 57 |
+| ✅ Done | 96 |
+| 🔜 Planned | 56 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 95 rows marked done are the connection, transport, parameter, mission and command
+The 96 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -278,6 +278,11 @@ instant it was seen. The sheet says what the log holds — how many records, how
 lasts and how many of each kind of message — and draws the graphs of the catalogue over
 it. The graphs are the same ones the live view draws: the log is fed to the same
 aggregator the vehicle feeds, and the samples are the same samples.
+
+The **text log of DataFlash** is read as well as the telemetry log: the declarations
+at the top of the file say what every message is, and the samples that follow are read
+with the types they were declared with — a position in millionths of a degree is said in
+degrees, and a value in hundredths is said in the unit it is in.
 
 The **samples of a message** are a grid in the sheet of the logs: the fields of the
 message are the columns and the samples are the rows, with the instant each of them
