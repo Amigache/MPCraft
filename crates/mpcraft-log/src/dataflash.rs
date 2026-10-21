@@ -71,7 +71,7 @@ pub enum FieldKind {
 
 impl FieldKind {
     /// The kind a format character means.
-    fn of(character: char) -> Option<Self> {
+    pub fn of(character: char) -> Option<Self> {
         match character {
             'B' => Some(Self::U8),
             'b' => Some(Self::I8),
@@ -121,6 +121,12 @@ impl Value {
 pub struct MessageFormat {
     /// The number of the message.
     pub id: u8,
+    /// How long the message is, the header counted.
+    ///
+    /// The text log does not use it ? a line is a line ? but the binary one does: the
+    /// values of a message are three bytes shorter than the message, because the marker
+    /// and the number of the message are part of it.
+    pub length: u8,
     /// The name of the message.
     pub name: String,
     /// The name of each of its values.
@@ -261,6 +267,7 @@ impl<R: BufRead> DataFlashReader<R> {
             name.clone(),
             MessageFormat {
                 id,
+                length: 0,
                 name,
                 fields,
                 kinds,

@@ -8,8 +8,10 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod binary;
 pub mod dataflash;
 pub mod tlog;
 
+pub use binary::{BinaryReader, BinarySample};
 pub use dataflash::{DataFlashReader, MessageFormat, Sample, Value};
 pub use tlog::{LogError, Record, TlogReader};
