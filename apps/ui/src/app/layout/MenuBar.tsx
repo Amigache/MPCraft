@@ -91,6 +91,8 @@ export function MenuBar() {
   const setTheme = useUiStore((state) => state.setTheme);
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
   const showParameters = useUiStore((state) => state.showParameters);
+  const focusMap = useUiStore((state) => state.focusMap);
+  const toggleFocusMap = useUiStore((state) => state.toggleFocusMap);
   const showCalibration = useUiStore((state) => state.showCalibration);
   const showLog = useUiStore((state) => state.showLog);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
@@ -301,6 +303,18 @@ export function MenuBar() {
       id: "view",
       label: "View",
       items: [
+        {
+          id: "focus-map",
+          label: "The map alone",
+          onSelect: () => {
+            close();
+            toggleFocusMap();
+          },
+          disabled: false,
+          checked: focusMap,
+          separator: false,
+          hint: "",
+        },
         {
           id: "logs",
           label: "Logs",

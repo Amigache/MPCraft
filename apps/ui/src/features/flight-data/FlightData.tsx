@@ -47,6 +47,7 @@ import styles from "./FlightData.module.css";
  */
 export function FlightData() {
   const showLeftColumn = useUiStore((state) => state.showLeftColumn);
+  const focusMap = useUiStore((state) => state.focusMap);
   const leftColumnFraction = useUiStore((state) => state.leftColumnFraction);
   const hudFraction = useUiStore((state) => state.hudFraction);
   const topFraction = useUiStore((state) => state.topFraction);
@@ -116,11 +117,11 @@ export function FlightData() {
   );
 
   // The graphs are put away while the plan is being edited.
-  const graphsVisible = showGraphs && !editorOpen;
+  const graphsVisible = showGraphs && !editorOpen && !focusMap;
 
   return (
     <div className={styles.screen}>
-      {showLeftColumn ? (
+      {showLeftColumn && !focusMap ? (
         <>
           <aside
             className={styles.left}
@@ -239,7 +240,7 @@ export function FlightData() {
 
       <main className={styles.main}>
         <div className={styles.split} ref={split}>
-          {editorOpen ? (
+          {editorOpen && !focusMap ? (
             <>
               <div
                 className={styles.editor}

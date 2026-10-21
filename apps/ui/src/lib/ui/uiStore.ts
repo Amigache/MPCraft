@@ -237,8 +237,18 @@ export interface UiStore {
   readonly hudFraction: number;
   /** The height of the pane above the map, as a part of the area it shares. */
   readonly topFraction: number;
+  /**
+   * Whether the map is shown alone.
+   *
+   * The map is what the operator looks at when the vehicle is flying, and on a small
+   * screen the panels beside it take the room it needs. The focus puts the map on its
+   * own, and the panels come back when it is turned off.
+   */
+  readonly focusMap: boolean;
   /** Whether the left column is shown at all. */
   readonly showLeftColumn: boolean;
+  /** Puts the map on its own, or brings the panels back. */
+  readonly toggleFocusMap: () => void;
   /** Whether the graphs are shown at all. */
   readonly showGraphs: boolean;
   /** The graph that is drawn, by its full name. */
@@ -363,6 +373,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hudFraction: readFraction("mpcraft.hudFraction", DEFAULT_HUD_FRACTION),
   topFraction: readFraction("mpcraft.topFraction", DEFAULT_TOP_FRACTION),
   showLeftColumn: readFlag("mpcraft.showLeftColumn", true),
+  focusMap: readFlag("mpcraft.focusMap", false),
   showGraphs: readFlag("mpcraft.showGraphs", true),
   graphPreset: readString("mpcraft.graphPreset", ""),
   followVehicle: readFlag("mpcraft.followVehicle", true),
@@ -398,6 +409,13 @@ export const useUiStore = create<UiStore>((set) => ({
     writeNumber("mpcraft.topFraction", clamped);
     set({ topFraction: clamped });
   },
+
+  toggleFocusMap: () =>
+    set((state) => {
+      const focusMap = !state.focusMap;
+      writeFlag("mpcraft.focusMap", focusMap);
+      return { focusMap };
+    }),
 
   toggleLeftColumn: () =>
     set((state) => {

@@ -12,6 +12,7 @@
 .message {
   color: var(--colour-text-dim);
   flex: 1 1 auto;
+  max-width: 40ch;
   font-family: var(--font-mono);
   font-size: var(--font-2xs);
   overflow: hidden;
@@ -22,6 +23,7 @@
 .fault {
   color: var(--colour-danger);
   flex: 1 1 auto;
+  max-width: 40ch;
   font-family: var(--font-mono);
   font-size: var(--font-2xs);
   overflow: hidden;
@@ -34,6 +36,22 @@
   display: flex;
   flex: 0 0 auto;
   gap: var(--space-1);
+  padding-left: var(--space-3);
+  position: relative;
+}
+
+/* The rule between the cells: a status bar is a row of facts, and each one has to be
+   told apart from the next. */
+
+.cell::before {
+  background: var(--colour-border);
+  content: "";
+  height: 12px;
+  left: 0;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
 }
 
 .label {

@@ -37,40 +37,61 @@
 /* The chooser of the provider of the tiles. */
 
 .provider {
-  background: var(--colour-surface-raised);
-  border: 1px solid var(--colour-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--colour-text);
-  font-family: var(--font-ui);
-  font-size: var(--font-2xs);
-  max-width: 180px;
-  padding: 2px var(--space-1);
-}
-
-.controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  position: absolute;
-  right: var(--space-3);
-  top: 108px;
-  z-index: 2;
-}
-
-.follow,
-.control {
-  background: var(--colour-surface);
-  border: 1px solid var(--colour-border);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--colour-text-dim);
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: var(--font-2xs);
-  padding: 2px var(--space-2);
+  height: var(--control-h-sm);
+  max-width: 180px;
+  padding: 0 var(--space-1);
+}
+
+.provider:hover {
+  background: var(--colour-hover);
+  border-color: var(--colour-border);
+  color: var(--colour-text);
+}
+
+/* The controls of the map are a bar of tools: one row, flat, and the size of the tools
+   of the rest of the interface. A stack of pills over the tiles reads as a web page
+   dropped on a desktop. */
+
+.controls {
+  align-items: center;
+  background: var(--colour-scrim);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-2);
+  z-index: 2;
+}
+
+.follow,
+.control {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--colour-text-dim);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-2xs);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-2);
+  white-space: nowrap;
 }
 
 .follow:hover,
 .control:hover {
+  background: var(--colour-hover);
+  border-color: var(--colour-border);
   color: var(--colour-text);
 }
 
@@ -196,6 +217,37 @@
   background: var(--colour-scrim);
   color: var(--colour-text-faint);
   font-size: 10px;
+}
+
+/* The zoom of the map is a pair of buttons of the interface, not a widget of the web
+   page it is drawn on: they take the colour of the window and lose the shadow. */
+
+.map :global(.maplibregl-ctrl-group) {
+  background: var(--colour-scrim);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+.map :global(.maplibregl-ctrl-group button + button) {
+  border-top: 1px solid var(--colour-border);
+}
+
+.map :global(.maplibregl-ctrl-group button .maplibregl-ctrl-icon) {
+  filter: invert(0.8);
+}
+
+/* The attribution of the map is a piece of the interface, not a piece of the web page
+   it is drawn on: it takes the colour of the window it is in. */
+
+.map :global(.maplibregl-ctrl-attrib-inner) {
+  background: transparent;
+  color: var(--colour-text-faint);
+  font-size: 10px;
+}
+
+.map :global(.maplibregl-ctrl-attrib-button) {
+  background: transparent;
 }
 
 .map :global(.maplibregl-ctrl-attrib a) {
