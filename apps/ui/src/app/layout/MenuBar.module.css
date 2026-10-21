@@ -109,6 +109,17 @@
   padding-right: var(--space-2);
 }
 
+/* What the last thing the operator did said. */
+
+.note {
+  color: var(--colour-text-dim);
+  font-size: var(--font-2xs);
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .target {
   color: var(--colour-text-faint);
   font-family: var(--font-mono);

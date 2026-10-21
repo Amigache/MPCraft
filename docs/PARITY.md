@@ -198,7 +198,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | 🔜 | 5 |
 | 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🔜 | 5 |
 | 9.8 | HTTP server (MJPEG / KML stream) | `ExtLibs/Utilities/httpserver.cs` | 🔜 | 7 |
-| 9.9 | KML live output | `FlightPlanner.writeKML` | 🔜 | 2 |
+| 9.9 | KML live output | `FlightPlanner.writeKML` | ✅ | 2 |
 
 ## 10. Application-level
 
@@ -220,8 +220,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 104 |
-| 🔜 Planned | 49 |
+| ✅ Done | 105 |
+| 🔜 Planned | 48 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 

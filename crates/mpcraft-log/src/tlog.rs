@@ -58,6 +58,18 @@ pub enum LogError {
     /// A frame of the log is not a frame.
     #[error("a frame of the log is not a frame: {0}")]
     Frame(#[from] mpcraft_mavlink::ProtocolError),
+    /// A message of the log is not a message.
+    ///
+    /// The log is not broken: the message is one this reader does not understand,
+    /// and the rest of the log is still good.
+    #[error("a message of the log is malformed: {0}")]
+    Malformed(String),
+    /// The log holds something this reader cannot make sense of.
+    ///
+    /// A log of PX4 says when it holds a feature that breaks the format, and such a
+    /// log is not to be read as if it were an ordinary one.
+    #[error("the log cannot be read: {0}")]
+    Unsupported(String),
 }
 
 /// A record of a log: a frame and the instant it was seen.

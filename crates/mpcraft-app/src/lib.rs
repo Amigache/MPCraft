@@ -48,6 +48,7 @@ pub mod checklist;
 pub mod coordinates;
 pub mod error;
 pub mod graphs;
+pub mod live_kml;
 pub mod logs;
 pub mod operations;
 pub mod supervisor;
@@ -56,6 +57,7 @@ pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
 pub use coordinates::{Coordinates, Utm};
 pub use error::{CommandError, CommandResult};
 pub use graphs::{GraphHistory, PresetInfo, SeriesData, SeriesInfo, SeriesPoints};
+pub use live_kml::LiveTrack;
 pub use mpcraft_link::SessionState;
 pub use mpcraft_settings::ConnectionProfile;
 pub use operations::OutputFunction;
@@ -135,6 +137,14 @@ pub struct AppState {
     /// vehicle where it was, the graphs show what it said and the map shows the
     /// track it left.
     pub playback: std::sync::Arc<std::sync::Mutex<logs::Playback>>,
+
+    ///
+    /// The track of the flight, when it is being streamed to a file.
+    ///
+    /// The track is written as the vehicle flies, so that another program can follow
+    /// the flight as it happens. It is fed from the state the link publishes, which is
+    /// the only place the position of the vehicle is known.
+    pub live_track: std::sync::Arc<std::sync::Mutex<Option<live_kml::LiveTrack>>>,
 }
 
 impl Default for AppState {
@@ -146,6 +156,7 @@ impl Default for AppState {
             terrain: TerrainService::new(terrain_cache_dir()),
             tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
+            live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
         }
     }
 }
@@ -341,6 +352,7 @@ mod tests {
             terrain: TerrainService::new(terrain_cache_dir()),
             tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
+            live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
 
         assert!(state
@@ -373,6 +385,7 @@ mod tests {
             terrain: TerrainService::new(terrain_cache_dir()),
             tiles: TileService::new(tile_cache_dir()),
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
+            live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
 
         let error = state

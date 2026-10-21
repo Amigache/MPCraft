@@ -37,6 +37,7 @@ async fn connect(
 ) -> CommandResult<ConnectResponse> {
     let handle = app.clone();
     let history = state.graphs.clone();
+    let live = state.live_track.clone();
 
     state
         .supervisor
@@ -45,6 +46,20 @@ async fn connect(
             // fed from the state the link publishes.
             if let Some(session) = &snapshot.session {
                 history.record(&session.telemetry);
+
+                // The track that is being streamed to a file is fed from the same
+                // state: the place of the vehicle is only known here.
+                if let Some(position) = session.telemetry.position {
+                    if let Ok(mut cell) = live.lock() {
+                        if let Some(track) = cell.as_mut() {
+                            track.push(position.lat, position.lng, position.alt);
+
+                            if let Err(error) = track.write() {
+                                tracing::warn!("cannot write the track: {error}");
+                            }
+                        }
+                    }
+                }
             }
 
             if let Err(error) = handle.emit(STATE_EVENT, StateEvent::from(snapshot)) {
@@ -1150,6 +1165,56 @@ async fn log_export_csv(log: String, name: String, output: String) -> CommandRes
         .map_err(|error| CommandError::internal(format!("cannot write {output}: {error}")))?;
 
     Ok(())
+}
+
+/// Starts writing the track of the flight to a file.
+///
+/// The file is a KML document, the one Google Earth reads, and it is written again and
+/// again while the vehicle flies. The answer is the name of the file.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be written.
+#[tauri::command]
+async fn start_live_kml(state: State<'_, AppState>, path: String) -> CommandResult<String> {
+    let mut cell = state
+        .live_track
+        .lock()
+        .map_err(|_| CommandError::internal("the track is locked"))?;
+
+    let mut track = mpcraft_app::LiveTrack::new(std::path::PathBuf::from(&path));
+    track.flush()?;
+    *cell = Some(track);
+
+    Ok(path)
+}
+
+/// Stops writing the track of the flight to a file.
+///
+/// The file is written one last time, so that it holds the whole flight. The answer is
+/// the name of the file.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no track being written, or
+/// when the file cannot be written.
+#[tauri::command]
+async fn stop_live_kml(state: State<'_, AppState>) -> CommandResult<String> {
+    let mut cell = state
+        .live_track
+        .lock()
+        .map_err(|_| CommandError::internal("the track is locked"))?;
+
+    let Some(mut track) = cell.take() else {
+        return Err(CommandError::invalid_request(
+            "there is no track being written to a file",
+        ));
+    };
+
+    let path = track.path().display().to_string();
+    track.flush()?;
+
+    Ok(path)
 }
 
 /// The event that carries the telemetry of a log that is being played back.
@@ -2514,6 +2579,8 @@ fn main() {
             log_track,
             log_export_kml,
             log_export_csv,
+            start_live_kml,
+            stop_live_kml,
             list_parameters,
             read_parameters,
             write_parameter,

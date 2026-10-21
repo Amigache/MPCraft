@@ -254,6 +254,62 @@ pub fn write_kml(plan: &Plan) -> String {
     out
 }
 
+/// Writes a track as a KML document.
+///
+/// A track is the path the vehicle has flown, not a plan: it is written again and
+/// again while the vehicle flies, and what it holds is always the path so far. The
+/// document is the line of the path and the place the vehicle is in now.
+///
+/// The points are given as latitude, longitude and height, in that order, which is the
+/// order of the model — the document itself writes the longitude first, as KML does.
+#[must_use]
+pub fn write_track_kml(name: &str, points: &[(f64, f64, f64)]) -> String {
+    let mut out = String::new();
+    out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    out.push_str("<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n");
+    out.push_str("  <Document>\n");
+    let _ = writeln!(out, "    <name>{}</name>", escape(name));
+
+    let mut path = String::new();
+
+    for (latitude, longitude, altitude) in points {
+        let _ = write!(
+            path,
+            "{lng:.prec$},{lat:.prec$},{altitude:.alt$} ",
+            lng = longitude,
+            lat = latitude,
+            altitude = altitude,
+            prec = COORDINATE_DECIMALS,
+            alt = ALTITUDE_DECIMALS,
+        );
+    }
+
+    if !path.is_empty() {
+        out.push_str("    <LineString><coordinates>");
+        out.push_str(path.trim_end());
+        out.push_str("</coordinates></LineString>\n");
+    }
+
+    if let Some((latitude, longitude, altitude)) = points.last() {
+        let _ = writeln!(out, "    <Placemark>");
+        let _ = writeln!(out, "      <name>Now</name>");
+        let _ = writeln!(
+            out,
+            "      <Point><coordinates>{lng:.prec$},{lat:.prec$},{altitude:.alt$}</coordinates></Point>",
+            lng = longitude,
+            lat = latitude,
+            altitude = altitude,
+            prec = COORDINATE_DECIMALS,
+            alt = ALTITUDE_DECIMALS,
+        );
+        out.push_str("    </Placemark>\n");
+    }
+
+    out.push_str("  </Document>\n");
+    out.push_str("</kml>\n");
+    out
+}
+
 /// A placemark that is being read.
 #[derive(Default)]
 struct Placemark {
@@ -763,6 +819,35 @@ mod tests {
         assert_eq!(plan.len(), 2);
         assert_eq!(plan.items[0].x, -35.2809);
         assert_eq!(plan.items[1].x, -35.281);
+    }
+
+    #[test]
+    fn a_track_is_written_as_a_line_and_the_place_the_vehicle_is_in() {
+        let points = [
+            (-35.28, 149.13, 584.0),
+            (-35.281, 149.131, 600.0),
+        ];
+
+        let text = write_track_kml("MPCraft track", &points);
+
+        assert!(text.contains("<name>MPCraft track</name>"));
+        assert!(text.contains(
+            "<LineString><coordinates>149.13000000,-35.28000000,584.000000 \
+             149.13100000,-35.28100000,600.000000</coordinates></LineString>"
+        ));
+        assert!(text.contains("<name>Now</name>"));
+        assert!(text.contains(
+            "<Point><coordinates>149.13100000,-35.28100000,600.000000</coordinates></Point>"
+        ));
+    }
+
+    #[test]
+    fn a_track_without_places_is_still_a_document() {
+        let text = write_track_kml("MPCraft track", &[]);
+
+        assert!(text.contains("<Document>"));
+        assert!(!text.contains("<LineString>"));
+        assert!(!text.contains("<Placemark>"));
     }
 
     #[test]

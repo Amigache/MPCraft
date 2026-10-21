@@ -66,7 +66,10 @@ export function normaliseError(cause: unknown): CommandError {
     "message" in cause
   ) {
     const candidate = cause as { code: unknown; message: unknown };
-    if (typeof candidate.code === "string" && typeof candidate.message === "string") {
+    if (
+      typeof candidate.code === "string" &&
+      typeof candidate.message === "string"
+    ) {
       return { code: candidate.code, message: candidate.message };
     }
   }
@@ -212,7 +215,9 @@ export async function listParameters(): Promise<Parameter[]> {
 }
 
 /** Asks the vehicle for every parameter it has, and waits for the answers. */
-export async function readParameters(vehicle?: VehicleKey): Promise<Parameter[]> {
+export async function readParameters(
+  vehicle?: VehicleKey,
+): Promise<Parameter[]> {
   return call<Parameter[]>("read_parameters", vehicleRequest(vehicle));
 }
 
@@ -318,7 +323,14 @@ export async function manualControl(
   yaw: number,
   buttons = 0,
 ): Promise<void> {
-  await call<void>("manual_control", { req: {}, roll, pitch, thrust, yaw, buttons });
+  await call<void>("manual_control", {
+    req: {},
+    roll,
+    pitch,
+    thrust,
+    yaw,
+    buttons,
+  });
 }
 
 /**
@@ -370,7 +382,10 @@ export async function logSummary(path: string): Promise<LogSummary> {
  * The graph is the same one the live view draws, read from the log instead of from the
  * link.
  */
-export async function logSeries(path: string, name: string): Promise<GraphSeries> {
+export async function logSeries(
+  path: string,
+  name: string,
+): Promise<GraphSeries> {
   return call<GraphSeries>("log_series", { path, name });
 }
 
@@ -379,10 +394,7 @@ export async function logSeries(path: string, name: string): Promise<GraphSeries
  *
  * The document is the one Google Earth reads.
  */
-export async function logExportKml(
-  log: string,
-  output: string,
-): Promise<void> {
+export async function logExportKml(log: string, output: string): Promise<void> {
   await call<void>("log_export_kml", { log, output });
 }
 
@@ -397,6 +409,26 @@ export async function logExportCsv(
   output: string,
 ): Promise<void> {
   await call<void>("log_export_csv", { log, name, output });
+}
+
+/**
+ * Starts writing the track of the flight to a KML file.
+ *
+ * The file is written again and again while the vehicle flies, so that another program
+ * can follow the flight as it happens. The answer is the name of the file.
+ */
+export async function startLiveKml(path: string): Promise<string> {
+  return call<string>("start_live_kml", { path });
+}
+
+/**
+ * Stops writing the track of the flight to a KML file.
+ *
+ * The file is written one last time, so that it holds the whole flight. The answer is
+ * the name of the file.
+ */
+export async function stopLiveKml(): Promise<string> {
+  return call<string>("stop_live_kml");
 }
 
 /**
@@ -440,7 +472,12 @@ export async function downloadLog(
   path: string,
   vehicle?: VehicleKey,
 ): Promise<void> {
-  await call<void>("download_log", { ...vehicleRequest(vehicle), id, size, path });
+  await call<void>("download_log", {
+    ...vehicleRequest(vehicle),
+    id,
+    size,
+    path,
+  });
 }
 
 /**
@@ -571,10 +608,7 @@ export async function exportPlan(
 }
 
 /** Reads a plan from a file, in the format Mission Planner uses. */
-export async function importPlan(
-  format: string,
-  path: string,
-): Promise<Plan> {
+export async function importPlan(format: string, path: string): Promise<Plan> {
   return call<Plan>("import_plan", { format, path });
 }
 
@@ -624,9 +658,12 @@ export function useConnection(): ConnectionState {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<{ status: ConnectionStatus }>("link-state", (event) => {
-      setStatus(event.payload.status);
-    });
+    const unlisten = listen<{ status: ConnectionStatus }>(
+      "link-state",
+      (event) => {
+        setStatus(event.payload.status);
+      },
+    );
     return () => {
       void unlisten.then((off) => off());
     };
@@ -693,10 +730,10 @@ const EMPTY_STATE: LinkState = {
     bearingToHome: null,
     mission: null,
     gps: null,
-  gps2: null,
-  efi: null,
-  droneId: null,
-  wind: null,
+    gps2: null,
+    efi: null,
+    droneId: null,
+    wind: null,
     imu: null,
     barometer: null,
     controls: null,

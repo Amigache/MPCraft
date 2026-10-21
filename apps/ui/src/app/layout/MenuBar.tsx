@@ -8,6 +8,8 @@ import {
   disarmVehicle,
 } from "../../lib/flight/flightActions";
 import { useModesStore } from "../../lib/flight/modesStore";
+import { pickSavePath } from "../../lib/ipc/dialog";
+import { startLiveKml, stopLiveKml } from "../../lib/ipc/bridge";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
@@ -64,6 +66,10 @@ export function MenuBar() {
   const [open, setOpen] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [about, setAbout] = useState(false);
+  /** The file the track of the flight is being written to, when it is. */
+  const [liveKml, setLiveKml] = useState<string | null>(null);
+  /** What the last thing the operator did said. */
+  const [note, setNote] = useState<string | null>(null);
   const bar = useRef<HTMLDivElement | null>(null);
 
   const status = useLinkStore((state) => state.status);
@@ -97,9 +103,7 @@ export function MenuBar() {
   const showLog = useUiStore((state) => state.showLog);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
-  const loadParameterGroups = useUiStore(
-    (state) => state.loadParameterGroups,
-  );
+  const loadParameterGroups = useUiStore((state) => state.loadParameterGroups);
   const showParameterGroup = useUiStore((state) => state.showParameterGroup);
 
   const editorOpen = usePlanEditorStore((state) => state.open);
@@ -186,6 +190,53 @@ export function MenuBar() {
           checked: undefined,
           separator: true,
           hint: "",
+        },
+        {
+          id: "live-kml",
+          label:
+            liveKml === null
+              ? "Stream the track to a KML file…"
+              : "Stop streaming the track",
+          onSelect: () => {
+            close();
+
+            if (liveKml !== null) {
+              void stopLiveKml()
+                .then(() => {
+                  setLiveKml(null);
+                  setNote("The track has been written.");
+                })
+                .catch((error: { message?: string }) => {
+                  setNote(error.message ?? "The track could not be stopped.");
+                });
+              return;
+            }
+
+            void pickSavePath("track.kml", [
+              { name: "KML", extensions: ["kml"] },
+            ])
+              .then((picked) => {
+                if (!picked.ok) {
+                  return;
+                }
+
+                return startLiveKml(picked.path)
+                  .then(() => {
+                    setLiveKml(picked.path);
+                    setNote(`The track is written to ${picked.path}.`);
+                  })
+                  .catch((error: { message?: string }) => {
+                    setNote(error.message ?? "The track could not be started.");
+                  });
+              })
+              .catch(() => {
+                setNote("The file could not be asked for.");
+              });
+          },
+          disabled: false,
+          checked: liveKml !== null ? true : undefined,
+          separator: false,
+          hint: liveKml === null ? "" : liveKml,
         },
         {
           id: "exit",
@@ -595,20 +646,18 @@ export function MenuBar() {
           separator: true,
           hint: "",
         },
-        ...parameterGroups.map((group): MenuItem => (
-          {
-            id: `group-${group}`,
-            label: group,
-            onSelect: () => {
-              close();
-              showParameterGroup(group);
-            },
-            disabled: false,
-            checked: undefined,
-            separator: false,
-            hint: "",
-          }
-        )),
+        ...parameterGroups.map((group): MenuItem => ({
+          id: `group-${group}`,
+          label: group,
+          onSelect: () => {
+            close();
+            showParameterGroup(group);
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        })),
         {
           id: "firmware",
           label: "Firmware…",
@@ -692,13 +741,17 @@ export function MenuBar() {
                     "[role='menuitem']",
                   ),
                 );
-                const index = entries.findIndex((entry) => entry === event.target);
+                const index = entries.findIndex(
+                  (entry) => entry === event.target,
+                );
                 if (event.key === "ArrowDown") {
                   event.preventDefault();
                   entries[(index + 1) % entries.length]?.focus();
                 } else if (event.key === "ArrowUp") {
                   event.preventDefault();
-                  entries[(index - 1 + entries.length) % entries.length]?.focus();
+                  entries[
+                    (index - 1 + entries.length) % entries.length
+                  ]?.focus();
                 } else if (event.key === "Home") {
                   event.preventDefault();
                   entries[0]?.focus();
@@ -710,7 +763,11 @@ export function MenuBar() {
             >
               {menu.items.map((item) =>
                 item.separator ? (
-                  <div className={styles.separator} key={item.id} role="separator" />
+                  <div
+                    className={styles.separator}
+                    key={item.id}
+                    role="separator"
+                  />
                 ) : (
                   <button
                     type="button"
@@ -747,7 +804,15 @@ export function MenuBar() {
       ))}
 
       <div className={styles.right}>
-        <span className={styles.target} title="The link the application is opened on">
+        {note !== null ? (
+          <span className={styles.note} role="status">
+            {note}
+          </span>
+        ) : null}
+        <span
+          className={styles.target}
+          title="The link the application is opened on"
+        >
           {vehicles.length > 0
             ? `${vehicles[0]?.systemId ?? "?"}/${vehicles[0]?.componentId ?? "?"}`
             : "no vehicle"}
@@ -812,8 +877,8 @@ export function MenuBar() {
               </button>
             </div>
             <p className={styles.about}>
-              MPCraft {VERSION} — a ground station for ArduPilot and PX4, written in Rust
-              and React.
+              MPCraft {VERSION} — a ground station for ArduPilot and PX4,
+              written in Rust and React.
             </p>
             <p className={styles.about}>
               The map uses the demo tiles of MapLibre and needs no account.
