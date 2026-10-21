@@ -1342,6 +1342,24 @@ async fn download_log(
         .await
 }
 
+/// The samples of one message of a log.
+///
+/// The values are the ones the message carries, field by field: the grid the operator
+/// reads is the message itself.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, when it
+/// does not hold a log, or when the log holds no message of that name.
+#[tauri::command]
+async fn log_message_samples(
+    path: String,
+    name: String,
+    limit: usize,
+) -> CommandResult<mpcraft_app::logs::MessageSamples> {
+    mpcraft_app::logs::message_samples(std::path::Path::new(&path), &name, limit)
+}
+
 /// The track of a log: the places the vehicle went through.
 ///
 /// # Errors
@@ -2452,6 +2470,7 @@ fn main() {
             list_mav_commands,
             graph_series,
             log_summary,
+            log_message_samples,
             vehicle_logs,
             download_log,
             playback_open,

@@ -17,6 +17,7 @@ import type {
   PlaybackInfo,
   LogTrackPoint,
   LossStats,
+  MessageSamples,
   MavCommand,
   OutputFunction,
   Parameter,
@@ -439,6 +440,19 @@ export async function downloadLog(
   vehicle?: VehicleKey,
 ): Promise<void> {
   await call<void>("download_log", { ...vehicleRequest(vehicle), id, size, path });
+}
+
+/**
+ * The samples of one message of a log.
+ *
+ * The values are the ones the message carries, field by field.
+ */
+export async function logMessageSamples(
+  path: string,
+  name: string,
+  limit = 200,
+): Promise<MessageSamples> {
+  return call<MessageSamples>("log_message_samples", { path, name, limit });
 }
 
 /** The track of a log: the places the vehicle went through. */

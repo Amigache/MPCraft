@@ -231,6 +231,127 @@ pub fn track(path: &Path) -> CommandResult<Vec<TrackPoint>> {
     Ok(points)
 }
 
+/// The samples of one message of a log.
+///
+/// The message is written in many messages of the log, and each of them carries the same
+/// fields. The samples are the rows of the grid the operator reads: the fields are the
+/// columns and the instants are the rows.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageSamples {
+    /// The name of the message.
+    pub name: String,
+    /// The fields the message has.
+    pub fields: Vec<String>,
+    /// The samples, each of them the values of the fields.
+    pub rows: Vec<Vec<serde_json::Value>>,
+    /// How many of them the log holds.
+    pub total: u64,
+    ///
+    /// When each of them happened, in seconds after the start of the log.
+    ///
+    /// The instants are what tie the samples to the graphs and to the map: the
+    /// operator picks a row and the flight is moved to that moment.
+    pub instants: Vec<f64>,
+}
+
+/// The samples of one message of a log.
+///
+/// The values are the ones the message carries, field by field: the message is written
+/// as it is on the wire, and the interface shows a grid of them.
+///
+/// # Errors
+///
+/// Returns an error when the file cannot be read, when it does not hold a log, or when
+/// the log holds no message of that name.
+pub fn message_samples(path: &Path, name: &str, limit: usize) -> CommandResult<MessageSamples> {
+    let file = File::open(path).map_err(|error| {
+        CommandError::invalid_request(format!("the log could not be opened: {error}"))
+    })?;
+
+    let mut reader = TlogReader::new(file);
+
+    let mut fields: Vec<String> = Vec::new();
+    let mut rows: Vec<Vec<serde_json::Value>> = Vec::new();
+    let mut instants: Vec<f64> = Vec::new();
+    let mut total = 0_u64;
+    let mut start = 0_u64;
+    let mut first = true;
+
+    while let Some(record) = reader
+        .next_record()
+        .map_err(|error| CommandError::invalid_request(error.to_string()))?
+    {
+        if message_name(record.message.message_id()) != Some(name) {
+            continue;
+        }
+
+        total += 1;
+
+        if first {
+            start = record.timestamp;
+            first = false;
+        }
+
+        if rows.len() >= limit {
+            continue;
+        }
+
+        // The message is written as it is: the field names and the values, with no
+        // interpretation of ours in between.
+        let value = serde_json::to_value(&record.message)
+            .map_err(|error| CommandError::internal(format!("the message is not text: {error}")))?;
+
+        // The message is written with its own name in it, and the fields beside it.
+        let Some(fields_of) = value.as_object() else {
+            continue;
+        };
+
+        if fields.is_empty() {
+            fields = fields_of
+                .keys()
+                .filter(|key| key.as_str() != "type")
+                .cloned()
+                .collect();
+        }
+
+        let row = fields
+            .iter()
+            .map(|field| match fields_of.get(field) {
+                Some(serde_json::Value::Array(values)) => serde_json::Value::String(
+                    values
+                        .iter()
+                        .map(|value| match value {
+                            serde_json::Value::String(text) => text.clone(),
+                            other => other.to_string(),
+                        })
+                        .collect::<Vec<String>>()
+                        .join(","),
+                ),
+                Some(other) => other.clone(),
+                None => serde_json::Value::Null,
+            })
+            .collect();
+
+        instants.push(record.timestamp.saturating_sub(start) as f64 / 1_000_000.0);
+        rows.push(row);
+    }
+
+    if total == 0 {
+        return Err(CommandError::invalid_request(format!(
+            "the log holds no message called {name:?}"
+        )));
+    }
+
+    Ok(MessageSamples {
+        name: name.to_owned(),
+        fields,
+        rows,
+        total,
+        instants,
+    })
+}
+
 /// One of the places of the track of a log.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

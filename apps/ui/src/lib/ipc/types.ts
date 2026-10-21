@@ -561,6 +561,29 @@ export interface DroneIdLocation {
   readonly direction: number;
 }
 
+/**
+ * The value of one field of one sample.
+ */
+export type SampleValue = string | number | boolean | null;
+
+/**
+ * The samples of one message of a log.
+ */
+export interface MessageSamples {
+  /** The name of the message. */
+  readonly name: string;
+  /** The fields the message has. */
+  readonly fields: readonly string[];
+  /** The samples, each of them the values of the fields. */
+  readonly rows: readonly (readonly SampleValue[])[];
+  /** How many of them the log holds. */
+  readonly total: number;
+  /**
+   * When each of them happened, in seconds after the start of the log.
+   */
+  readonly instants: readonly number[];
+}
+
 export interface GraphPreset {
   /** The full name, as the interface shows it. */
   readonly name: string;

@@ -5,6 +5,7 @@ import {
   listGraphs,
   logExportCsv,
   logExportKml,
+  logMessageSamples,
   logSeries,
   logSummary,
   downloadLog,
@@ -18,6 +19,8 @@ import type {
   GraphPreset,
   GraphSeries,
   LogSummary,
+  MessageSamples,
+  SampleValue,
   VehicleLog,
 } from "../../lib/ipc/types";
 import { alignSeries, planChart } from "../../lib/graphs/plan";
@@ -45,6 +48,29 @@ const LOG_FILTERS = [
 /** How far the play-back moves at a time, in seconds. */
 const PLAYBACK_STEP = 0.1;
 
+/**
+ * How a value of a sample is written.
+ *
+ * The numbers of the log are single-precision ones, and a single-precision number
+ * written out in full is a wall of digits that says nothing. The operator reads the
+ * value, not its representation.
+ */
+function showValue(value: SampleValue): string {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return "";
+    }
+
+    return Number.isInteger(value) ? String(value) : value.toFixed(4);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "yes" : "no";
+  }
+
+  return value ?? "";
+}
+
 export function LogSheet() {
   const open = useUiStore((state) => state.logOpen);
   const hide = useUiStore((state) => state.hideLog);
@@ -58,6 +84,11 @@ export function LogSheet() {
   const [error, setError] = useState<CommandError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The samples of the message that is chosen. */
+  const [samples, setSamples] = useState<MessageSamples | null>(null);
+  /** The message the samples are of. */
+  const [chosen, setChosen] = useState<string>("");
+
   /** The logs the vehicle holds in its own memory. */
   const [logs, setLogs] = useState<readonly VehicleLog[]>([]);
   /** How long the flight lasted, in seconds. */
@@ -264,6 +295,21 @@ export function LogSheet() {
       setError(normaliseError(cause));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const readSamples = async (name: string) => {
+    if (path === null || name === "") {
+      return;
+    }
+
+    try {
+      const read = await logMessageSamples(path, name);
+      setSamples(read);
+      setError(null);
+    } catch (cause) {
+      setError(normaliseError(cause));
+      setSamples(null);
     }
   };
 
@@ -483,6 +529,80 @@ export function LogSheet() {
                 </span>
               ))}
             </div>
+          ) : null}
+
+          {summary !== null && summary.messages.length > 0 ? (
+            <>
+              <label className={styles.field}>
+                <span className={styles.label}>The samples of</span>
+                <select
+                  className="select"
+                  value={chosen}
+                  aria-label="The message the samples are of"
+                  onChange={(event) => {
+                    setChosen(event.target.value);
+                    void readSamples(event.target.value);
+                  }}
+                >
+                  <option value="">Choose a message</option>
+                  {summary.messages.map((message) => (
+                    <option key={message.name} value={message.name}>
+                      {`${message.name} (${message.count})`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {samples !== null ? (
+                <div className={styles.grid}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th scope="col">Seconds</th>
+                        {samples.fields.map((field) => (
+                          <th key={field} scope="col">
+                            {field}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {samples.rows.map((row, index) => (
+                        // The rows are the samples of the log, and they have no identity
+                        // of their own: the position in the list is the identity.
+                        // eslint-disable-next-line react/no-array-index-key
+                        <tr
+                          key={index}
+                          className={styles.row}
+                          onClick={() => {
+                            const at = samples.instants[index];
+
+                            if (at === undefined) {
+                              return;
+                            }
+
+                            setPosition(at);
+                            void playbackSeek(at);
+                          }}
+                        >
+                          <td className={styles.instant}>
+                            {(samples.instants[index] ?? 0).toFixed(2)}
+                          </td>
+                          {row.map((value, column) => (
+                            <td key={column}>{showValue(value)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <p className={styles.note}>
+                    {samples.rows.length} of {samples.total} samples. Click a row and
+                    the flight is moved to that moment.
+                  </p>
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {presets.length > 0 ? (

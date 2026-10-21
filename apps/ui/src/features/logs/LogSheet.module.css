@@ -170,3 +170,54 @@
   font-size: var(--font-2xs);
   white-space: nowrap;
 }
+
+/* The grid of the samples --------------------------------------------------- */
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 320px;
+  overflow: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--colour-border);
+  padding: 2px var(--space-2);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  color: var(--colour-text-dim);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--colour-surface);
+}
+
+.table td {
+  color: var(--colour-text);
+}
+
+/* A row of the grid. It is a button in disguise: clicking it moves the flight. */
+
+.row {
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--colour-accent-wash);
+}
+
+.instant {
+  color: var(--colour-text-faint);
+}
