@@ -634,6 +634,30 @@ export function MenuBar() {
           hint: "",
         },
         {
+          id: "setup-mount",
+          label: "Mount",
+          onSelect: () => {
+            close();
+            showParameterPrefix("MNT_");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-dronecan",
+          label: "DroneCAN",
+          onSelect: () => {
+            close();
+            showParameterPrefix("CAN_");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
           id: "parameters",
           label: "Parameters…",
           onSelect: () => {

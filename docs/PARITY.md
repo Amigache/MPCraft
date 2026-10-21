@@ -131,10 +131,10 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 5.21 | Failsafe configuration | `ConfigFailSafe.cs` | ✅ | 3 |
 | 5.22 | Flight modes configuration | `ConfigFlightModes.cs` | ✅ | 3 |
 | 5.23 | OSD configuration | `ConfigOSD.cs` | 🔜 | 3 |
-| 5.24 | Mount / gimbal configuration | `ConfigMount.cs` | 🔜 | 5 |
+| 5.24 | Mount / gimbal configuration | `ConfigMount.cs` | ✅ | 5 |
 | 5.25 | ESC calibration | `ConfigESCCalibration.cs` | ✅ | 3 |
 | 5.26 | Hardware device detection | `ExtLibs/ArduPilot/BoardDetect.cs` | 🔜 | 5 |
-| 5.27 | DroneCAN device configuration | `ConfigDroneCAN.cs` | 🔜 | 5 |
+| 5.27 | DroneCAN device configuration | `ConfigDroneCAN.cs` | 🔽 | 5 |
 
 ## 6. Logs & analysis
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 106 |
-| 🔜 Planned | 47 |
+| ✅ Done | 107 |
+| 🔜 Planned | 46 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 1 |
+| 🟡 Partial | 2 |
 
-The 99 rows marked done are the connection, transport, parameter, mission and command
+The 107 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
