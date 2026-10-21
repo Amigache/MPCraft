@@ -133,7 +133,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 5.23 | OSD configuration | `ConfigOSD.cs` | 🔜 | 3 |
 | 5.24 | Mount / gimbal configuration | `ConfigMount.cs` | ✅ | 5 |
 | 5.25 | ESC calibration | `ConfigESCCalibration.cs` | ✅ | 3 |
-| 5.26 | Hardware device detection | `ExtLibs/ArduPilot/BoardDetect.cs` | 🔜 | 5 |
+| 5.26 | Hardware device detection | `ExtLibs/ArduPilot/BoardDetect.cs` | ✅ | 5 |
 | 5.27 | DroneCAN device configuration | `ConfigDroneCAN.cs` | 🔽 | 5 |
 
 ## 6. Logs & analysis
@@ -182,7 +182,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 8.2 | Firmware selection by board | `ConfigFirmware.cs` | ✅ | 5 |
 | 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | 🔜 | 5 |
 | 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔜 | 5 |
-| 8.5 | Board auto-detect | `BoardDetect.cs` | 🔜 | 5 |
+| 8.5 | Board auto-detect | `BoardDetect.cs` | ✅ | 5 |
 | 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | 🔜 | 5 |
 | 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔜 | 5 |
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 115 |
-| 🔜 Planned | 38 |
+| ✅ Done | 117 |
+| 🔜 Planned | 36 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 115 rows marked done are the connection, transport, parameter, mission and command
+The 117 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -278,6 +278,12 @@ The **firmware** of the vehicles is chosen from the Setup menu: the manifest tha
 ArduPilot publishes is read, and the operator picks the vehicle, the version and the
 board, and the file of that board is fetched to the disk. The file is the firmware of
 the autopilot, the one that is written to a board.
+
+The **board** that is on the other end of the link is told by the output it prints when
+it starts, and that output is already captured: the link keeps the text that is not
+part of a MAVLink frame, and the board is recognised in it. The name it is given is the
+one the manifest of the firmware uses, so that the board that is detected is the one
+the firmware is chosen for.
 
 The **diagnostics** of the application are gathered in one file, from the Help menu: the
 machine it runs on, the connection profiles that are saved and the state of the link.

@@ -29,6 +29,7 @@ export function StatusPanel() {
   const vehicles = useLinkStore((state) => state.vehicles);
   const loss = useLinkStore((state) => state.loss);
   const status = useLinkStore((state) => state.status);
+  const board = useLinkStore((state) => state.board);
   const plan = usePlanStore((state) => state.plans.mission);
 
   const vehicle = vehicles[0] ?? null;
@@ -88,6 +89,7 @@ export function StatusPanel() {
         <Row label="System">{vehicle ? vehicle.systemId : "—"}</Row>
         <Row label="Component">{vehicle ? vehicle.componentId : "—"}</Row>
         <Row label="Family">{formatText(vehicle?.kind ?? null)}</Row>
+        <Row label="Board">{board ?? "—"}</Row>
         <Row label="Mode">
           <LiveValue select={(telemetry) => telemetry.mode} />
         </Row>

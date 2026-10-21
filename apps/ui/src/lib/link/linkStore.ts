@@ -27,6 +27,7 @@ interface LinkStatePayload {
   readonly telemetry: Telemetry;
   readonly loss: LossStats;
   readonly messages: readonly VehicleMessage[];
+  readonly board?: string | null;
 }
 
 /** The payload of the `playback-state` event. */
@@ -47,6 +48,12 @@ export interface LinkStore {
   readonly loss: LossStats;
   /** The messages the vehicle has sent, most recent last. */
   readonly messages: readonly VehicleMessage[];
+  /**
+   * The board that is on the other end, when the vehicle has said which one it is.
+   *
+   * The board says it when it starts, and the link keeps what it said.
+   */
+  readonly board: string | null;
   /** The most recent telemetry snapshot. */
   readonly telemetry: Telemetry;
   /**
@@ -64,6 +71,7 @@ const INITIAL: LinkStore = {
   vehicles: [],
   loss: { received: 0, lost: 0 },
   messages: [],
+  board: null,
   telemetry: EMPTY_TELEMETRY,
   playback: false,
 };
@@ -200,7 +208,10 @@ export function startLinkBridge(): void {
           ? state.vehicles
           : (payload.vehicles ?? []),
         loss: sameLoss(state.loss, loss) ? state.loss : loss,
-        messages: sameMessages(state.messages, messages) ? state.messages : messages,
+        messages: sameMessages(state.messages, messages)
+          ? state.messages
+          : messages,
+        board: payload.board ?? null,
         telemetry,
       };
     });

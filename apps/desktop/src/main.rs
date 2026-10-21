@@ -2151,6 +2151,8 @@ struct StateEvent {
     loss: LossEvent,
     /// The messages the vehicle has sent, most recent last.
     messages: Vec<MessageEvent>,
+    /// The board that is on the other end, when the vehicle has said which one it is.
+    board: Option<String>,
 }
 
 /// A message the vehicle sent.
@@ -2527,6 +2529,9 @@ impl From<&LinkSnapshot> for StateEvent {
                 })
                 .unwrap_or_default(),
             telemetry: state.map(telemetry_event).unwrap_or_default(),
+            // The board is told by the output of the vehicle when it starts, and the
+            // output is captured by the link.
+            board: state.and_then(|state| mpcraft_app::board::detect(&state.plaintext)),
             loss: state
                 .map(|state| LossEvent {
                     received: state.loss.packets_received,

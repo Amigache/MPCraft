@@ -1121,6 +1121,19 @@ class Vehicle:
                 if address not in self.clients:
                     self.clients.append(address)
                     print(f"the ground station is at {address}", flush=True)
+
+                    # The output of the board when it starts. It is not a MAVLink frame,
+                    # so the link keeps it as the text of the board: that is how a real
+                    # vehicle says which board it is.
+                    banner = (
+                        "ArduPilot V4.4.0 (0f1e2d3c) 64-bit Linux\r\n"
+                        "HW: CubeBlack\r\n"
+                        "NMEA: GPS 1 RMC=3\r\n"
+                    ).encode("ascii")
+                    try:
+                        self.socket.sendto(banner, address)
+                    except OSError:
+                        pass
                 self.handle(data)
             except socket.timeout:
                 pass
@@ -1138,6 +1151,7 @@ class Vehicle:
             now = time.monotonic()
             elapsed = now - self.start
             lat, lng, alt = self.position()
+
 
             # A heartbeat once a second.
             if now - last_heartbeat >= 1.0:
