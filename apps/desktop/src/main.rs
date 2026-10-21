@@ -36,29 +36,17 @@ async fn connect(
     req: ConnectRequest,
 ) -> CommandResult<ConnectResponse> {
     let handle = app.clone();
-    let history = state.graphs.clone();
-    let live = state.live_track.clone();
+    let feeder = state.inner().clone();
 
     state
         .supervisor
         .connect(&req.target, move |snapshot| {
-            // The graphs are drawn from the history of the telemetry, and the history is
-            // fed from the state the link publishes.
+            // The graphs are drawn from the history of the telemetry, and the track
+            // that is being streamed to a file is written from the same state: the
+            // place of the vehicle is only known here.
             if let Some(session) = &snapshot.session {
-                history.record(&session.telemetry);
-
-                // The track that is being streamed to a file is fed from the same
-                // state: the place of the vehicle is only known here.
-                if let Some(position) = session.telemetry.position {
-                    if let Ok(mut cell) = live.lock() {
-                        if let Some(track) = cell.as_mut() {
-                            track.push(position.lat, position.lng, position.alt);
-
-                            if let Err(error) = track.write() {
-                                tracing::warn!("cannot write the track: {error}");
-                            }
-                        }
-                    }
+                if let Err(error) = feeder.feed(session) {
+                    tracing::warn!("cannot write the track: {error}");
                 }
             }
 
@@ -2626,14 +2614,17 @@ fn main() {
                 tauri::async_runtime::spawn(async move {
                     let emitter = handle.clone();
                     let titler = handle.clone();
-                    let history = state.graphs.clone();
+                    let feeder = state.clone();
                     let result = state
                         .supervisor
                         .connect(&target, move |snapshot| {
                             // The graphs are drawn from the history of the telemetry, and
-                            // the history is fed from the state the link publishes.
+                            // the track that is being streamed to a file is written from
+                            // the same state.
                             if let Some(session) = &snapshot.session {
-                                history.record(&session.telemetry);
+                                if let Err(error) = feeder.feed(session) {
+                                    tracing::warn!("cannot write the track: {error}");
+                                }
                             }
 
                             // The title carries the link state, so it is visible even

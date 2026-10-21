@@ -165,17 +165,25 @@ pub fn track(path: &Path) -> CommandResult<Vec<TrackPoint>> {
     })?;
 
     let mut reader = ULogReader::new(std::io::BufReader::new(file));
-    let mut points: Vec<TrackPoint> = Vec::new();
+
+    // The place of the vehicle is in the global position, and when the log does not
+    // carry it, in the position of the GPS. Both are read, and the better one is
+    // kept: the global position is the one the vehicle has worked out, and the GPS is
+    // the one the receiver heard.
+    let mut global: Vec<TrackPoint> = Vec::new();
+    let mut gps: Vec<TrackPoint> = Vec::new();
 
     while let Some(sample) = reader
         .next_sample()
         .map_err(|error| CommandError::invalid_request(error.to_string()))?
     {
-        if sample.name != "vehicle_global_position" {
-            continue;
-        }
+        let topic = match sample.name.as_str() {
+            "vehicle_global_position" => "vehicle_global_position",
+            "vehicle_gps_position" => "vehicle_gps_position",
+            _ => continue,
+        };
 
-        let Some(format) = reader.formats().get("vehicle_global_position") else {
+        let Some(format) = reader.formats().get(topic) else {
             continue;
         };
 
@@ -184,6 +192,12 @@ pub fn track(path: &Path) -> CommandResult<Vec<TrackPoint>> {
             number(format, &sample, "lon"),
         ) else {
             continue;
+        };
+
+        let points = if topic == "vehicle_global_position" {
+            &mut global
+        } else {
+            &mut gps
         };
 
         let last = points.last();
@@ -202,7 +216,11 @@ pub fn track(path: &Path) -> CommandResult<Vec<TrackPoint>> {
         });
     }
 
-    Ok(points)
+    if global.is_empty() {
+        Ok(gps)
+    } else {
+        Ok(global)
+    }
 }
 
 /// Reads a log of PX4 and builds the history of its telemetry.
@@ -263,7 +281,9 @@ pub fn history(path: &Path) -> CommandResult<History> {
 /// Applies one sample of PX4 to the telemetry of the vehicle.
 fn apply(telemetry: &mut Telemetry, format: &ULogFormat, sample: &ULogSample) {
     match sample.name.as_str() {
-        "attitude_q" => {
+        // The topic of the attitude was called `attitude_q` before the vehicle was
+        // renamed, and `vehicle_attitude` after it.
+        "attitude_q" | "vehicle_attitude" => {
             let Some(attitude) = attitude_of(format, sample) else {
                 return;
             };
