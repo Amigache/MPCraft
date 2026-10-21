@@ -70,10 +70,10 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 3.6 | Guided mode — fly to waypoint | `setGuidedModeWP` | ✅ | 2 |
 | 3.7 | Guided mode — "go here" from map | `FlightData.cs` goHereToolStripMenuItem | ✅ | 2 |
 | 3.8 | Position target global-int | `setPositionTargetGlobalInt` | ✅ | 2 |
-| 3.9 | Motor test | `doMotorTest` | 🔜 | 3 |
+| 3.9 | Motor test | `doMotorTest` | ✅ | 3 |
 | 3.10 | Reboot autopilot | `doReboot` | ✅ | 5 |
-| 3.11 | RC override | `SendRCOverride` | 🔜 | 3 |
-| 3.12 | Manual control | `SendManualControl` | 🔜 | 3 |
+| 3.11 | RC override | `SendRCOverride` | ✅ | 3 |
+| 3.12 | Manual control | `SendManualControl` | ✅ | 3 |
 | 3.13 | Camera / gimbal control | `CameraProtocol`, `GimbalManagerProtocol` | 🔜 | 5 |
 | 3.14 | Serial port pass-through | `SendSerialControl` | 🔜 | 5 |
 | 3.15 | Flight-mode presets & custom modes | `ConfigFlightModes.cs` | 🔜 | 3 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 62 |
-| 🔜 Planned | 90 |
+| ✅ Done | 65 |
+| 🔜 Planned | 87 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 62 rows marked done are the connection, transport, parameter, mission and command
+The 65 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all

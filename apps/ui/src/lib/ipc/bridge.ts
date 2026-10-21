@@ -260,6 +260,46 @@ export async function setPositionTarget(
   });
 }
 
+/**
+ * Runs the motors of the vehicle, to see whether they turn.
+ *
+ * The throttle is a number between minus one and one, where the sign is the direction.
+ */
+export async function motorTest(
+  motor: number,
+  throttle: number,
+  seconds: number,
+): Promise<void> {
+  await call<void>("motor_test", { req: {}, motor, throttle, seconds });
+}
+
+/**
+ * Takes the radio channels over, one at a time.
+ *
+ * The channels that are not given are left to the radio.
+ */
+export async function rcOverride(
+  channels: readonly (number | null)[],
+): Promise<void> {
+  await call<void>("rc_override", { req: {}, channels: [...channels] });
+}
+
+/** Lets go of the radio channels. */
+export async function rcOverrideRelease(): Promise<void> {
+  await call<void>("rc_override_release", { req: {} });
+}
+
+/** Flies the vehicle with the sticks of the ground station. */
+export async function manualControl(
+  roll: number,
+  pitch: number,
+  thrust: number,
+  yaw: number,
+  buttons = 0,
+): Promise<void> {
+  await call<void>("manual_control", { req: {}, roll, pitch, thrust, yaw, buttons });
+}
+
 /** Asks the vehicle to restart. */
 export async function reboot(vehicle?: VehicleKey): Promise<void> {
   await call<void>("reboot", vehicleRequest(vehicle));

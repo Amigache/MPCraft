@@ -330,6 +330,88 @@ async fn output_functions(state: State<'_, AppState>) -> CommandResult<Vec<Outpu
     state.supervisor.output_functions()
 }
 
+/// Runs the motors of the vehicle, to see whether they turn.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle refuses the command.
+#[tauri::command]
+async fn motor_test(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    motor: u8,
+    throttle: f32,
+    seconds: f32,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .motor_test(vehicle, motor, throttle, seconds)
+        .await
+}
+
+/// Takes the radio channels over, one at a time.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link
+/// cannot carry the message.
+#[tauri::command]
+async fn rc_override(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    channels: Vec<Option<u16>>,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let mut given = [None; 8];
+
+    for (index, channel) in channels.into_iter().enumerate().take(8) {
+        given[index] = channel;
+    }
+
+    state.supervisor.rc_override(vehicle, given).await
+}
+
+/// Lets go of the radio channels.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link
+/// cannot carry the message.
+#[tauri::command]
+async fn rc_override_release(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.rc_override_release(vehicle).await
+}
+
+/// Flies the vehicle with the sticks of the ground station.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link
+/// cannot carry the message.
+#[tauri::command]
+async fn manual_control(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    roll: f32,
+    pitch: f32,
+    thrust: f32,
+    yaw: f32,
+    buttons: u16,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .manual_control(vehicle, roll, pitch, thrust, yaw, buttons)
+        .await
+}
+
 /// Tells the vehicle to go to a place.
 ///
 /// This is the guided mode: the vehicle flies to the place and stays there.
@@ -1821,6 +1903,10 @@ fn main() {
             write_parameters_to_flash,
             set_position_target,
             output_functions,
+            motor_test,
+            rc_override,
+            rc_override_release,
+            manual_control,
             reboot,
             plan_terrain_profile,
             vehicle_coordinates,

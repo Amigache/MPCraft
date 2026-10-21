@@ -165,6 +165,9 @@ export function checkOverlaps() {
   const overflowing = Array.from(document.querySelectorAll("body *"))
     .filter(visible)
     .filter((element) => !element.closest("svg"))
+    // An element that a scrolling container has cut away is inside the window,
+    // even though its box is not: the operator scrolls to it.
+    .filter((element) => !cutAway(element))
     .filter((element) => {
       const rect = element.getBoundingClientRect();
       return (

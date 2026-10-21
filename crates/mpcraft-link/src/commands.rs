@@ -37,8 +37,8 @@ use std::time::Duration;
 // suffers — and every autopilot still understands it. Both are sent.
 #[allow(deprecated)]
 use mpcraft_mavlink::dialect::messages::{
-    PositionTargetTypemask, COMMAND_INT_DATA, COMMAND_LONG_DATA, SET_MODE_DATA,
-    SET_POSITION_TARGET_GLOBAL_INT_DATA,
+    PositionTargetTypemask, COMMAND_INT_DATA, COMMAND_LONG_DATA, MANUAL_CONTROL_DATA,
+    RC_CHANNELS_OVERRIDE_DATA, SET_MODE_DATA, SET_POSITION_TARGET_GLOBAL_INT_DATA,
 };
 use mpcraft_mavlink::{MavCmd, MavFrame, MavMessage, MavModeFlag, MavResult};
 
@@ -60,6 +60,12 @@ pub const SET_MODE_ID: u32 = 11;
 
 /// The message id of `SET_POSITION_TARGET_GLOBAL_INT`.
 pub const SET_POSITION_TARGET_ID: u32 = 86;
+
+/// The message id of `RC_CHANNELS_OVERRIDE`.
+pub const RC_CHANNELS_OVERRIDE_ID: u32 = 70;
+
+/// The message id of `MANUAL_CONTROL`.
+pub const MANUAL_CONTROL_ID: u32 = 69;
 
 /// How long to wait for the acknowledgement of a command.
 ///
@@ -256,6 +262,144 @@ impl Session {
                 target_component: vehicle.component_id,
                 coordinate_frame: MavFrame::MAV_FRAME_GLOBAL,
             });
+
+        self.write_message(&message).await
+    }
+
+    /// Runs the motors of the vehicle, to see whether they turn.
+    ///
+    /// The first parameter says which motor is tested, the second how hard it is driven —
+    /// a number between minus one and one, where the sign is the direction — and the
+    /// third for how long, in seconds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn motor_test(
+        &self,
+        vehicle: VehicleId,
+        motor: u8,
+        throttle: f32,
+        seconds: f32,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_DO_MOTOR_TEST,
+            [f32::from(motor), throttle, seconds, 0.0, 0.0, 0.0, 0.0],
+            timeout,
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Takes the radio channels over, one at a time.
+    ///
+    /// The channels that are not given are left as the radio has them: the operator
+    /// overrides the stick that is being tested and lets go of the others.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the message.
+    pub async fn rc_override(
+        &self,
+        vehicle: VehicleId,
+        channels: [Option<u16>; 8],
+    ) -> Result<(), LinkError> {
+        // The value that means "the radio has this one".
+        const UNCHANGED: u16 = u16::MAX;
+
+        let message = MavMessage::RC_CHANNELS_OVERRIDE(RC_CHANNELS_OVERRIDE_DATA {
+            chan1_raw: channels[0].unwrap_or(UNCHANGED),
+            chan2_raw: channels[1].unwrap_or(UNCHANGED),
+            chan3_raw: channels[2].unwrap_or(UNCHANGED),
+            chan4_raw: channels[3].unwrap_or(UNCHANGED),
+            chan5_raw: channels[4].unwrap_or(UNCHANGED),
+            chan6_raw: channels[5].unwrap_or(UNCHANGED),
+            chan7_raw: channels[6].unwrap_or(UNCHANGED),
+            chan8_raw: channels[7].unwrap_or(UNCHANGED),
+            chan9_raw: UNCHANGED,
+            chan10_raw: UNCHANGED,
+            chan11_raw: UNCHANGED,
+            chan12_raw: UNCHANGED,
+            chan13_raw: UNCHANGED,
+            chan14_raw: UNCHANGED,
+            chan15_raw: UNCHANGED,
+            chan16_raw: UNCHANGED,
+            chan17_raw: UNCHANGED,
+            chan18_raw: UNCHANGED,
+            target_system: vehicle.system_id,
+            target_component: vehicle.component_id,
+        });
+
+        self.write_message(&message).await
+    }
+
+    /// Lets go of the radio channels, so that the vehicle flies with the radio again.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the message.
+    pub async fn rc_override_release(&self, vehicle: VehicleId) -> Result<(), LinkError> {
+        // The value that means "the radio has this one".
+        const UNCHANGED: u16 = u16::MAX;
+
+        let message = MavMessage::RC_CHANNELS_OVERRIDE(RC_CHANNELS_OVERRIDE_DATA {
+            chan1_raw: UNCHANGED,
+            chan2_raw: UNCHANGED,
+            chan3_raw: UNCHANGED,
+            chan4_raw: UNCHANGED,
+            chan5_raw: UNCHANGED,
+            chan6_raw: UNCHANGED,
+            chan7_raw: UNCHANGED,
+            chan8_raw: UNCHANGED,
+            chan9_raw: UNCHANGED,
+            chan10_raw: UNCHANGED,
+            chan11_raw: UNCHANGED,
+            chan12_raw: UNCHANGED,
+            chan13_raw: UNCHANGED,
+            chan14_raw: UNCHANGED,
+            chan15_raw: UNCHANGED,
+            chan16_raw: UNCHANGED,
+            chan17_raw: UNCHANGED,
+            chan18_raw: UNCHANGED,
+            target_system: vehicle.system_id,
+            target_component: vehicle.component_id,
+        });
+
+        self.write_message(&message).await
+    }
+
+    /// Flies the vehicle with the sticks of the ground station.
+    ///
+    /// The four values are the roll, the pitch, the thrust and the yaw, each of them
+    /// between minus one and one, and the buttons say which ones are pressed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the message.
+    pub async fn manual_control(
+        &self,
+        vehicle: VehicleId,
+        roll: f32,
+        pitch: f32,
+        thrust: f32,
+        yaw: f32,
+        buttons: u16,
+    ) -> Result<(), LinkError> {
+        // The values travel as sixteen bit numbers between minus one and one.
+        let scaled = |value: f32| -> i16 { (value.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16 };
+
+        let message = MavMessage::MANUAL_CONTROL(MANUAL_CONTROL_DATA {
+            x: scaled(roll),
+            y: scaled(pitch),
+            z: scaled(thrust),
+            r: scaled(yaw),
+            buttons,
+            target: vehicle.system_id,
+            ..Default::default()
+        });
 
         self.write_message(&message).await
     }

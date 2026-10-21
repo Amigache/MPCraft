@@ -13,6 +13,7 @@ import {
 } from "../../lib/flight/flightActions";
 import type { PlanKind } from "../../lib/ipc/types";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
+import { FlightTestPanel } from "./FlightTestPanel";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { useActivityStore } from "../../lib/ui/activityStore";
 import styles from "./ActionsPanel.module.css";
@@ -326,6 +327,8 @@ export function ActionsPanel() {
           />
         </div>
       </section>
+
+      <FlightTestPanel />
 
       {shown ? (
         <p className={styles.error} role="alert">

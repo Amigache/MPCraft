@@ -142,6 +142,84 @@ impl SessionSupervisor {
         Ok(functions)
     }
 
+    /// Runs the motors of the vehicle, to see whether they turn.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn motor_test(
+        &self,
+        vehicle: VehicleId,
+        motor: u8,
+        throttle: f32,
+        seconds: f32,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .motor_test(vehicle, motor, throttle, seconds, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Takes the radio channels over, one at a time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the link cannot carry the
+    /// message.
+    pub async fn rc_override(
+        &self,
+        vehicle: VehicleId,
+        channels: [Option<u16>; 8],
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session.rc_override(vehicle, channels).await?;
+
+        Ok(())
+    }
+
+    /// Lets go of the radio channels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the link cannot carry the
+    /// message.
+    pub async fn rc_override_release(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session.rc_override_release(vehicle).await?;
+
+        Ok(())
+    }
+
+    /// Flies the vehicle with the sticks of the ground station.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the link cannot carry the
+    /// message.
+    pub async fn manual_control(
+        &self,
+        vehicle: VehicleId,
+        roll: f32,
+        pitch: f32,
+        thrust: f32,
+        yaw: f32,
+        buttons: u16,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .manual_control(vehicle, roll, pitch, thrust, yaw, buttons)
+            .await?;
+
+        Ok(())
+    }
+
     /// Tells the vehicle to go to a place.
     ///
     /// This is the guided mode: the vehicle flies to the place and stays there. The

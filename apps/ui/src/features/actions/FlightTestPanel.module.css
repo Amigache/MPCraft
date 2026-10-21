@@ -1,0 +1,94 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  overflow: auto;
+  padding: var(--space-2);
+}
+
+.block {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.block:last-child {
+  border-bottom: 0;
+}
+
+.heading {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.note {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.field {
+  align-items: center;
+  display: flex;
+  flex: 1 1 90px;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  color: var(--colour-text-dim);
+  flex: 0 0 auto;
+  font-size: var(--font-2xs);
+  white-space: nowrap;
+}
+
+.field .input,
+.field .select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sticks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stick {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.stick input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.value {
+  color: var(--colour-text-dim);
+  flex: 0 0 44px;
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  text-align: right;
+}
+
+.holding {
+  background: var(--colour-accent-wash);
+  border-color: var(--colour-accent);
+  color: var(--colour-accent);
+}
