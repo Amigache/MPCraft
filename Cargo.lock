@@ -2537,6 +2537,7 @@ dependencies = [
  "mpcraft-link",
  "mpcraft-mavlink",
  "mpcraft-mission",
+ "mpcraft-transport",
  "mpcraft-vehicle",
  "serde",
  "serde_json",

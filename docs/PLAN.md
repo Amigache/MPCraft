@@ -598,11 +598,30 @@ The interface asked for things the backend did not have:
 - **The state of the positioning.** The aggregator did not read `GPS_RAW_INT`, so the fix,
   the satellites and the dilution of precision were unknown.
 
-### The next step: the graphs
+### The graphs
 
 The graphs are the reason a ground station exists, and they are the last piece of the
 flight data window: uPlot over the telemetry history, with the presets of upstream's
 `mavgraphs.xml`.
+
+Upstream's catalogue is a hundred and eight graphs, and each one is a set of expressions
+over the telemetry. The expressions are evaluated in Rust, in `mpcraft-vehicle::graph`,
+because they name MAVLink fields and the interface must not know the protocol: it
+receives numbers with names.
+
+The catalogue is ported the same way `mavcmd.xml` was: the presets that draw on messages
+MPCraft decodes are kept, with the expressions rewritten over its own fields, and the ones
+that draw on messages it does not decode yet are left out rather than shown empty. The
+presets MPCraft adds for the values upstream does not graph are marked as its own.
+
+The expression language is the one upstream uses: the arithmetic operators, the power, and
+a handful of functions. It is read once, when the catalogue is first needed, because a
+graph that is redrawn twenty times a second must not parse its expressions twenty times a
+second.
+
+The history is bounded twice over — by the number of samples and by how long they are kept
+— and it lives in the application, not in the session: the session owns the link, and the
+history is a view of what the link has seen.
 
 ---
 

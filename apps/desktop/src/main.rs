@@ -11,10 +11,12 @@
 
 use mpcraft_app::{
     flight_modes, AppState, CommandError, CommandResult, ConnectRequest, ConnectResponse,
-    ConnectionStatus, LinkSnapshot, ModeInfo, PlanInfo, PlanKind, SessionState,
+    ConnectionStatus, LinkSnapshot, ModeInfo, PlanInfo, PlanKind, PresetInfo, SeriesData,
+    SessionState,
 };
 use mpcraft_link::VehicleId;
 use mpcraft_mission::{MissionType, Plan};
+use mpcraft_transport::SerialTransport;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// The event that carries the state of the link and the telemetry.
@@ -33,10 +35,17 @@ async fn connect(
     req: ConnectRequest,
 ) -> CommandResult<ConnectResponse> {
     let handle = app.clone();
+    let history = state.graphs.clone();
 
     state
         .supervisor
         .connect(&req.target, move |snapshot| {
+            // The graphs are drawn from the history of the telemetry, and the history is
+            // fed from the state the link publishes.
+            if let Some(session) = &snapshot.session {
+                history.record(&session.telemetry);
+            }
+
             if let Err(error) = handle.emit(STATE_EVENT, StateEvent::from(snapshot)) {
                 tracing::warn!("could not publish the state: {error}");
             }
@@ -96,6 +105,168 @@ async fn list_connection_profiles(state: State<'_, AppState>) -> CommandResult<V
 #[tauri::command]
 async fn list_flight_modes() -> CommandResult<Vec<ModeInfo>> {
     Ok(flight_modes())
+}
+
+/// The serial ports this machine has.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the ports cannot be listed.
+#[tauri::command]
+async fn list_serial_ports() -> CommandResult<Vec<SerialPortEvent>> {
+    let ports = SerialTransport::available_ports().map_err(|error| {
+        CommandError::internal(format!("cannot list the serial ports: {error}"))
+    })?;
+
+    Ok(ports
+        .into_iter()
+        .map(|port| SerialPortEvent {
+            device: port.device,
+            description: port.description,
+        })
+        .collect())
+}
+
+/// A serial port, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SerialPortEvent {
+    /// The device name, for example `COM3` or `/dev/ttyUSB0`.
+    device: String,
+    /// A human-readable description of the device.
+    description: Option<String>,
+}
+
+/// The parameters the vehicle has reported.
+///
+/// The store is filled as the vehicle reports them, so the list grows as the vehicle talks.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link.
+#[tauri::command]
+async fn list_parameters(state: State<'_, AppState>) -> CommandResult<Vec<ParameterEvent>> {
+    let Some(session) = state.supervisor.state() else {
+        return Err(CommandError::not_connected());
+    };
+
+    Ok(session
+        .parameters
+        .iter()
+        .map(|parameter| ParameterEvent {
+            name: parameter.name.clone(),
+            value: parameter.value,
+            reported_type: parameter.reported_type.as_mavlink() as u8,
+        })
+        .collect())
+}
+
+/// Asks the vehicle for every parameter it has, and waits for the answers.
+///
+/// The parameters the vehicle volunteers are not enough: a vehicle only reports the ones
+/// that change. The full list has to be asked for.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// does not answer.
+#[tauri::command]
+async fn read_parameters(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<Vec<ParameterEvent>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    let store = session
+        .download_parameters(vehicle, std::time::Duration::from_secs(30))
+        .await
+        .map_err(|error| CommandError::rejected(error.to_string()))?;
+
+    Ok(store
+        .iter()
+        .map(|parameter| ParameterEvent {
+            name: parameter.name.clone(),
+            value: parameter.value,
+            reported_type: parameter.reported_type.as_mavlink() as u8,
+        })
+        .collect())
+}
+
+/// Writes a parameter and waits for the vehicle to confirm it.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the value.
+#[tauri::command]
+async fn write_parameter(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    name: String,
+    value: f64,
+) -> CommandResult<ParameterEvent> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    let written = session
+        .write_parameter(vehicle, &name, value, std::time::Duration::from_secs(10))
+        .await
+        .map_err(|error| CommandError::rejected(error.to_string()))?;
+
+    Ok(ParameterEvent {
+        name: written.name,
+        value: written.value,
+        reported_type: written.reported_type.as_mavlink() as u8,
+    })
+}
+
+/// A parameter, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParameterEvent {
+    /// The name of the parameter.
+    name: String,
+    /// The value.
+    value: f64,
+    /// The type the vehicle reported, as the MAVLink enumeration.
+    reported_type: u8,
+}
+
+/// The graphs the user can choose.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn list_graphs(state: State<'_, AppState>) -> CommandResult<Vec<PresetInfo>> {
+    Ok(state.graphs.presets())
+}
+
+/// The values of a graph over the history of the telemetry.
+///
+/// The `since` argument is how long back to look, in seconds. A live graph only wants the
+/// recent past.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no graph with that name.
+#[tauri::command]
+async fn graph_series(
+    state: State<'_, AppState>,
+    name: String,
+    since: Option<f64>,
+) -> CommandResult<SeriesData> {
+    let since = since.map(std::time::Duration::from_secs_f64);
+    state.graphs.series(&name, since)
 }
 
 /// The vehicle a command is for.
@@ -646,6 +817,12 @@ fn main() {
             connection_status,
             list_connection_profiles,
             list_flight_modes,
+            list_serial_ports,
+            list_graphs,
+            graph_series,
+            list_parameters,
+            read_parameters,
+            write_parameter,
             arm,
             disarm,
             takeoff,
@@ -684,9 +861,16 @@ fn main() {
                 tauri::async_runtime::spawn(async move {
                     let emitter = handle.clone();
                     let titler = handle.clone();
+                    let history = state.graphs.clone();
                     let result = state
                         .supervisor
                         .connect(&target, move |snapshot| {
+                            // The graphs are drawn from the history of the telemetry, and
+                            // the history is fed from the state the link publishes.
+                            if let Some(session) = &snapshot.session {
+                                history.record(&session.telemetry);
+                            }
+
                             // The title carries the link state, so it is visible even
                             // without the interface in front.
                             if let Some(window) = titler.get_webview_window("main") {

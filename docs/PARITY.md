@@ -14,7 +14,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
 | 1.1 | Serial port connection | `ExtLibs/Comms/CommsSerialPort.cs` | ✅ | 0 |
-| 1.2 | Serial port enumeration | `ExtLibs/Controls/ConnectionControl.cs` | 🔜 | 1 |
+| 1.2 | Serial port enumeration | `ExtLibs/Controls/ConnectionControl.cs` | ✅ | 1 |
 | 1.3 | Baud-rate selection & auto-baud | `ExtLibs/Controls/ConnectionControl.cs` | 🔜 | 1 |
 | 1.4 | UDP client / server mode | `ExtLibs/Comms/CommsUdpSerial.cs` | ✅ | 0 |
 | 1.5 | UDP multi-endpoint fan-out | `CommsUdpSerial.EndPointList` | ✅ | 0 |
@@ -40,7 +40,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 2.1 | Live telemetry readouts | `ExtLibs/ArduPilot/CurrentState.cs` | ✅ | 1 |
 | 2.2 | Artificial-horizon HUD | `ExtLibs/Controls/HUD.cs` | ✅ | 1 |
-| 2.3 | Live multi-channel graphs | `GCSViews/FlightData.cs` (ZedGraph) | 🔜 | 1 |
+| 2.3 | Live multi-channel graphs | `GCSViews/FlightData.cs` (ZedGraph) | ✅ | 1 |
 | 2.4 | Map with live vehicle position | `GCSViews/FlightData.cs` (myGMAP) | ✅ | 1 |
 | 2.5 | Flight trail / track history | `FlightData.cs` | ✅ | 1 |
 | 2.6 | Quick-view configurable tiles | `ExtLibs/Controls/QuickView.cs` | ✅ | 1 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 32 |
-| 🔜 Planned | 118 |
+| ✅ Done | 34 |
+| 🔜 Planned | 116 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 4 |
 
-The 32 rows marked done are the connection, transport, parameter, mission and command
+The 34 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -237,8 +237,12 @@ gauges and status - the map filling everything else, and a status strip. The liv
 the attitude indicator, the map with the vehicle and the track, the plan drawn on it, the
 dials, the tiles and the vehicle's own messages are all on screen.
 
-What is still missing from the window: the connection dialog with a list of ports, the
-parameter editor, the mission editor, the pre-flight checklist and the graphs.
+The graphs are in the split above the map, as upstream has them, and they are drawn from
+Mission Planner's own catalogue of presets: the expressions are evaluated over the
+telemetry in the model, and the interface receives numbers with names.
+
+What is still missing from the window: the parameter editor, the mission editor and the
+pre-flight checklist.
 
 The four rows marked partial are the fence, the connection profiles and the map.
 

@@ -8,10 +8,14 @@ import type {
   ConnectResponse,
   ConnectionStatus,
   FlightMode,
+  GraphPreset,
+  GraphSeries,
   LossStats,
+  Parameter,
   Plan,
   PlanItem,
   PlanKind,
+  SerialPort,
   Telemetry,
   VehicleEvent,
   VehicleKey,
@@ -141,6 +145,53 @@ export async function jumpToItem(
 /** The flight modes the vehicle can be in. */
 export async function listFlightModes(): Promise<FlightMode[]> {
   return call<FlightMode[]>("list_flight_modes");
+}
+
+/** The serial ports this machine has. */
+export async function listSerialPorts(): Promise<SerialPort[]> {
+  return call<SerialPort[]>("list_serial_ports");
+}
+
+/** The graphs the user can choose. */
+export async function listGraphs(): Promise<GraphPreset[]> {
+  return call<GraphPreset[]>("list_graphs");
+}
+
+/**
+ * The values of a graph over the history of the telemetry.
+ *
+ * `since` is how long back to look, in seconds. A live graph only wants the recent past:
+ * asking for the whole history every second would send megabytes over the wire for
+ * nothing.
+ */
+export async function graphSeries(
+  name: string,
+  since?: number,
+): Promise<GraphSeries> {
+  return call<GraphSeries>("graph_series", { name, since });
+}
+
+/** The parameters the vehicle has reported. */
+export async function listParameters(): Promise<Parameter[]> {
+  return call<Parameter[]>("list_parameters");
+}
+
+/** Asks the vehicle for every parameter it has, and waits for the answers. */
+export async function readParameters(vehicle?: VehicleKey): Promise<Parameter[]> {
+  return call<Parameter[]>("read_parameters", vehicleRequest(vehicle));
+}
+
+/** Writes a parameter and waits for the vehicle to confirm it. */
+export async function writeParameter(
+  name: string,
+  value: number,
+  vehicle?: VehicleKey,
+): Promise<Parameter> {
+  return call<Parameter>("write_parameter", {
+    ...vehicleRequest(vehicle),
+    name,
+    value,
+  });
 }
 
 /** The connection state exposed to the UI. */

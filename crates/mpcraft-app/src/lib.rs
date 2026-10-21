@@ -43,10 +43,12 @@ use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
 pub mod error;
+pub mod graphs;
 pub mod operations;
 pub mod supervisor;
 
 pub use error::{CommandError, CommandResult};
+pub use graphs::{GraphHistory, PresetInfo, SeriesData, SeriesInfo, SeriesPoints};
 pub use mpcraft_link::SessionState;
 pub use mpcraft_settings::ConnectionProfile;
 pub use operations::{flight_modes, ModeInfo, PlanInfo, PlanItem, PlanKind};
@@ -103,6 +105,9 @@ pub struct AppState {
     /// directory. The application carries on without persisted settings there; it simply
     /// cannot remember anything between two runs.
     pub settings: Option<SettingsStore>,
+
+    /// The history the graphs are drawn from.
+    pub graphs: GraphHistory,
 }
 
 impl Default for AppState {
@@ -110,6 +115,7 @@ impl Default for AppState {
         Self {
             supervisor: SessionSupervisor::new(),
             settings: SettingsStore::platform(),
+            graphs: GraphHistory::new(),
         }
     }
 }
@@ -238,6 +244,7 @@ mod tests {
         let state = AppState {
             supervisor: SessionSupervisor::new(),
             settings: Some(store),
+            graphs: GraphHistory::new(),
         };
 
         assert!(state
@@ -266,6 +273,7 @@ mod tests {
         let state = AppState {
             supervisor: SessionSupervisor::new(),
             settings: None,
+            graphs: GraphHistory::new(),
         };
 
         let error = state

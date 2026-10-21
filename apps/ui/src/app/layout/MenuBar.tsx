@@ -66,6 +66,8 @@ export function MenuBar() {
   const setActiveTab = useUiStore((state) => state.setActiveTab);
   const showLeftColumn = useUiStore((state) => state.showLeftColumn);
   const toggleLeftColumn = useUiStore((state) => state.toggleLeftColumn);
+  const showGraphs = useUiStore((state) => state.showGraphs);
+  const toggleGraphs = useUiStore((state) => state.toggleGraphs);
   const followVehicle = useUiStore((state) => state.followVehicle);
   const setFollowVehicle = useUiStore((state) => state.setFollowVehicle);
   const showMapControls = useUiStore((state) => state.showMapControls);
@@ -272,6 +274,18 @@ export function MenuBar() {
           },
           disabled: false,
           checked: showLeftColumn,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "graphs",
+          label: "Graphs",
+          onSelect: () => {
+            close();
+            toggleGraphs();
+          },
+          disabled: false,
+          checked: showGraphs,
           separator: false,
           hint: "",
         },

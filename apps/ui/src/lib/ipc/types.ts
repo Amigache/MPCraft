@@ -106,6 +106,70 @@ export interface FlightMode {
   readonly name: string;
 }
 
+/** A serial port on this machine. */
+export interface SerialPort {
+  /** The device name, for example `COM3` or `/dev/ttyUSB0`. */
+  readonly device: string;
+  /** A human-readable description of the device. */
+  readonly description: string | null;
+}
+
+/** One series of a graph. */
+export interface SeriesInfo {
+  /** The name of the series. */
+  readonly name: string;
+  /** The unit the values are in. */
+  readonly unit: string;
+}
+
+/** A parameter of the vehicle. */
+export interface Parameter {
+  /** The name of the parameter. */
+  readonly name: string;
+  /** The value. */
+  readonly value: number;
+  /** The type the vehicle reported, as the MAVLink enumeration. */
+  readonly reportedType: number;
+}
+
+/** A graph the user can choose. */
+export interface GraphPreset {
+  /** The full name, as the interface shows it. */
+  readonly name: string;
+  /** The group it belongs to. */
+  readonly group: string;
+  /** The name inside the group. */
+  readonly label: string;
+  /** What the graph shows. */
+  readonly description: string;
+  /** Whether the graph comes from Mission Planner's catalogue. */
+  readonly upstream: boolean;
+  /** The series it draws. */
+  readonly series: readonly SeriesInfo[];
+}
+
+/** The values of one series. */
+export interface SeriesPoints {
+  /** The name of the series. */
+  readonly name: string;
+  /** The unit the values are in. */
+  readonly unit: string;
+  /** How long after the start of the history each value is, in seconds. */
+  readonly x: readonly number[];
+  /** The values themselves. */
+  readonly y: readonly number[];
+}
+
+/** The values of a graph over the history. */
+export interface GraphSeries {
+  /** The full name of the graph. */
+  readonly name: string;
+  /** What the graph shows. */
+  readonly description: string;
+  /** The series, each with its values. */
+  readonly series: readonly SeriesPoints[];
+}
+
 /** The kind of plan. */
 export type PlanKind = "mission" | "fence" | "rally";
 

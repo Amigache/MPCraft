@@ -26,6 +26,9 @@ _ref_missionplanner/
 /plan.waypoints
 /plan.kml
 
+# The artefacts of the browser automation
+/.playwright-mcp/
+
 # Python
 __pycache__/
 *.pyc

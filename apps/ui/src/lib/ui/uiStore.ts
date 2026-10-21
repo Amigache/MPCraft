@@ -38,6 +38,18 @@ export const MIN_HUD_HEIGHT = 140;
 /** The tallest the attitude indicator may be dragged. */
 export const MAX_HUD_HEIGHT = 420;
 
+/** The height of the graphs when nothing has been changed. */
+export const DEFAULT_GRAPH_HEIGHT = 240;
+
+/** The narrowest the graphs may be dragged. */
+export const MIN_GRAPH_HEIGHT = 100;
+
+/** The tallest the graphs may be dragged. */
+export const MAX_GRAPH_HEIGHT = 720;
+
+/** The narrowest the map may be left when the graphs are above it. */
+export const MIN_MAP_HEIGHT = 160;
+
 /** Reads a stored number, ignoring anything that is not one. */
 function readNumber(key: string, fallback: number): number {
   if (typeof window === "undefined") {
@@ -95,6 +107,31 @@ function writeFlag(key: string, value: boolean): void {
   }
 }
 
+/** Reads a stored string, ignoring anything that is not one. */
+function readString(key: string, fallback: string): string {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? fallback : raw;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Stores a string, ignoring a storage that refuses. */
+function writeString(key: string, value: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // A storage that refuses is not a reason to break the interface.
+  }
+}
+
 export interface UiStore {
   /** The tab that is open. */
   readonly activeTab: TabId;
@@ -102,8 +139,14 @@ export interface UiStore {
   readonly leftColumnWidth: number;
   /** The height of the attitude indicator, in pixels. */
   readonly hudHeight: number;
+  /** The height of the graphs, in pixels. */
+  readonly graphHeight: number;
   /** Whether the left column is shown at all. */
   readonly showLeftColumn: boolean;
+  /** Whether the graphs are shown at all. */
+  readonly showGraphs: boolean;
+  /** The graph that is drawn, by its full name. */
+  readonly graphPreset: string;
   /** Whether the map follows the vehicle. */
   readonly followVehicle: boolean;
   /** Whether the map's own controls are shown. */
@@ -114,8 +157,14 @@ export interface UiStore {
   readonly setLeftColumnWidth: (width: number) => void;
   /** Moves the edge of the attitude indicator. */
   readonly setHudHeight: (height: number) => void;
+  /** Moves the edge of the graphs. */
+  readonly setGraphHeight: (height: number) => void;
   /** Shows or hides the left column. */
   readonly toggleLeftColumn: () => void;
+  /** Shows or hides the graphs. */
+  readonly toggleGraphs: () => void;
+  /** Chooses the graph that is drawn. */
+  readonly setGraphPreset: (name: string) => void;
   /** Follows the vehicle with the map, or stops. */
   readonly setFollowVehicle: (follow: boolean) => void;
   /** Shows or hides the map's controls. */
@@ -137,7 +186,14 @@ export const useUiStore = create<UiStore>((set) => ({
     MIN_HUD_HEIGHT,
     MAX_HUD_HEIGHT,
   ),
+  graphHeight: clamp(
+    readNumber("mpcraft.graphHeight", DEFAULT_GRAPH_HEIGHT),
+    MIN_GRAPH_HEIGHT,
+    MAX_GRAPH_HEIGHT,
+  ),
   showLeftColumn: readFlag("mpcraft.showLeftColumn", true),
+  showGraphs: readFlag("mpcraft.showGraphs", true),
+  graphPreset: readString("mpcraft.graphPreset", ""),
   followVehicle: readFlag("mpcraft.followVehicle", true),
   showMapControls: readFlag("mpcraft.showMapControls", true),
 
@@ -155,11 +211,28 @@ export const useUiStore = create<UiStore>((set) => ({
     set({ hudHeight: clamped });
   },
 
+  setGraphHeight: (height) => {
+    const clamped = clamp(height, MIN_GRAPH_HEIGHT, MAX_GRAPH_HEIGHT);
+    writeNumber("mpcraft.graphHeight", clamped);
+    set({ graphHeight: clamped });
+  },
+
   toggleLeftColumn: () =>
     set((state) => {
       writeFlag("mpcraft.showLeftColumn", !state.showLeftColumn);
       return { showLeftColumn: !state.showLeftColumn };
     }),
+
+  toggleGraphs: () =>
+    set((state) => {
+      writeFlag("mpcraft.showGraphs", !state.showGraphs);
+      return { showGraphs: !state.showGraphs };
+    }),
+
+  setGraphPreset: (graphPreset) => {
+    writeString("mpcraft.graphPreset", graphPreset);
+    set({ graphPreset });
+  },
 
   setFollowVehicle: (followVehicle) => {
     writeFlag("mpcraft.followVehicle", followVehicle);

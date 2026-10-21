@@ -49,3 +49,27 @@
   min-width: 0;
   position: relative;
 }
+
+/* The graphs and the map share the area on the right of the column: the graphs above,
+   the map below, with a draggable edge between them. */
+
+.split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.graphs {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mapArea {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}

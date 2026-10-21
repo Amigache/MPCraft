@@ -1,17 +1,23 @@
+import { useEffect, useRef, useState } from "react";
+
 import { Splitter } from "../../app/layout/Splitter";
 import { TabStrip } from "../../components/TabStrip";
 import { ActionsPanel } from "../../features/actions/ActionsPanel";
 import { FlightMap } from "../../features/map/FlightMap";
 import { GaugesPanel } from "../../features/gauges/GaugesPanel";
+import { GraphPanel } from "../../features/graphs/GraphPanel";
 import { Hud } from "../../features/hud/Hud";
 import { MessageConsole } from "../../features/messages/MessageConsole";
 import { QuickViewPanel } from "../../features/quick-view/QuickViewPanel";
 import { StatusPanel } from "../../features/status/StatusPanel";
 import {
+  MAX_GRAPH_HEIGHT,
   MAX_HUD_HEIGHT,
   MAX_LEFT_WIDTH,
+  MIN_GRAPH_HEIGHT,
   MIN_HUD_HEIGHT,
   MIN_LEFT_WIDTH,
+  MIN_MAP_HEIGHT,
   TABS,
   useUiStore,
 } from "../../lib/ui/uiStore";
@@ -23,15 +29,50 @@ import styles from "./FlightData.module.css";
  * The distribution is upstream's: a column on the left, the width of which can be
  * dragged, holding the attitude indicator above a set of tabs, and the map filling
  * everything else.
+ *
+ * The area on the right of the column is split in two, as upstream's is: the graphs
+ * above, the map below, with an edge between them that can be dragged. The graphs can
+ * be put away, and the map then takes the whole area.
  */
 export function FlightData() {
   const showLeftColumn = useUiStore((state) => state.showLeftColumn);
   const leftColumnWidth = useUiStore((state) => state.leftColumnWidth);
   const hudHeight = useUiStore((state) => state.hudHeight);
+  const graphHeight = useUiStore((state) => state.graphHeight);
+  const showGraphs = useUiStore((state) => state.showGraphs);
   const activeTab = useUiStore((state) => state.activeTab);
   const setActiveTab = useUiStore((state) => state.setActiveTab);
   const setLeftColumnWidth = useUiStore((state) => state.setLeftColumnWidth);
   const setHudHeight = useUiStore((state) => state.setHudHeight);
+  const setGraphHeight = useUiStore((state) => state.setGraphHeight);
+
+  // The height of the area the graphs and the map share. It decides how tall the
+  // graphs may be: the map is never left smaller than it can be worked in.
+  const split = useRef<HTMLDivElement | null>(null);
+  const [available, setAvailable] = useState(0);
+
+  useEffect(() => {
+    const element = split.current;
+    if (!element) {
+      return;
+    }
+
+    const measure = () => {
+      setAvailable(element.clientHeight);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const tallestGraph = Math.max(
+    MIN_GRAPH_HEIGHT,
+    Math.min(MAX_GRAPH_HEIGHT, available - MIN_MAP_HEIGHT),
+  );
+  const drawnGraphHeight = Math.min(graphHeight, tallestGraph);
 
   return (
     <div className={styles.screen}>
@@ -122,7 +163,31 @@ export function FlightData() {
       ) : null}
 
       <main className={styles.main}>
-        <FlightMap />
+        <div className={styles.split} ref={split}>
+          {showGraphs ? (
+            <>
+              <div
+                className={styles.graphs}
+                style={{ height: `${drawnGraphHeight}px` }}
+              >
+                <GraphPanel />
+              </div>
+
+              <Splitter
+                orientation="horizontal"
+                label="The height of the graphs"
+                value={drawnGraphHeight}
+                min={MIN_GRAPH_HEIGHT}
+                max={tallestGraph}
+                onChange={setGraphHeight}
+              />
+            </>
+          ) : null}
+
+          <div className={styles.mapArea}>
+            <FlightMap />
+          </div>
+        </div>
       </main>
     </div>
   );

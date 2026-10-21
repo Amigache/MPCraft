@@ -17,6 +17,7 @@ mpcraft-app.workspace = true
 mpcraft-link.workspace = true
 mpcraft-mavlink.workspace = true
 mpcraft-mission.workspace = true
+mpcraft-transport.workspace = true
 mpcraft-vehicle.workspace = true
 serde.workspace = true
 serde_json.workspace = true

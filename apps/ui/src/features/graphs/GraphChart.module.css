@@ -1,0 +1,21 @@
+.chart {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* The chart brings its own stylesheet; these are the parts of it that have to agree
+   with the rest of the window. */
+
+.chart :global(.uplot) {
+  font-family: var(--font-ui);
+}
+
+.chart :global(.u-cursor-x) {
+  border-right-color: var(--colour-border-strong);
+}
+
+.chart :global(.u-cursor-y) {
+  border-bottom-color: var(--colour-border-strong);
+}
