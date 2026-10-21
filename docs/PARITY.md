@@ -76,7 +76,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 3.12 | Manual control | `SendManualControl` | ✅ | 3 |
 | 3.13 | Camera / gimbal control | `CameraProtocol`, `GimbalManagerProtocol` | 🔜 | 5 |
 | 3.14 | Serial port pass-through | `SendSerialControl` | 🔜 | 5 |
-| 3.15 | Flight-mode presets & custom modes | `ConfigFlightModes.cs` | 🔜 | 3 |
+| 3.15 | Flight-mode presets & custom modes | `ConfigFlightModes.cs` | ✅ | 3 |
 
 ## 4. Mission planning
 
@@ -87,7 +87,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.3 | Partial mission update | `mav_mission.uploadPartial` | 🔜 | 2 |
 | 4.4 | Waypoint table editor | `GCSViews/FlightPlanner.cs` (Commands grid) | ✅ | 2 |
 | 4.5 | Map-based waypoint add / drag / delete | `FlightPlanner.cs` | ✅ | 2 |
-| 4.6 | MAV_CMD parameter metadata & units | `mavcmd.xml` | 🔜 | 2 |
+| 4.6 | MAV_CMD parameter metadata & units | `mavcmd.xml` | ✅ | 2 |
 | 4.7 | Altitude modes (absolute / relative / terrain) | `FlightPlanner.cs` altmode | ✅ | 2 |
 | 4.8 | Geo-fence polygon drawing & upload | `FlightPlanner.cs` polygon tools | ✅ | 2 |
 | 4.9 | Fence inclusion / exclusion lists | `FenceInclusion/Exclusion` | ✅ | 2 |
@@ -101,7 +101,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | ✅ | 2 |
 | 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | ✅ | 2 |
 | 4.19 | Waypoint radius (loiter) editing | `FlightPlanner.cs` loiter radius | ✅ | 2 |
-| 4.20 | Spline / smooth path display | `FlightPlanner.cs` | 🔜 | 2 |
+| 4.20 | Spline / smooth path display | `FlightPlanner.cs` | ✅ | 2 |
 | 4.21 | MAVFTP mission transfer | `chk_usemavftp` path | 🔜 | 5 |
 
 ## 5. Parameters & configuration
@@ -160,7 +160,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
 | 7.1 | MapLibre base map with provider selection | `ExtLibs/Maps/*` | ✅ | 1 |
-| 7.2 | OSM / satellite / hybrid tile providers | `GMapProviders` registry | 🔜 | 1 |
+| 7.2 | OSM / satellite / hybrid tile providers | `GMapProviders` registry | ✅ | 1 |
 | 7.3 | Tile caching on disk | `ExtLibs/Maps/MyImageCache.cs` | 🔜 | 1 |
 | 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | 🔜 | 2 |
 | 7.5 | Tile prefetch for a region | `ExtLibs/GMap.NET.WindowsForms/TilePrefetcher.cs` | ✅ | 2 |
@@ -208,7 +208,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 10.2 | Theme system (light / dark / high-contrast) | `ThemeManager.cs`, `*.mpsystheme` | ✅ | 7 |
 | 10.3 | Internationalisation | `Strings.resx` + Crowdin | 🔜 | 7 |
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
-| 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | 🔜 | 0 |
+| 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | ✅ | 0 |
 | 10.6 | Auto-updater | `Updater/` | 🔜 | 7 |
 | 10.7 | Crash handler / diagnostics bundle | `Program.cs` | 🔜 | 7 |
 | 10.8 | Windows / Linux / macOS packaging | `wix/`, `Msi/` | 🔜 | 7 |
@@ -220,8 +220,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 99 |
-| 🔜 Planned | 54 |
+| ✅ Done | 104 |
+| 🔜 Planned | 49 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
