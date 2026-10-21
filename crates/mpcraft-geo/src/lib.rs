@@ -1,14 +1,14 @@
 //! Geodesy and terrain for MPCraft.
 //!
 //! Coordinates are decimal degrees in `f64`. Rounding to the wire format happens at exactly
-//! one boundary â€” the encoder â€” so no value is silently degraded in the model.
+//! one boundary — the encoder — so no value is silently degraded in the model.
 //!
 //! # Projections
 //!
 //! UTM and MGRS are implemented in pure Rust rather than through the `proj` crate.
 //! `proj-sys` builds PROJ from source and needs SQLite and a working C toolchain, which makes
-//! cross-platform packaging fragile â€” the opposite of what [ADR-006] requires. The
-//! Transverse Mercator series used here is the standard Karney/KrÃ¼ger formulation, accurate
+//! cross-platform packaging fragile — the opposite of what [ADR-006] requires. The
+//! Transverse Mercator series used here is the standard Karney/Krüger formulation, accurate
 //! to well under a millimetre within a UTM zone, which is far beyond what a GCS needs.
 
 #![forbid(unsafe_code)]
