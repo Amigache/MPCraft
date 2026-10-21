@@ -19,9 +19,9 @@ import { useUiStore } from "../../lib/ui/uiStore";
 import {
   DEFAULT_CENTRE,
   DEFAULT_ZOOM,
-  MAP_STYLE_URL,
   TRACK_LIMIT,
 } from "./mapStyle";
+import { PROVIDERS, providerOf, styleOf } from "./providers";
 import styles from "./FlightMap.module.css";
 
 /**
@@ -185,6 +185,8 @@ export function FlightMap() {
   const map = useRef<maplibregl.Map | null>(null);
   const marker = useRef<maplibregl.Marker | null>(null);
   const loaded = useRef(false);
+  /** Puts the sources and the layers of the map in, once it is ready. */
+  const install = useRef<(() => void) | null>(null);
   const track = useRef<[number, number][]>([]);
   const last = useRef<[number, number] | null>(null);
   const lastHome = useRef<Telemetry["home"] | undefined>(undefined);
@@ -200,6 +202,8 @@ export function FlightMap() {
 
   const follow = useUiStore((state) => state.followVehicle);
   const showControls = useUiStore((state) => state.showMapControls);
+  const mapProvider = useUiStore((state) => state.mapProvider);
+  const setMapProvider = useUiStore((state) => state.setMapProvider);
   const setFollow = useUiStore((state) => state.setFollowVehicle);
   const toggleControls = useUiStore((state) => state.toggleMapControls);
 
@@ -237,7 +241,7 @@ export function FlightMap() {
 
     const instance = new maplibregl.Map({
       container: element,
-      style: MAP_STYLE_URL,
+      style: styleOf(providerOf(mapProvider)),
       center: [DEFAULT_CENTRE[0], DEFAULT_CENTRE[1]],
       zoom: DEFAULT_ZOOM,
       attributionControl: false,
@@ -269,7 +273,9 @@ export function FlightMap() {
     marker.current.setLngLat([DEFAULT_CENTRE[0], DEFAULT_CENTRE[1]]);
     marker.current.addTo(instance);
 
-    instance.on("load", () => {
+    // The sources and the layers of the map belong to its style: when the style
+    // changes, they go with it and have to be put back.
+    const install = () => {
       loaded.current = true;
       instance.addSource(TRACK_SOURCE, {
         type: "geojson",
@@ -423,6 +429,12 @@ export function FlightMap() {
       });
 
       setReady(true);
+    };
+
+    install.current = () => install();
+
+    instance.on("load", () => {
+      install();
     });
 
     instance.on("error", (event) => {
@@ -458,6 +470,21 @@ export function FlightMap() {
       loaded.current = false;
     };
   }, []);
+
+  // The provider of the tiles. The style of the map is the provider's, and the sources
+  // and the layers go with it: they are put back when the new style has loaded.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !loaded.current) {
+      return;
+    }
+
+    instance.setStyle(styleOf(providerOf(mapProvider)));
+
+    instance.once("styledata", () => {
+      install.current?.();
+    });
+  }, [mapProvider]);
 
   // The position, the heading and the track, written into the map directly.
   useEffect(() => {
@@ -787,6 +814,24 @@ export function FlightMap() {
       <div className={styles.canvas} ref={container} />
 
       <div className={styles.controls}>
+        {showControls ? (
+          <select
+            className={styles.provider}
+            value={mapProvider}
+            aria-label="The provider of the tiles"
+            title="The provider of the tiles"
+            onChange={(event) => {
+              setMapProvider(event.target.value);
+            }}
+          >
+            {PROVIDERS.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
         {showControls ? (
           <button
             type="button"

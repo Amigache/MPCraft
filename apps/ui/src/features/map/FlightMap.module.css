@@ -34,6 +34,19 @@
  * They sit below the map's own controls: the zoom and the compass are there, and two
  * sets of buttons on top of one another is how a ground station becomes unusable. */
 
+/* The chooser of the provider of the tiles. */
+
+.provider {
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-2xs);
+  max-width: 180px;
+  padding: 2px var(--space-1);
+}
+
 .controls {
   display: flex;
   flex-direction: column;

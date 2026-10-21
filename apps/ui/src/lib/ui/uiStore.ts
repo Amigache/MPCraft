@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { DEFAULT_PROVIDER } from "../../features/map/providers";
 import { listParameterGroups } from "../ipc/bridge";
 
 /**
@@ -96,6 +97,31 @@ function writeNumber(key: string, value: number): void {
   }
 }
 
+/** Reads a stored text, ignoring anything that is not one. */
+function readText(key: string, fallback: string): string {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? fallback : raw;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Stores a text, ignoring a storage that refuses. */
+function writeText(key: string, value: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // A storage that refuses is not a reason to break the interface.
+  }
+}
+
 /** Reads a stored flag. */
 function readFlag(key: string, fallback: boolean): boolean {
   if (typeof window === "undefined") {
@@ -168,6 +194,9 @@ export interface UiStore {
   readonly followVehicle: boolean;
   /** Whether the map's own controls are shown. */
   readonly showMapControls: boolean;
+
+  /** The provider of the tiles the map is drawn with. */
+  readonly mapProvider: string;
   /** Whether the sheet of parameters is open over the window. */
   readonly parametersOpen: boolean;
   /**
@@ -203,6 +232,9 @@ export interface UiStore {
   readonly setFollowVehicle: (follow: boolean) => void;
   /** Shows or hides the map's controls. */
   readonly toggleMapControls: () => void;
+
+  /** Chooses the provider of the tiles the map is drawn with. */
+  readonly setMapProvider: (provider: string) => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -242,6 +274,7 @@ export const useUiStore = create<UiStore>((set) => ({
   graphPreset: readString("mpcraft.graphPreset", ""),
   followVehicle: readFlag("mpcraft.followVehicle", true),
   showMapControls: readFlag("mpcraft.showMapControls", true),
+  mapProvider: readText("mpcraft.mapProvider", DEFAULT_PROVIDER),
   parametersOpen: false,
   parameterGroup: null,
   parameterGroups: [],
@@ -293,6 +326,11 @@ export const useUiStore = create<UiStore>((set) => ({
       writeFlag("mpcraft.showMapControls", !state.showMapControls);
       return { showMapControls: !state.showMapControls };
     }),
+
+  setMapProvider: (provider) => {
+    writeText("mpcraft.mapProvider", provider);
+    set({ mapProvider: provider });
+  },
 
   // The sheet of parameters is not remembered between runs: it is a thing the operator
   // opens, not a place the window is left in.
