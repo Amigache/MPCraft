@@ -1031,6 +1031,8 @@ fn main() {
 
     tauri::Builder::default()
         .manage(AppState::default())
+        // The file dialog, for the plans an operator saves and loads.
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             connect,
             disconnect,

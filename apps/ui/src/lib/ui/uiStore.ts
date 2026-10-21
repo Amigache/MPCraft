@@ -44,6 +44,14 @@ export const DEFAULT_GRAPH_HEIGHT = 240;
 /** The narrowest the graphs may be dragged. */
 export const MIN_GRAPH_HEIGHT = 100;
 
+/**
+ * The narrowest the plan editor may be dragged.
+ *
+ * The editor holds a grid of the items of a plan and a row of buttons: less than this
+ * and there is nothing to read.
+ */
+export const MIN_PLAN_HEIGHT = 220;
+
 /** The tallest the graphs may be dragged. */
 export const MAX_GRAPH_HEIGHT = 720;
 
@@ -151,6 +159,8 @@ export interface UiStore {
   readonly followVehicle: boolean;
   /** Whether the map's own controls are shown. */
   readonly showMapControls: boolean;
+  /** Whether the sheet of parameters is open over the window. */
+  readonly parametersOpen: boolean;
   /** Opens a tab. */
   readonly setActiveTab: (tab: TabId) => void;
   /** Moves the edge of the left column. */
@@ -169,6 +179,10 @@ export interface UiStore {
   readonly setFollowVehicle: (follow: boolean) => void;
   /** Shows or hides the map's controls. */
   readonly toggleMapControls: () => void;
+  /** Opens the sheet of parameters. */
+  readonly showParameters: () => void;
+  /** Closes the sheet of parameters. */
+  readonly hideParameters: () => void;
 }
 
 const clamp = (value: number, low: number, high: number): number =>
@@ -196,6 +210,7 @@ export const useUiStore = create<UiStore>((set) => ({
   graphPreset: readString("mpcraft.graphPreset", ""),
   followVehicle: readFlag("mpcraft.followVehicle", true),
   showMapControls: readFlag("mpcraft.showMapControls", true),
+  parametersOpen: false,
 
   setActiveTab: (activeTab) => set({ activeTab }),
 
@@ -244,4 +259,10 @@ export const useUiStore = create<UiStore>((set) => ({
       writeFlag("mpcraft.showMapControls", !state.showMapControls);
       return { showMapControls: !state.showMapControls };
     }),
+
+  // The sheet of parameters is not remembered between runs: it is a thing the operator
+  // opens, not a place the window is left in.
+  showParameters: () => set({ parametersOpen: true }),
+
+  hideParameters: () => set({ parametersOpen: false }),
 }));

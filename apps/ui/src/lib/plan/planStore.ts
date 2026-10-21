@@ -28,24 +28,31 @@ const NO_PLANS: Readonly<Record<PlanKind, Plan | null>> = {
 export interface PlanStore {
   /** The plan of each kind, when it has been downloaded. */
   readonly plans: Readonly<Record<PlanKind, Plan | null>>;
+  /** The kind of plan the interface is working on. */
+  readonly kind: PlanKind;
   /** Whether a plan operation is in flight. */
   readonly busy: boolean;
   /** The last failure, with its stable code. */
   readonly error: CommandError | null;
-  /** Downloads a plan from the vehicle. */
-  readonly download: (kind: PlanKind) => Promise<void>;
+  /** Downloads a plan from the vehicle, and gives it back. */
+  readonly download: (kind: PlanKind) => Promise<Plan | null>;
   /** Uploads a plan to the vehicle. */
   readonly upload: (kind: PlanKind, items: readonly PlanItem[]) => Promise<void>;
   /** Empties one of the plans the vehicle holds. */
   readonly clear: (kind: PlanKind) => Promise<void>;
+  /** Chooses the kind of plan the interface works on. */
+  readonly setKind: (kind: PlanKind) => void;
   /** Forgets the last failure. */
   readonly dismissError: () => void;
 }
 
 export const usePlanStore = create<PlanStore>((set) => ({
   plans: NO_PLANS,
+  kind: "mission",
   busy: false,
   error: null,
+
+  setKind: (kind) => set({ kind }),
 
   download: async (kind) => {
     set({ busy: true, error: null });
@@ -55,8 +62,10 @@ export const usePlanStore = create<PlanStore>((set) => ({
         plans: { ...state.plans, [kind]: plan },
         busy: false,
       }));
+      return plan;
     } catch (cause) {
       set({ busy: false, error: normaliseError(cause) });
+      return null;
     }
   },
 

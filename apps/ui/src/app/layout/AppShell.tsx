@@ -1,6 +1,7 @@
 import { MenuBar } from "./MenuBar";
 import { StatusBar } from "./StatusBar";
 import { FlightData } from "../../features/flight-data/FlightData";
+import { ParameterSheet } from "../../features/params/ParameterSheet";
 import styles from "./AppShell.module.css";
 
 /**
@@ -8,6 +9,9 @@ import styles from "./AppShell.module.css";
  *
  * This is the shape Mission Planner's window has — a menu strip at the top and a status
  * strip at the bottom — and the screen in between is the flight data view.
+ *
+ * The sheets lie over the whole window: the parameters are opened from the Setup menu
+ * and cover the screen rather than opening a window of their own.
  */
 export function AppShell() {
   return (
@@ -17,6 +21,7 @@ export function AppShell() {
         <FlightData />
       </main>
       <StatusBar />
+      <ParameterSheet />
     </div>
   );
 }

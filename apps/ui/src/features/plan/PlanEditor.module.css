@@ -1,0 +1,205 @@
+/* The plan editor.
+ *
+ * It takes the place of the graphs: a row of buttons, the grid of the items, and a
+ * status line that says what the state of the plan is. Every row of the panel is in the
+ * flow, so nothing is ever laid over anything else.
+ */
+
+.editor {
+  background: var(--colour-bg);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* The toolbar ---------------------------------------------------------------- */
+
+.toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.adding {
+  background: var(--colour-accent-wash);
+  border-color: var(--colour-accent-dim);
+  color: var(--colour-accent);
+  max-width: 100%;
+  white-space: normal;
+}
+
+.close {
+  margin-left: auto;
+}
+
+/* The file bar ---------------------------------------------------------------- */
+
+.fileBar {
+  align-items: flex-end;
+  background: var(--colour-surface);
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.fileField {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fileLabel {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fileField .input {
+  width: 100%;
+}
+
+.format {
+  color: var(--colour-text-faint);
+  flex: 0 1 auto;
+  font-size: var(--font-2xs);
+  min-width: 0;
+  padding-bottom: var(--space-1);
+  white-space: nowrap;
+}
+
+/* The confirmation ------------------------------------------------------------ */
+
+.confirm {
+  align-items: center;
+  background: var(--colour-warning-wash);
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+}
+
+.confirmText {
+  color: var(--colour-text);
+  flex: 1 1 260px;
+  font-size: var(--font-xs);
+  min-width: 0;
+}
+
+.warnings {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
+.warnings li {
+  color: var(--colour-warning);
+}
+
+.confirmActions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+}
+
+/* The failure ----------------------------------------------------------------- */
+
+.error {
+  align-items: center;
+  background: var(--colour-danger-wash);
+  border-bottom: 1px solid var(--colour-border);
+  color: var(--colour-danger);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: var(--font-xs);
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.dismiss {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  line-height: 1.4;
+  margin-left: auto;
+  /* The cross needs room: without a height of its own the border takes the two pixels
+     the glyph needs, and the cross is cut in half. */
+  min-height: 20px;
+  min-width: 20px;
+  padding: 0 var(--space-1);
+}
+
+.dismiss:hover {
+  border-color: var(--colour-danger);
+}
+
+/* The status line -------------------------------------------------------------- */
+
+.status {
+  align-items: center;
+  border-top: 1px solid var(--colour-border);
+  color: var(--colour-text-dim);
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  font-size: var(--font-2xs);
+  gap: var(--space-3);
+  min-height: 26px;
+  padding: var(--space-1) var(--space-3);
+}
+
+.kind {
+  color: var(--colour-text);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.count {
+  font-family: var(--font-mono);
+}
+
+.changed {
+  background: var(--colour-warning-wash);
+  border: 1px solid var(--colour-warning);
+  border-radius: var(--radius-sm);
+  color: var(--colour-warning);
+  padding: 0 var(--space-1);
+}
+
+.synced {
+  color: var(--colour-text-faint);
+}
+
+.hint {
+  color: var(--colour-accent);
+}
+
+.notice {
+  color: var(--colour-accent);
+  margin-left: auto;
+}

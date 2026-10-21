@@ -29,7 +29,10 @@
   top: -9px;
 }
 
-/* The controls, over the map, at the top right. */
+/* The controls, over the map, at the top right.
+ *
+ * They sit below the map's own controls: the zoom and the compass are there, and two
+ * sets of buttons on top of one another is how a ground station becomes unusable. */
 
 .controls {
   display: flex;
@@ -37,7 +40,7 @@
   gap: var(--space-1);
   position: absolute;
   right: var(--space-3);
-  top: 88px;
+  top: 108px;
   z-index: 2;
 }
 
@@ -64,19 +67,79 @@
   color: var(--colour-accent);
 }
 
+/* The messages over the map, at the top left. They are stacked, so they never lie over
+   one another. */
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  left: var(--space-3);
+  max-width: 380px;
+  position: absolute;
+  top: var(--space-3);
+  z-index: 3;
+}
+
 .failure {
   background: var(--colour-danger-wash);
   border: 1px solid #6d2b28;
   border-radius: var(--radius-sm);
   color: var(--colour-danger);
   font-size: var(--font-xs);
-  left: var(--space-3);
   margin: 0;
-  max-width: 380px;
   padding: var(--space-2);
-  position: absolute;
-  top: var(--space-3);
-  z-index: 3;
+}
+
+.hint {
+  background: var(--colour-accent-wash);
+  border: 1px solid var(--colour-accent-dim);
+  border-radius: var(--radius-sm);
+  color: var(--colour-accent);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: var(--space-2);
+}
+
+/* An item of the plan, while the plan is being edited.
+ *
+ * A numbered square, so that it cannot be mistaken for the vehicle — which is a wedge
+ * of the accent colour — and so that the operator can tell the items apart. */
+
+.item {
+  align-items: center;
+  background: var(--colour-surface);
+  border: 2px solid var(--colour-text);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  color: var(--colour-text);
+  cursor: grab;
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  height: 22px;
+  justify-content: center;
+  line-height: 1;
+  width: 22px;
+}
+
+.item:active {
+  cursor: grabbing;
+}
+
+.itemSelected {
+  background: var(--colour-accent);
+  border-color: var(--colour-accent);
+  color: #04231b;
+}
+
+.itemCurrent {
+  border-color: var(--colour-warning);
+  color: var(--colour-warning);
+}
+
+.itemSelected.itemCurrent {
+  color: #04231b;
 }
 
 .caption {

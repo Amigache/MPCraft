@@ -1,0 +1,473 @@
+import { create } from "zustand";
+
+import {
+  exportPlan,
+  importPlan,
+  normaliseError,
+  uploadMission,
+  validateMission,
+} from "../ipc/bridge";
+import type {
+  CommandError,
+  MavCommand,
+  PlanItem,
+  PlanKind,
+  PlanWarning,
+} from "../ipc/types";
+import { useCommandStore } from "./commandStore";
+import type { PlanFileFormat } from "./planFiles";
+import {
+  insertItem,
+  moveItem,
+  patchItem,
+  removeItem,
+  renumber,
+  sameItems,
+} from "./planItems";
+import { usePlanStore } from "./planStore";
+
+/**
+ * The plan that is being edited.
+ *
+ * The plan the vehicle holds and the plan the operator is editing are **not** the same
+ * thing: the edits are not on the vehicle until they are uploaded. The edited plan is
+ * therefore kept here, apart from the plan in the store, and the interface says so when
+ * the two differ.
+ *
+ * The store owns the decisions — what an edit does, when the operator is asked to
+ * confirm, what a warning means — and the components only draw what it says.
+ */
+
+/** What the editor is waiting for the operator to confirm. */
+export type PendingAction =
+  | {
+      readonly kind: "upload";
+      /** What the backend says is wrong with the plan. */
+      readonly warnings: readonly PlanWarning[];
+    }
+  | { readonly kind: "download" }
+  | {
+      readonly kind: "import";
+      readonly path: string;
+      readonly format: PlanFileFormat;
+    };
+
+/** The name the catalogue of commands gives the waypoint. */
+const WAYPOINT_COMMAND = "Waypoint";
+
+/** The frame a new item is given when there is no item before it. */
+const DEFAULT_FRAME = 3;
+
+export interface PlanEditorStore {
+  /** Whether the editor is open. */
+  readonly open: boolean;
+  /** The items as they are being edited. */
+  readonly draft: readonly PlanItem[];
+  /** The items as the vehicle holds them, for the comparison that says "changed". */
+  readonly baseline: readonly PlanItem[];
+  /** The item the operator has selected, by its place in the plan. */
+  readonly selected: number | null;
+  /** Whether the next click on the map adds an item. */
+  readonly adding: boolean;
+  /** How many items of the plan the map has given a marker. */
+  readonly marked: number;
+  /** How many items of the plan carry a place at all. */
+  readonly places: number;
+  /** Whether the editor is waiting for the backend. */
+  readonly busy: boolean;
+  /** The last failure, with its stable code. */
+  readonly error: CommandError | null;
+  /** The last thing that worked. */
+  readonly notice: string | null;
+  /** The confirmation the editor is waiting for. */
+  readonly pending: PendingAction | null;
+
+  /** Opens the editor. */
+  readonly openEditor: () => void;
+  /** Closes the editor. */
+  readonly closeEditor: () => void;
+  /** Opens or closes the editor. */
+  readonly toggleEditor: () => void;
+  /** Selects an item, or none. */
+  readonly select: (seq: number | null) => void;
+  /** Arms or disarms the adding of an item by a click on the map. */
+  readonly setAdding: (adding: boolean) => void;
+  /** Says how many items of the plan the map has marked. */
+  readonly setMarked: (marked: number, places: number) => void;
+  /** Changes one item of the plan. */
+  readonly change: (seq: number, patch: Partial<Omit<PlanItem, "seq">>) => void;
+  /** Moves an item up or down the plan. */
+  readonly move: (seq: number, delta: number) => void;
+  /** Removes an item from the plan. */
+  readonly remove: (seq: number) => void;
+  /** Adds an item at a position, with the altitude of the item before it. */
+  readonly addAt: (latitude: number, longitude: number) => void;
+  /** Asks the backend what is wrong with the plan, and waits for the operator. */
+  readonly askUpload: () => Promise<void>;
+  /** Asks whether the plan on the vehicle may be read again. */
+  readonly askDownload: () => Promise<void>;
+  /** Asks whether the edits may be thrown away for a file. */
+  readonly askImport: (path: string, format: PlanFileFormat) => Promise<void>;
+  /** Carries out the action the operator has confirmed. */
+  readonly confirm: () => Promise<void>;
+  /** Gives up on the action the editor was waiting for. */
+  readonly cancel: () => void;
+  /** Writes the plan to a file. */
+  readonly saveToFile: (path: string, format: PlanFileFormat) => Promise<void>;
+  /** Forgets the last failure. */
+  readonly dismissError: () => void;
+}
+
+/** The kind of plan the editor is working on. */
+function kindOf(): PlanKind {
+  return usePlanStore.getState().kind;
+}
+
+/** Whether the edited plan differs from the plan the vehicle holds. */
+export function isChanged(state: {
+  readonly draft: readonly PlanItem[];
+  readonly baseline: readonly PlanItem[];
+}): boolean {
+  return !sameItems(state.draft, state.baseline);
+}
+
+/** The waypoint command of the catalogue, when the catalogue knows one. */
+function waypointCommand(
+  commands: readonly MavCommand[],
+): MavCommand | undefined {
+  return commands.find((command) => command.name === WAYPOINT_COMMAND);
+}
+
+/** The place an item goes when it is inserted after another one. */
+function insertionIndex(
+  items: readonly PlanItem[],
+  after: number | null,
+): number {
+  if (after === null) {
+    return items.length;
+  }
+  const index = items.findIndex((item) => item.seq === after);
+  return index < 0 ? items.length : index + 1;
+}
+
+export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
+  open: false,
+  draft: [],
+  baseline: [],
+  selected: null,
+  adding: false,
+  marked: 0,
+  places: 0,
+  busy: false,
+  error: null,
+  notice: null,
+  pending: null,
+
+  openEditor: () => {
+    void useCommandStore.getState().load();
+
+    // Edits that have not been sent are kept: throwing them away because the editor was
+    // closed would be a ground station that loses work.
+    if (isChanged(get())) {
+      set({
+        open: true,
+        adding: false,
+        pending: null,
+        error: null,
+        notice: null,
+      });
+      return;
+    }
+
+    const plan = usePlanStore.getState().plans[kindOf()];
+    if (plan === null || plan === undefined) {
+      set({
+        open: true,
+        adding: false,
+        pending: null,
+        error: null,
+        notice: null,
+      });
+      void readFromVehicle();
+      return;
+    }
+
+    set({
+      open: true,
+      adding: false,
+      pending: null,
+      error: null,
+      notice: null,
+      draft: renumber(plan.items),
+      baseline: plan.items,
+      selected: null,
+    });
+  },
+
+  closeEditor: () =>
+    set({ open: false, adding: false, pending: null, error: null }),
+
+  toggleEditor: () => {
+    if (get().open) {
+      get().closeEditor();
+    } else {
+      get().openEditor();
+    }
+  },
+
+  select: (selected) => set({ selected }),
+
+  setAdding: (adding) => set({ adding }),
+
+  setMarked: (marked, places) =>
+    set((state) =>
+      state.marked === marked && state.places === places
+        ? {}
+        : { marked, places },
+    ),
+
+  change: (seq, patch) =>
+    set((state) => ({ draft: patchItem(state.draft, seq, patch) })),
+
+  move: (seq, delta) =>
+    set((state) => {
+      const index = state.draft.findIndex((item) => item.seq === seq);
+      const target = index + delta;
+
+      if (index < 0 || target < 0 || target >= state.draft.length) {
+        return {};
+      }
+
+      const draft = moveItem(state.draft, seq, delta);
+      let selected = state.selected;
+
+      if (selected !== null) {
+        if (selected === index) {
+          selected = target;
+        } else if (index < selected && selected <= target) {
+          selected -= 1;
+        } else if (target <= selected && selected < index) {
+          selected += 1;
+        }
+      }
+
+      return { draft, selected };
+    }),
+
+  remove: (seq) =>
+    set((state) => {
+      const index = state.draft.findIndex((item) => item.seq === seq);
+      if (index < 0) {
+        return {};
+      }
+
+      const draft = removeItem(state.draft, seq);
+      let selected = state.selected;
+
+      if (selected !== null) {
+        if (selected === index) {
+          selected = null;
+        } else if (selected > index) {
+          selected -= 1;
+        }
+      }
+
+      return { draft, selected };
+    }),
+
+  addAt: (latitude, longitude) => {
+    const state = get();
+    const command = waypointCommand(useCommandStore.getState().commands);
+    if (command === undefined) {
+      set({
+        error: {
+          code: "unknownCommand",
+          message: "The catalogue of commands has not been read yet.",
+        },
+      });
+      return;
+    }
+
+    const at = insertionIndex(state.draft, state.selected);
+    const before = state.draft[at - 1] ?? null;
+
+    // The new item takes the altitude of the item before it: a waypoint that jumps to
+    // another height is a waypoint the operator did not mean.
+    const item: PlanItem = {
+      seq: 0,
+      command: command.name,
+      commandValue: command.value,
+      frame: before?.frame ?? DEFAULT_FRAME,
+      params: [0, 0, 0, 0],
+      x: latitude,
+      y: longitude,
+      z: before?.z ?? 0,
+      current: false,
+      autocontinue: true,
+    };
+
+    const draft = insertItem(state.draft, state.selected, item);
+
+    set({
+      draft,
+      selected: at,
+      notice: null,
+    });
+  },
+
+  askUpload: async () => {
+    const draft = get().draft;
+    if (draft.length === 0) {
+      set({
+        error: {
+          code: "emptyPlan",
+          message: "There is nothing in the plan to upload.",
+        },
+      });
+      return;
+    }
+
+    set({ busy: true, error: null });
+    try {
+      const warnings = await validateMission(draft, kindOf());
+      set({ busy: false, pending: { kind: "upload", warnings } });
+    } catch (cause) {
+      set({ busy: false, error: normaliseError(cause) });
+    }
+  },
+
+  askDownload: async () => {
+    set({ pending: { kind: "download" } });
+  },
+
+  askImport: async (path, format) => {
+    set({ pending: { kind: "import", path, format } });
+  },
+
+  confirm: async () => {
+    const pending = get().pending;
+    if (pending === null) {
+      return;
+    }
+
+    set({ pending: null, busy: true, error: null });
+
+    if (pending.kind === "upload") {
+      const items = get().draft;
+      try {
+        await uploadMission(items, kindOf());
+        set({
+          busy: false,
+          baseline: items,
+          notice: `The plan was uploaded: ${items.length} item${
+            items.length === 1 ? "" : "s"
+          }.`,
+        });
+      } catch (cause) {
+        set({ busy: false, error: normaliseError(cause) });
+      }
+      return;
+    }
+
+    if (pending.kind === "download") {
+      await readFromVehicle();
+      return;
+    }
+
+    try {
+      const plan = await importPlan(pending.format, pending.path);
+      set({
+        busy: false,
+        draft: renumber(plan.items),
+        selected: null,
+        notice: `The plan was read from ${pending.path}.`,
+      });
+    } catch (cause) {
+      set({ busy: false, error: normaliseError(cause) });
+    }
+  },
+
+  cancel: () => set({ pending: null }),
+
+  saveToFile: async (path, format) => {
+    set({ busy: true, error: null });
+    try {
+      await exportPlan(get().draft, kindOf(), format, path);
+      set({ busy: false, notice: `The plan was written to ${path}.` });
+    } catch (cause) {
+      set({ busy: false, error: normaliseError(cause) });
+    }
+  },
+
+  dismissError: () => set({ error: null }),
+}));
+
+/**
+ * Reads the plan from the vehicle and puts it in the editor.
+ *
+ * The plan the vehicle holds is also put in the store, so that the map and the rest of
+ * the window show the same plan the editor does.
+ */
+async function readFromVehicle(): Promise<void> {
+  const kind = kindOf();
+
+  usePlanEditorStore.setState({ busy: true, error: null });
+
+  const plan = await usePlanStore.getState().download(kind);
+  if (plan === null) {
+    usePlanEditorStore.setState({
+      busy: false,
+      error: usePlanStore.getState().error,
+    });
+    return;
+  }
+
+  usePlanEditorStore.setState({
+    busy: false,
+    draft: renumber(plan.items),
+    baseline: plan.items,
+    selected: null,
+    notice: `The plan was read from the vehicle: ${plan.items.length} item${
+      plan.items.length === 1 ? "" : "s"
+    }.`,
+  });
+}
+
+/**
+ * The editor follows the kind of plan the window is working on.
+ *
+ * The actions tab chooses the kind — mission, fence or rally — and the editor edits the
+ * plan of that kind. When the kind changes, the plan being edited is another plan, so it
+ * is replaced.
+ */
+usePlanStore.subscribe((state, previous) => {
+  if (state.kind === previous.kind) {
+    return;
+  }
+
+  if (!usePlanEditorStore.getState().open) {
+    return;
+  }
+
+  const plan = state.plans[state.kind];
+
+  if (plan === null || plan === undefined) {
+    usePlanEditorStore.setState({
+      draft: [],
+      baseline: [],
+      selected: null,
+      adding: false,
+      pending: null,
+    });
+    void readFromVehicle();
+    return;
+  }
+
+  usePlanEditorStore.setState({
+    draft: renumber(plan.items),
+    baseline: plan.items,
+    selected: null,
+    adding: false,
+    pending: null,
+  });
+});

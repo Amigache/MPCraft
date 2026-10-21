@@ -9,6 +9,7 @@ import {
 } from "../../lib/flight/flightActions";
 import { useModesStore } from "../../lib/flight/modesStore";
 import { useLinkStore } from "../../lib/link/linkStore";
+import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { TABS, useUiStore } from "../../lib/ui/uiStore";
 import styles from "./MenuBar.module.css";
@@ -57,6 +58,7 @@ export function MenuBar() {
   const vehicles = useLinkStore((state) => state.vehicles);
   const modes = useModesStore((state) => state.modes);
   const plans = usePlanStore((state) => state.plans);
+  const setKind = usePlanStore((state) => state.setKind);
   const busy = usePlanStore((state) => state.busy);
   const download = usePlanStore((state) => state.download);
   const upload = usePlanStore((state) => state.upload);
@@ -72,6 +74,10 @@ export function MenuBar() {
   const setFollowVehicle = useUiStore((state) => state.setFollowVehicle);
   const showMapControls = useUiStore((state) => state.showMapControls);
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
+  const showParameters = useUiStore((state) => state.showParameters);
+
+  const editorOpen = usePlanEditorStore((state) => state.open);
+  const openEditor = usePlanEditorStore((state) => state.openEditor);
 
   const close = useCallback(() => setOpen(null), []);
   // A click anywhere else closes the menu.
@@ -285,7 +291,9 @@ export function MenuBar() {
             toggleGraphs();
           },
           disabled: false,
-          checked: showGraphs,
+          // The graphs are put away while the plan is being edited, so the tick says
+          // what is on the screen.
+          checked: showGraphs && !editorOpen,
           separator: false,
           hint: "",
         },
@@ -364,20 +372,28 @@ export function MenuBar() {
         {
           id: "parameters",
           label: "Parameters…",
-          onSelect: undefined,
-          disabled: true,
+          onSelect: () => {
+            close();
+            showParameters();
+          },
+          disabled: false,
           checked: undefined,
           separator: false,
-          hint: "not in this build",
+          hint: "",
         },
         {
           id: "mission-planner",
           label: "Mission planner",
-          onSelect: undefined,
-          disabled: true,
-          checked: undefined,
+          onSelect: () => {
+            close();
+            setActiveTab("actions");
+            setKind("mission");
+            openEditor();
+          },
+          disabled: false,
+          checked: editorOpen,
           separator: false,
-          hint: "not in this build",
+          hint: "",
         },
         {
           id: "firmware",

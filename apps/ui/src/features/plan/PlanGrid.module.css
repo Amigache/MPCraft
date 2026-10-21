@@ -1,0 +1,187 @@
+/* The grid of the items of a plan.
+ *
+ * The rows are absolutely placed inside a canvas of a known height, because only the
+ * rows that are on the screen are in the document. The header is stuck to the top of
+ * the scroll, and the canvas is as wide as the columns need, so the grid scrolls
+ * sideways rather than squashing the values.
+ */
+
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+.canvas {
+  position: relative;
+}
+
+/* The header ---------------------------------------------------------------- */
+
+.head {
+  background: var(--colour-surface);
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.headCell {
+  align-items: center;
+  color: var(--colour-text-faint);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: var(--font-2xs);
+  font-weight: 600;
+  height: 26px;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  padding: 0 var(--space-2);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* The rows ------------------------------------------------------------------ */
+
+.body {
+  position: relative;
+}
+
+.row {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  cursor: pointer;
+  display: flex;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.row:hover {
+  background: var(--colour-surface-raised);
+}
+
+.selected {
+  background: var(--colour-accent-wash);
+  box-shadow: inset 2px 0 0 var(--colour-accent);
+}
+
+/* The item the vehicle is executing is marked the way the map marks it. */
+
+.executing {
+  box-shadow: inset 2px 0 0 var(--colour-warning);
+}
+
+.executing.selected {
+  box-shadow:
+    inset 2px 0 0 var(--colour-warning),
+    inset 4px 0 0 var(--colour-accent);
+}
+
+.cell {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  height: 100%;
+  min-width: 0;
+  padding: 0 var(--space-1);
+}
+
+.number {
+  color: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  padding-left: var(--space-1);
+  text-align: right;
+  width: 100%;
+}
+
+.current {
+  color: var(--colour-warning);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  padding-left: var(--space-1);
+  text-align: right;
+  width: 100%;
+}
+
+.absent {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+  text-align: right;
+  width: 100%;
+}
+
+.unit {
+  color: var(--colour-text-faint);
+  flex: 0 0 auto;
+  font-size: var(--font-2xs);
+  padding-left: var(--space-1);
+  white-space: nowrap;
+}
+
+/* The controls -------------------------------------------------------------- */
+
+.select {
+  font-size: var(--font-2xs);
+  height: 22px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 var(--space-1);
+  width: 100%;
+}
+
+.check {
+  accent-color: var(--colour-accent);
+  cursor: pointer;
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.iconButton {
+  align-items: center;
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: var(--font-xs);
+  height: 22px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 24px;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: #232c3a;
+  border-color: var(--colour-border-strong);
+  color: var(--colour-text);
+}
+
+.iconButton:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.remove:hover:not(:disabled) {
+  background: var(--colour-danger-wash);
+  border-color: var(--colour-danger);
+  color: var(--colour-danger);
+}

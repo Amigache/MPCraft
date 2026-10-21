@@ -11,10 +11,12 @@ import type {
   GraphPreset,
   GraphSeries,
   LossStats,
+  MavCommand,
   Parameter,
   Plan,
   PlanItem,
   PlanKind,
+  PlanWarning,
   SerialPort,
   Telemetry,
   VehicleEvent,
@@ -192,6 +194,47 @@ export async function writeParameter(
     name,
     value,
   });
+}
+
+/**
+ * The warnings about a plan, before it is flown.
+ *
+ * The rule is the autopilot's, so it is evaluated in the model: the interface shows what
+ * it says and does not know why.
+ */
+export async function validateMission(
+  items: readonly PlanItem[],
+  kind: PlanKind,
+): Promise<PlanWarning[]> {
+  return call<PlanWarning[]>("validate_mission", { kind, items });
+}
+
+/** Writes a plan to a file, in the format Mission Planner uses. */
+export async function exportPlan(
+  items: readonly PlanItem[],
+  kind: PlanKind,
+  format: string,
+  path: string,
+): Promise<void> {
+  await call<void>("export_plan", { kind, items, format, path });
+}
+
+/** Reads a plan from a file, in the format Mission Planner uses. */
+export async function importPlan(
+  format: string,
+  path: string,
+): Promise<Plan> {
+  return call<Plan>("import_plan", { format, path });
+}
+
+/**
+ * The commands a plan can hold, and what their parameters mean.
+ *
+ * The table is the one Mission Planner's `mavcmd.xml` describes, ported into the model:
+ * the meaning of a parameter belongs to the autopilot, not to the screen.
+ */
+export async function listMavCommands(): Promise<MavCommand[]> {
+  return call<MavCommand[]>("list_mav_commands");
 }
 
 /** The connection state exposed to the UI. */

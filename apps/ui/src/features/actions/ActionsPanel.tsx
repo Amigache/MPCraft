@@ -10,6 +10,7 @@ import {
   makeCurrent,
 } from "../../lib/flight/flightActions";
 import type { PlanKind } from "../../lib/ipc/types";
+import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { useActivityStore } from "../../lib/ui/activityStore";
 import styles from "./ActionsPanel.module.css";
@@ -50,16 +51,22 @@ export function ActionsPanel() {
   const loadModes = useModesStore((state) => state.load);
 
   const plans = usePlanStore((state) => state.plans);
+  const kind = usePlanStore((state) => state.kind);
+  const setKind = usePlanStore((state) => state.setKind);
   const busy = usePlanStore((state) => state.busy);
   const planError = usePlanStore((state) => state.error);
   const download = usePlanStore((state) => state.download);
   const upload = usePlanStore((state) => state.upload);
   const clear = usePlanStore((state) => state.clear);
 
+  const editorOpen = usePlanEditorStore((state) => state.open);
+  const toggleEditor = usePlanEditorStore((state) => state.toggleEditor);
+  const askUpload = usePlanEditorStore((state) => state.askUpload);
+  const askDownload = usePlanEditorStore((state) => state.askDownload);
+
   const error = useActivityStore((state) => state.error);
   const notice = useActivityStore((state) => state.notice);
 
-  const [kind, setKind] = useState<PlanKind>("mission");
   const [mode, setModeChoice] = useState<number | "">("");
   const [item, setItem] = useState<number | "">("");
 
@@ -236,21 +243,56 @@ export function ActionsPanel() {
             className="button"
             disabled={busy}
             onClick={() => {
+              // While the plan is being edited, the editor asks before it throws the
+              // edits away — the actions tab does not know about them.
+              if (editorOpen) {
+                askDownload();
+                return;
+              }
               void download(kind);
             }}
           >
             Download plan
           </button>
-          <ConfirmButton
-            label="Upload plan"
-            confirmLabel="Confirm upload"
-            variant="primary"
-            disabled={busy || items.length === 0}
-            onConfirm={() => {
-              void upload(kind, items);
-            }}
-          />
+          {editorOpen ? (
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={busy || items.length === 0}
+              onClick={() => {
+                void askUpload();
+              }}
+            >
+              Upload plan
+            </button>
+          ) : (
+            <ConfirmButton
+              label="Upload plan"
+              confirmLabel="Confirm upload"
+              variant="primary"
+              disabled={busy || items.length === 0}
+              onConfirm={() => {
+                void upload(kind, items);
+              }}
+            />
+          )}
+          <button
+            type="button"
+            className={`button ${editorOpen ? styles.editing : ""}`}
+            aria-pressed={editorOpen}
+            onClick={toggleEditor}
+            title="Edit the plan in a grid above the map"
+          >
+            {editorOpen ? "Close editor" : "Edit plan"}
+          </button>
         </div>
+
+        {editorOpen ? (
+          <p className={styles.editingNote}>
+            The plan above the map is being edited. Uploading sends the edited plan;
+            setting the current item and jumping act on the plan the vehicle holds.
+          </p>
+        ) : null}
       </section>
 
       {shown ? (

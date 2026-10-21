@@ -8,8 +8,10 @@ import { GaugesPanel } from "../../features/gauges/GaugesPanel";
 import { GraphPanel } from "../../features/graphs/GraphPanel";
 import { Hud } from "../../features/hud/Hud";
 import { MessageConsole } from "../../features/messages/MessageConsole";
+import { PlanEditor } from "../../features/plan/PlanEditor";
 import { QuickViewPanel } from "../../features/quick-view/QuickViewPanel";
 import { StatusPanel } from "../../features/status/StatusPanel";
+import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import {
   MAX_GRAPH_HEIGHT,
   MAX_HUD_HEIGHT,
@@ -18,6 +20,7 @@ import {
   MIN_HUD_HEIGHT,
   MIN_LEFT_WIDTH,
   MIN_MAP_HEIGHT,
+  MIN_PLAN_HEIGHT,
   TABS,
   useUiStore,
 } from "../../lib/ui/uiStore";
@@ -33,6 +36,10 @@ import styles from "./FlightData.module.css";
  * The area on the right of the column is split in two, as upstream's is: the graphs
  * above, the map below, with an edge between them that can be dragged. The graphs can
  * be put away, and the map then takes the whole area.
+ *
+ * The plan editor takes the place of the graphs while a plan is being edited: upstream
+ * edits a plan in a window of its own, and MPCraft is one window. The map stays where
+ * it is, because the map is where the plan is edited.
  */
 export function FlightData() {
   const showLeftColumn = useUiStore((state) => state.showLeftColumn);
@@ -45,6 +52,8 @@ export function FlightData() {
   const setLeftColumnWidth = useUiStore((state) => state.setLeftColumnWidth);
   const setHudHeight = useUiStore((state) => state.setHudHeight);
   const setGraphHeight = useUiStore((state) => state.setGraphHeight);
+
+  const editorOpen = usePlanEditorStore((state) => state.open);
 
   // The height of the area the graphs and the map share. It decides how tall the
   // graphs may be: the map is never left smaller than it can be worked in.
@@ -72,7 +81,15 @@ export function FlightData() {
     MIN_GRAPH_HEIGHT,
     Math.min(MAX_GRAPH_HEIGHT, available - MIN_MAP_HEIGHT),
   );
-  const drawnGraphHeight = Math.min(graphHeight, tallestGraph);
+
+  // The editor needs more room than a graph does: it holds a grid and a row of
+  // buttons, and a grid that is two rows tall is not a grid.
+  const minTop = editorOpen ? MIN_PLAN_HEIGHT : MIN_GRAPH_HEIGHT;
+  const maxTop = Math.max(minTop, tallestGraph);
+  const drawnGraphHeight = Math.min(Math.max(graphHeight, minTop), maxTop);
+
+  // The graphs are put away while the plan is being edited.
+  const graphsVisible = showGraphs && !editorOpen;
 
   return (
     <div className={styles.screen}>
@@ -164,7 +181,25 @@ export function FlightData() {
 
       <main className={styles.main}>
         <div className={styles.split} ref={split}>
-          {showGraphs ? (
+          {editorOpen ? (
+            <>
+              <div
+                className={styles.editor}
+                style={{ height: `${drawnGraphHeight}px` }}
+              >
+                <PlanEditor />
+              </div>
+
+              <Splitter
+                orientation="horizontal"
+                label="The height of the plan editor"
+                value={drawnGraphHeight}
+                min={minTop}
+                max={maxTop}
+                onChange={setGraphHeight}
+              />
+            </>
+          ) : graphsVisible ? (
             <>
               <div
                 className={styles.graphs}
@@ -178,7 +213,7 @@ export function FlightData() {
                 label="The height of the graphs"
                 value={drawnGraphHeight}
                 min={MIN_GRAPH_HEIGHT}
-                max={tallestGraph}
+                max={maxTop}
                 onChange={setGraphHeight}
               />
             </>

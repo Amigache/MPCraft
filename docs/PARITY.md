@@ -85,8 +85,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.1 | Mission download / upload | `ExtLibs/ArduPilot/mav_mission.cs` | ✅ | 2 |
 | 4.2 | `MISSION_ITEM_INT` support | `getWPAsync` (capability-gated) | ✅ | 2 |
 | 4.3 | Partial mission update | `mav_mission.uploadPartial` | 🔜 | 2 |
-| 4.4 | Waypoint table editor | `GCSViews/FlightPlanner.cs` (Commands grid) | 🔜 | 2 |
-| 4.5 | Map-based waypoint add / drag / delete | `FlightPlanner.cs` | 🔜 | 2 |
+| 4.4 | Waypoint table editor | `GCSViews/FlightPlanner.cs` (Commands grid) | ✅ | 2 |
+| 4.5 | Map-based waypoint add / drag / delete | `FlightPlanner.cs` | ✅ | 2 |
 | 4.6 | MAV_CMD parameter metadata & units | `mavcmd.xml` | 🔜 | 2 |
 | 4.7 | Altitude modes (absolute / relative / terrain) | `FlightPlanner.cs` altmode | 🔜 | 2 |
 | 4.8 | Geo-fence polygon drawing & upload | `FlightPlanner.cs` polygon tools | 🟡 | 2 |
@@ -97,8 +97,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.13 | KML import / export | `FlightPlanner.cs` processKML | ✅ | 2 |
 | 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | 🔜 | 2 |
 | 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | 🔜 | 2 |
-| 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | 🔜 | 2 |
-| 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | 🔜 | 2 |
+| 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | ✅ | 2 |
+| 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | 🟡 | 2 |
 | 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | 🔜 | 2 |
 | 4.19 | Waypoint radius (loiter) editing | `FlightPlanner.cs` loiter radius | 🔜 | 2 |
 | 4.20 | Spline / smooth path display | `FlightPlanner.cs` | 🔜 | 2 |
@@ -114,9 +114,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 5.4 | Live parameter updates | `processInfoFromStream` PARAM_VALUE | ✅ | 3 |
 | 5.5 | Parameter metadata (ranges, bitmasks, options, units) | `ParameterMetaData.xml` | 🔜 | 3 |
 | 5.6 | Parameter tree by prefix | `ConfigRawParams.BuildTree` | 🔜 | 3 |
-| 5.7 | Parameter search | `ConfigRawParams.txt_search` | 🔜 | 3 |
+| 5.7 | Parameter search | `ConfigRawParams.txt_search` | ✅ | 3 |
 | 5.8 | Favourites | `ConfigRawParams` Fav column | 🔜 | 3 |
-| 5.9 | Friendly (metadata-driven) parameter UI | `ConfigFriendlyParams.cs` | 🔜 | 3 |
+| 5.9 | Friendly (metadata-driven) parameter UI | `ConfigFriendlyParams.cs` | ✅ | 3 |
 | 5.10 | `.param` file import / export | `ExtLibs/Utilities/ParamFile.cs` | 🔜 | 3 |
 | 5.11 | Parameter diff against a file | `Controls/paramcompare.cs` | 🔜 | 3 |
 | 5.12 | Write-to-flash / reset-to-defaults | `ConfigRawParams` | 🔜 | 3 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 34 |
-| 🔜 Planned | 116 |
+| ✅ Done | 39 |
+| 🔜 Planned | 110 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 4 |
+| 🟡 Partial | 5 |
 
-The 34 rows marked done are the connection, transport, parameter, mission and command
+The 39 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -237,14 +237,22 @@ gauges and status - the map filling everything else, and a status strip. The liv
 the attitude indicator, the map with the vehicle and the track, the plan drawn on it, the
 dials, the tiles and the vehicle's own messages are all on screen.
 
-The graphs are in the split above the map, as upstream has them, and they are drawn from
-Mission Planner's own catalogue of presets: the expressions are evaluated over the
-telemetry in the model, and the interface receives numbers with names.
+The **parameter editor** is a sheet over the window: the parameters the vehicle has
+reported, a search box, and a value that can be edited in place. The write waits for the
+vehicle to confirm it, and the interface shows the value the vehicle stored, which is not
+always the one that was asked for: a vehicle clamps to its range, and the operator has to
+see what the vehicle has rather than what they wanted.
 
-What is still missing from the window: the parameter editor, the mission editor and the
-pre-flight checklist.
+The **plan editor** takes the place of the graphs, the way upstream's planner puts its grid
+above the map. The waypoints are dragged on the map, the plan is checked before it is
+flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
+unsent changes never looks like the plan on the vehicle.
 
-The four rows marked partial are the fence, the connection profiles and the map.
+What is still missing from the window: the pre-flight checklist, the history buffer of
+the plan editor, and the tree of the parameters by prefix.
+
+The five rows marked partial are the fence, the connection profiles, the map and the
+history buffer of the plan editor.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not
@@ -259,6 +267,9 @@ screen that edits them.
 
 The map works, and it draws the vehicle, the track and the plan; what is missing is the
 choice of the tile provider, which upstream offers as a registry of sources.
+
+The plan editor keeps the edits apart from the plan the vehicle holds, and says so when they
+differ; what is missing is the history buffer, so that a change can be taken back.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

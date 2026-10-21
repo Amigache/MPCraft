@@ -1,0 +1,32 @@
+/* A value of a plan item that is changed in place. */
+
+.input {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+  height: 22px;
+  min-width: 0;
+  padding: 0 var(--space-1);
+  text-align: right;
+  width: 100%;
+}
+
+.input:hover:not(:disabled) {
+  background: var(--colour-surface-raised);
+  border-color: var(--colour-border);
+}
+
+.input:focus {
+  background: var(--colour-bg);
+  border-color: var(--colour-accent-dim);
+  outline: none;
+}
+
+.input:disabled {
+  color: var(--colour-text-faint);
+  cursor: default;
+}

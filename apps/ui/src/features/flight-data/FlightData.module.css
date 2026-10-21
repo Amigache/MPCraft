@@ -68,6 +68,14 @@
   overflow: hidden;
 }
 
+/* The plan editor takes the place of the graphs while a plan is being edited. */
+
+.editor {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .mapArea {
   flex: 1 1 auto;
   min-height: 0;

@@ -132,6 +132,26 @@ export interface Parameter {
   readonly reportedType: number;
 }
 
+/** A command a plan can hold. */
+export interface MavCommand {
+  /** The name of the command, for example `MAV_CMD_NAV_WAYPOINT`. */
+  readonly name: string;
+  /** The value the command travels with. */
+  readonly value: number;
+  /** The role of each of the seven slots, in order. */
+  readonly roles: readonly string[];
+  /** The unit of each of the seven slots, in order. */
+  readonly units: readonly string[];
+}
+
+/** A warning about an item of a plan. */
+export interface PlanWarning {
+  /** The position of the item in the plan. */
+  readonly seq: number;
+  /** What is wrong with it, for example `zeroAltitude`. */
+  readonly reason: string;
+}
+
 /** A graph the user can choose. */
 export interface GraphPreset {
   /** The full name, as the interface shows it. */

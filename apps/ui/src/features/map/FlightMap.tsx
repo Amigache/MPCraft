@@ -1,10 +1,13 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
-import type { Telemetry } from "../../lib/ipc/types";
+import type { MavCommand, Plan, PlanItem, Telemetry } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
+import { useCommandStore } from "../../lib/plan/commandStore";
+import { carriesPosition, commandOf } from "../../lib/plan/planItems";
+import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import {
@@ -22,6 +25,10 @@ import styles from "./FlightMap.module.css";
  * from are drawn on it. The map is driven from outside React: the position, the heading
  * and the track are written into the map directly when a snapshot arrives, so a
  * telemetry tick does not re-render the tree.
+ *
+ * While the plan is being edited the items of the plan are drawn as **markers** and not
+ * as a layer of circles: a circle cannot be dragged, and dragging a waypoint on the map
+ * is how a plan is drawn.
  */
 
 /** The identifier of the source of the track. */
@@ -62,6 +69,14 @@ function usable(position: {
   );
 }
 
+/** A marker of an item of the plan. */
+interface ItemMarker {
+  /** The marker on the map. */
+  readonly marker: maplibregl.Marker;
+  /** The item it stands for. The plan is renumbered when it is changed. */
+  seq: number;
+}
+
 /**
  * The map does its work in a web worker.
  *
@@ -86,6 +101,73 @@ function setSourceData(
   }
 }
 
+/**
+ * The items of a plan that carry a place.
+ *
+ * A command that does not fly to a place — a delay, a change of speed — has zeroes in
+ * its coordinates, and a line drawn through them would run to the middle of the ocean.
+ * The catalogue says which commands carry a position, and the map asks it.
+ */
+function positioned(
+  items: readonly PlanItem[],
+  commands: readonly MavCommand[],
+): PlanItem[] {
+  return items.filter((item) => {
+    if (!Number.isFinite(item.x) || !Number.isFinite(item.y)) {
+      return false;
+    }
+    if (commands.length === 0) {
+      // The catalogue has not been read yet: everything that has a number is drawn.
+      return true;
+    }
+    return carriesPosition(commandOf(commands, item.commandValue));
+  });
+}
+
+/** The coordinates of the items of a plan that carry a position. */
+function coordinatesOf(items: readonly PlanItem[]): [number, number][] {
+  return items
+    .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
+    .map((item) => [item.y, item.x] as [number, number]);
+}
+
+/**
+ * The most markers the map draws at once.
+ *
+ * A marker is an element in the document, and the map moves every one of them on every
+ * frame it moves: a plan of a thousand waypoints would cost the map its frame rate.
+ * The items that are in the view are the ones that can be worked on, and the operator
+ * is told when there are more of them than the map will draw.
+ */
+const MAX_MARKERS = 150;
+
+/**
+ * Whether a place is in the view of the map, with a margin around it.
+ *
+ * A plan can be thousands of items long, and a marker for each of them is thousands of
+ * elements in the document: the map would crawl. Only the items that are in the view are
+ * given a marker, and the rest are drawn when the map comes to them.
+ */
+function inView(
+  bounds: maplibregl.LngLatBounds,
+  item: PlanItem,
+): boolean {
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+
+  const marginX = (east - west) * 0.25;
+  const marginY = (north - south) * 0.25;
+
+  return (
+    item.y >= west - marginX &&
+    item.y <= east + marginX &&
+    item.x >= south - marginY &&
+    item.x <= north + marginY
+  );
+}
+
 export function FlightMap() {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -94,6 +176,12 @@ export function FlightMap() {
   const track = useRef<[number, number][]>([]);
   const last = useRef<[number, number] | null>(null);
   const lastHome = useRef<Telemetry["home"] | undefined>(undefined);
+  const items = useRef(new Map<number, ItemMarker>());
+  const fitted = useRef<{
+    readonly editor: boolean;
+    readonly count: number;
+    readonly plan: unknown;
+  } | null>(null);
 
   const [failure, setFailure] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -103,8 +191,30 @@ export function FlightMap() {
   const setFollow = useUiStore((state) => state.setFollowVehicle);
   const toggleControls = useUiStore((state) => state.toggleMapControls);
 
-  const plan = usePlanStore((state) => state.plans.mission);
+  const kind = usePlanStore((state) => state.kind);
+  const plan = usePlanStore((state) => state.plans[kind]);
   const vehicles = useLinkStore((state) => state.vehicles);
+
+  const editorOpen = usePlanEditorStore((state) => state.open);
+  const draft = usePlanEditorStore((state) => state.draft);
+  const selected = usePlanEditorStore((state) => state.selected);
+  const adding = usePlanEditorStore((state) => state.adding);
+
+  const commands = useCommandStore((state) => state.commands);
+  const loadCommands = useCommandStore((state) => state.load);
+
+  // The catalogue of the commands is read once: the map needs it to know which items
+  // of a plan have a place at all.
+  useEffect(() => {
+    void loadCommands();
+  }, [loadCommands]);
+
+  // While the plan is being edited, the map shows the plan that is being edited: the
+  // plan the vehicle holds is not the plan on the screen until the edits are uploaded.
+  const shown = useMemo<Plan | null>(
+    () => (editorOpen ? { kind, items: draft } : plan),
+    [draft, editorOpen, kind, plan],
+  );
 
   // The map itself, once.
   useEffect(() => {
@@ -134,6 +244,9 @@ export function FlightMap() {
 
     const vehicle = document.createElement("div");
     vehicle.className = styles.vehicle ?? "";
+    // The marker is a graphic, not a control: the map library would otherwise make it
+    // a button, and a button that cannot be pressed is a lie to a screen reader.
+    vehicle.setAttribute("role", "presentation");
     marker.current = new maplibregl.Marker({
       element: vehicle,
       rotationAlignment: "map",
@@ -242,6 +355,15 @@ export function FlightMap() {
       setFailure(message);
     });
 
+    // A click on the map adds an item, when the editor is armed for it.
+    instance.on("click", (event) => {
+      const editor = usePlanEditorStore.getState();
+      if (!editor.open || !editor.adding) {
+        return;
+      }
+      editor.addAt(event.lngLat.lat, event.lngLat.lng);
+    });
+
     const observer = new ResizeObserver(() => {
       instance.resize();
     });
@@ -251,6 +373,10 @@ export function FlightMap() {
       observer.disconnect();
       marker.current?.remove();
       marker.current = null;
+      for (const entry of items.current.values()) {
+        entry.marker.remove();
+      }
+      items.current.clear();
       instance.remove();
       map.current = null;
       loaded.current = false;
@@ -322,17 +448,16 @@ export function FlightMap() {
     return liveTelemetry.subscribe(draw);
   }, []);
 
-  // The plan, when it is downloaded. It is drawn again when the map is ready, because
-  // the plan often arrives before the style of the map has finished loading.
+  // The line of the plan and the items on it. It is drawn again when the map is ready,
+  // because the plan often arrives before the style of the map has finished loading.
   useEffect(() => {
     const instance = map.current;
-    if (!instance || !loaded.current || !plan) {
+    if (!instance || !loaded.current || !shown) {
       return;
     }
 
-    const coordinates = plan.items
-      .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
-      .map((item) => [item.y, item.x] as [number, number]);
+    const places = positioned(shown.items, commands);
+    const coordinates = coordinatesOf(places);
 
     const line = instance.getSource(PLAN_SOURCE);
     if (line) {
@@ -343,28 +468,201 @@ export function FlightMap() {
       });
     }
 
-    const items = instance.getSource(ITEMS_SOURCE);
-    if (items) {
+    const source = instance.getSource(ITEMS_SOURCE);
+    if (source) {
       setSourceData(instance, ITEMS_SOURCE, {
         type: "FeatureCollection",
-        features: plan.items
-          .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
-          .map((item) => ({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [item.y, item.x] },
-            properties: { seq: item.seq, current: item.current },
-          })),
+        features: places.map((item) => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [item.y, item.x] },
+          properties: { seq: item.seq, current: item.current },
+        })),
       });
     }
+  }, [commands, shown, ready]);
 
-    if (coordinates.length > 0) {
-      const bounds = coordinates.reduce(
-        (carry, coordinate) => carry.extend(coordinate),
-        new maplibregl.LngLatBounds(coordinates[0], coordinates[0]),
-      );
-      instance.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 600 });
+  // The markers of the items, while the plan is being edited. They are draggable: a
+  // waypoint is drawn by dragging it, not by typing its coordinates.
+  //
+  // The markers are drawn outside React: the map moves far more often than the plan
+  // does, and a re-render of the tree for every frame of a pan would cost more than the
+  // map itself.
+  const drawItems = useCallback(() => {
+    const instance = map.current;
+    if (!instance || !loaded.current) {
+      return;
     }
-  }, [plan, ready]);
+
+    const editor = usePlanEditorStore.getState();
+
+    if (!editor.open) {
+      for (const entry of items.current.values()) {
+        entry.marker.remove();
+      }
+      items.current.clear();
+      return;
+    }
+
+    const commands = useCommandStore.getState().commands;
+    const bounds = instance.getBounds();
+    const places = positioned(editor.draft, commands);
+    const seen = new Set<number>();
+    let drawn = 0;
+
+    for (const item of places) {
+      if (drawn >= MAX_MARKERS) {
+        break;
+      }
+      if (!inView(bounds, item)) {
+        continue;
+      }
+
+      seen.add(item.seq);
+      drawn += 1;
+
+      let entry = items.current.get(item.seq);
+      if (entry === undefined) {
+        const element = document.createElement("div");
+        element.className = styles.item ?? "";
+        // The marker is a graphic, not a control: the map library would otherwise make
+        // it a button, and a plan of a thousand waypoints would be a thousand buttons
+        // for the keyboard to walk through. The grid is the list of the items.
+        element.setAttribute("role", "presentation");
+        element.setAttribute("aria-hidden", "true");
+
+        const created = new maplibregl.Marker({
+          element,
+          draggable: true,
+          anchor: "center",
+        });
+
+        const created_entry: ItemMarker = { marker: created, seq: item.seq };
+
+        created.on("dragend", () => {
+          const position = created.getLngLat();
+          usePlanEditorStore.getState().change(created_entry.seq, {
+            x: position.lat,
+            y: position.lng,
+          });
+        });
+
+        element.addEventListener("click", (event) => {
+          event.stopPropagation();
+          usePlanEditorStore.getState().select(created_entry.seq);
+        });
+
+        // The marker needs a place before it is put on the map: until it has one, the
+        // map has nothing to draw it at.
+        created.setLngLat([item.y, item.x]);
+        created.addTo(instance);
+        items.current.set(item.seq, created_entry);
+        entry = created_entry;
+      }
+
+      entry.seq = item.seq;
+      entry.marker.setLngLat([item.y, item.x]);
+
+      const element = entry.marker.getElement();
+      element.textContent = String(item.seq + 1);
+      element.title = `Item ${item.seq + 1}`;
+      if (styles.itemSelected) {
+        element.classList.toggle(styles.itemSelected, item.seq === editor.selected);
+      }
+      if (styles.itemCurrent) {
+        element.classList.toggle(styles.itemCurrent, item.current);
+      }
+    }
+
+    for (const [seq, entry] of items.current) {
+      if (!seen.has(seq)) {
+        entry.marker.remove();
+        items.current.delete(seq);
+      }
+    }
+
+    // The operator is told when the map is not showing every item of the plan.
+    usePlanEditorStore.getState().setMarked(drawn, places.length);
+  }, []);
+
+  // The markers are drawn when the plan changes.
+  useEffect(() => {
+    drawItems();
+  }, [commands, drawItems, draft, editorOpen, ready, selected]);
+
+  // And when the map comes to another part of the plan.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) {
+      return;
+    }
+
+    let pending = false;
+    const onMove = () => {
+      if (pending) {
+        return;
+      }
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        drawItems();
+      });
+    };
+
+    instance.on("move", onMove);
+    return () => {
+      instance.off("move", onMove);
+    };
+  }, [drawItems, ready]);
+
+  // The circles of the plan give way to the markers while the plan is being edited.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !loaded.current) {
+      return;
+    }
+
+    const visibility = editorOpen ? "none" : "visible";
+    instance.setLayoutProperty("plan-items", "visibility", visibility);
+    instance.setLayoutProperty("plan-current", "visibility", visibility);
+  }, [editorOpen, ready]);
+
+  // The view of the plan. It is fitted when the plan changes as a plan: when the
+  // editor is opened or closed, and when the plan on the vehicle is read again. A
+  // waypoint that is dragged does not move the map under the pointer that is dragging
+  // it, so the view is left alone.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !loaded.current || !shown) {
+      return;
+    }
+
+    const coordinates = coordinatesOf(positioned(shown.items, commands));
+    if (coordinates.length === 0) {
+      return;
+    }
+
+    const last = fitted.current;
+    if (
+      last !== null &&
+      last.editor === editorOpen &&
+      last.count === shown.items.length &&
+      (editorOpen || last.plan === plan)
+    ) {
+      return;
+    }
+
+    fitted.current = {
+      editor: editorOpen,
+      count: shown.items.length,
+      plan,
+    };
+
+    const bounds = coordinates.reduce(
+      (carry, coordinate) => carry.extend(coordinate),
+      new maplibregl.LngLatBounds(coordinates[0], coordinates[0]),
+    );
+    instance.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 600 });
+  }, [commands, editorOpen, plan, ready, shown]);
 
   return (
     <div className={styles.map}>
@@ -391,11 +689,19 @@ export function FlightMap() {
         </button>
       </div>
 
-      {failure ? (
-        <p className={styles.failure} role="alert">
-          The map could not be drawn: {failure}
-        </p>
-      ) : null}
+      <div className={styles.messages}>
+        {adding ? (
+          <p className={styles.hint} role="status">
+            Click the map to add a waypoint
+          </p>
+        ) : null}
+
+        {failure ? (
+          <p className={styles.failure} role="alert">
+            The map could not be drawn: {failure}
+          </p>
+        ) : null}
+      </div>
 
       <p className={styles.caption}>
         {vehicles.length > 0

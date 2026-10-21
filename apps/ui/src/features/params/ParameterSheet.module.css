@@ -1,0 +1,285 @@
+/* The sheet of parameters.
+ *
+ * A sheet is a panel over the window, with the window dimmed behind it. It is anchored
+ * to the top of the window, with a margin, and it takes the room it needs and no more:
+ * the map is still there underneath, and the operator can see that it is still there.
+ */
+
+.backdrop {
+  align-items: flex-start;
+  background: rgba(6, 9, 13, 0.55);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--space-6);
+  position: fixed;
+  z-index: 60;
+}
+
+.panel {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  height: min(680px, 100%);
+  overflow: hidden;
+  width: min(760px, 100%);
+}
+
+/* The header ---------------------------------------------------------------- */
+
+.header {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  margin: 0;
+}
+
+.count {
+  color: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+}
+
+.headerActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* The search ---------------------------------------------------------------- */
+
+.searchRow {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+}
+
+.search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.filtered {
+  color: var(--colour-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  white-space: nowrap;
+}
+
+/* The list ------------------------------------------------------------------ */
+
+.body {
+  flex: 1 1 auto;
+  min-height: 160px;
+  position: relative;
+}
+
+.list {
+  inset: 0;
+  overflow-y: auto;
+  position: absolute;
+}
+
+.canvas {
+  position: relative;
+  width: 100%;
+}
+
+/* One parameter. The name on the left, the value on the right, the type beside it. */
+
+.row {
+  align-items: center;
+  column-gap: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  left: 0;
+  min-height: 28px;
+  padding: 0 var(--space-4);
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.name {
+  flex: 1 1 120px;
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  cursor: pointer;
+  flex: 0 0 240px;
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+  padding: 2px var(--space-2);
+  text-align: right;
+}
+
+.value:hover:not(:disabled) {
+  background: var(--colour-accent-wash);
+  border-color: var(--colour-border-strong);
+}
+
+.value:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.editor {
+  align-items: center;
+  display: flex;
+  flex: 0 0 240px;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.input {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-accent-dim);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+  height: 24px;
+  padding: 0 var(--space-2);
+  text-align: right;
+  width: 120px;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--colour-danger);
+}
+
+.write,
+.abort {
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--font-2xs);
+  height: 24px;
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+}
+
+.write {
+  background: var(--colour-accent-dim);
+  border-color: var(--colour-accent-dim);
+  color: #eafff7;
+}
+
+.write:hover:not(:disabled) {
+  background: var(--colour-accent);
+  border-color: var(--colour-accent);
+  color: #04231b;
+}
+
+.write:disabled,
+.abort:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.badgeCell {
+  display: flex;
+  flex: 0 0 72px;
+  justify-content: flex-end;
+}
+
+.badge {
+  background: var(--colour-surface-raised);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  letter-spacing: 0.04em;
+  padding: 1px var(--space-1);
+}
+
+.problem {
+  color: var(--colour-danger);
+  flex: 1 0 100%;
+  font-size: var(--font-2xs);
+  padding-bottom: var(--space-1);
+}
+
+/* The empty states ---------------------------------------------------------- */
+
+.empty {
+  align-items: center;
+  color: var(--colour-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+  justify-content: center;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.hint {
+  font-size: var(--font-xs);
+  margin: 0;
+}
+
+.errorBar {
+  background: var(--colour-danger-wash);
+  border-bottom: 1px solid var(--colour-border);
+  color: var(--colour-danger);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+}
+
+.code {
+  color: var(--colour-warning);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The footer ---------------------------------------------------------------- */
+
+.footer {
+  border-top: 1px solid var(--colour-border);
+  font-size: var(--font-xs);
+  min-height: 34px;
+  padding: var(--space-2) var(--space-4);
+}
+
+.idle {
+  color: var(--colour-text-faint);
+}
+
+.written {
+  color: var(--colour-accent);
+}
+
+.failed {
+  color: var(--colour-danger);
+}
