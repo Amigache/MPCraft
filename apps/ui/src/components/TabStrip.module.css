@@ -4,8 +4,8 @@
   border-bottom: 1px solid var(--colour-border);
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: 2px;
-  overflow-x: auto;
   padding: 0 var(--space-1);
   scrollbar-width: none;
 }

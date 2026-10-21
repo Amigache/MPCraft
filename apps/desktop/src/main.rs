@@ -17,6 +17,7 @@ use mpcraft_app::{
 use mpcraft_link::{Calibration, VehicleId};
 use mpcraft_mission::{MissionType, Plan};
 use mpcraft_transport::SerialTransport;
+use mpcraft_vehicle::Telemetry;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// The event that carries the state of the link and the telemetry.
@@ -1151,6 +1152,155 @@ async fn log_export_csv(log: String, name: String, output: String) -> CommandRes
     Ok(())
 }
 
+/// The event that carries the telemetry of a log that is being played back.
+const PLAYBACK_EVENT: &str = "playback-state";
+
+/// What a log that is being played back says about itself.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaybackInfo {
+    /// How long the flight lasted, in seconds.
+    duration: f64,
+    /// How many samples the flight holds.
+    samples: usize,
+    /// Whether a log is open.
+    open: bool,
+}
+
+/// Opens a log to be played back.
+///
+/// The flight is read once, and the window can then be moved through it: the vehicle
+/// is where it was, the graphs say what it said and the map shows the track it left.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, or when it
+/// does not hold a log.
+#[tauri::command]
+async fn playback_open(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> CommandResult<PlaybackInfo> {
+    let playback = mpcraft_app::logs::Playback::open(std::path::Path::new(&path))?;
+
+    let info = PlaybackInfo {
+        duration: playback.duration(),
+        samples: playback.len(),
+        open: true,
+    };
+
+    {
+        let mut held = state
+            .playback
+            .lock()
+            .map_err(|_| CommandError::internal("the play-back is poisoned"))?;
+
+        *held = playback;
+    }
+
+    // The window is told that the flight is being played back, so that the telemetry of
+    // the link does not fight with it.
+    let _ = app.emit(
+        PLAYBACK_EVENT,
+        PlaybackState {
+            open: true,
+            position: 0.0,
+            duration: info.duration,
+            telemetry: telemetry_of(&Telemetry::default()),
+        },
+    );
+
+    Ok(info)
+}
+
+/// Moves the play-back of the log to the given second of the flight.
+///
+/// The telemetry of that instant is published, and the window is drawn as the flight
+/// was at that moment.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when no log is open.
+#[tauri::command]
+async fn playback_seek(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    seconds: f64,
+) -> CommandResult<()> {
+    let (telemetry, duration) = {
+        let mut held = state
+            .playback
+            .lock()
+            .map_err(|_| CommandError::internal("the play-back is poisoned"))?;
+
+        if held.is_empty() {
+            return Err(CommandError::invalid_request(
+                "there is no log to play back",
+            ));
+        }
+
+        (held.seek(seconds), held.duration())
+    };
+
+    let _ = app.emit(
+        PLAYBACK_EVENT,
+        PlaybackState {
+            open: true,
+            position: seconds,
+            duration,
+            telemetry: telemetry_of(&telemetry),
+        },
+    );
+
+    Ok(())
+}
+
+/// Closes the log that is being played back.
+///
+/// The window goes back to the vehicle on the link.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn playback_close(app: AppHandle, state: State<'_, AppState>) -> CommandResult<()> {
+    {
+        let mut held = state
+            .playback
+            .lock()
+            .map_err(|_| CommandError::internal("the play-back is poisoned"))?;
+
+        *held = mpcraft_app::logs::Playback::default();
+    }
+
+    let _ = app.emit(
+        PLAYBACK_EVENT,
+        PlaybackState {
+            open: false,
+            position: 0.0,
+            duration: 0.0,
+            telemetry: telemetry_of(&Telemetry::default()),
+        },
+    );
+
+    Ok(())
+}
+
+/// The state of a log that is being played back.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaybackState {
+    /// Whether a log is open.
+    open: bool,
+    /// Where the play-back is, in seconds.
+    position: f64,
+    /// How long the flight lasted, in seconds.
+    duration: f64,
+    /// The telemetry of the flight at that instant.
+    telemetry: TelemetryEvent,
+}
+
 /// The track of a log: the places the vehicle went through.
 ///
 /// # Errors
@@ -1991,8 +2141,16 @@ impl From<&LinkSnapshot> for StateEvent {
 
 /// The telemetry of a session, as the interface sees it.
 fn telemetry_event(state: &SessionState) -> TelemetryEvent {
-    let telemetry = &state.telemetry;
+    telemetry_of(&state.telemetry)
+}
 
+/// The telemetry of a vehicle, as the interface sees it.
+///
+/// The telemetry of a link comes from the state of the session, and the telemetry
+/// of a log that is being played back comes from the log. The shape of the event
+/// is the same either way: the interface does not have to know where the numbers
+/// came from.
+fn telemetry_of(telemetry: &Telemetry) -> TelemetryEvent {
     TelemetryEvent {
         position: telemetry.position.map(|position| PositionEvent {
             lat: position.lat,
@@ -2199,6 +2357,9 @@ fn main() {
             list_mav_commands,
             graph_series,
             log_summary,
+            playback_open,
+            playback_seek,
+            playback_close,
             log_series,
             log_track,
             log_export_kml,

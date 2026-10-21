@@ -28,6 +28,7 @@ use mpcraft_mavlink::MavCmd;
 use mpcraft_mavlink::Message;
 use mpcraft_mission::{MissionItem, MissionItemId, MissionType, Plan};
 use mpcraft_vehicle::graph::{self, History, Sample};
+use mpcraft_vehicle::Telemetry;
 
 use crate::error::{CommandError, CommandResult};
 use crate::graphs::{SeriesData, SeriesPoints};
@@ -38,6 +39,9 @@ use crate::graphs::{SeriesData, SeriesPoints};
 /// of them would be more than anybody can look at. A sample every fifth of a second is
 /// enough to draw a graph and to play the flight back.
 const SAMPLE_INTERVAL: u64 = 200_000;
+
+/// How often the play-back of a log takes a sample, in microseconds.
+const PLAYBACK_INTERVAL: u64 = 100_000;
 
 /// The most samples the history of a log keeps.
 const MAX_SAMPLES: usize = 20_000;
@@ -334,6 +338,116 @@ pub fn samples_csv(path: &Path, name: &str) -> CommandResult<String> {
 
     String::from_utf8(bytes)
         .map_err(|error| CommandError::internal(format!("the samples are not text: {error}")))
+}
+
+/// A flight that is being played back.
+///
+/// The log is read once, and the telemetry of the flight is kept as it was: every
+/// sample is the whole state of the vehicle at that instant, so the window can be
+/// drawn as it was when the flight happened.
+///
+/// The samples are thinned, the same way the history of the graphs thins them: a
+/// flight of an hour has a hundred thousand messages, and a tenth of a second is
+/// enough to show it.
+#[derive(Debug, Clone, Default)]
+pub struct Playback {
+    /// The telemetry of the flight, one snapshot per sample.
+    samples: Vec<(Duration, Telemetry)>,
+    /// Where the play-back is.
+    position: Duration,
+}
+
+impl Playback {
+    /// Reads a log and prepares it to be played back.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the file cannot be read, or when it does not hold a log.
+    pub fn open(path: &Path) -> CommandResult<Self> {
+        let file = File::open(path).map_err(|error| {
+            CommandError::invalid_request(format!("the log could not be opened: {error}"))
+        })?;
+
+        let mut reader = TlogReader::new(file);
+        let mut aggregator = TelemetryAggregator::new();
+
+        let mut samples: Vec<(Duration, Telemetry)> = Vec::new();
+
+        let mut start = 0_u64;
+        let mut last_sample = 0_u64;
+        let mut first = true;
+        let mut taken = false;
+
+        while let Some(record) = reader
+            .next_record()
+            .map_err(|error| CommandError::invalid_request(error.to_string()))?
+        {
+            aggregator.apply(&record.message);
+
+            if first {
+                start = record.timestamp;
+                first = false;
+            }
+
+            let at = record.timestamp.saturating_sub(start);
+
+            if taken && at.saturating_sub(last_sample) < PLAYBACK_INTERVAL {
+                continue;
+            }
+
+            taken = true;
+            last_sample = at;
+
+            samples.push((Duration::from_micros(at), aggregator.telemetry().clone()));
+        }
+
+        Ok(Self {
+            samples,
+            position: Duration::ZERO,
+        })
+    }
+
+    /// How long the flight lasted, in seconds.
+    #[must_use]
+    pub fn duration(&self) -> f64 {
+        self.samples.last().map_or(0.0, |(at, _)| at.as_secs_f64())
+    }
+
+    /// How many samples the flight holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    /// Whether the flight holds nothing.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
+
+    /// Moves the play-back to the given second of the flight.
+    ///
+    /// The telemetry of that instant is returned: the sample that is at or before
+    /// the position, because a telemetry snapshot is the state of the vehicle and not
+    /// a moment.
+    pub fn seek(&mut self, seconds: f64) -> Telemetry {
+        let position = Duration::from_secs_f64(seconds.max(0.0));
+
+        self.position = position;
+
+        self.samples
+            .iter()
+            .rev()
+            .find(|(at, _)| *at <= position)
+            .or_else(|| self.samples.first())
+            .map_or_else(Telemetry::default, |(_, telemetry)| telemetry.clone())
+    }
+
+    /// Where the play-back is, in seconds.
+    #[must_use]
+    pub fn position(&self) -> f64 {
+        self.position.as_secs_f64()
+    }
 }
 
 /// Reads a log and builds the history of its telemetry.

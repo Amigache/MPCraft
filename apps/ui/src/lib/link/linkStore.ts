@@ -29,6 +29,14 @@ interface LinkStatePayload {
   readonly messages: readonly VehicleMessage[];
 }
 
+/** The payload of the `playback-state` event. */
+interface PlaybackStatePayload {
+  readonly open: boolean;
+  readonly position: number;
+  readonly duration: number;
+  readonly telemetry: Telemetry;
+}
+
 /** The state of the link. */
 export interface LinkStore {
   /** The state of the connection. */
@@ -41,6 +49,13 @@ export interface LinkStore {
   readonly messages: readonly VehicleMessage[];
   /** The most recent telemetry snapshot. */
   readonly telemetry: Telemetry;
+  /**
+   * Whether a log is being played back.
+   *
+   * A log that is played back is drawn instead of the vehicle on the link, and
+   * the link does not overwrite it while it is being shown.
+   */
+  readonly playback: boolean;
 }
 
 /** The state of a link that is not open. */
@@ -50,6 +65,7 @@ const INITIAL: LinkStore = {
   loss: { received: 0, lost: 0 },
   messages: [],
   telemetry: EMPTY_TELEMETRY,
+  playback: false,
 };
 
 /**
@@ -157,6 +173,12 @@ export function startLinkBridge(): void {
   started = true;
 
   void listen<LinkStatePayload>("link-state", (event) => {
+    // A log that is being played back is drawn instead of the vehicle on the
+    // link, and the link does not take the window back while it is shown.
+    if (useLinkStore.getState().playback) {
+      return;
+    }
+
     const payload = event.payload;
     const telemetry = normaliseTelemetry(payload.telemetry);
 
@@ -182,8 +204,21 @@ export function startLinkBridge(): void {
       };
     });
   });
-}
 
+  // A log that is played back is drawn as if the flight were happening: the telemetry
+  // of the log is published, and the window shows the vehicle where it was.
+  void listen<PlaybackStatePayload>("playback-state", (event) => {
+    const payload = event.payload;
+
+    if (!payload.open) {
+      useLinkStore.setState({ playback: false });
+      return;
+    }
+
+    liveTelemetry.publish(normaliseTelemetry(payload.telemetry));
+    useLinkStore.setState({ playback: true });
+  });
+}
 /** The primary vehicle on the link, which is the one the interface drives. */
 export function primaryVehicle(
   vehicles: readonly VehicleEvent[],

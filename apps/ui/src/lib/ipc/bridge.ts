@@ -14,6 +14,7 @@ import type {
   GraphPreset,
   GraphSeries,
   LogSummary,
+  PlaybackInfo,
   LogTrackPoint,
   LossStats,
   MavCommand,
@@ -393,6 +394,30 @@ export async function logExportCsv(
   output: string,
 ): Promise<void> {
   await call<void>("log_export_csv", { log, name, output });
+}
+
+/**
+ * Opens a log to be played back.
+ *
+ * The flight is read once, and the window can then be moved through it.
+ */
+export async function playbackOpen(path: string): Promise<PlaybackInfo> {
+  return call<PlaybackInfo>("playback_open", { path });
+}
+
+/**
+ * Moves the play-back of the log to the given second of the flight.
+ *
+ * The telemetry of that instant is published, and the window is drawn as the flight
+ * was at that moment.
+ */
+export async function playbackSeek(seconds: number): Promise<void> {
+  await call<void>("playback_seek", { seconds });
+}
+
+/** Closes the log that is being played back. */
+export async function playbackClose(): Promise<void> {
+  await call<void>("playback_close", {});
 }
 
 /** The track of a log: the places the vehicle went through. */

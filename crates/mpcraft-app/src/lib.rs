@@ -118,6 +118,14 @@ pub struct AppState {
 
     /// The terrain, fetched from the service and kept on the disk.
     pub terrain: TerrainService,
+
+    ///
+    /// The flight that is being played back, when one is.
+    ///
+    /// A log can be played back as if it were happening: the window shows the
+    /// vehicle where it was, the graphs show what it said and the map shows the
+    /// track it left.
+    pub playback: std::sync::Arc<std::sync::Mutex<logs::Playback>>,
 }
 
 impl Default for AppState {
@@ -127,6 +135,7 @@ impl Default for AppState {
             settings: SettingsStore::platform(),
             graphs: GraphHistory::new(),
             terrain: TerrainService::new(terrain_cache_dir()),
+            playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
         }
     }
 }
@@ -310,6 +319,7 @@ mod tests {
             settings: Some(store),
             graphs: GraphHistory::new(),
             terrain: TerrainService::new(terrain_cache_dir()),
+            playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
         };
 
         assert!(state
@@ -340,6 +350,7 @@ mod tests {
             settings: None,
             graphs: GraphHistory::new(),
             terrain: TerrainService::new(terrain_cache_dir()),
+            playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
         };
 
         let error = state

@@ -150,7 +150,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 6.8 | Log graphing with multi-axis | `LogBrowse.CreateChart` | ✅ | 4 |
 | 6.9 | Graph preset definitions | `graphs/mavgraphs.xml` | ✅ | 4 |
 | 6.10 | Cross-highlight grid ↔ graph ↔ map | `LogBrowse.GoToSample` | 🔜 | 4 |
-| 6.11 | tlog playback with scrub timeline | `FlightData.cs` tracklog | 🔜 | 4 |
+| 6.11 | tlog playback with scrub timeline | `FlightData.cs` tracklog | ✅ | 4 |
 | 6.12 | KML export of flight track | `Log/LogOutput.cs` | ✅ | 4 |
 | 6.13 | CSV export of samples | `LogBrowse` export | ✅ | 4 |
 | 6.14 | Python LogAnalyzer integration | `LogAnalyzer/` | ⬜ | Dropped — depends on Python 2 toolchain; replaced by native analysis in 6.7–6.8 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 89 |
-| 🔜 Planned | 64 |
+| ✅ Done | 90 |
+| 🔜 Planned | 63 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 89 rows marked done are the connection, transport, parameter, mission and command
+The 90 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all

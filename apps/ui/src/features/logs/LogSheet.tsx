@@ -8,6 +8,8 @@ import {
   logSeries,
   logSummary,
   normaliseError,
+  playbackOpen,
+  playbackSeek,
 } from "../../lib/ipc/bridge";
 import type {
   CommandError,
@@ -37,6 +39,9 @@ const LOG_FILTERS = [
   { name: "All files", extensions: ["*"] },
 ];
 
+/** How far the play-back moves at a time, in seconds. */
+const PLAYBACK_STEP = 0.1;
+
 export function LogSheet() {
   const open = useUiStore((state) => state.logOpen);
   const hide = useUiStore((state) => state.hideLog);
@@ -50,6 +55,12 @@ export function LogSheet() {
   const [error, setError] = useState<CommandError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** How long the flight lasted, in seconds. */
+  const [flight, setFlight] = useState(0);
+  /** Where the play-back is, in seconds. */
+  const [position, setPosition] = useState(0);
+  /** Whether the flight is being played. */
+  const [playing, setPlaying] = useState(false);
 
   // The catalogue of graphs is read once, when the sheet opens.
   useEffect(() => {
@@ -94,8 +105,12 @@ export function LogSheet() {
 
       try {
         const read = await logSummary(path);
+        const playback = await playbackOpen(path);
+
         if (!cancelled) {
           setSummary(read);
+          setFlight(playback.duration);
+          setPosition(0);
           setError(null);
         }
       } catch (cause) {
@@ -144,6 +159,34 @@ export function LogSheet() {
       cancelled = true;
     };
   }, [path, preset]);
+
+  // The flight plays itself: the position moves and the window is told where it is.
+  // The play-back is the backend's, so that the flight is the same one whatever the
+  // interface does with it.
+  useEffect(() => {
+    if (!playing || flight === 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setPosition((current) => {
+        const next = current + PLAYBACK_STEP;
+
+        if (next >= flight) {
+          setPlaying(false);
+          return flight;
+        }
+
+        void playbackSeek(next);
+
+        return next;
+      });
+    }, PLAYBACK_STEP * 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [flight, playing]);
 
   const plan = useMemo(
     () =>
@@ -310,6 +353,41 @@ export function LogSheet() {
               the frames that crossed the link, each of them with the instant it was
               seen.
             </p>
+          ) : null}
+
+          {flight > 0 ? (
+            <div className={styles.scrub}>
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                title={playing ? "Pause the flight" : "Play the flight"}
+                onClick={() => {
+                  setPlaying(!playing);
+                }}
+              >
+                {playing ? "Pause" : "Play"}
+              </button>
+
+              <input
+                className={styles.scrubBar}
+                type="range"
+                min={0}
+                max={flight}
+                step={PLAYBACK_STEP}
+                value={Math.min(position, flight)}
+                aria-label="Where the flight is"
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setPosition(value);
+                  void playbackSeek(value);
+                }}
+              />
+
+              <span className={styles.scrubTime}>
+                {position.toFixed(1)} s of {flight.toFixed(1)} s
+              </span>
+            </div>
           ) : null}
 
           {summary !== null ? (

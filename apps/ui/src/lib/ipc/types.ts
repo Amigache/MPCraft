@@ -485,6 +485,32 @@ export interface LogTrackPoint {
   readonly at: number;
 }
 
+/**
+ * The state of a log that is being played back.
+ */
+export interface PlaybackState {
+  /** Whether a log is open. */
+  readonly open: boolean;
+  /** Where the play-back is, in seconds. */
+  readonly position: number;
+  /** How long the flight lasted, in seconds. */
+  readonly duration: number;
+  /** The telemetry of the flight at that instant. */
+  readonly telemetry: Telemetry;
+}
+
+/**
+ * What a log that is being played back says about itself.
+ */
+export interface PlaybackInfo {
+  /** How long the flight lasted, in seconds. */
+  readonly duration: number;
+  /** How many samples the flight holds. */
+  readonly samples: number;
+  /** Whether a log is open. */
+  readonly open: boolean;
+}
+
 export interface GraphPreset {
   /** The full name, as the interface shows it. */
   readonly name: string;
