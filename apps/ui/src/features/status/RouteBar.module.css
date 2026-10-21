@@ -1,0 +1,33 @@
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.track {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  height: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.travelled {
+  background: var(--colour-accent);
+  height: 100%;
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.figure {
+  color: var(--colour-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  white-space: nowrap;
+}

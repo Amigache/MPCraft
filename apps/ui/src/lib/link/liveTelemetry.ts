@@ -32,6 +32,7 @@ export const EMPTY_TELEMETRY: Telemetry = {
   mission: null,
   gps: null,
   gps2: null,
+  wind: null,
   imu: null,
   barometer: null,
   controls: null,

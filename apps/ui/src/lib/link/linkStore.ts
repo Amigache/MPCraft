@@ -77,6 +77,7 @@ function normaliseTelemetry(telemetry: Telemetry | undefined): Telemetry {
     mission: telemetry.mission ?? null,
     gps: telemetry.gps ?? null,
     gps2: telemetry.gps2 ?? null,
+    wind: telemetry.wind ?? null,
     imu: telemetry.imu ?? null,
     barometer: telemetry.barometer ?? null,
     controls: telemetry.controls ?? null,

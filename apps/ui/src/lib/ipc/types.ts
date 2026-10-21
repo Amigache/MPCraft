@@ -187,6 +187,16 @@ export interface Coordinates {
   readonly mgrs: string | null;
 }
 
+/** The wind where the vehicle is. */
+export interface Wind {
+  /** The direction the wind comes from, in degrees. */
+  readonly direction: number;
+  /** The speed of the wind, in metres per second. */
+  readonly speed: number;
+  /** The vertical speed of the air, in metres per second. */
+  readonly verticalSpeed: number;
+}
+
 /** The decoded telemetry snapshot for one vehicle. */
 export interface Telemetry {
   readonly attitude: Attitude | null;
@@ -202,6 +212,9 @@ export interface Telemetry {
   readonly gps: GpsStatus | null;
   /** The state of the second receiver, when the vehicle has one. */
   readonly gps2: GpsStatus | null;
+
+  /** The wind where the vehicle is. */
+  readonly wind: Wind | null;
   readonly imu: Imu | null;
   readonly barometer: Barometer | null;
   readonly controls: Controls | null;

@@ -200,6 +200,22 @@ const fn fence_circle_roles() -> [ParamRole; 7] {
     ]
 }
 
+/// The roles of a loiter.
+///
+/// The radius of the circle the vehicle flies is the second parameter, and it is what
+/// the operator changes when the circle is not the size it should be.
+const fn loiter_roles() -> [ParamRole; 7] {
+    [
+        ParamRole::Empty,
+        ParamRole::Distance,
+        ParamRole::Empty,
+        ParamRole::Empty,
+        ParamRole::Latitude,
+        ParamRole::Longitude,
+        ParamRole::Altitude,
+    ]
+}
+
 const fn delay_roles() -> [ParamRole; 7] {
     [
         ParamRole::Other,
@@ -278,10 +294,10 @@ pub const COMMANDS: &[CmdMetadata] = &[
     CmdMetadata {
         command: MavCmd::MAV_CMD_NAV_LOITER_UNLIM,
         name: "Loiter Unbounded",
-        roles: location_roles(),
+        roles: loiter_roles(),
         units: [
             ParamUnit::None,
-            ParamUnit::None,
+            ParamUnit::Metres,
             ParamUnit::None,
             ParamUnit::None,
             ParamUnit::Degrees,
@@ -292,18 +308,10 @@ pub const COMMANDS: &[CmdMetadata] = &[
     CmdMetadata {
         command: MavCmd::MAV_CMD_NAV_LOITER_TURNS,
         name: "Loiter Turns",
-        roles: [
-            ParamRole::Other,
-            ParamRole::Other,
-            ParamRole::Other,
-            ParamRole::Other,
-            ParamRole::Latitude,
-            ParamRole::Longitude,
-            ParamRole::Altitude,
-        ],
+        roles: loiter_roles(),
         units: [
             ParamUnit::None,
-            ParamUnit::None,
+            ParamUnit::Metres,
             ParamUnit::None,
             ParamUnit::None,
             ParamUnit::Degrees,
@@ -314,18 +322,10 @@ pub const COMMANDS: &[CmdMetadata] = &[
     CmdMetadata {
         command: MavCmd::MAV_CMD_NAV_LOITER_TIME,
         name: "Loiter Time",
-        roles: [
-            ParamRole::Other,
-            ParamRole::Other,
-            ParamRole::Other,
-            ParamRole::Other,
-            ParamRole::Latitude,
-            ParamRole::Longitude,
-            ParamRole::Altitude,
-        ],
+        roles: loiter_roles(),
         units: [
             ParamUnit::None,
-            ParamUnit::None,
+            ParamUnit::Metres,
             ParamUnit::None,
             ParamUnit::None,
             ParamUnit::Degrees,

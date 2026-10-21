@@ -30,6 +30,7 @@ import {
   sameItems,
 } from "./planItems";
 import { usePlanStore } from "./planStore";
+import { circlePoints } from "./circle";
 
 /**
  * The plan that is being edited.
@@ -118,6 +119,15 @@ export interface PlanEditorStore {
   readonly move: (seq: number, delta: number) => void;
   /** Removes an item from the plan. */
   readonly remove: (seq: number) => void;
+
+  /** Adds a circle of a survey to the plan. */
+  readonly generateCircle: (
+    centre: { lat: number; lng: number },
+    radius: number,
+    points: number,
+    altitude: number,
+    clockwise: boolean,
+  ) => void;
   /** Adds an item at a position, with the altitude of the item before it. */
   readonly addAt: (latitude: number, longitude: number) => void;
   /** Asks the backend what is wrong with the plan, and waits for the operator. */
@@ -349,6 +359,31 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
       }
 
       return { ...withHistory(state, draft), selected };
+    }),
+
+  generateCircle: (centre, radius, points, altitude, clockwise) =>
+    set((state) => {
+      const generated = circlePoints({
+        centre,
+        radius,
+        points,
+        altitude,
+        clockwise,
+      });
+
+      if (generated.length === 0) {
+        return { notice: "The circle needs at least three points and a radius." };
+      }
+
+      // The circle is added to the plan and nothing is thrown away: the operator can
+      // take it back with the same key that takes back any other change.
+      const draft = [...state.draft, ...generated];
+
+      return {
+        ...withHistory(state, renumber(draft)),
+        selected: state.draft.length,
+        notice: `${generated.length} points were added to the plan.`,
+      };
     }),
 
   addAt: (latitude, longitude) => {

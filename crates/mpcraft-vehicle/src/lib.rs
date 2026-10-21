@@ -103,6 +103,20 @@ pub struct Battery {
     pub remaining: f64,
 }
 
+/// The wind where the vehicle is.
+///
+/// The direction is the one the wind comes **from**, in degrees, and the speed is in
+/// metres per second. The vertical speed says whether the air is rising or falling.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Wind {
+    /// The direction the wind comes from, in degrees.
+    pub direction: f64,
+    /// The speed of the wind, in metres per second.
+    pub speed: f64,
+    /// The vertical speed of the air, in metres per second.
+    pub vertical_speed: f64,
+}
+
 /// The state of the global positioning.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct GpsStatus {
@@ -365,6 +379,9 @@ pub struct Telemetry {
     /// A vehicle with two receivers reports them separately, and the operator needs
     /// to see both: one of them may be looking at a constellation the other is not.
     pub gps2: Option<GpsStatus>,
+
+    /// The wind, once it is known.
+    pub wind: Option<Wind>,
     /// The inertial measurement, once received.
     pub imu: Option<Imu>,
     /// The barometer, once received.
@@ -421,6 +438,10 @@ impl Telemetry {
 
         if let Some(gps) = update.gps2 {
             self.gps2 = Some(gps);
+        }
+
+        if let Some(wind) = update.wind {
+            self.wind = Some(wind);
         }
         if let Some(imu) = update.imu {
             self.imu = Some(imu);
@@ -491,6 +512,9 @@ pub struct TelemetryUpdate {
 
     /// New state of the second global positioning.
     pub gps2: Option<GpsStatus>,
+
+    /// New wind.
+    pub wind: Option<Wind>,
     /// New inertial measurement.
     pub imu: Option<Imu>,
     /// New barometer reading.

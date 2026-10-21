@@ -55,8 +55,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.15 | Transponder (Mode-S) control | `FlightData.cs` tabTransponder | 🔜 | 5 |
 | 2.16 | EFI / generator telemetry | `CurrentState.cs` | 🔜 | 5 |
 | 2.17 | OpenDroneID display | `ExtLibs/ArduPilot/OpenDroneID.cs` | 🔜 | 5 |
-| 2.18 | Wind direction indicator | `Controls/WindDir.cs` | 🔜 | 2 |
-| 2.19 | Distance-to-target bar | `Controls/DistanceBar.cs` | 🔜 | 2 |
+| 2.18 | Wind direction indicator | `Controls/WindDir.cs` | ✅ | 2 |
+| 2.19 | Distance-to-target bar | `Controls/DistanceBar.cs` | ✅ | 2 |
 
 ## 3. Actions & commands
 
@@ -96,11 +96,11 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.12 | QGC `.waypoints` import / export | `FlightPlanner.cs` readQGC110wpfile | ✅ | 2 |
 | 4.13 | KML import / export | `FlightPlanner.cs` processKML | ✅ | 2 |
 | 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | 🔜 | 2 |
-| 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | 🔜 | 2 |
+| 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | 🟡 | 2 |
 | 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | ✅ | 2 |
 | 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | ✅ | 2 |
 | 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | ✅ | 2 |
-| 4.19 | Waypoint radius (loiter) editing | `FlightPlanner.cs` loiter radius | 🔜 | 2 |
+| 4.19 | Waypoint radius (loiter) editing | `FlightPlanner.cs` loiter radius | ✅ | 2 |
 | 4.20 | Spline / smooth path display | `FlightPlanner.cs` | 🔜 | 2 |
 | 4.21 | MAVFTP mission transfer | `chk_usemavftp` path | 🔜 | 5 |
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 66 |
-| 🔜 Planned | 86 |
+| ✅ Done | 69 |
+| 🔜 Planned | 82 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 2 |
+| 🟡 Partial | 3 |
 
-The 66 rows marked done are the connection, transport, parameter, mission and command
+The 69 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -256,11 +256,12 @@ above the map. The waypoints are dragged on the map, the plan is checked before 
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
 unsent changes never looks like the plan on the vehicle.
 
-What is still missing from the window: the servo and relay outputs, and the auxiliary
-functions.
+What is still missing from the window: the transponder, the generator of the vehicle, the
+open drone identification, the splines of the survey and the way of injecting a map of one's
+own.
 
-The two rows marked partial are the metadata of the parameters and the writing to the
-flash.
+The three rows marked partial are the metadata of the parameters, the writing to the
+flash, and the generators of a survey: the circle is there, the splines are not.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not

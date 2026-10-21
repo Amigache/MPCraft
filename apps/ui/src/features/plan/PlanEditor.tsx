@@ -87,6 +87,7 @@ export function PlanEditor() {
   const remove = usePlanEditorStore((state) => state.remove);
   const select = usePlanEditorStore((state) => state.select);
   const setAdding = usePlanEditorStore((state) => state.setAdding);
+  const generateCircle = usePlanEditorStore((state) => state.generateCircle);
   const askUpload = usePlanEditorStore((state) => state.askUpload);
   const askDownload = usePlanEditorStore((state) => state.askDownload);
   const askImport = usePlanEditorStore((state) => state.askImport);
@@ -122,6 +123,15 @@ export function PlanEditor() {
 
   const [fileMode, setFileMode] = useState<FileMode>(null);
   /** Whether the profile of the terrain is shown. */
+
+  /** Whether the circle of a survey is being drawn. */
+  const [circle, setCircle] = useState(false);
+  /** The radius of the circle, in metres. */
+  const [radius, setRadius] = useState(500);
+  /** How many points the circle has. */
+  const [circlePoints, setCirclePoints] = useState(12);
+  /** Whether the circle is turned the other way. */
+  const [clockwise, setClockwise] = useState(false);
   const [profile, setProfile] = useState(false);
   const [path, setPath] = useState("");
   const [dialogNote, setDialogNote] = useState<string | null>(null);
@@ -299,6 +309,21 @@ export function PlanEditor() {
           Upload plan
         </button>
 
+        {kind === "mission" ? (
+          <button
+            type="button"
+            className={`button ${circle ? styles.adding : ""}`}
+            aria-pressed={circle}
+            disabled={busy || draft.length === 0}
+            title="Add a circle of points to the plan"
+            onClick={() => {
+              setCircle(!circle);
+            }}
+          >
+            Add a circle
+          </button>
+        ) : null}
+
         <button
           type="button"
           className="button"
@@ -472,6 +497,91 @@ export function PlanEditor() {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {circle ? (
+        <>
+          <div className={styles.fileBar}>
+            <label className={styles.fileField}>
+              <span className={styles.fileLabel}>Radius m</span>
+              <input
+                className="input"
+                type="number"
+                min={1}
+                max={100000}
+                value={radius}
+                aria-label="The radius of the circle"
+                onChange={(event) => setRadius(Number(event.target.value))}
+              />
+            </label>
+
+            <label className={styles.fileField}>
+              <span className={styles.fileLabel}>Points</span>
+              <input
+                className="input"
+                type="number"
+                min={3}
+                max={200}
+                value={circlePoints}
+                aria-label="How many points the circle has"
+                onChange={(event) => setCirclePoints(Number(event.target.value))}
+              />
+            </label>
+
+            <label className={styles.fileField}>
+              <span className={styles.fileLabel}>Direction</span>
+              <select
+                className="select"
+                value={clockwise ? "clockwise" : "anticlockwise"}
+                aria-label="The direction of the circle"
+                onChange={(event) => setClockwise(event.target.value === "clockwise")}
+              >
+                <option value="anticlockwise">Anticlockwise</option>
+                <option value="clockwise">Clockwise</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={busy}
+              onClick={() => {
+                const centre = draft.find((item) => item.seq === selected) ?? draft[0];
+
+                if (centre === undefined) {
+                  return;
+                }
+
+                generateCircle(
+                  { lat: centre.x, lng: centre.y },
+                  radius,
+                  circlePoints,
+                  centre.z,
+                  clockwise,
+                );
+
+                setCircle(false);
+              }}
+            >
+              Add the circle
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setCircle(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+
+          <p className={styles.hint}>
+            The circle is centred on the waypoint that is selected, and it is added to the
+            plan without throwing anything away.
+          </p>
+        </>
       ) : null}
 
       {error !== null ? (

@@ -348,6 +348,16 @@ MESSAGES = {
             ("battery_remaining", "i8"),
         ],
     ),
+    168: message(
+        168,
+        "WIND",
+        1,
+        [
+            ("direction", "f32"),
+            ("speed", "f32"),
+            ("speed_z", "f32"),
+        ],
+    ),
     178: message(
         178,
         "AHRS2",
@@ -1194,6 +1204,16 @@ class Vehicle:
                     "satellites_visible": 11,
                     "dgps_numch": 0,
                     "yaw": 0,
+                },
+            )
+
+            # The wind: it comes from the north-west and it is slow.
+            self.send(
+                168,
+                {
+                    "direction": 315.0,
+                    "speed": 3.5,
+                    "speed_z": 0.2,
                 },
             )
 

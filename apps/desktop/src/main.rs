@@ -1467,6 +1467,9 @@ struct TelemetryEvent {
 
     /// The state of the second global positioning, when it is known.
     gps2: Option<GpsEvent>,
+
+    /// The wind, when it is known.
+    wind: Option<WindEvent>,
     /// The inertial measurement, when it is known.
     imu: Option<ImuEvent>,
     /// The barometer, when it is known.
@@ -1629,6 +1632,18 @@ struct ControllerEvent {
     waypoint_distance: f64,
 }
 
+/// The wind where the vehicle is.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindEvent {
+    /// The direction the wind comes from, in degrees.
+    direction: f64,
+    /// The speed of the wind, in metres per second.
+    speed: f64,
+    /// The vertical speed of the air, in metres per second.
+    vertical_speed: f64,
+}
+
 /// A position.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1789,6 +1804,12 @@ fn telemetry_event(state: &SessionState) -> TelemetryEvent {
             fix_type: gps.fix_type as u8,
             satellites: gps.satellites,
             hdop: gps.hdop,
+        }),
+
+        wind: telemetry.wind.map(|wind| WindEvent {
+            direction: wind.direction,
+            speed: wind.speed,
+            vertical_speed: wind.vertical_speed,
         }),
         imu: telemetry.imu.map(|imu| ImuEvent {
             acceleration: imu.acceleration,

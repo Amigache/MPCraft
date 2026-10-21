@@ -14,6 +14,7 @@ import {
 import type { BatteryBank, Coordinates } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useLiveValue } from "../../lib/link/liveTelemetry";
+import { RouteBar } from "./RouteBar";
 import { currentItemNumber, usePlanStore } from "../../lib/plan/planStore";
 import styles from "./StatusPanel.module.css";
 
@@ -72,6 +73,11 @@ export function StatusPanel() {
       window.clearInterval(timer);
     };
   }, [linked]);
+
+  // Where the vehicle is, for the bar of the route.
+  const vehiclePosition = useLiveValue(
+    (telemetry) => telemetry.position ?? null,
+  );
 
   const banks = useLiveValue(
     (telemetry) => telemetry.batteries,
@@ -193,6 +199,22 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
+        <h3 className={styles.heading}>Wind</h3>
+        <Row label="From">
+          <LiveValue
+            select={(telemetry) => telemetry.wind?.direction ?? null}
+            format={(value) => `${Math.round(value as number)}°`}
+          />
+        </Row>
+        <Row label="Speed">
+          <LiveValue
+            select={(telemetry) => telemetry.wind?.speed ?? null}
+            format={(value) => `${(value as number).toFixed(1)} m/s`}
+          />
+        </Row>
+      </section>
+
+      <section className={styles.section}>
         <h3 className={styles.heading}>Estimator</h3>
         <Row label="Velocity">
           <LiveValue
@@ -240,6 +262,14 @@ export function StatusPanel() {
             format={(value) => formatAcceleration(value as number)}
           />
         </Row>
+      </section>
+
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Route</h3>
+        <RouteBar
+          latitude={vehiclePosition?.lat ?? null}
+          longitude={vehiclePosition?.lng ?? null}
+        />
       </section>
 
       <section className={styles.section}>

@@ -41,6 +41,33 @@ const WITH_TEXT = ["button", "label", "span", "td", "th", "div", "p", "legend", 
  */
 export function checkOverlaps() {
   /**
+   * Whether an element is inside a container that scrolls.
+   *
+   * Such a container clips what does not fit, so what is inside it never sticks out
+   * of the window: it is either drawn or it is not, and the operator scrolls to it.
+   */
+  const inScroller = (element) => {
+    let parent = element.parentElement;
+
+    while (parent !== null) {
+      const style = getComputedStyle(parent);
+
+      if (
+        style.overflowY === "auto" ||
+        style.overflowY === "scroll" ||
+        style.overflowX === "auto" ||
+        style.overflowX === "scroll"
+      ) {
+        return true;
+      }
+
+      parent = parent.parentElement;
+    }
+
+    return false;
+  };
+
+  /**
    * Whether an element is cut away by a container that scrolls.
    *
    * A row of a list that is longer than the list is not on the screen, and it
@@ -165,9 +192,10 @@ export function checkOverlaps() {
   const overflowing = Array.from(document.querySelectorAll("body *"))
     .filter(visible)
     .filter((element) => !element.closest("svg"))
-    // An element that a scrolling container has cut away is inside the window,
-    // even though its box is not: the operator scrolls to it.
-    .filter((element) => !cutAway(element))
+    // An element inside a container that scrolls is clipped by it, and a clipped
+    // element does not stick out of the window: it is drawn, or the operator
+    // scrolls to it.
+    .filter((element) => !inScroller(element))
     .filter((element) => {
       const rect = element.getBoundingClientRect();
       return (

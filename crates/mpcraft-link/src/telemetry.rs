@@ -14,7 +14,7 @@
 
 use mpcraft_vehicle::{
     Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, Ekf, FlightMode,
-    GeoPoint, GpsStatus, Imu, MissionProgress, PlanState, Telemetry, Velocity, Vibration,
+    GeoPoint, GpsStatus, Imu, MissionProgress, PlanState, Telemetry, Velocity, Vibration, Wind,
 };
 
 use mpcraft_mavlink::dialect::messages::MissionState;
@@ -337,6 +337,16 @@ impl TelemetryAggregator {
                     airspeed_error: f64::from(output.aspd_error),
                     cross_track_error: f64::from(output.xtrack_error),
                     waypoint_distance: f64::from(output.wp_dist),
+                });
+            }
+
+            MavMessage::WIND(wind) => {
+                // The wind where the vehicle is. The direction is the one the wind
+                // comes from.
+                self.telemetry.wind = Some(Wind {
+                    direction: f64::from(wind.direction),
+                    speed: f64::from(wind.speed),
+                    vertical_speed: f64::from(wind.speed_z),
                 });
             }
 
