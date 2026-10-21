@@ -54,7 +54,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.14 | Auxiliary function display | `Controls/AuxOptions.cs` | ✅ | 3 |
 | 2.15 | Transponder (Mode-S) control | `FlightData.cs` tabTransponder | 🔜 | 5 |
 | 2.16 | EFI / generator telemetry | `CurrentState.cs` | ✅ | 5 |
-| 2.17 | OpenDroneID display | `ExtLibs/ArduPilot/OpenDroneID.cs` | 🔜 | 5 |
+| 2.17 | OpenDroneID display | `ExtLibs/ArduPilot/OpenDroneID.cs` | ✅ | 5 |
 | 2.18 | Wind direction indicator | `Controls/WindDir.cs` | ✅ | 2 |
 | 2.19 | Distance-to-target bar | `Controls/DistanceBar.cs` | ✅ | 2 |
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 92 |
-| 🔜 Planned | 61 |
+| ✅ Done | 93 |
+| 🔜 Planned | 60 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 92 rows marked done are the connection, transport, parameter, mission and command
+The 93 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -279,9 +279,13 @@ lasts and how many of each kind of message — and draws the graphs of the catal
 it. The graphs are the same ones the live view draws: the log is fed to the same
 aggregator the vehicle feeds, and the samples are the same samples.
 
+The **identification of the vehicle** is in the tab of the state: what it is, its
+number, what kind of vehicle it is, where it says it is and what the operator says about
+it. The parts arrive in three different messages, and each one keeps what the others
+said.
+
 What is still missing from the window: the transponder, the generator of the vehicle, the
-open drone identification, the splines of the survey and the way of injecting a map of one's
-own.
+splines of the survey and the way of injecting a map of one's own.
 
 The single row marked partial is the generators of a survey: the circle is there, the
 splines are not.

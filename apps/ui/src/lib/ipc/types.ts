@@ -241,6 +241,8 @@ export interface Telemetry {
   readonly wind: Wind | null;
   /** The state of the engine, when the vehicle has told it. */
   readonly efi: Efi | null;
+  /** The identification the vehicle broadcasts, when it broadcasts one. */
+  readonly droneId: DroneId | null;
   readonly imu: Imu | null;
   readonly barometer: Barometer | null;
   readonly controls: Controls | null;
@@ -521,6 +523,42 @@ export interface VehicleLog {
   readonly timeUtc: number;
   /** How many bytes the log holds. */
   readonly size: number;
+}
+
+/**
+ * The identification a vehicle broadcasts.
+ */
+export interface DroneId {
+  /** What the identification is: a registration, a serial number, a session. */
+  readonly kind: string | null;
+  /** The identification itself. */
+  readonly id: string | null;
+  /** What the vehicle is: a multicopter, a fixed wing, a helicopter. */
+  readonly kindOfVehicle: string | null;
+  /** The place the vehicle says it is. */
+  readonly location: DroneIdLocation | null;
+  /** What the operator says about the vehicle. */
+  readonly description: string | null;
+}
+
+/**
+ * The place a vehicle says it is.
+ */
+export interface DroneIdLocation {
+  /** The latitude, in degrees. */
+  readonly latitude: number;
+  /** The longitude, in degrees. */
+  readonly longitude: number;
+  /** The height over the sea, in metres. */
+  readonly altitude: number;
+  /** The height over the ground, in metres. */
+  readonly height: number;
+  /** The speed over the ground, in metres per second. */
+  readonly speed: number;
+  /** The speed upwards, in metres per second. */
+  readonly verticalSpeed: number;
+  /** The direction the vehicle is going, in degrees. */
+  readonly direction: number;
 }
 
 export interface GraphPreset {

@@ -215,6 +215,46 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
+        <h3 className={styles.heading}>Identification</h3>
+        <Row label="Kind">
+          <LiveValue
+            select={(telemetry) => telemetry.droneId?.kind ?? null}
+            format={(value) => String(value)}
+          />
+        </Row>
+        <Row label="Id">
+          <LiveValue
+            select={(telemetry) => telemetry.droneId?.id ?? null}
+            format={(value) => String(value)}
+          />
+        </Row>
+        <Row label="Vehicle">
+          <LiveValue
+            select={(telemetry) => telemetry.droneId?.kindOfVehicle ?? null}
+            format={(value) => String(value)}
+          />
+        </Row>
+        <Row label="Height">
+          <LiveValue
+            select={(telemetry) => telemetry.droneId?.location?.height ?? null}
+            format={(value) => `${(value as number).toFixed(1)} m`}
+          />
+        </Row>
+        <Row label="Speed">
+          <LiveValue
+            select={(telemetry) => telemetry.droneId?.location?.speed ?? null}
+            format={(value) => `${(value as number).toFixed(1)} m/s`}
+          />
+        </Row>
+        <Row label="Says">
+          <LiveValue
+            select={(telemetry) => telemetry.droneId?.description ?? null}
+            format={(value) => String(value)}
+          />
+        </Row>
+      </section>
+
+      <section className={styles.section}>
         <h3 className={styles.heading}>Engine</h3>
         <Row label="Revolutions">
           <LiveValue

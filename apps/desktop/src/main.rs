@@ -1879,6 +1879,8 @@ struct TelemetryEvent {
     wind: Option<WindEvent>,
     /// The state of the engine, when the vehicle has told it.
     efi: Option<EfiEvent>,
+    /// The identification the vehicle broadcasts, when it broadcasts one.
+    drone_id: Option<DroneIdEvent>,
     /// The inertial measurement, when it is known.
     imu: Option<ImuEvent>,
     /// The barometer, when it is known.
@@ -2039,6 +2041,42 @@ struct ControllerEvent {
     cross_track_error: f64,
     /// The distance to the waypoint the vehicle is flying towards, in metres.
     waypoint_distance: f64,
+}
+
+/// The identification a vehicle broadcasts.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DroneIdEvent {
+    /// What the identification is: a registration, a serial number, a session.
+    kind: Option<String>,
+    /// The identification itself.
+    id: Option<String>,
+    /// What the vehicle is: a multicopter, a fixed wing, a helicopter.
+    kind_of_vehicle: Option<String>,
+    /// The place the vehicle says it is.
+    location: Option<DroneIdLocationEvent>,
+    /// What the operator says about the vehicle.
+    description: Option<String>,
+}
+
+/// The place a vehicle says it is.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DroneIdLocationEvent {
+    /// The latitude, in degrees.
+    latitude: f64,
+    /// The longitude, in degrees.
+    longitude: f64,
+    /// The height over the sea, in metres.
+    altitude: f64,
+    /// The height over the ground, in metres.
+    height: f64,
+    /// The speed over the ground, in metres per second.
+    speed: f64,
+    /// The speed upwards, in metres per second.
+    vertical_speed: f64,
+    /// The direction the vehicle is going, in degrees.
+    direction: f64,
 }
 
 /// The state of the engine of a vehicle that has one.
@@ -2263,6 +2301,22 @@ fn telemetry_of(telemetry: &Telemetry) -> TelemetryEvent {
             intake_temperature: efi.intake_temperature,
             head_temperature: efi.head_temperature,
             exhaust_temperature: efi.exhaust_temperature,
+        }),
+
+        drone_id: telemetry.drone_id.as_ref().map(|drone_id| DroneIdEvent {
+            kind: drone_id.kind.clone(),
+            id: drone_id.id.clone(),
+            kind_of_vehicle: drone_id.kind_of_vehicle.clone(),
+            description: drone_id.description.clone(),
+            location: drone_id.location.map(|location| DroneIdLocationEvent {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                altitude: location.altitude,
+                height: location.height,
+                speed: location.speed,
+                vertical_speed: location.vertical_speed,
+                direction: location.direction,
+            }),
         }),
         imu: telemetry.imu.map(|imu| ImuEvent {
             acceleration: imu.acceleration,

@@ -103,6 +103,44 @@ pub struct Battery {
     pub remaining: f64,
 }
 
+/// The identification a vehicle broadcasts.
+///
+/// Some vehicles say who they are over the air: an identification, a place and what the
+/// operator wants to say about them. It is what a regulator asks for, and what a
+/// receiver on the ground sees.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DroneId {
+    /// What the identification is: a registration, a serial number, a session.
+    pub kind: Option<String>,
+    /// The identification itself.
+    pub id: Option<String>,
+    /// What the vehicle is: a multicopter, a fixed wing, a helicopter.
+    pub kind_of_vehicle: Option<String>,
+    /// The place the vehicle says it is.
+    pub location: Option<DroneIdLocation>,
+    /// What the operator says about the vehicle.
+    pub description: Option<String>,
+}
+
+/// The place a vehicle says it is.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct DroneIdLocation {
+    /// The latitude, in degrees.
+    pub latitude: f64,
+    /// The longitude, in degrees.
+    pub longitude: f64,
+    /// The height over the sea, in metres.
+    pub altitude: f64,
+    /// The height over the ground, in metres.
+    pub height: f64,
+    /// The speed over the ground, in metres per second.
+    pub speed: f64,
+    /// The speed upwards, in metres per second.
+    pub vertical_speed: f64,
+    /// The direction the vehicle is going, in degrees.
+    pub direction: f64,
+}
+
 /// The state of the engine of a vehicle that has one.
 ///
 /// A vehicle without an engine says nothing about it: the readings are there for the
@@ -411,6 +449,8 @@ pub struct Telemetry {
     pub wind: Option<Wind>,
     /// The state of the engine, when the vehicle has told it.
     pub efi: Option<Efi>,
+    /// The identification the vehicle broadcasts, when it broadcasts one.
+    pub drone_id: Option<DroneId>,
     /// The inertial measurement, once received.
     pub imu: Option<Imu>,
     /// The barometer, once received.
@@ -475,6 +515,10 @@ impl Telemetry {
 
         if let Some(efi) = update.efi {
             self.efi = Some(efi);
+        }
+
+        if let Some(drone_id) = update.drone_id {
+            self.drone_id = Some(drone_id);
         }
         if let Some(imu) = update.imu {
             self.imu = Some(imu);
@@ -550,6 +594,8 @@ pub struct TelemetryUpdate {
     pub wind: Option<Wind>,
     /// New state of the engine.
     pub efi: Option<Efi>,
+    /// New identification of the vehicle.
+    pub drone_id: Option<DroneId>,
     /// New inertial measurement.
     pub imu: Option<Imu>,
     /// New barometer reading.

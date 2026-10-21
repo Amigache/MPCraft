@@ -13,13 +13,72 @@
 //! distance to home — are computed at decode time rather than on every access.
 
 use mpcraft_vehicle::{
-    Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, Efi, Ekf,
-    FlightMode, GeoPoint, GpsStatus, Imu, MissionProgress, PlanState, Telemetry, Velocity,
-    Vibration, Wind,
+    Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, DroneId,
+    DroneIdLocation, Efi, Ekf, FlightMode, GeoPoint, GpsStatus, Imu, MissionProgress, PlanState,
+    Telemetry, Velocity, Vibration, Wind,
 };
 
 use mpcraft_mavlink::dialect::messages::MissionState;
+use mpcraft_mavlink::dialect::messages::{MavOdidIdType, MavOdidUaType};
+use mpcraft_mavlink::dialect::CharArray;
 use mpcraft_mavlink::{MavMessage, MavModeFlag};
+
+/// The identification of a vehicle, as the name of its kind.
+///
+/// The enumeration is the vehicle's, and the name is what the interface shows: the
+/// numbers of the protocol do not belong in a readout.
+fn id_kind(id_type: MavOdidIdType) -> String {
+    match id_type {
+        MavOdidIdType::MAV_ODID_ID_TYPE_SERIAL_NUMBER => "A serial number",
+        MavOdidIdType::MAV_ODID_ID_TYPE_CAA_REGISTRATION_ID => "A registration",
+        MavOdidIdType::MAV_ODID_ID_TYPE_UTM_ASSIGNED_UUID => "An assigned identifier",
+        MavOdidIdType::MAV_ODID_ID_TYPE_SPECIFIC_SESSION_ID => "A session identifier",
+        MavOdidIdType::MAV_ODID_ID_TYPE_NONE => "None",
+    }
+    .to_owned()
+}
+
+/// What the vehicle is, as the name of its kind.
+fn ua_kind(ua_type: MavOdidUaType) -> String {
+    match ua_type {
+        MavOdidUaType::MAV_ODID_UA_TYPE_AEROPLANE => "An aeroplane",
+        MavOdidUaType::MAV_ODID_UA_TYPE_HELICOPTER_OR_MULTIROTOR => "A helicopter or a multirotor",
+        MavOdidUaType::MAV_ODID_UA_TYPE_GYROPLANE => "A gyroplane",
+        MavOdidUaType::MAV_ODID_UA_TYPE_HYBRID_LIFT => "A hybrid lift",
+        MavOdidUaType::MAV_ODID_UA_TYPE_ORNITHOPTER => "An ornithopter",
+        MavOdidUaType::MAV_ODID_UA_TYPE_GLIDER => "A glider",
+        MavOdidUaType::MAV_ODID_UA_TYPE_KITE => "A kite",
+        MavOdidUaType::MAV_ODID_UA_TYPE_FREE_BALLOON => "A free balloon",
+        MavOdidUaType::MAV_ODID_UA_TYPE_CAPTIVE_BALLOON => "A captive balloon",
+        MavOdidUaType::MAV_ODID_UA_TYPE_AIRSHIP => "An airship",
+        MavOdidUaType::MAV_ODID_UA_TYPE_FREE_FALL_PARACHUTE => "A parachute",
+        MavOdidUaType::MAV_ODID_UA_TYPE_ROCKET => "A rocket",
+        MavOdidUaType::MAV_ODID_UA_TYPE_TETHERED_POWERED_AIRCRAFT => "A tethered powered aircraft",
+        MavOdidUaType::MAV_ODID_UA_TYPE_GROUND_OBSTACLE => "A ground obstacle",
+        MavOdidUaType::MAV_ODID_UA_TYPE_OTHER => "Something else",
+        MavOdidUaType::MAV_ODID_UA_TYPE_NONE => "None",
+    }
+    .to_owned()
+}
+
+/// The bytes of an identification, as the hexadecimal they are written in.
+fn hex_of(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .take_while(|byte| **byte != 0)
+        .map(|byte| format!("{byte:02X}"))
+        .collect::<Vec<String>>()
+        .join(":")
+}
+
+/// The text of a message, as the characters it carries.
+fn text_of<const N: usize>(text: &CharArray<N>) -> String {
+    text.to_str()
+        .unwrap_or_default()
+        .trim_end_matches('\0')
+        .trim()
+        .to_owned()
+}
 
 /// Decodes messages into a telemetry snapshot.
 #[derive(Debug, Default)]
@@ -339,6 +398,60 @@ impl TelemetryAggregator {
                     cross_track_error: f64::from(output.xtrack_error),
                     waypoint_distance: f64::from(output.wp_dist),
                 });
+            }
+
+            MavMessage::OPEN_DRONE_ID_BASIC_ID(basic) => {
+                // The identification the vehicle broadcasts. The parts arrive in
+                // different messages, and each one keeps what the others said.
+                let mut drone_id = self.telemetry.drone_id.clone().unwrap_or(DroneId {
+                    kind: None,
+                    id: None,
+                    kind_of_vehicle: None,
+                    location: None,
+                    description: None,
+                });
+
+                drone_id.kind = Some(id_kind(basic.id_type));
+                drone_id.id = Some(hex_of(&basic.id_or_mac));
+                drone_id.kind_of_vehicle = Some(ua_kind(basic.ua_type));
+
+                self.telemetry.drone_id = Some(drone_id);
+            }
+
+            MavMessage::OPEN_DRONE_ID_LOCATION(location) => {
+                let mut drone_id = self.telemetry.drone_id.clone().unwrap_or(DroneId {
+                    kind: None,
+                    id: None,
+                    kind_of_vehicle: None,
+                    location: None,
+                    description: None,
+                });
+
+                drone_id.location = Some(DroneIdLocation {
+                    latitude: f64::from(location.latitude) / 1e7,
+                    longitude: f64::from(location.longitude) / 1e7,
+                    altitude: f64::from(location.altitude_barometric),
+                    height: f64::from(location.height),
+                    speed: f64::from(location.speed_horizontal) / 100.0,
+                    vertical_speed: f64::from(location.speed_vertical) / 100.0,
+                    direction: f64::from(location.direction) / 100.0,
+                });
+
+                self.telemetry.drone_id = Some(drone_id);
+            }
+
+            MavMessage::OPEN_DRONE_ID_SELF_ID(self_id) => {
+                let mut drone_id = self.telemetry.drone_id.clone().unwrap_or(DroneId {
+                    kind: None,
+                    id: None,
+                    kind_of_vehicle: None,
+                    location: None,
+                    description: None,
+                });
+
+                drone_id.description = Some(text_of(&self_id.description));
+
+                self.telemetry.drone_id = Some(drone_id);
             }
 
             MavMessage::EFI_STATUS(efi) => {
@@ -911,5 +1024,91 @@ mod tests {
         assert!((controller.altitude_error + 3.0).abs() < 1e-6);
         assert!((controller.cross_track_error - 12.0).abs() < 1e-6);
         assert!((controller.waypoint_distance - 250.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_identification_of_the_vehicle_is_kept() {
+        use mpcraft_mavlink::dialect::messages::{MavOdidIdType, MavOdidUaType};
+        use mpcraft_mavlink::dialect::messages::{
+            OPEN_DRONE_ID_BASIC_ID_DATA, OPEN_DRONE_ID_LOCATION_DATA, OPEN_DRONE_ID_SELF_ID_DATA,
+        };
+
+        let mut aggregator = TelemetryAggregator::new();
+
+        aggregator.apply(&MavMessage::OPEN_DRONE_ID_BASIC_ID(
+            OPEN_DRONE_ID_BASIC_ID_DATA {
+                target_system: 1,
+                target_component: 1,
+                id_or_mac: [0; 20],
+                id_type: MavOdidIdType::MAV_ODID_ID_TYPE_CAA_REGISTRATION_ID,
+                ua_type: MavOdidUaType::MAV_ODID_UA_TYPE_HELICOPTER_OR_MULTIROTOR,
+                uas_id: [0; 20],
+            },
+        ));
+
+        aggregator.apply(&MavMessage::OPEN_DRONE_ID_LOCATION(
+            OPEN_DRONE_ID_LOCATION_DATA {
+                latitude: -351_680_000,
+                longitude: 1_491_300_000,
+                altitude_barometric: 584.0,
+                altitude_geodetic: 600.0,
+                height: 50.0,
+                timestamp: 1.0,
+                direction: 9000,
+                speed_horizontal: 1100,
+                speed_vertical: -50,
+                target_system: 1,
+                target_component: 1,
+                id_or_mac: [0; 20],
+                status: mpcraft_mavlink::dialect::messages::MavOdidStatus::MAV_ODID_STATUS_UNDECLARED,
+                height_reference:
+                    mpcraft_mavlink::dialect::messages::MavOdidHeightRef::MAV_ODID_HEIGHT_REF_OVER_TAKEOFF,
+                horizontal_accuracy:
+                    mpcraft_mavlink::dialect::messages::MavOdidHorAcc::MAV_ODID_HOR_ACC_UNKNOWN,
+                vertical_accuracy:
+                    mpcraft_mavlink::dialect::messages::MavOdidVerAcc::MAV_ODID_VER_ACC_UNKNOWN,
+                barometer_accuracy:
+                    mpcraft_mavlink::dialect::messages::MavOdidVerAcc::MAV_ODID_VER_ACC_UNKNOWN,
+                speed_accuracy:
+                    mpcraft_mavlink::dialect::messages::MavOdidSpeedAcc::MAV_ODID_SPEED_ACC_UNKNOWN,
+                timestamp_accuracy:
+                    mpcraft_mavlink::dialect::messages::MavOdidTimeAcc::MAV_ODID_TIME_ACC_UNKNOWN,
+            },
+        ));
+
+        aggregator.apply(&MavMessage::OPEN_DRONE_ID_SELF_ID(
+            OPEN_DRONE_ID_SELF_ID_DATA {
+                target_system: 1,
+                target_component: 1,
+                id_or_mac: [0; 20],
+                description_type:
+                    mpcraft_mavlink::dialect::messages::MavOdidDescType::MAV_ODID_DESC_TYPE_TEXT,
+                description: mpcraft_mavlink::dialect::CharArray::new({
+                    let mut data = [0_u8; 23];
+                    data[..14].copy_from_slice(b"over the field");
+                    data
+                }),
+            },
+        ));
+
+        let drone_id = aggregator
+            .telemetry()
+            .drone_id
+            .clone()
+            .expect("the vehicle has said who it is");
+
+        assert_eq!(drone_id.kind.as_deref(), Some("A registration"));
+        assert_eq!(
+            drone_id.kind_of_vehicle.as_deref(),
+            Some("A helicopter or a multirotor")
+        );
+        assert_eq!(drone_id.description.as_deref(), Some("over the field"));
+
+        let location = drone_id.location.expect("the vehicle has said where it is");
+        assert!((location.latitude - -35.168).abs() < 1e-6);
+        assert!((location.longitude - 149.13).abs() < 1e-6);
+        assert!((location.speed - 11.0).abs() < 1e-6);
+        assert!((location.vertical_speed - -0.5).abs() < 1e-6);
+        assert!((location.direction - 90.0).abs() < 1e-6);
     }
 }

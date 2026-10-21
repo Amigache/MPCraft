@@ -660,6 +660,7 @@ const EMPTY_STATE: LinkState = {
     gps: null,
   gps2: null,
   efi: null,
+  droneId: null,
   wind: null,
     imu: null,
     barometer: null,
