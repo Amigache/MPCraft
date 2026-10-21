@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https: data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://demotiles.maplibre.org; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self' data: https://demotiles.maplibre.org"
+      "csp": "default-src 'self'; img-src 'self' asset: https: data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://tiles.openfreemap.org; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self' data: https://tiles.openfreemap.org"
     }
   },
   "bundle": {

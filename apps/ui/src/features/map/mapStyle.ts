@@ -1,11 +1,14 @@
 /**
  * The style of the map.
  *
- * The demo tiles of MapLibre are used, so that the map works without an account and
- * without a key. This is the one place the address is written down: change it here and
- * the whole application follows.
+ * The tiles are OpenFreeMap's, which are free and need neither an account nor a key. The
+ * style is the classic one: roads, buildings and labels, the way an operator expects a
+ * map to look.
+ *
+ * This is the one place the address is written down: change it here and the whole
+ * application follows.
  */
-export const MAP_STYLE_URL = "https://demotiles.maplibre.org/style.json";
+export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
 /**
  * The centre the map opens at, when the vehicle has not said where it is.
