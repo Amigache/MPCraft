@@ -39,8 +39,35 @@ const BANK_RADIUS = 96;
 /** The pitch the ladder is marked at. */
 const LADDER_PITCHES = [10, 20, 30] as const;
 
+/** The tapes of the sides: the airspeed on the left, the height on the right. */
+const TAPE_TOP = 44;
+const TAPE_BOTTOM = 168;
+const TAPE_WIDTH = 30;
+const AIR_TAPE_X = 6;
+const ALT_TAPE_X = DESIGN_WIDTH - TAPE_WIDTH - 6;
+
+/** The marks of the tape of the airspeed, in metres per second. */
+const AIR_TAPE_MARKS = [0, 10, 20, 30, 40, 50] as const;
+
+/** The marks of the tape of the height, in metres. */
+const ALT_TAPE_MARKS = [0, 20, 40, 60, 80, 100] as const;
+
+/** How many metres a second of the tape is worth. */
+const AIR_TAPE_SCALE = 1.6;
+const ALT_TAPE_SCALE = 1.2;
+
 /** The bank the scale is marked at. */
 const BANK_MARKS = [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60] as const;
+
+/** The bank the scale is written at. */
+const BANK_LABELS = [-60, -45, -30, -20, -10, 10, 20, 30, 45, 60] as const;
+
+/** Writes a reading into an element of the drawing. */
+function write(element: SVGTextElement | null, text: string): void {
+  if (element !== null && element.textContent !== text) {
+    element.textContent = text;
+  }
+}
 
 /** A point on a circle, with zero at the top and the angle growing clockwise. */
 function polar(radius: number, angle: number): { x: number; y: number } {
@@ -89,6 +116,21 @@ export function Hud() {
   const ribbon = useRef<SVGGElement | null>(null);
   const label = useRef<SVGSVGElement | null>(null);
 
+  // The readings. They are written into the elements themselves, so that a tick of the
+  // telemetry does not cost a reconciliation of the tree.
+  const airspeedValue = useRef<SVGTextElement | null>(null);
+  const altitudeValue = useRef<SVGTextElement | null>(null);
+  const modeValue = useRef<SVGTextElement | null>(null);
+  const armedValue = useRef<SVGTextElement | null>(null);
+  const airValue = useRef<SVGTextElement | null>(null);
+  const groundValue = useRef<SVGTextElement | null>(null);
+  const batteryValue = useRef<SVGTextElement | null>(null);
+  const gpsValue = useRef<SVGTextElement | null>(null);
+  const climbValue = useRef<SVGTextElement | null>(null);
+  const throttleValue = useRef<SVGTextElement | null>(null);
+  const throttleBars = useRef<SVGGElement | null>(null);
+  const clockValue = useRef<SVGTextElement | null>(null);
+
   // The size of the box the drawing is put in. The drawing keeps its own proportions
   // and is centred in the box, and the sky and the ground fill the box whatever its
   // shape: the column can be dragged wider or narrower, and the horizon has to reach
@@ -111,6 +153,26 @@ export function Hud() {
 
     observer.observe(element);
     return () => observer.disconnect();
+  }, []);
+
+  // The clock is the time of the machine, and it does not come with the telemetry: it
+  // is told once a second and not twenty times.
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, "0");
+      const minutes = now.getMinutes().toString().padStart(2, "0");
+      const seconds = now.getSeconds().toString().padStart(2, "0");
+
+      write(clockValue.current, `${hours}:${minutes}:${seconds}`);
+    };
+
+    tick();
+    const timer = window.setInterval(tick, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -142,6 +204,65 @@ export function Hud() {
         "aria-label",
         `Attitude: roll ${roll.toFixed(0)} degrees, pitch ${pitch.toFixed(0)} degrees, heading ${yaw.toFixed(0)} degrees`,
       );
+
+      // The readings of the sides. The numbers are the ones the vehicle sent, and they
+      // are said in the unit the operator reads them in.
+      const airspeed = telemetry.airspeed?.airspeed ?? null;
+      const groundSpeed = telemetry.airspeed?.groundSpeed ?? telemetry.velocity?.groundSpeed ?? null;
+      const altitude = telemetry.position?.alt ?? null;
+      const climb = telemetry.airspeed?.climb ?? null;
+      const throttle = telemetry.airspeed?.throttle ?? null;
+      const battery = telemetry.battery ?? null;
+      const gps = telemetry.gps ?? null;
+      const mode = telemetry.mode ?? null;
+      const armed = telemetry.armed ?? null;
+
+      write(airspeedValue.current, airspeed === null ? "" : airspeed.toFixed(1));
+      write(altitudeValue.current, altitude === null ? "" : altitude.toFixed(0));
+      write(
+        airValue.current,
+        airspeed === null ? "" : `AS ${airspeed.toFixed(1)}`,
+      );
+      write(
+        groundValue.current,
+        groundSpeed === null ? "" : `GS ${groundSpeed.toFixed(1)}`,
+      );
+      write(
+        batteryValue.current,
+        battery === null
+          ? ""
+          : `Bat ${battery.voltage.toFixed(2)}v ${battery.remaining.toFixed(0)}%`,
+      );
+      write(
+        gpsValue.current,
+        gps === null
+          ? "GPS: no fix"
+          : `GPS: ${gps.satellites} sats`,
+      );
+      write(climbValue.current, climb === null ? "" : `${climb.toFixed(1)} m/s`);
+      write(
+        throttleValue.current,
+        throttle === null ? "" : `${throttle.toFixed(0)} %`,
+      );
+      write(modeValue.current, mode ?? "");
+      write(
+        armedValue.current,
+        armed === null ? "" : armed ? "ARMED" : "DISARMED",
+      );
+
+      // The throttle is a bar of cells, and the cells that are lit are the ones the
+      // throttle has.
+      if (throttleBars.current !== null && throttle !== null) {
+        const lit = Math.round((throttle / 100) * 10);
+
+        for (let index = 0; index < 10; index += 1) {
+          const cell = throttleBars.current.children[index];
+
+          if (cell instanceof SVGElement) {
+            cell.setAttribute("opacity", index < lit ? "1" : "0.25");
+          }
+        }
+      }
     };
 
     draw(liveTelemetry.value);
@@ -216,7 +337,7 @@ export function Hud() {
               {LADDER_PITCHES.map((pitch) =>
                 [pitch, -pitch].map((value) => {
                   const y = CENTRE_Y - value * PITCH_PIXELS;
-                  const length = 26 + (Math.abs(value) - 10) * 6;
+                  const length = 24 + Math.min(18, (Math.abs(value) - 10) * 2);
                   const gap = 11;
                   const label = Math.abs(value).toString();
                   return (
@@ -249,8 +370,23 @@ export function Hud() {
               )}
             </g>
 
-            {/* The bank scale. */}
+            {/* The bank scale. It is marked with its numbers, the way an
+                instrument is: a pilot reads the bank off the scale. */}
             <path className={styles.bankArc} d={arc(BANK_RADIUS, -60, 60)} />
+            {BANK_LABELS.map((mark) => {
+              const at = polar(BANK_RADIUS - 14, mark);
+              return (
+                <text
+                  key={mark}
+                  className={styles.bankLabel}
+                  x={at.x.toFixed(2)}
+                  y={(at.y + 3).toFixed(2)}
+                  textAnchor="middle"
+                >
+                  {mark}
+                </text>
+              );
+            })}
             {BANK_MARKS.map((mark) => {
               const major = mark % 30 === 0 || mark === 0;
               const outer = polar(BANK_RADIUS, mark);
@@ -285,6 +421,163 @@ export function Hud() {
               cx={CENTRE_X}
               cy={CENTRE_Y}
               r="1.6"
+            />
+          </g>
+        </g>
+
+        {/* The tapes of the sides: the airspeed on the left, the height on the
+            right. They are the two numbers a pilot looks at when the aircraft is
+            not doing what it was told. */}
+        <g transform={placement}>
+          <g className={styles.tape}>
+            <rect
+              className={styles.tapeBack}
+              x={AIR_TAPE_X}
+              y={TAPE_TOP}
+              width={TAPE_WIDTH}
+              height={TAPE_BOTTOM - TAPE_TOP}
+            />
+            {AIR_TAPE_MARKS.map((mark) => {
+              const y = TAPE_BOTTOM - mark * AIR_TAPE_SCALE;
+
+              if (y < TAPE_TOP || y > TAPE_BOTTOM) {
+                return null;
+              }
+
+              return (
+                <g key={mark}>
+                  <line
+                    className={styles.tapeTick}
+                    x1={AIR_TAPE_X + TAPE_WIDTH - 6}
+                    y1={y}
+                    x2={AIR_TAPE_X + TAPE_WIDTH}
+                    y2={y}
+                  />
+                  <text
+                    className={styles.tapeLabel}
+                    x={AIR_TAPE_X + TAPE_WIDTH - 9}
+                    y={y + 3}
+                    textAnchor="end"
+                  >
+                    {mark}
+                  </text>
+                </g>
+              );
+            })}
+            <text
+              ref={airspeedValue}
+              className={styles.tapeValue}
+              x={AIR_TAPE_X + TAPE_WIDTH - 2}
+              y={TAPE_TOP + 14}
+              textAnchor="end"
+            />
+          </g>
+
+          <g className={styles.tape}>
+            <rect
+              className={styles.tapeBack}
+              x={ALT_TAPE_X}
+              y={TAPE_TOP}
+              width={TAPE_WIDTH}
+              height={TAPE_BOTTOM - TAPE_TOP}
+            />
+            {ALT_TAPE_MARKS.map((mark) => {
+              const y = TAPE_BOTTOM - mark * ALT_TAPE_SCALE;
+
+              if (y < TAPE_TOP || y > TAPE_BOTTOM) {
+                return null;
+              }
+
+              return (
+                <g key={mark}>
+                  <line
+                    className={styles.tapeTick}
+                    x1={ALT_TAPE_X}
+                    y1={y}
+                    x2={ALT_TAPE_X + 6}
+                    y2={y}
+                  />
+                  <text
+                    className={styles.tapeLabel}
+                    x={ALT_TAPE_X + 9}
+                    y={y + 3}
+                  >
+                    {mark}
+                  </text>
+                </g>
+              );
+            })}
+            <text
+              ref={altitudeValue}
+              className={styles.tapeValue}
+              x={ALT_TAPE_X + 2}
+              y={TAPE_TOP + 14}
+            />
+          </g>
+        </g>
+
+        {/* The readings. They are written over the glass, and they do not turn with
+            the aircraft: they are the state of the flight and not of the picture. */}
+        <g transform={placement}>
+          <g className={styles.readouts}>
+            <text
+              ref={armedValue}
+              className={styles.armed}
+              x={CENTRE_X}
+              y={CENTRE_Y - 22}
+              textAnchor="middle"
+            />
+
+            <g ref={throttleBars} transform={`translate(${DESIGN_WIDTH - 74} 32)`}>
+              {Array.from({ length: 10 }, (_, index) => (
+                <rect
+                  key={index}
+                  className={styles.throttleCell}
+                  x={index * 4}
+                  y={0}
+                  width={3}
+                  height={10}
+                />
+              ))}
+            </g>
+            <text
+              ref={throttleValue}
+              className={styles.small}
+              x={DESIGN_WIDTH - 30}
+              y={41}
+              textAnchor="end"
+            />
+            <text
+              ref={clockValue}
+              className={styles.clock}
+              x={DESIGN_WIDTH - 8}
+              y={58}
+              textAnchor="end"
+            />
+
+            <text ref={airValue} className={styles.small} x={8} y={176} />
+            <text ref={groundValue} className={styles.small} x={8} y={190} />
+            <text ref={batteryValue} className={styles.small} x={8} y={204} />
+            <text
+              ref={modeValue}
+              className={styles.mode}
+              x={DESIGN_WIDTH - 8}
+              y={176}
+              textAnchor="end"
+            />
+            <text
+              ref={climbValue}
+              className={styles.small}
+              x={DESIGN_WIDTH - 8}
+              y={190}
+              textAnchor="end"
+            />
+            <text
+              ref={gpsValue}
+              className={styles.small}
+              x={DESIGN_WIDTH - 8}
+              y={204}
+              textAnchor="end"
             />
           </g>
         </g>

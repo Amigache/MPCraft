@@ -85,3 +85,74 @@
 .ribbonMarker {
   fill: var(--colour-accent);
 }
+
+/* The tapes of the sides ----------------------------------------------------- */
+
+.tapeBack {
+  fill: var(--colour-bg);
+  opacity: 0.35;
+  stroke: var(--colour-border);
+  stroke-width: 1;
+}
+
+.tapeTick {
+  stroke: var(--colour-text-dim);
+  stroke-width: 1;
+}
+
+.tapeLabel {
+  fill: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.tapeValue {
+  fill: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The numbers of the bank scale ---------------------------------------------- */
+
+.bankLabel {
+  fill: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+/* The readings over the glass ------------------------------------------------ */
+
+.readouts {
+  pointer-events: none;
+}
+
+.armed {
+  fill: var(--colour-danger);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.mode {
+  fill: var(--colour-text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.clock {
+  fill: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.small {
+  fill: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.throttleCell {
+  fill: var(--colour-accent);
+}
