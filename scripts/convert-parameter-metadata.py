@@ -56,6 +56,15 @@ FIELDS = (
 )
 
 
+def format_code(code):
+    """The number of a choice, as the catalogue writes it."""
+
+    if code == int(code):
+        return str(int(code))
+
+    return repr(code)
+
+
 def escape(text):
     """The text of the catalogue, with the characters TOML cares about."""
     if text is None:
@@ -100,6 +109,34 @@ def find_backup():
     return best
 
 
+def read_pairs(text):
+    """The pairs of a list the documentation writes as "code:name,code:name".
+
+    The documentation writes the values a parameter can be given and the flags of a
+    mask as a list of pairs, each of them a number and a colon and the name. The name
+    may itself hold a colon, so the pair is split at the last one.
+    """
+
+    pairs = []
+
+    for piece in text.split(","):
+        piece = piece.strip()
+
+        if ":" not in piece:
+            continue
+
+        code, _, name = piece.rpartition(":")
+
+        try:
+            number = float(code.strip())
+        except ValueError:
+            continue
+
+        pairs.append((number, escape(name.strip())))
+
+    return pairs
+
+
 def read_facts():
     """The parameters of the facts file, by name."""
     if not os.path.exists(FACTS):
@@ -133,14 +170,29 @@ def read_facts():
 
             values = parameter.find("values")
             if values is not None:
-                collected = [
-                    escape(value.text)
-                    for value in values.findall("value")
-                    if value.text
-                ]
+                # A choice is a code and the name it is called: the code is the value
+                # the parameter takes, and the name is what the operator reads. The
+                # two belong together, so both are kept.
+                collected = []
+
+                for value in values.findall("value"):
+                    if not value.text:
+                        continue
+
+                    code = value.get("code")
+
+                    if code is None:
+                        continue
+
+                    try:
+                        number = float(code)
+                    except ValueError:
+                        continue
+
+                    collected.append((number, escape(value.text)))
 
                 if collected:
-                    entry["values"] = collected
+                    entry["values"] = sorted(collected)
 
             found[name] = entry
 
@@ -182,6 +234,20 @@ def read_backup(path):
                 if element is not None and element.text and field not in entry:
                     entry[field] = escape(element.text)
 
+            # The values a parameter can be given and the flags of a mask are written
+            # as lists of pairs, each of them a number and a name.
+            values = parameter.find("Values")
+            if values is not None and values.text:
+                pairs = read_pairs(values.text)
+                if pairs:
+                    entry["values"] = sorted(pairs)
+
+            mask = parameter.find("Bitmask")
+            if mask is not None and mask.text:
+                pairs = read_pairs(mask.text)
+                if pairs:
+                    entry["bitmask"] = sorted(pairs)
+
     return found
 
 
@@ -212,6 +278,13 @@ def main():
         documentation = backup.get(name, {})
 
         for field in ("display_name", "description", "range", "user"):
+            if field not in entry and field in documentation:
+                entry[field] = documentation[field]
+
+        # The values a parameter can be given and the flags of a mask are in the facts
+        # for the few hundred parameters they describe, and in the documentation for
+        # the thousands it does not.
+        for field in ("values", "bitmask"):
             if field not in entry and field in documentation:
                 entry[field] = documentation[field]
 
@@ -255,8 +328,21 @@ def main():
 
         values = entry.get("values", [])
         if values:
-            listed = ", ".join(f'"{escape(value)}"' for value in values)
+            listed = ", ".join(
+                "{ code = %s, text = \"%s\" }" % (format_code(code), escape(text))
+                for code, text in values
+            )
             lines.append(f"values = [{listed}]")
+
+        mask = entry.get("bitmask", [])
+        if mask:
+            # The documentation writes the place of the flag in the number; what the
+            # parameter carries is the mask of it, which is that place raised.
+            listed = ", ".join(
+                "{ mask = %d, text = \"%s\" }" % (1 << int(bit), escape(name))
+                for bit, name in mask
+            )
+            lines.append(f"bitmask = [{listed}]")
 
         vehicles = entry.get("vehicles", [])
         if vehicles:

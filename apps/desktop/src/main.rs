@@ -14,7 +14,7 @@ use mpcraft_app::{
     ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction, PlanInfo,
     PlanKind, PresetInfo, SeriesData, SessionState,
 };
-use mpcraft_link::VehicleId;
+use mpcraft_link::{Calibration, VehicleId};
 use mpcraft_mission::{MissionType, Plan};
 use mpcraft_transport::SerialTransport;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -352,6 +352,38 @@ async fn motor_test(
         .await
 }
 
+/// Asks the vehicle to calibrate one of its sensors.
+///
+/// The calibration is carried out by the vehicle: the order says which sensor, and the
+/// vehicle answers when it has begun.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the
+/// calibration is not one this station knows, or when the vehicle does not answer.
+#[tauri::command]
+async fn calibrate(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    kind: String,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let calibration = match kind.as_str() {
+        "accelerometer" => Calibration::Accelerometer,
+        "level" => Calibration::AccelerometerLevel,
+        "compass" => Calibration::Compass,
+        other => {
+            return Err(CommandError::new(
+                "invalid.calibration",
+                format!("the calibration '{other}' is not one this station knows"),
+            ));
+        }
+    };
+
+    state.supervisor.calibrate(vehicle, calibration).await
+}
+
 /// Takes the radio channels over, one at a time.
 ///
 /// # Errors
@@ -539,6 +571,72 @@ async fn write_parameter(
         value: written.value,
         reported_type: written.reported_type.as_mavlink() as u8,
     })
+}
+
+/// A change to a parameter: the value it is given.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ParamChange {
+    /// The name of the parameter.
+    name: String,
+    /// The value it is given.
+    value: f64,
+}
+
+/// Writes several parameters, in the order the vehicle needs them.
+///
+/// The order is the autopilots' knowledge: the parameters that turn something on are
+/// written last, so that what they turn on is already configured when it is turned on.
+///
+/// The answer carries the value each parameter ended up with, which is not always the
+/// value that was asked for: the vehicle clamps to its own range, and what the vehicle
+/// holds is what is said.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle refuses a write.
+#[tauri::command]
+async fn write_parameters_batch(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    changes: Vec<ParamChange>,
+) -> CommandResult<Vec<ParameterEvent>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    let names: Vec<String> = changes.iter().map(|change| change.name.clone()).collect();
+    let ordered = mpcraft_params::ordering::write_order(&names);
+
+    let mut written = Vec::with_capacity(changes.len());
+
+    for name in ordered {
+        let Some(change) = changes.iter().find(|change| change.name == name) else {
+            continue;
+        };
+
+        let parameter = session
+            .write_parameter(
+                vehicle,
+                &name,
+                change.value,
+                std::time::Duration::from_secs(10),
+            )
+            .await
+            .map_err(|error| CommandError::rejected(error.to_string()))?;
+
+        written.push(ParameterEvent {
+            name: parameter.name,
+            value: parameter.value,
+            reported_type: parameter.reported_type.as_mavlink() as u8,
+        });
+    }
+
+    Ok(written)
 }
 
 /// A parameter, as the interface sees it.
@@ -963,7 +1061,23 @@ async fn parameter_metadata(names: Vec<String>) -> CommandResult<Vec<Option<Para
                 unit: meta.unit.clone(),
                 minimum: meta.minimum.clone(),
                 maximum: meta.maximum.clone(),
-                values: meta.values.clone(),
+                values: meta
+                    .values
+                    .iter()
+                    .map(|choice| ParamChoiceEvent {
+                        code: choice.code,
+                        text: choice.text.clone(),
+                    })
+                    .collect(),
+                bitmask: meta
+                    .bitmask
+                    .iter()
+                    .map(|flag| ParamFlagEvent {
+                        mask: flag.mask,
+                        text: flag.text.clone(),
+                    })
+                    .collect(),
+                reboot_required: meta.needs_reboot(),
                 vehicles: meta.vehicles.clone(),
             })
         })
@@ -984,6 +1098,26 @@ async fn list_parameter_groups() -> CommandResult<Vec<String>> {
         .into_iter()
         .map(str::to_owned)
         .collect())
+}
+
+/// One of the values a parameter can be given, when it is a choice.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParamChoiceEvent {
+    /// The value the parameter takes when this choice is made.
+    code: f64,
+    /// What the choice is called.
+    text: String,
+}
+
+/// One of the flags of a mask.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParamFlagEvent {
+    /// The mask of the flag: the part of the number that is raised when it is on.
+    mask: u32,
+    /// What the flag is called.
+    text: String,
 }
 
 /// The metadata of a parameter.
@@ -1010,7 +1144,11 @@ struct ParameterMetaEvent {
     /// The largest value it takes.
     maximum: String,
     /// The values it can be given, when it is a choice.
-    values: Vec<String>,
+    values: Vec<ParamChoiceEvent>,
+    /// The flags of the mask, when the parameter is one.
+    bitmask: Vec<ParamFlagEvent>,
+    /// Whether a change to the parameter needs a restart to take effect.
+    reboot_required: bool,
     /// The vehicle families it belongs to.
     vehicles: Vec<String>,
 }
@@ -1933,6 +2071,7 @@ fn main() {
             set_position_target,
             output_functions,
             motor_test,
+            calibrate,
             rc_override,
             rc_override_release,
             manual_control,
@@ -1946,6 +2085,7 @@ fn main() {
             list_parameters,
             read_parameters,
             write_parameter,
+            write_parameters_batch,
             validate_mission,
             export_plan,
             import_plan,

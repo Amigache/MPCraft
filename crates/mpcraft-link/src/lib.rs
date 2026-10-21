@@ -66,7 +66,7 @@ pub mod session;
 pub mod telemetry;
 pub mod vehicle;
 
-pub use commands::{CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
+pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
 pub use heartbeat::{Heartbeat, HeartbeatCollector, HeartbeatRejection};
 pub use loss::{LossAccountant, LossStats};

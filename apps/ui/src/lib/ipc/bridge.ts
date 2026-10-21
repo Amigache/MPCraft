@@ -186,6 +186,21 @@ export async function graphSeries(
 }
 
 /** The parameters the vehicle has reported. */
+/**
+ * Writes several parameters, in the order the vehicle needs them.
+ *
+ * The order is the autopilots' knowledge: the parameters that turn something on are
+ * written last, so that what they turn on is already configured when it is turned on.
+ */
+export async function writeParametersBatch(
+  changes: readonly { name: string; value: number }[],
+): Promise<Parameter[]> {
+  return call<Parameter[]>("write_parameters_batch", {
+    req: {},
+    changes: changes.map((change) => ({ ...change })),
+  });
+}
+
 export async function listParameters(): Promise<Parameter[]> {
   return call<Parameter[]>("list_parameters");
 }
@@ -298,6 +313,19 @@ export async function manualControl(
   buttons = 0,
 ): Promise<void> {
   await call<void>("manual_control", { req: {}, roll, pitch, thrust, yaw, buttons });
+}
+
+/**
+ * Asks the vehicle to calibrate one of its sensors.
+ *
+ * The calibration is carried out by the vehicle: the order says which sensor, and the
+ * vehicle answers when it has begun.
+ */
+export async function calibrate(
+  kind: "accelerometer" | "level" | "compass",
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("calibrate", { ...vehicleRequest(vehicle), kind });
 }
 
 /** Asks the vehicle to restart. */

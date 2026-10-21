@@ -46,6 +46,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod functions;
 pub mod metadata;
+pub mod ordering;
 pub mod param_file;
 
 /// The type of a parameter value.

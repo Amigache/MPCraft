@@ -224,6 +224,14 @@ export interface UiStore {
    */
   readonly parameterGroup: string | null;
   /**
+   * The prefix the names of the parameters have, when one is chosen.
+   *
+   * Some of the screens upstream has are about the parameters whose names
+   * begin with a word — the serial ports, the flight modes, the failsafe — and
+   * those parameters are not in any group of the catalogue.
+   */
+  readonly parameterPrefix: string | null;
+  /**
    * The groups the parameters belong to.
    *
    * The groups are the subjects the parameters are about, and upstream builds its
@@ -257,6 +265,12 @@ export interface UiStore {
 
   /** Chooses the system of units. */
   readonly setUnits: (units: UnitSystem) => void;
+  /** Whether the sheet of the calibrations is open over the window. */
+  readonly calibrationOpen: boolean;
+  /** Opens the sheet of the calibrations. */
+  readonly showCalibration: () => void;
+  /** Closes the sheet of the calibrations. */
+  readonly hideCalibration: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -265,6 +279,11 @@ export interface UiStore {
    * A group of nothing shows every parameter.
    */
   readonly showParameterGroup: (group: string | null) => void;
+  /**
+   * Opens the sheet of parameters, showing the parameters whose names begin
+   * with the given word.
+   */
+  readonly showParameterPrefix: (prefix: string | null) => void;
   /** Reads the groups the parameters belong to. */
   readonly loadParameterGroups: () => Promise<void>;
   /** Closes the sheet of parameters. */
@@ -301,6 +320,8 @@ export const useUiStore = create<UiStore>((set) => ({
   units: readText("mpcraft.units", DEFAULT_UNITS) as UnitSystem,
   parametersOpen: false,
   parameterGroup: null,
+  parameterPrefix: null,
+  calibrationOpen: false,
   parameterGroups: [],
 
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -368,7 +389,14 @@ export const useUiStore = create<UiStore>((set) => ({
   showParameters: () => set({ parametersOpen: true }),
 
   showParameterGroup: (group) =>
-    set({ parametersOpen: true, parameterGroup: group }),
+    set({ parametersOpen: true, parameterGroup: group, parameterPrefix: null }),
+
+  showParameterPrefix: (prefix) =>
+    set({ parametersOpen: true, parameterGroup: null, parameterPrefix: prefix }),
+
+  showCalibration: () => set({ calibrationOpen: true }),
+
+  hideCalibration: () => set({ calibrationOpen: false }),
 
   loadParameterGroups: async () => {
     try {

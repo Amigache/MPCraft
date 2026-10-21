@@ -78,10 +78,49 @@ pub struct ParameterMeta {
     pub user: String,
     /// The values the parameter can be given, when it is a choice.
     #[serde(default)]
-    pub values: Vec<String>,
+    pub values: Vec<ParamChoice>,
+    /// The flags of the mask, when the parameter is one.
+    #[serde(default)]
+    pub bitmask: Vec<ParamFlag>,
     /// The vehicle families the parameter belongs to.
     #[serde(default)]
     pub vehicles: Vec<String>,
+}
+
+/// One of the values a parameter can be given, when it is a choice.
+///
+/// A choice is a value and the name it is called: the number the vehicle stores and the
+/// words the operator reads. The two belong together, because the words alone say
+/// nothing about what has to be written to the vehicle.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParamChoice {
+    /// The value the parameter takes when this choice is made.
+    pub code: f64,
+    /// What the choice is called.
+    pub text: String,
+}
+
+impl ParameterMeta {
+    /// Whether a change to the parameter needs a restart to take effect.
+    ///
+    /// The catalogue says so in words, and the words are "true" when it does.
+    #[must_use]
+    pub fn needs_reboot(&self) -> bool {
+        self.reboot_required.eq_ignore_ascii_case("true")
+    }
+}
+
+/// One of the flags of a mask.
+///
+/// A parameter that is a mask holds several switches in one number: each flag is a
+/// part of it, and the flag is either raised or not. The part it is is the mask of the
+/// flag, and the documentation writes the place it occupies in the number.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParamFlag {
+    /// The mask of the flag: the part of the number that is raised when it is on.
+    pub mask: u32,
+    /// What the flag is called.
+    pub text: String,
 }
 
 /// The catalogue, as it is stored.

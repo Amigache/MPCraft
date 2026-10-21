@@ -5,6 +5,7 @@ import {
   normaliseError,
   readParameters,
   writeParameter,
+  writeParametersBatch,
 } from "../ipc/bridge";
 import type { CommandError, Parameter } from "../ipc/types";
 
@@ -43,12 +44,27 @@ export interface ParamsStore {
   readonly lastWrite: WriteOutcome | null;
   /** The last failure of a read, with its stable code. */
   readonly error: CommandError | null;
+  /**
+   * The parameters the operator has changed in this session.
+   *
+   * They are the ones that can be put back as they were: the value the
+   * documentation gives as the default of each of them.
+   */
+  readonly changed: readonly string[];
   /** Reads the parameters the vehicle has reported so far. */
   readonly refresh: () => Promise<void>;
   /** Asks the vehicle for every parameter it has, and waits for the answers. */
   readonly readAll: () => Promise<void>;
   /** Writes one parameter and waits for the vehicle to confirm it. */
   readonly write: (name: string, value: number) => Promise<void>;
+  /**
+   * Writes several parameters, in the order the vehicle needs them.
+   *
+   * The order is the autopilots' knowledge and the backend applies it.
+   */
+  readonly writeBatch: (
+    changes: readonly { name: string; value: number }[],
+  ) => Promise<void>;
 }
 
 /**
@@ -138,6 +154,7 @@ export const useParamsStore = create<ParamsStore>((set) => ({
   writing: null,
   lastWrite: null,
   error: null,
+  changed: [],
 
   refresh: async () => {
     try {
@@ -174,8 +191,55 @@ export const useParamsStore = create<ParamsStore>((set) => ({
       set((state) => ({
         parameters: replaceParameter(state.parameters, stored),
         writing: null,
+        changed: state.changed.includes(name)
+          ? state.changed
+          : [...state.changed, name],
         lastWrite: { kind: "written", parameter: stored },
       }));
+    } catch (cause) {
+      const error = normaliseError(cause);
+      set({
+        writing: null,
+        lastWrite: { kind: "failed", code: error.code, message: error.message },
+      });
+    }
+  },
+
+  writeBatch: async (changes) => {
+    if (changes.length === 0) {
+      return;
+    }
+
+    set({ writing: "the batch", lastWrite: null });
+
+    try {
+      const stored = (await writeParametersBatch(changes)).map(known);
+
+      set((state) => {
+        let parameters = state.parameters;
+
+        for (const parameter of stored) {
+          parameters = replaceParameter(parameters, parameter);
+        }
+
+        const changed = [...state.changed];
+
+        for (const change of changes) {
+          if (!changed.includes(change.name)) {
+            changed.push(change.name);
+          }
+        }
+
+        return {
+          parameters,
+          writing: null,
+          changed,
+          lastWrite:
+            stored.length > 0
+              ? { kind: "written", parameter: stored[0] as KnownParameter }
+              : null,
+        };
+      });
     } catch (cause) {
       const error = normaliseError(cause);
       set({

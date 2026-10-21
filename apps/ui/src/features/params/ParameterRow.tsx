@@ -87,7 +87,36 @@ function describe(
     parts.push(`Group: ${metadata.group}`);
   }
 
+  if (metadata.rebootRequired) {
+    parts.push("A change to it needs the vehicle to be restarted");
+  }
+
   return parts.length > 0 ? parts.join(" · ") : parameter.name;
+}
+
+/**
+ * The choices a parameter can be given, with the value it has now among them.
+ *
+ * A parameter that is a choice is drawn as a list of what it can be, and the value it
+ * has is the one that is chosen. When the vehicle holds a value the documentation does
+ * not know — a value a newer autopilot has — the value is kept as a choice of its own,
+ * so that the row says what the vehicle has instead of pretending it does not.
+ */
+function choicesFor(
+  metadata: ParameterMetadata | undefined,
+  value: number | null,
+): readonly { code: number; text: string }[] {
+  const choices = metadata?.values ?? [];
+
+  if (value === null || choices.length === 0) {
+    return choices;
+  }
+
+  if (choices.some((choice) => choice.code === value)) {
+    return choices;
+  }
+
+  return [...choices, { code: value, text: String(value) }];
 }
 
 export function ParameterRow({
@@ -114,6 +143,9 @@ export function ParameterRow({
   const shown = formatParameterValue(parameter.value, parameter.reportedType);
   const integral = isIntegralType(parameter.reportedType);
   const outOfRange = isOutOfRange(metadata, parameter.value);
+
+  const choices = choicesFor(metadata, parameter.value);
+  const flags = metadata?.bitmask ?? [];
 
   // The edit starts with the value the vehicle has now.
   //
@@ -198,67 +230,128 @@ export function ParameterRow({
 
       {editing ? (
         <span className={styles.editor}>
-          <input
-            ref={input}
-            className={styles.input}
-            data-editor="true"
-            value={draft}
-            spellCheck={false}
-            autoComplete="off"
-            inputMode={integral ? "numeric" : "decimal"}
-            aria-label={`The value of ${parameter.name}`}
-            aria-invalid={problem !== null}
-            disabled={busy}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setProblem(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                submit();
-              } else if (event.key === "Escape") {
-                // The sheet listens for the escape key as well; this one belongs to the
-                // edit, not to the sheet.
-                event.preventDefault();
-                event.stopPropagation();
-                onCancel();
-              }
-            }}
-          />
-          <button
-            type="button"
-            className={styles.write}
-            disabled={busy || locked}
-            onClick={submit}
-          >
-            {busy ? "Writing…" : "Write"}
-          </button>
-          <button
-            type="button"
-            className={styles.abort}
-            disabled={busy}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
+          {flags.length > 0 ? (
+            <>
+              <span className={styles.flags}>
+                {flags.map((flag) => (
+                  <label key={flag.mask} className={styles.flag}>
+                    <input
+                      type="checkbox"
+                      checked={((parameter.value ?? 0) & flag.mask) !== 0}
+                      disabled={busy || locked}
+                      aria-label={`${flag.text} of ${parameter.name}`}
+                      onChange={(event) => {
+                        const value = parameter.value ?? 0;
+
+                        onWrite(
+                          event.target.checked
+                            ? value | flag.mask
+                            : value & ~flag.mask,
+                        );
+                      }}
+                    />
+                    <span className={styles.flagText}>{flag.text}</span>
+                  </label>
+                ))}
+              </span>
+
+              <button
+                type="button"
+                className={styles.abort}
+                disabled={busy}
+                onClick={onCancel}
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                ref={input}
+                className={styles.input}
+                data-editor="true"
+                value={draft}
+                spellCheck={false}
+                autoComplete="off"
+                inputMode={integral ? "numeric" : "decimal"}
+                aria-label={`The value of ${parameter.name}`}
+                aria-invalid={problem !== null}
+                disabled={busy}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  setProblem(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    submit();
+                  } else if (event.key === "Escape") {
+                    // The sheet listens for the escape key as well; this one belongs to
+                    // the edit, not to the sheet.
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onCancel();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className={styles.write}
+                disabled={busy || locked}
+                onClick={submit}
+              >
+                {busy ? "Writing…" : "Write"}
+              </button>
+              <button
+                type="button"
+                className={styles.abort}
+                disabled={busy}
+                onClick={onCancel}
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </span>
       ) : (
         <span className={styles.valueCell}>
-          <button
-            type="button"
-            className={`${styles.value} ${outOfRange ? styles.outOfRange : ""}`}
-            disabled={locked}
-            title={
-              outOfRange
-                ? "The value is outside the range the documentation gives"
-                : "Click to change the value"
-            }
-            aria-label={`${parameter.name}, ${shown}. Change the value`}
-            onClick={onEdit}
-          >
-            {shown}
-          </button>
+          {choices.length > 0 ? (
+            <select
+              className="select"
+              value={String(parameter.value ?? "")}
+              disabled={locked}
+              title={
+                outOfRange
+                  ? "The value is outside the range the documentation gives"
+                  : "Choose one of the values it can be given"
+              }
+              aria-label={`${parameter.name}, ${shown}. Change the value`}
+              onChange={(event) => {
+                onWrite(Number(event.target.value));
+              }}
+            >
+              {choices.map((choice) => (
+                <option key={choice.code} value={choice.code}>
+                  {choice.text}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <button
+              type="button"
+              className={`${styles.value} ${outOfRange ? styles.outOfRange : ""}`}
+              disabled={locked}
+              title={
+                outOfRange
+                  ? "The value is outside the range the documentation gives"
+                  : "Click to change the value"
+              }
+              aria-label={`${parameter.name}, ${shown}. Change the value`}
+              onClick={onEdit}
+            >
+              {shown}
+            </button>
+          )}
           {metadata !== undefined && metadata.unit !== "" ? (
             <span className={styles.unit}>{metadata.unit}</span>
           ) : null}
@@ -269,6 +362,14 @@ export function ParameterRow({
         <span className={styles.badge} title={typeName}>
           {typeName}
         </span>
+        {metadata !== undefined && metadata.rebootRequired ? (
+          <span
+            className={styles.badge}
+            title="A change to this parameter needs the vehicle to be restarted to take effect"
+          >
+            Reboot
+          </span>
+        ) : null}
       </span>
 
       {problem ? (

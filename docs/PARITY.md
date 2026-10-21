@@ -110,21 +110,21 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 5.1 | Full parameter download with progress | `MAVLinkInterface.getParamListAsync` | ✅ | 3 |
 | 5.2 | Parameter write with echo confirmation | `setParamAsync` | ✅ | 3 |
-| 5.3 | Batched write with `*_ENABLE` ordering | `ConfigRawParams.SortENABLE` | 🔜 | 3 |
+| 5.3 | Batched write with `*_ENABLE` ordering | `ConfigRawParams.SortENABLE` | ✅ | 3 |
 | 5.4 | Live parameter updates | `processInfoFromStream` PARAM_VALUE | ✅ | 3 |
-| 5.5 | Parameter metadata (ranges, bitmasks, options, units) | `ParameterMetaData.xml` | 🟡 | 3 |
+| 5.5 | Parameter metadata (ranges, bitmasks, options, units) | `ParameterMetaData.xml` | ✅ | 3 |
 | 5.6 | Parameter tree by prefix | `ConfigRawParams.BuildTree` | ✅ | 3 |
 | 5.7 | Parameter search | `ConfigRawParams.txt_search` | ✅ | 3 |
 | 5.8 | Favourites | `ConfigRawParams` Fav column | ✅ | 3 |
 | 5.9 | Friendly (metadata-driven) parameter UI | `ConfigFriendlyParams.cs` | ✅ | 3 |
 | 5.10 | `.param` file import / export | `ExtLibs/Utilities/ParamFile.cs` | ✅ | 3 |
 | 5.11 | Parameter diff against a file | `Controls/paramcompare.cs` | ✅ | 3 |
-| 5.12 | Write-to-flash / reset-to-defaults | `ConfigRawParams` | 🟡 | 3 |
-| 5.13 | Reboot-required detection & prompt | `GetParameterRebootRequired` | 🔜 | 3 |
+| 5.12 | Write-to-flash / reset-to-defaults | `ConfigRawParams` | ✅ | 3 |
+| 5.13 | Reboot-required detection & prompt | `GetParameterRebootRequired` | ✅ | 3 |
 | 5.14 | Frame type selection | `ConfigFrameType.cs` | 🔜 | 3 |
-| 5.15 | Accelerometer calibration | `ConfigAccelerometerCalibration.cs` | 🔜 | 3 |
-| 5.16 | Compass calibration & motor compensation | `ConfigCompassMot.cs` | 🔜 | 3 |
-| 5.17 | Motor test | `ConfigMotorTest.cs` | 🔜 | 3 |
+| 5.15 | Accelerometer calibration | `ConfigAccelerometerCalibration.cs` | ✅ | 3 |
+| 5.16 | Compass calibration & motor compensation | `ConfigCompassMot.cs` | ✅ | 3 |
+| 5.17 | Motor test | `ConfigMotorTest.cs` | ✅ | 3 |
 | 5.18 | GPS ordering / auto-detect | `ConfigGPSOrder.cs` | 🔜 | 3 |
 | 5.19 | Serial port configuration | `ConfigSerial.cs` | 🔜 | 3 |
 | 5.20 | RC input / output configuration | `ConfigRadioInput.cs`, `ConfigRadioOutput.cs` | 🔜 | 3 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 69 |
-| 🔜 Planned | 82 |
+| ✅ Done | 76 |
+| 🔜 Planned | 77 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 3 |
+| 🟡 Partial | 1 |
 
-The 69 rows marked done are the connection, transport, parameter, mission and command
+The 76 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -256,12 +256,18 @@ above the map. The waypoints are dragged on the map, the plan is checked before 
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
 unsent changes never looks like the plan on the vehicle.
 
+The **calibrations** are a sheet of their own, opened from the Setup menu, the way
+upstream has a screen for the accelerometer and another for the compass. The order is
+sent to the vehicle and the vehicle counts the positions itself: the accelerometer in its
+six positions, the compass with the vehicle away from the metal of the bench. The
+compensation of the motors is a parameter, and the sheet takes the operator to it.
+
 What is still missing from the window: the transponder, the generator of the vehicle, the
 open drone identification, the splines of the survey and the way of injecting a map of one's
 own.
 
-The three rows marked partial are the metadata of the parameters, the writing to the
-flash, and the generators of a survey: the circle is there, the splines are not.
+The single row marked partial is the generators of a survey: the circle is there, the
+splines are not.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not
@@ -287,13 +293,19 @@ key.
 The plan editor keeps the edits apart from the plan the vehicle holds, and says so when
 they differ, and a change can be taken back with the button or with control and Z.
 
-The **metadata** of a parameter is shown with it - the description, the unit, the range
-and the value it had before anybody changed it - but the values a parameter can be given
-when it is a choice, and the masks of the parameters that are a mask, are not shown yet.
+The **metadata** of a parameter is shown with it: the description, the unit, the range
+and the value it had before anybody changed it. A parameter that is a choice is drawn as
+the list of what it can be, and a parameter that is a mask is drawn as the flags it
+holds, each of them a switch the operator can throw. The catalogue carries the code of
+every choice and the mask of every flag, so the interface does not have to guess which
+number means what.
 
 The **flash** can be written, so that a parameter the vehicle has in its memory but not
-in its own memory survives a loss of power; what is missing is the reset to the defaults,
-although the catalogue knows the value every parameter had before anybody changed it.
+in its own memory survives a loss of power. The parameters the operator changed can also
+be put back as they were: the catalogue knows the value every parameter had before
+anybody changed it, and only the ones that were changed are written, in the order the
+vehicle needs them - the ones that turn something on go first, the way upstream writes
+them.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

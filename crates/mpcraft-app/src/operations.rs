@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use mpcraft_link::{Session, VehicleId};
+use mpcraft_link::{Calibration, Session, VehicleId};
 use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionType, Plan};
 
@@ -159,6 +159,26 @@ impl SessionSupervisor {
 
         session
             .motor_test(vehicle, motor, throttle, seconds, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle to calibrate one of its sensors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the
+    /// command or does not answer.
+    pub async fn calibrate(
+        &self,
+        vehicle: VehicleId,
+        calibration: Calibration,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .calibrate(vehicle, calibration, COMMAND_TIMEOUT)
             .await?;
 
         Ok(())

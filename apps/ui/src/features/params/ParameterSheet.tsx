@@ -81,6 +81,7 @@ export function ParameterSheet() {
   const open = useUiStore((state) => state.parametersOpen);
   const hide = useUiStore((state) => state.hideParameters);
   const group = useUiStore((state) => state.parameterGroup);
+  const prefix = useUiStore((state) => state.parameterPrefix);
   const showParameterGroup = useUiStore((state) => state.showParameterGroup);
 
   const parameters = useParamsStore((state) => state.parameters);
@@ -91,6 +92,8 @@ export function ParameterSheet() {
   const refresh = useParamsStore((state) => state.refresh);
   const readAll = useParamsStore((state) => state.readAll);
   const write = useParamsStore((state) => state.write);
+  const writeBatch = useParamsStore((state) => state.writeBatch);
+  const changed = useParamsStore((state) => state.changed);
 
   const favourites = useFavouritesStore((state) => state.favourites);
   const favouriteError = useFavouritesStore((state) => state.error);
@@ -153,17 +156,29 @@ export function ParameterSheet() {
     [selected, tree],
   );
 
+  // What the sheet shows is a scope: a group of the catalogue, or the parameters whose
+  // names begin with a word. The two never mix, because the parameters of a prefix are
+  // not in any group of the catalogue.
   const rows = useMemo(
     () =>
       orderParameters(
-        matched.filter((parameter) =>
-          isUnder(node, parameter.name) &&
-          (group === null ||
-            (metadata.get(parameter.name)?.group ?? "") === group),
-        ),
+        matched.filter((parameter) => {
+          if (!isUnder(node, parameter.name)) {
+            return false;
+          }
+
+          if (prefix !== null) {
+            return parameter.name.startsWith(prefix);
+          }
+
+          return (
+            group === null ||
+            (metadata.get(parameter.name)?.group ?? "") === group
+          );
+        }),
         favourites,
       ),
-    [favourites, group, matched, metadata, node],
+    [favourites, group, matched, metadata, node, prefix],
   );
 
   // The sheet grows when the tree is dragged wider, so that the list keeps the room it
@@ -424,16 +439,64 @@ export function ParameterSheet() {
 
     setFileBusy(true);
 
-    let written = 0;
+    // The parameters of the file are written in the order the vehicle needs them: the
+    // ones that turn something on are written last. The order is the autopilots'
+    // knowledge, so it is the backend that applies it.
+    const changes = parameters.map((parameter) => ({
+      name: parameter.name,
+      value: parameter.value,
+    }));
 
-    for (const parameter of parameters) {
-      await write(parameter.name, parameter.value);
-      written += 1;
+    await writeBatch(changes);
+
+    setFileNotice(`${changes.length} parameters were written to the vehicle.`);
+    setFileBusy(false);
+  }, [pendingLoad, writeBatch]);
+
+  /**
+   * Puts back the parameters the operator changed, as they were before.
+   *
+   * Only the parameters that were changed are put back, and only the ones the
+   * documentation knows the default of. A parameter that has no default is left alone:
+   * there is no telling what it should be, and guessing would be worse than leaving it.
+   */
+  const restoreDefaults = useCallback(async () => {
+    const changes: { name: string; value: number }[] = [];
+
+    for (const name of changed) {
+      const meta = metadata.get(name);
+
+      if (meta === undefined || meta.default === "") {
+        continue;
+      }
+
+      const value = Number.parseFloat(meta.default);
+
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+
+      changes.push({ name, value });
     }
 
-    setFileNotice(`${written} parameters were written to the vehicle.`);
-    setFileBusy(false);
-  }, [pendingLoad, write]);
+    if (changes.length === 0) {
+      setFileNotice(
+        "There is nothing to put back: no parameter that was changed has a default in the documentation.",
+      );
+      return;
+    }
+
+    setFileBusy(true);
+
+    try {
+      await writeBatch(changes);
+      setFileNotice(`${changes.length} parameters were put back as they were.`);
+    } catch (cause) {
+      setFileNotice(`${normaliseError(cause).code} — the parameters were not put back.`);
+    } finally {
+      setFileBusy(false);
+    }
+  }, [changed, metadata, writeBatch]);
 
   /** Asks the vehicle to write its parameters to its own memory. */
   const writeToFlash = useCallback(async () => {
@@ -539,6 +602,18 @@ export function ParameterSheet() {
               }}
             >
               Compare…
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={fileBusy || !linked || changed.length === 0}
+              title="Put back the parameters that were changed, as they were before"
+              onClick={() => {
+                void restoreDefaults();
+              }}
+            >
+              Restore the defaults
             </button>
 
             <button

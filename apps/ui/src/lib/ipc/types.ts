@@ -314,6 +314,26 @@ export interface ParameterDifference {
  * changed it are the autopilots' knowledge, and the catalogue the backend keeps has
  * them for four thousand parameters.
  */
+/**
+ * One of the flags of a mask.
+ */
+export interface ParamFlag {
+  /** The mask of the flag: the part of the number that is raised when it is on. */
+  readonly mask: number;
+  /** What the flag is called. */
+  readonly text: string;
+}
+
+/**
+ * One of the values a parameter can be given, when it is a choice.
+ */
+export interface ParamChoice {
+  /** The value the parameter takes when this choice is made. */
+  readonly code: number;
+  /** What the choice is called. */
+  readonly text: string;
+}
+
 export interface ParameterMetadata {
   /** The name of the parameter. */
   readonly name: string;
@@ -334,7 +354,11 @@ export interface ParameterMetadata {
   /** The largest value it takes. */
   readonly maximum: string;
   /** The values it can be given, when it is a choice. */
-  readonly values: readonly string[];
+  readonly values: readonly ParamChoice[];
+  /** The flags of the mask, when the parameter is one. */
+  readonly bitmask: readonly ParamFlag[];
+  /** Whether a change to the parameter needs a restart to take effect. */
+  readonly rebootRequired: boolean;
   /** The vehicle families it belongs to. */
   readonly vehicles: readonly string[];
 }

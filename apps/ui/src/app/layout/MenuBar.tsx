@@ -77,6 +77,7 @@ export function MenuBar() {
   const setUnits = useUiStore((state) => state.setUnits);
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
   const showParameters = useUiStore((state) => state.showParameters);
+  const showCalibration = useUiStore((state) => state.showCalibration);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
   const loadParameterGroups = useUiStore(
     (state) => state.loadParameterGroups,
@@ -392,6 +393,30 @@ export function MenuBar() {
           disabled: false,
           checked: undefined,
           separator: true,
+          hint: "",
+        },
+        {
+          id: "calibration-accelerometer",
+          label: "Accelerometer",
+          onSelect: () => {
+            close();
+            showCalibration();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "calibration-compass",
+          label: "Compass",
+          onSelect: () => {
+            close();
+            showCalibration();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
           hint: "",
         },
         {

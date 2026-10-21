@@ -98,6 +98,8 @@ CMD_FENCE_CIRCLE_INCLUSION = 5003
 CMD_NAV_RALLY_POINT = 5100
 CMD_DO_SET_MODE = 176
 CMD_DO_JUMP = 177
+# The calibration of a sensor: the vehicle counts the positions itself.
+CMD_PREFLIGHT_CALIBRATION = 241
 CMD_COMPONENT_ARM_DISARM = 400
 
 
@@ -758,6 +760,13 @@ PARAMETERS = [
     ("COMPASS_OFS_X", 0, PARAM_INT16),
     ("COMPASS_OFS_Y", 0, PARAM_INT16),
     ("GPS_TYPE", 0, PARAM_UINT8),
+      # A parameter that is a choice: the documentation says what it can be.
+    ("COM_AUTOS_PAR", 1, PARAM_UINT8),
+    ("BAT_N_CELLS", 4, PARAM_UINT8),
+      # A parameter that needs the vehicle to be restarted to take effect.
+    ("PWM_AUX_DISARMED", 1000, PARAM_UINT16),
+    # A parameter that is a mask: several switches in one number.
+    ("ACRO_OPTIONS", 1, PARAM_UINT16),
     ("SERIAL0_BAUD", 57600, PARAM_UINT32),
     ("INS_GYR_ID", 1, PARAM_UINT8),
     # What the outputs are for: the first four drive the motors, the fifth is a
@@ -1602,6 +1611,18 @@ class Vehicle:
 
         if command == CMD_NAV_TAKEOFF:
             self.send_status_text("taking off")
+            self.acknowledge(command, RESULT_ACCEPTED)
+            return
+
+        if command == CMD_PREFLIGHT_CALIBRATION:
+            # The second parameter is the compass and the fifth is the accelerometer.
+            if values.get("param2", 0.0) >= 0.5:
+                self.send_status_text("calibrating the compass")
+            elif values.get("param5", 0.0) >= 0.5:
+                self.send_status_text("calibrating the accelerometer")
+            else:
+                self.send_status_text("calibrating")
+
             self.acknowledge(command, RESULT_ACCEPTED)
             return
 

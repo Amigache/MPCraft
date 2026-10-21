@@ -1,0 +1,108 @@
+/* The sheet of the calibrations.
+ *
+ * It is a panel over the window, with the window dimmed behind it, like the sheet of
+ * the parameters: the configuration is not a window of its own, it lies over the flight
+ * data.
+ */
+
+.backdrop {
+  align-items: flex-start;
+  background: rgba(6, 9, 13, 0.55);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--space-6);
+  position: fixed;
+  z-index: 60;
+}
+
+.panel {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  height: min(560px, 100%);
+  overflow: hidden;
+  width: min(620px, 100%);
+}
+
+/* The header ---------------------------------------------------------------- */
+
+.header {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  margin: 0;
+}
+
+.headerActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* The body ------------------------------------------------------------------ */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+.block {
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.heading {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  margin: 0;
+}
+
+.text {
+  color: var(--colour-text-dim);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.note {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.notice {
+  color: var(--colour-accent);
+  font-size: var(--font-xs);
+  margin: 0;
+}
+
+.error {
+  color: var(--colour-danger);
+  font-size: var(--font-xs);
+  margin: 0;
+}

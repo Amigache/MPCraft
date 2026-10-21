@@ -105,6 +105,35 @@ impl std::fmt::Display for CommandError {
 
 impl std::error::Error for CommandError {}
 
+/// A calibration the vehicle is asked to do.
+///
+/// The autopilot calibrates itself: the order says which sensor, and the vehicle
+/// answers when the calibration has begun. Upstream sends the same order — the second
+/// parameter is what the compass does and the fifth is what the accelerometer does — and
+/// the numbers it uses are the autopilot's, not ours to invent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Calibration {
+    /// The accelerometer, in the six positions.
+    Accelerometer,
+    /// The accelerometer, level with the ground.
+    AccelerometerLevel,
+    /// The compass.
+    Compass,
+}
+
+impl Calibration {
+    /// The parameters the order carries.
+    ///
+    /// Zero is nothing, one is the full calibration and two is the level one.
+    const fn params(self) -> [f32; 7] {
+        match self {
+            Calibration::Accelerometer => [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            Calibration::AccelerometerLevel => [0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0],
+            Calibration::Compass => [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        }
+    }
+}
+
 /// The command operations of a session.
 impl Session {
     /// Arms a vehicle.
@@ -431,6 +460,31 @@ impl Session {
         });
 
         self.write_message(&message).await
+    }
+
+    /// Asks the vehicle to calibrate one of its sensors.
+    ///
+    /// The calibration is carried out by the vehicle: the order says which sensor, and
+    /// the vehicle answers when it has begun. The answer is the vehicle's, not the
+    /// interface's.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command, or when it does not answer
+    /// in time.
+    pub async fn calibrate(
+        &self,
+        vehicle: VehicleId,
+        calibration: Calibration,
+        timeout: Duration,
+    ) -> Result<MavResult, LinkError> {
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_PREFLIGHT_CALIBRATION,
+            calibration.params(),
+            timeout,
+        )
+        .await
     }
 
     /// Executes a command with floating-point parameters.

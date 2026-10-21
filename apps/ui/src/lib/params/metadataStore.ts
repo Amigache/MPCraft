@@ -53,6 +53,8 @@ export async function loadMetadata(
           minimum: "",
           maximum: "",
           values: [],
+          bitmask: [],
+          rebootRequired: false,
           vehicles: [],
         });
       }
