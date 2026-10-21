@@ -529,6 +529,16 @@ export async function firmwareDownload(
 }
 
 /**
+ * Writes a bundle with what the application knows about itself.
+ *
+ * The bundle is a zip with a file per subject: the machine, the connection profiles and
+ * the state of the link. It is what is sent to whoever is asked to look at a failure.
+ */
+export async function diagnosticsBundle(output: string): Promise<string> {
+  return call<string>("diagnostics_bundle", { output });
+}
+
+/**
  * Starts writing the track of the flight to a KML file.
  *
  * The file is written again and again while the vehicle flies, so that another program

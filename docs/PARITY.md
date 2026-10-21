@@ -210,7 +210,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | ✅ | 0 |
 | 10.6 | Auto-updater | `Updater/` | 🔜 | 7 |
-| 10.7 | Crash handler / diagnostics bundle | `Program.cs` | 🔜 | 7 |
+| 10.7 | Crash handler / diagnostics bundle | `Program.cs` | ✅ | 7 |
 | 10.8 | Windows / Linux / macOS packaging | `wix/`, `Msi/` | 🔜 | 7 |
 | 10.9 | Code signing & notarisation | `wix/` | 🔜 | 7 |
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 114 |
-| 🔜 Planned | 39 |
+| ✅ Done | 115 |
+| 🔜 Planned | 38 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 114 rows marked done are the connection, transport, parameter, mission and command
+The 115 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -278,6 +278,11 @@ The **firmware** of the vehicles is chosen from the Setup menu: the manifest tha
 ArduPilot publishes is read, and the operator picks the vehicle, the version and the
 board, and the file of that board is fetched to the disk. The file is the firmware of
 the autopilot, the one that is written to a board.
+
+The **diagnostics** of the application are gathered in one file, from the Help menu: the
+machine it runs on, the connection profiles that are saved and the state of the link.
+When the application falls over, the reason is written down where it can be found
+afterwards.
 
 The **Setup menu** carries the screens of the configuration, the way upstream's does:
 the frame of the vehicle, the receivers, the serial ports, the radio, the failsafe and

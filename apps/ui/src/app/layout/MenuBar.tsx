@@ -9,7 +9,11 @@ import {
 } from "../../lib/flight/flightActions";
 import { useModesStore } from "../../lib/flight/modesStore";
 import { pickSavePath } from "../../lib/ipc/dialog";
-import { startLiveKml, stopLiveKml } from "../../lib/ipc/bridge";
+import {
+  diagnosticsBundle,
+  startLiveKml,
+  stopLiveKml,
+} from "../../lib/ipc/bridge";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
@@ -736,6 +740,39 @@ export function MenuBar() {
       id: "help",
       label: "Help",
       items: [
+        {
+          id: "diagnostics",
+          label: "Write a diagnostics bundle…",
+          onSelect: () => {
+            close();
+
+            void pickSavePath("mpcraft-diagnostics.zip", [
+              { name: "The bundle of the diagnostics", extensions: ["zip"] },
+            ])
+              .then((picked) => {
+                if (!picked.ok) {
+                  return;
+                }
+
+                return diagnosticsBundle(picked.path)
+                  .then(() => {
+                    setNote(`The bundle was written to ${picked.path}.`);
+                  })
+                  .catch((cause: { message?: string }) => {
+                    setNote(
+                      cause.message ?? "The bundle could not be written.",
+                    );
+                  });
+              })
+              .catch(() => {
+                setNote("The file could not be asked for.");
+              });
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
         {
           id: "about",
           label: "About MPCraft",

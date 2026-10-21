@@ -1379,6 +1379,27 @@ async fn firmware_download(url: String, output: String) -> CommandResult<u64> {
     mpcraft_app::firmware::download_file(&url, std::path::Path::new(&output)).await
 }
 
+/// Writes a bundle with what the application knows about itself.
+///
+/// The bundle is a zip with a file per subject: the machine, the connection profiles
+/// and the state of the link. It is what is sent to whoever is asked to look at a
+/// failure.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the bundle cannot be written.
+#[tauri::command]
+async fn diagnostics_bundle(
+    state: State<'_, AppState>,
+    output: String,
+) -> CommandResult<String> {
+    let entries = mpcraft_app::diagnostics::gather(&state);
+
+    mpcraft_app::diagnostics::write_bundle(std::path::Path::new(&output), &entries)?;
+
+    Ok(output)
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -2732,6 +2753,24 @@ fn main() {
 
     tracing::info!("starting MPCraft");
 
+    // A panic takes the application down with it, and the reason is only in the
+    // message of the panic. It is written down where it can be found afterwards.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|location| format!("{}:{}", location.file(), location.line()))
+            .unwrap_or_else(|| "an unknown place".to_owned());
+
+        let message = format!("{info}");
+
+        let path = std::env::temp_dir().join("mpcraft-panic.txt");
+        let _ = std::fs::write(&path, format!("{location}\n\n{message}\n"));
+
+        tracing::error!("the application fell over at {location}: {message}");
+        previous(info);
+    }));
+
     // A ground station is often launched from a shortcut that points at a particular
     // vehicle, so the link target can be given on the command line.
     let target = target_from_arguments();
@@ -2791,6 +2830,7 @@ fn main() {
             dted_path,
             firmware_manifest,
             firmware_download,
+            diagnostics_bundle,
             list_parameters,
             read_parameters,
             write_parameter,
