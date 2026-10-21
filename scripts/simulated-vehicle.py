@@ -726,9 +726,13 @@ class Vehicle:
         self.socket.settimeout(0.1)
         self.sequence = 0
         self.start = time.monotonic()
-        # The ground station that is listening. It is learned from the first frame it
-        # sends: a vehicle that only streams telemetry never learns the address otherwise.
-        self.client = None
+        # The ground stations that are listening. They are learned from the frames they
+        # send: a vehicle that only streams telemetry never learns the address otherwise.
+        #
+        # There is more than one, because a link can be watched by more than one ground
+        # station, and Mission Planner's UDP transport fans out to every peer it has
+        # heard from.
+        self.clients = []
 
         # Whether the vehicle wants the integer form of the mission items.
         self.mission_int = mission_int
@@ -838,16 +842,19 @@ class Vehicle:
             # side too.
             try:
                 data, address = self.socket.recvfrom(2048)
-                if self.client != address:
-                    self.client = address
+                if address not in self.clients:
+                    self.clients.append(address)
                     print(f"the ground station is at {address}", flush=True)
                 self.handle(data)
             except socket.timeout:
                 pass
             except ConnectionResetError:
-                # The previous datagram went to a port that was not listening. The ground
-                # station that is gone will be heard from again when it returns.
+                # The previous datagram went to a port that was not listening. On Windows
+                # the error arrives with the next packet, and the packet is lost with it,
+                # so the ground stations are forgotten: they announce themselves again
+                # every second, and until they do the vehicle has nobody to talk to.
                 print("the ground station went away", flush=True)
+                self.clients.clear()
             except OSError as error:
                 print(f"the link failed: {error}", flush=True)
                 break
@@ -1017,8 +1024,8 @@ class Vehicle:
                     "alt_error": 0.0,
                     "aspd_error": 0.1,
                     "xtrack_error": 0.5,
-                    "nav_bearing": int(math.degrees(yaw) * 100) % 36000,
-                    "target_bearing": int(math.degrees(yaw) * 100) % 36000,
+                    "nav_bearing": int(math.degrees(yaw)) % 360,
+                    "target_bearing": int(math.degrees(yaw)) % 360,
                     "wp_dist": 120,
                 },
             )
@@ -1104,19 +1111,37 @@ class Vehicle:
     # ------------------------------------------------------------------ sending
 
     def send(self, message_id, values):
-        """Sends a message to the ground station."""
-        if self.client is None:
+        """Sends a message to the ground station.
+
+        A message that cannot be built is a mistake in the vehicle, and it is said out
+        loud — but the vehicle keeps flying: one broken message must not take the whole
+        simulation down, or the mistake goes unnoticed for as long as nobody looks at
+        the log.
+        """
+        if not self.clients:
             # No ground station has been heard from yet, so there is nowhere to send.
             return
 
-        payload = encode(message_id, values)
-
         try:
-            self.socket.sendto(
-                frame(message_id, payload, self.next_sequence()), self.client
-            )
-        except OSError as error:
-            print(f"could not send: {error}", flush=True)
+            payload = encode(message_id, values)
+        except (struct.error, ValueError, KeyError) as error:
+            name = MESSAGES[message_id].name
+            print(f"the message {name} could not be built: {error}", flush=True)
+            return
+
+        # The frame is built once and sent to every ground station that is listening.
+        try:
+            packet = frame(message_id, payload, self.next_sequence())
+        except (struct.error, ValueError) as error:
+            name = MESSAGES[message_id].name
+            print(f"the frame of {name} could not be built: {error}", flush=True)
+            return
+
+        for client in list(self.clients):
+            try:
+                self.socket.sendto(packet, client)
+            except OSError as error:
+                print(f"could not send: {error}", flush=True)
 
     def send_heartbeat(self):
         """The heartbeat: the vehicle's type, its mode and its capabilities."""

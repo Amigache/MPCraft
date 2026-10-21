@@ -123,6 +123,21 @@ enum ParamsAction {
         /// The new value.
         value: f64,
     },
+    /// Write the parameters of the vehicle to a file.
+    Export {
+        /// The path of the file.
+        path: std::path::PathBuf,
+    },
+    /// Write the parameters of a file to the vehicle.
+    Import {
+        /// The path of the file.
+        path: std::path::PathBuf,
+    },
+    /// Say how the parameters of the vehicle differ from the ones of a file.
+    Diff {
+        /// The path of the file.
+        path: std::path::PathBuf,
+    },
 }
 
 /// The mission actions.
@@ -415,6 +430,92 @@ async fn params(
                 .map_err(|e| format!("cannot write {name}: {e}"))?;
 
             println!("{:<24} {}", written.name, written.value);
+            Ok(())
+        }
+
+        ParamsAction::Export { path } => {
+            let store = session
+                .download_parameters(vehicle, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|e| format!("cannot read the parameters: {e}"))?;
+
+            let text = mpcraft_params::param_file::write(&store);
+
+            std::fs::write(path, text)
+                .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+
+            println!("{} parameters written to {}", store.len(), path.display());
+            Ok(())
+        }
+
+        ParamsAction::Import { path } => {
+            let text = std::fs::read_to_string(path)
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+
+            let parameters = mpcraft_params::param_file::read(&text)
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+
+            // The parameters of the file are written one by one, because the vehicle
+            // confirms each of them: a file of two hundred parameters is two hundred
+            // writes, and a vehicle that refuses one of them says so.
+            let mut written = 0usize;
+
+            for parameter in &parameters {
+                let stored = session
+                    .write_parameter(vehicle, &parameter.name, parameter.value, DEFAULT_TIMEOUT)
+                    .await
+                    .map_err(|e| format!("cannot write {}: {e}", parameter.name))?;
+
+                written += 1;
+
+                if stored.value != parameter.value {
+                    println!(
+                        "{:<24} the vehicle stored {} instead of {}",
+                        stored.name, stored.value, parameter.value
+                    );
+                }
+            }
+
+            println!("{written} parameters written to the vehicle");
+            Ok(())
+        }
+
+        ParamsAction::Diff { path } => {
+            let store = session
+                .download_parameters(vehicle, DEFAULT_TIMEOUT)
+                .await
+                .map_err(|e| format!("cannot read the parameters: {e}"))?;
+
+            let text = std::fs::read_to_string(path)
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+
+            let parameters = mpcraft_params::param_file::read(&text)
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+
+            let mut other = mpcraft_params::ParameterStore::new();
+            for parameter in parameters {
+                other.insert(parameter);
+            }
+
+            let differences = mpcraft_params::param_file::differences(&store, &other);
+
+            if differences.is_empty() {
+                println!("the vehicle and the file agree");
+                return Ok(());
+            }
+
+            for difference in &differences {
+                let current = difference
+                    .current
+                    .map_or_else(|| "-".to_owned(), |value| value.to_string());
+                let other = difference
+                    .other
+                    .map_or_else(|| "-".to_owned(), |value| value.to_string());
+
+                println!("{:<24} vehicle {current:<14} file {other}", difference.name);
+            }
+
+            println!("{} parameters differ", differences.len());
             Ok(())
         }
     }
