@@ -373,6 +373,18 @@ export interface TerrainPoint {
   readonly waypoint: boolean;
 }
 
+/** What the outputs of the vehicle are for. */
+export interface OutputFunction {
+  /** The output, counted from one. */
+  readonly output: number;
+  /** The number the parameter carries. */
+  readonly value: number;
+  /** The name of the function, when the specification gives it one. */
+  readonly name: string | null;
+  /** The motor the function drives, when it drives one. */
+  readonly motor: number | null;
+}
+
 export interface GraphPreset {
   /** The full name, as the interface shows it. */
   readonly name: string;

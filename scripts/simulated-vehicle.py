@@ -719,6 +719,16 @@ PARAMETERS = [
     ("GPS_TYPE", 0, PARAM_UINT8),
     ("SERIAL0_BAUD", 57600, PARAM_UINT32),
     ("INS_GYR_ID", 1, PARAM_UINT8),
+    # What the outputs are for: the first four drive the motors, the fifth is a
+    # light and the rest are nothing.
+    ("SERVO1_FUNCTION", 69, PARAM_UINT8),
+    ("SERVO2_FUNCTION", 70, PARAM_UINT8),
+    ("SERVO3_FUNCTION", 71, PARAM_UINT8),
+    ("SERVO4_FUNCTION", 72, PARAM_UINT8),
+    ("SERVO5_FUNCTION", 40, PARAM_UINT8),
+    ("SERVO6_FUNCTION", 0, PARAM_UINT8),
+    ("SERVO7_FUNCTION", 0, PARAM_UINT8),
+    ("SERVO8_FUNCTION", 0, PARAM_UINT8),
 ]
 
 

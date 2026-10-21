@@ -50,8 +50,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.10 | Battery banks 1–9 monitoring | `CurrentState.cs` | ✅ | 1 |
 | 2.11 | Multi-GPS status | `CurrentState.cs` | 🔜 | 1 |
 | 2.12 | EKF status & vibration display | `Controls/EKFStatus.cs`, `Vibration.cs` | ✅ | 3 |
-| 2.13 | Servo & relay output display | `Controls/ServoOptions.cs`, `RelayOptions.cs` | 🔜 | 3 |
-| 2.14 | Auxiliary function display | `Controls/AuxOptions.cs` | 🔜 | 3 |
+| 2.13 | Servo & relay output display | `Controls/ServoOptions.cs`, `RelayOptions.cs` | ✅ | 3 |
+| 2.14 | Auxiliary function display | `Controls/AuxOptions.cs` | ✅ | 3 |
 | 2.15 | Transponder (Mode-S) control | `FlightData.cs` tabTransponder | 🔜 | 5 |
 | 2.16 | EFI / generator telemetry | `CurrentState.cs` | 🔜 | 5 |
 | 2.17 | OpenDroneID display | `ExtLibs/ArduPilot/OpenDroneID.cs` | 🔜 | 5 |
@@ -207,7 +207,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 10.1 | Screen-switching shell | `ExtLibs/Controls/MainSwitcher.cs` | 🔜 | 1 |
 | 10.2 | Theme system (light / dark / high-contrast) | `ThemeManager.cs`, `*.mpsystheme` | 🔜 | 7 |
 | 10.3 | Internationalisation | `Strings.resx` + Crowdin | 🔜 | 7 |
-| 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | 🔜 | 1 |
+| 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | 🔜 | 0 |
 | 10.6 | Auto-updater | `Updater/` | 🔜 | 7 |
 | 10.7 | Crash handler / diagnostics bundle | `Program.cs` | 🔜 | 7 |
@@ -220,20 +220,21 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 59 |
-| 🔜 Planned | 93 |
+| ✅ Done | 62 |
+| 🔜 Planned | 90 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 59 rows marked done are the connection, transport, parameter, mission and command
+The 62 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
 work and are covered by tests.
 
 The flight data window has upstream's distribution: a menu strip, a fixed column on the
-left with the artificial horizon above a set of tabs - quick view, actions, messages,
-gauges and status - the map filling everything else, and a status strip. The live readouts,
+left with the artificial horizon above a set of tabs - quick view, actions, messages, the
+check list before the flight, the dials, the state of the vehicle, the outputs and the
+auxiliary functions - the map filling everything else, and a status strip. The live readouts,
 the attitude indicator, the map with the vehicle and the track, the plan drawn on it, the
 dials, the tiles and the vehicle's own messages are all on screen.
 

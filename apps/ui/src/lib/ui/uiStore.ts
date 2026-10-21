@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { DEFAULT_PROVIDER } from "../../features/map/providers";
+import { DEFAULT_UNITS, type UnitSystem } from "../units";
 import { listParameterGroups } from "../ipc/bridge";
 
 /**
@@ -16,18 +17,27 @@ export type TabId =
   | "quick"
   | "actions"
   | "messages"
+  | "preflight"
   | "gauges"
   | "status"
-  | "preflight";
+  | "servos"
+  | "aux";
 
-/** The tabs, with the names they are given. */
+/**
+ * The tabs, with the names they are given.
+ *
+ * The order is upstream's: the quick view, the actions, the messages, the check list
+ * before the flight, the dials, the state of the vehicle and the outputs.
+ */
 export const TABS: readonly { id: TabId; label: string }[] = [
   { id: "quick", label: "Quick" },
   { id: "actions", label: "Actions" },
   { id: "messages", label: "Messages" },
+  { id: "preflight", label: "Pre-flight" },
   { id: "gauges", label: "Gauges" },
   { id: "status", label: "Status" },
-  { id: "preflight", label: "Pre-flight" },
+  { id: "servos", label: "Servos" },
+  { id: "aux", label: "Aux" },
 ];
 
 /** The width of the left column when nothing has been changed. */
@@ -200,6 +210,9 @@ export interface UiStore {
 
   /** Whether the next click on the map tells the vehicle to go there. */
   readonly mapGoing: boolean;
+
+  /** The system of units the operator reads the measurements in. */
+  readonly units: UnitSystem;
   /** Whether the sheet of parameters is open over the window. */
   readonly parametersOpen: boolean;
   /**
@@ -241,6 +254,9 @@ export interface UiStore {
 
   /** Says whether the next click on the map tells the vehicle to go there. */
   readonly setMapGoing: (going: boolean) => void;
+
+  /** Chooses the system of units. */
+  readonly setUnits: (units: UnitSystem) => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -282,6 +298,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showMapControls: readFlag("mpcraft.showMapControls", true),
   mapProvider: readText("mpcraft.mapProvider", DEFAULT_PROVIDER),
   mapGoing: false,
+  units: readText("mpcraft.units", DEFAULT_UNITS) as UnitSystem,
   parametersOpen: false,
   parameterGroup: null,
   parameterGroups: [],
@@ -340,6 +357,11 @@ export const useUiStore = create<UiStore>((set) => ({
   },
 
   setMapGoing: (going) => set({ mapGoing: going }),
+
+  setUnits: (units) => {
+    writeText("mpcraft.units", units);
+    set({ units });
+  },
 
   // The sheet of parameters is not remembered between runs: it is a thing the operator
   // opens, not a place the window is left in.

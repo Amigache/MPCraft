@@ -11,8 +11,8 @@
 
 use mpcraft_app::{
     flight_modes, AppState, CommandError, CommandResult, ConnectRequest, ConnectResponse,
-    ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, PlanInfo, PlanKind, PresetInfo,
-    SeriesData, SessionState,
+    ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction, PlanInfo,
+    PlanKind, PresetInfo, SeriesData, SessionState,
 };
 use mpcraft_link::VehicleId;
 use mpcraft_mission::{MissionType, Plan};
@@ -318,6 +318,16 @@ struct UtmEvent {
     easting: f64,
     /// The northing, in metres.
     northing: f64,
+}
+
+/// What the outputs of the vehicle are for.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link.
+#[tauri::command]
+async fn output_functions(state: State<'_, AppState>) -> CommandResult<Vec<OutputFunction>> {
+    state.supervisor.output_functions()
 }
 
 /// Tells the vehicle to go to a place.
@@ -1810,6 +1820,7 @@ fn main() {
             compare_parameters,
             write_parameters_to_flash,
             set_position_target,
+            output_functions,
             reboot,
             plan_terrain_profile,
             vehicle_coordinates,

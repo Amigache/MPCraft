@@ -15,6 +15,7 @@ import type {
   GraphSeries,
   LossStats,
   MavCommand,
+  OutputFunction,
   Parameter,
   ParameterDifference,
   ParameterMetadata,
@@ -262,6 +263,16 @@ export async function setPositionTarget(
 /** Asks the vehicle to restart. */
 export async function reboot(vehicle?: VehicleKey): Promise<void> {
   await call<void>("reboot", vehicleRequest(vehicle));
+}
+
+/**
+ * What the outputs of the vehicle are for.
+ *
+ * The vehicle says it with the parameters `SERVO1_FUNCTION` and its brothers, and the
+ * names are the ones the specification gives them.
+ */
+export async function outputFunctions(): Promise<OutputFunction[]> {
+  return call<OutputFunction[]>("output_functions");
 }
 
 /**

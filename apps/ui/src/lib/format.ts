@@ -4,7 +4,21 @@
  * These functions are the only place where a number becomes a string. They never change
  * a value: they render what the backend sent, and they render a dash when there is
  * nothing to render.
+ *
+ * The measurements are rendered in the unit the operator reads in, and the conversion
+ * happens here and nowhere else: the values that travel over the wire are always in the
+ * units of the protocol.
  */
+
+import { useUiStore } from "./ui/uiStore";
+import {
+  altitudeUnit,
+  convertAltitude,
+  convertDistance,
+  convertSpeed,
+  distanceUnit,
+  speedUnit,
+} from "./units";
 
 /** What is shown when a value is not known. */
 export const DASH = "—";
@@ -27,30 +41,61 @@ export function formatCount(value: number | null | undefined): string {
   return present(value) ? Math.round(value).toLocaleString("en-US") : DASH;
 }
 
+/** The system of units the operator has chosen. */
+function units() {
+  return useUiStore.getState().units;
+}
+
 /** A distance, in metres or kilometres as the number asks. */
 export function formatDistance(value: number | null | undefined): string {
   if (!present(value)) {
     return DASH;
   }
+
+  const system = units();
+
+  if (system === "imperial") {
+    const feet = convertDistance(value, system);
+    if (Math.abs(feet) < 1000) {
+      return `${feet.toFixed(1)} ${distanceUnit(system)}`;
+    }
+    return `${(feet / 5280).toFixed(2)} mi`;
+  }
+
   if (Math.abs(value) < 1000) {
-    return `${value.toFixed(1)} m`;
+    return `${value.toFixed(1)} ${distanceUnit(system)}`;
   }
   return `${(value / 1000).toFixed(2)} km`;
 }
 
-/** A speed, in metres per second. */
+/** A speed, in metres per second or in miles per hour. */
 export function formatSpeed(value: number | null | undefined): string {
-  return present(value) ? `${value.toFixed(1)} m/s` : DASH;
+  if (!present(value)) {
+    return DASH;
+  }
+
+  const system = units();
+  return `${convertSpeed(value, system).toFixed(1)} ${speedUnit(system)}`;
 }
 
-/** An altitude, in metres. */
+/** An altitude, in metres or in feet. */
 export function formatAltitude(value: number | null | undefined): string {
-  return present(value) ? `${value.toFixed(1)} m` : DASH;
+  if (!present(value)) {
+    return DASH;
+  }
+
+  const system = units();
+  return `${convertAltitude(value, system).toFixed(1)} ${altitudeUnit(system)}`;
 }
 
-/** A vertical rate, in metres per second. */
+/** A vertical rate, in metres per second or in miles per hour. */
 export function formatVerticalSpeed(value: number | null | undefined): string {
-  return present(value) ? `${value.toFixed(1)} m/s` : DASH;
+  if (!present(value)) {
+    return DASH;
+  }
+
+  const system = units();
+  return `${convertSpeed(value, system).toFixed(1)} ${speedUnit(system)}`;
 }
 
 /** A heading, in degrees, as a compass bearing would be written. */

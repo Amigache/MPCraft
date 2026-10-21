@@ -110,6 +110,38 @@ impl SessionSupervisor {
         Ok(())
     }
 
+    /// What the outputs of the vehicle are for.
+    ///
+    /// The function of each output is read from the parameters the vehicle has reported.
+    /// An output whose function the vehicle has not said has no function here: it is
+    /// said as a number, or not at all.
+    pub fn output_functions(&self) -> CommandResult<Vec<OutputFunction>> {
+        let Some(session) = self.session() else {
+            return Err(CommandError::not_connected());
+        };
+
+        let state = session.state();
+        let mut functions = Vec::new();
+
+        for output in 1..=16_u32 {
+            let name = format!("SERVO{output}_FUNCTION");
+
+            let Some(parameter) = state.parameters.get(&name) else {
+                continue;
+            };
+
+            functions.push(OutputFunction {
+                output,
+                value: parameter.value,
+                name: mpcraft_params::functions::servo_function_name(parameter.value)
+                    .map(str::to_owned),
+                motor: mpcraft_params::functions::motor_number(parameter.value),
+            });
+        }
+
+        Ok(functions)
+    }
+
     /// Tells the vehicle to go to a place.
     ///
     /// This is the guided mode: the vehicle flies to the place and stays there. The
@@ -293,6 +325,23 @@ pub struct PlanItem {
     pub current: bool,
     /// Whether the vehicle continues to the next item automatically.
     pub autocontinue: bool,
+}
+
+/// What the outputs of the vehicle are for.
+///
+/// The function of each output is told by a parameter — `SERVO1_FUNCTION` and its
+/// brothers — and the number is named the way the specification names it.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputFunction {
+    /// The output, counted from one.
+    pub output: u32,
+    /// The number the parameter carries.
+    pub value: f64,
+    /// The name of the function, when the specification gives it one.
+    pub name: Option<String>,
+    /// The motor the function drives, when it drives one.
+    pub motor: Option<u32>,
 }
 
 /// A plan, as the interface sees it.

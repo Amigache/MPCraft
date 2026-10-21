@@ -44,6 +44,7 @@ use std::collections::BTreeMap;
 use mpcraft_mavlink::{MavAutopilot, MavParamType, MavProtocolCapability};
 use serde::{Deserialize, Serialize};
 
+pub mod functions;
 pub mod metadata;
 pub mod param_file;
 

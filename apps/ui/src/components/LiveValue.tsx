@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import type { Telemetry } from "../lib/ipc/types";
 import { liveTelemetry } from "../lib/link/liveTelemetry";
+import { useUiStore } from "../lib/ui/uiStore";
 
 /**
  * A value that follows the telemetry without re-rendering.
@@ -32,6 +33,11 @@ export function LiveValue({
   className,
   title,
 }: LiveValueProps) {
+  // The system of units is read here so that the value is written again when the
+  // operator changes it: the text is written directly and nothing else would
+  // redraw it.
+  const units = useUiStore((state) => state.units);
+
   const node = useRef<HTMLSpanElement | null>(null);
   const selectRef = useRef(select);
   const formatRef = useRef(format);
@@ -62,7 +68,7 @@ export function LiveValue({
     write(liveTelemetry.value);
 
     return liveTelemetry.subscribe(write);
-  }, []);
+  }, [units]);
 
   return (
     <span className={className} title={title} ref={node}>

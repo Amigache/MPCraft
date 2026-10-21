@@ -73,6 +73,8 @@ export function MenuBar() {
   const followVehicle = useUiStore((state) => state.followVehicle);
   const setFollowVehicle = useUiStore((state) => state.setFollowVehicle);
   const showMapControls = useUiStore((state) => state.showMapControls);
+  const units = useUiStore((state) => state.units);
+  const setUnits = useUiStore((state) => state.setUnits);
   const toggleMapControls = useUiStore((state) => state.toggleMapControls);
   const showParameters = useUiStore((state) => state.showParameters);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
@@ -282,6 +284,18 @@ export function MenuBar() {
       id: "view",
       label: "View",
       items: [
+        {
+          id: "units",
+          label: "Units in feet and miles",
+          onSelect: () => {
+            close();
+            setUnits(units === "imperial" ? "metric" : "imperial");
+          },
+          disabled: false,
+          checked: units === "imperial",
+          separator: false,
+          hint: "",
+        },
         {
           id: "side-panel",
           label: "Side panel",

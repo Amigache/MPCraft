@@ -11,6 +11,8 @@ import { MessageConsole } from "../../features/messages/MessageConsole";
 import { PlanEditor } from "../../features/plan/PlanEditor";
 import { PreFlightPanel } from "../../features/preflight/PreFlightPanel";
 import { QuickViewPanel } from "../../features/quick-view/QuickViewPanel";
+import { ServoPanel } from "../../features/servos/ServoPanel";
+import { AuxPanel } from "../../features/servos/AuxPanel";
 import { StatusPanel } from "../../features/status/StatusPanel";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import {
@@ -165,6 +167,24 @@ export function FlightData() {
                 hidden={activeTab !== "status"}
               >
                 <StatusPanel />
+              </div>
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-servos"
+                aria-labelledby="tab-servos"
+                hidden={activeTab !== "servos"}
+              >
+                <ServoPanel />
+              </div>
+              <div
+                className={styles.panel}
+                role="tabpanel"
+                id="panel-aux"
+                aria-labelledby="tab-aux"
+                hidden={activeTab !== "aux"}
+              >
+                <AuxPanel />
               </div>
               <div
                 className={styles.panel}
