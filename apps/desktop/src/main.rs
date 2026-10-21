@@ -1112,6 +1112,45 @@ async fn log_series(path: String, name: String) -> CommandResult<mpcraft_app::gr
     mpcraft_app::logs::series(std::path::Path::new(&path), &name)
 }
 
+/// Writes the track of a log as a KML document.
+///
+/// The document is the one Google Earth reads: the path of the flight as a line, and
+/// every place of it as a mark.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, when it
+/// does not hold a log, or when the document cannot be written.
+#[tauri::command]
+async fn log_export_kml(log: String, output: String) -> CommandResult<()> {
+    let text = mpcraft_app::logs::track_kml(std::path::Path::new(&log))?;
+
+    std::fs::write(&output, text)
+        .map_err(|error| CommandError::internal(format!("cannot write {output}: {error}")))?;
+
+    Ok(())
+}
+
+/// Writes the samples of a log as a CSV document.
+///
+/// The columns are the series of the graph that is chosen, and the rows are the
+/// instants where the log has something to say.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, when it
+/// does not hold a log, when there is no graph with that name, or when the document
+/// cannot be written.
+#[tauri::command]
+async fn log_export_csv(log: String, name: String, output: String) -> CommandResult<()> {
+    let text = mpcraft_app::logs::samples_csv(std::path::Path::new(&log), &name)?;
+
+    std::fs::write(&output, text)
+        .map_err(|error| CommandError::internal(format!("cannot write {output}: {error}")))?;
+
+    Ok(())
+}
+
 /// The track of a log: the places the vehicle went through.
 ///
 /// # Errors
@@ -2162,6 +2201,8 @@ fn main() {
             log_summary,
             log_series,
             log_track,
+            log_export_kml,
+            log_export_csv,
             list_parameters,
             read_parameters,
             write_parameter,

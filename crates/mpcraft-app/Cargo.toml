@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
+csv = { workspace = true }
 mpcraft-geo = { workspace = true }
 mpcraft-link = { workspace = true }
 mpcraft-log = { workspace = true }

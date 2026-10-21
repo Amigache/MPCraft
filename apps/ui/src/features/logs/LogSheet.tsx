@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { pickOpenPath } from "../../lib/ipc/dialog";
+import { pickOpenPath, pickSavePath } from "../../lib/ipc/dialog";
 import {
   listGraphs,
+  logExportCsv,
+  logExportKml,
   logSeries,
   logSummary,
   normaliseError,
@@ -46,6 +48,7 @@ export function LogSheet() {
   const [preset, setPreset] = useState<string>("");
   const [values, setValues] = useState<GraphSeries | null>(null);
   const [error, setError] = useState<CommandError | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // The catalogue of graphs is read once, when the sheet opens.
@@ -180,6 +183,58 @@ export function LogSheet() {
       ? 0
       : (summary.end - summary.start) / 1_000_000;
 
+  const exportKml = async () => {
+    if (path === null) {
+      return;
+    }
+
+    const picked = await pickSavePath("flight.kml", [
+      { name: "KML document", extensions: ["kml"] },
+    ]);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await logExportKml(path, picked.path);
+      setNotice(`The track was written to ${picked.path}.`);
+      setError(null);
+    } catch (cause) {
+      setError(normaliseError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportCsv = async () => {
+    if (path === null || preset === "") {
+      return;
+    }
+
+    const picked = await pickSavePath("samples.csv", [
+      { name: "CSV document", extensions: ["csv"] },
+    ]);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await logExportCsv(path, preset, picked.path);
+      setNotice(`The samples were written to ${picked.path}.`);
+      setError(null);
+    } catch (cause) {
+      setError(normaliseError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div
       className={styles.backdrop}
@@ -299,6 +354,40 @@ export function LogSheet() {
             <div className={styles.chart}>
               <GraphChart plan={plan} values={aligned} />
             </div>
+          ) : null}
+
+          {path !== null ? (
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                title="Write the track of the log as a KML document"
+                onClick={() => {
+                  void exportKml();
+                }}
+              >
+                Export the track (KML)
+              </button>
+
+              <button
+                type="button"
+                className="button"
+                disabled={busy || preset === ""}
+                title="Write the samples of the graph as a CSV document"
+                onClick={() => {
+                  void exportCsv();
+                }}
+              >
+                Export the samples (CSV)
+              </button>
+            </div>
+          ) : null}
+
+          {notice !== null ? (
+            <p className={styles.notice} role="status">
+              {notice}
+            </p>
           ) : null}
 
           {error !== null ? (

@@ -370,6 +370,31 @@ export async function logSeries(path: string, name: string): Promise<GraphSeries
   return call<GraphSeries>("log_series", { path, name });
 }
 
+/**
+ * Writes the track of a log as a KML document.
+ *
+ * The document is the one Google Earth reads.
+ */
+export async function logExportKml(
+  log: string,
+  output: string,
+): Promise<void> {
+  await call<void>("log_export_kml", { log, output });
+}
+
+/**
+ * Writes the samples of a log as a CSV document.
+ *
+ * The columns are the series of the graph that is chosen.
+ */
+export async function logExportCsv(
+  log: string,
+  name: string,
+  output: string,
+): Promise<void> {
+  await call<void>("log_export_csv", { log, name, output });
+}
+
 /** The track of a log: the places the vehicle went through. */
 export async function logTrack(path: string): Promise<LogTrackPoint[]> {
   return call<LogTrackPoint[]>("log_track", { path });

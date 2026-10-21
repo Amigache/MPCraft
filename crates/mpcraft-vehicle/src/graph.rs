@@ -1664,6 +1664,15 @@ impl History {
             .filter_map(|sample| expression.evaluate(sample).map(|value| (sample.at, value)))
             .collect()
     }
+
+    /// The samples of the history, oldest first.
+    ///
+    /// The samples are what the history holds: the value of every field, at the instant
+    /// it was taken. A reader that wants the values of its own expressions — a table of
+    /// samples, a file of numbers — needs them one by one.
+    pub fn samples(&self) -> impl Iterator<Item = &Sample> {
+        self.samples.iter()
+    }
 }
 
 #[cfg(test)]

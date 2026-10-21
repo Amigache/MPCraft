@@ -24,7 +24,9 @@ use std::time::Duration;
 use mpcraft_link::TelemetryAggregator;
 use mpcraft_log::TlogReader;
 use mpcraft_mavlink::dialect::message_name;
+use mpcraft_mavlink::MavCmd;
 use mpcraft_mavlink::Message;
+use mpcraft_mission::{MissionItem, MissionItemId, MissionType, Plan};
 use mpcraft_vehicle::graph::{self, History, Sample};
 
 use crate::error::{CommandError, CommandResult};
@@ -239,6 +241,101 @@ pub struct TrackPoint {
     pub at: u64,
 }
 
+/// The track of a log, as a KML document.
+///
+/// The document is the one Google Earth reads: the path of the flight as a line, and
+/// every place of it as a mark.
+///
+/// # Errors
+///
+/// Returns an error when the file cannot be read, or when it does not hold a log.
+pub fn track_kml(path: &Path) -> CommandResult<String> {
+    let points = track(path)?;
+
+    let items = points
+        .iter()
+        .map(|point| MissionItem {
+            id: MissionItemId::next(),
+            command: MavCmd::MAV_CMD_NAV_WAYPOINT,
+            frame: mpcraft_mission::mavcmd::DEFAULT_FRAME,
+            params: [0.0; 4],
+            x: point.latitude,
+            y: point.longitude,
+            z: point.altitude,
+            current: false,
+            autocontinue: true,
+            display_name: None,
+        })
+        .collect();
+
+    let plan = Plan {
+        mission_type: MissionType::Mission,
+        items,
+    };
+
+    Ok(mpcraft_mission::kml::write_kml(&plan))
+}
+
+/// The samples of a log, as a CSV document.
+///
+/// The columns are the series of the graph that is chosen, and the rows are the
+/// instants where the log has something to say.
+///
+/// # Errors
+///
+/// Returns an error when the file cannot be read, when it does not hold a log, or when
+/// there is no graph with that name.
+pub fn samples_csv(path: &Path, name: &str) -> CommandResult<String> {
+    let compiled = graph::catalogue()
+        .into_iter()
+        .find(|candidate| candidate.preset.name.full() == name);
+
+    let Some(compiled) = compiled else {
+        return Err(CommandError::invalid_request(format!(
+            "there is no graph called {name:?}"
+        )));
+    };
+
+    let history = read_history(path)?;
+
+    let mut writer = csv::Writer::from_writer(Vec::new());
+
+    let header: Vec<String> = std::iter::once("seconds".to_owned())
+        .chain(compiled.series.iter().map(|series| series.name.to_owned()))
+        .collect();
+
+    writer.write_record(&header).map_err(|error| {
+        CommandError::internal(format!("the samples could not be written: {error}"))
+    })?;
+
+    // The samples are the ones the history holds, and the values of each series are
+    // the ones it has at that instant: a series that has nothing there is left empty.
+    for sample in history.samples() {
+        let mut row: Vec<String> = vec![format!("{:.3}", sample.at.as_secs_f64())];
+
+        for series in &compiled.series {
+            let value = series
+                .expression
+                .evaluate(sample)
+                .map(|value| format!("{value:.6}"))
+                .unwrap_or_default();
+
+            row.push(value);
+        }
+
+        writer.write_record(&row).map_err(|error| {
+            CommandError::internal(format!("the samples could not be written: {error}"))
+        })?;
+    }
+
+    let bytes = writer.into_inner().map_err(|error| {
+        CommandError::internal(format!("the samples could not be written: {error}"))
+    })?;
+
+    String::from_utf8(bytes)
+        .map_err(|error| CommandError::internal(format!("the samples are not text: {error}")))
+}
+
 /// Reads a log and builds the history of its telemetry.
 fn read_history(path: &Path) -> CommandResult<History> {
     let file = File::open(path).map_err(|error| {
@@ -252,6 +349,7 @@ fn read_history(path: &Path) -> CommandResult<History> {
     let mut start = 0_u64;
     let mut last_sample = 0_u64;
     let mut first = true;
+    let mut taken = false;
 
     while let Some(record) = reader
         .next_record()
@@ -265,13 +363,15 @@ fn read_history(path: &Path) -> CommandResult<History> {
         }
 
         // The samples are thinned: the log has more messages than a graph needs, and
-        // the history keeps a sample every fifth of a second.
+        // the history keeps a sample every fifth of a second. The first one is always
+        // taken, or the beginning of the flight would be missing.
         let at = record.timestamp.saturating_sub(start);
 
-        if !first && at.saturating_sub(last_sample) < SAMPLE_INTERVAL {
+        if taken && at.saturating_sub(last_sample) < SAMPLE_INTERVAL {
             continue;
         }
 
+        taken = true;
         last_sample = at;
 
         history.push(Sample::from_telemetry(
@@ -286,6 +386,61 @@ fn read_history(path: &Path) -> CommandResult<History> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mpcraft_mavlink::dialect::messages::ATTITUDE_DATA;
+    use mpcraft_mavlink::frame::MavHeader;
+    use mpcraft_mavlink::MavMessage;
+
+    /// A frame of an attitude, as it goes over the wire.
+    fn attitude_frame(roll: f32, pitch: f32) -> Vec<u8> {
+        let message = MavMessage::ATTITUDE(ATTITUDE_DATA {
+            time_boot_ms: 0,
+            roll,
+            pitch,
+            yaw: 0.0,
+            rollspeed: 0.0,
+            pitchspeed: 0.0,
+            yawspeed: 0.0,
+        });
+
+        mpcraft_mavlink::frame::encode_v2(
+            &message,
+            MavHeader {
+                system_id: 1,
+                component_id: 1,
+                sequence: 0,
+            },
+        )
+    }
+
+    /// A log with the given frames, each of them with its timestamp.
+    fn write_tlog(path: &Path, records: &[(u64, Vec<u8>)]) {
+        let mut bytes = Vec::new();
+
+        for (timestamp, frame) in records {
+            bytes.extend_from_slice(&timestamp.to_be_bytes());
+            bytes.extend_from_slice(frame);
+        }
+
+        std::fs::write(path, bytes).expect("the log is written");
+    }
+
+    /// A log of a short flight, in a file of its own.
+    fn log_file(name: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(name);
+
+        let records: Vec<(u64, Vec<u8>)> = (0..20)
+            .map(|step| {
+                (
+                    1_000_000 + step * 300_000,
+                    attitude_frame(step as f32 * 0.1, 0.0),
+                )
+            })
+            .collect();
+
+        write_tlog(&path, &records);
+
+        path
+    }
 
     #[test]
     fn a_log_that_is_not_there_is_an_error() {
@@ -299,5 +454,45 @@ mod tests {
         let error = series(Path::new("there-is-no-such-log.tlog"), "Nothing/Here").unwrap_err();
 
         assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
+    }
+
+    #[test]
+    fn the_summary_says_what_the_log_holds() {
+        let path = log_file("mpcraft-test-summary.tlog");
+
+        let summary = summarise(&path).expect("the log is read");
+
+        assert_eq!(summary.records, 20);
+        assert_eq!(summary.messages.len(), 1);
+        assert_eq!(summary.messages[0].name, "ATTITUDE");
+        assert_eq!(summary.messages[0].count, 20);
+        assert!(summary.end > summary.start);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_graph_over_a_log_has_the_values_of_the_log() {
+        let path = log_file("mpcraft-test-series.tlog");
+
+        let data = series(&path, "Attitude/Roll and Pitch").expect("the graph is read");
+
+        assert!(!data.series.is_empty());
+        assert_eq!(data.series[0].x.len(), 20);
+        assert_eq!(data.series[0].x.len(), data.series[0].y.len());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn the_samples_of_a_log_are_written_as_csv() {
+        let path = log_file("mpcraft-test-csv.tlog");
+
+        let text = samples_csv(&path, "Attitude/Roll and Pitch").expect("the samples are read");
+
+        assert!(text.starts_with("seconds,"));
+        assert_eq!(text.lines().count(), 21);
+
+        let _ = std::fs::remove_file(path);
     }
 }
