@@ -405,6 +405,62 @@ struct MavCommandEvent {
     units: Vec<&'static str>,
 }
 
+/// The metadata of the parameters: what they do, their units and their range.
+///
+/// The catalogue is the knowledge of the autopilots, so the interface asks for it and
+/// shows what it says. A parameter the catalogue does not know has no metadata, and that
+/// is not an error: the vehicle may have a parameter no catalogue describes.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn parameter_metadata(names: Vec<String>) -> CommandResult<Vec<Option<ParameterMetaEvent>>> {
+    Ok(names
+        .iter()
+        .map(|name| {
+            mpcraft_params::metadata::of(name).map(|meta| ParameterMetaEvent {
+                name: meta.name.clone(),
+                display_name: meta.display_name.clone(),
+                group: meta.group.clone(),
+                description: meta.description.clone(),
+                long_description: meta.long_description.clone(),
+                unit: meta.unit.clone(),
+                minimum: meta.minimum.clone(),
+                maximum: meta.maximum.clone(),
+                values: meta.values.clone(),
+                vehicles: meta.vehicles.clone(),
+            })
+        })
+        .collect())
+}
+
+/// The metadata of a parameter.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParameterMetaEvent {
+    /// The name of the parameter.
+    name: String,
+    /// The name it is shown with.
+    display_name: String,
+    /// The group it belongs to.
+    group: String,
+    /// What it does, in a line.
+    description: String,
+    /// What it does, at length.
+    long_description: String,
+    /// The unit the value is in.
+    unit: String,
+    /// The smallest value it takes.
+    minimum: String,
+    /// The largest value it takes.
+    maximum: String,
+    /// The values it can be given, when it is a choice.
+    values: Vec<String>,
+    /// The vehicle families it belongs to.
+    vehicles: Vec<String>,
+}
+
 /// The graphs the user can choose.
 ///
 /// # Errors
@@ -983,6 +1039,7 @@ fn main() {
             list_flight_modes,
             list_serial_ports,
             list_graphs,
+            parameter_metadata,
             list_mav_commands,
             graph_series,
             list_parameters,
