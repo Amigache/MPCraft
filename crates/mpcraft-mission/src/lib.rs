@@ -35,6 +35,7 @@ use serde::{Deserialize, Serialize};
 pub mod kml;
 pub mod mavcmd;
 pub mod qgc;
+pub mod validate;
 pub mod wire;
 
 pub use kml::{read_kml, write_kml, KmlError};

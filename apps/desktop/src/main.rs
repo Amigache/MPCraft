@@ -241,6 +241,170 @@ struct ParameterEvent {
     reported_type: u8,
 }
 
+/// The warnings about a plan, before it is flown.
+///
+/// The rule is the autopilot's, so it is evaluated in the model and the interface only
+/// shows what it says.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the plan holds a command the ground
+/// station does not know.
+#[tauri::command]
+async fn validate_mission(
+    kind: PlanKind,
+    items: Vec<PlanItemRequest>,
+) -> CommandResult<Vec<PlanWarningEvent>> {
+    let plan = plan_of(kind, &items)?;
+
+    Ok(mpcraft_mission::validate::validate(&plan)
+        .into_iter()
+        .map(|warning| PlanWarningEvent {
+            seq: warning.seq,
+            reason: match warning.reason {
+                mpcraft_mission::validate::WarningReason::ZeroAltitude => "zeroAltitude".to_owned(),
+            },
+        })
+        .collect())
+}
+
+/// A warning about an item of a plan.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanWarningEvent {
+    /// The position of the item in the plan.
+    seq: usize,
+    /// What is wrong with it.
+    reason: String,
+}
+
+/// Writes a plan to a file.
+///
+/// The format is the one Mission Planner uses: `waypoints` for the QGC file and `kml` for
+/// the one Google Earth reads.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the plan holds a command the ground
+/// station does not know, or when the file cannot be written.
+#[tauri::command]
+async fn export_plan(
+    kind: PlanKind,
+    items: Vec<PlanItemRequest>,
+    format: String,
+    path: String,
+) -> CommandResult<()> {
+    let plan = plan_of(kind, &items)?;
+
+    let text = match format.as_str() {
+        "kml" => mpcraft_mission::kml::write_kml(&plan),
+        "waypoints" | "wpl" | "qgc" => mpcraft_mission::qgc::write_waypoints(&plan),
+        other => {
+            return Err(CommandError::invalid_request(format!(
+                "unknown format {other:?}; use waypoints or kml"
+            )));
+        }
+    };
+
+    std::fs::write(&path, text)
+        .map_err(|error| CommandError::internal(format!("cannot write {path}: {error}")))?;
+
+    Ok(())
+}
+
+/// Reads a plan from a file.
+///
+/// The format is the one Mission Planner uses: `waypoints` for the QGC file and `kml` for
+/// the one Google Earth reads.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the file cannot be read, or when it
+/// is not a plan this ground station understands.
+#[tauri::command]
+async fn import_plan(format: String, path: String) -> CommandResult<PlanInfo> {
+    let text = std::fs::read_to_string(&path)
+        .map_err(|error| CommandError::internal(format!("cannot read {path}: {error}")))?;
+
+    let plan = match format.as_str() {
+        "kml" => mpcraft_mission::kml::read_kml(&text)
+            .map_err(|error| CommandError::invalid_request(error.to_string()))?,
+        "waypoints" | "wpl" | "qgc" => mpcraft_mission::qgc::read_waypoints(&text)
+            .map_err(|error| CommandError::invalid_request(error.to_string()))?,
+        other => {
+            return Err(CommandError::invalid_request(format!(
+                "unknown format {other:?}; use waypoints or kml"
+            )));
+        }
+    };
+
+    Ok(PlanInfo::from(&plan))
+}
+
+/// The commands a plan can hold, and what their parameters mean.
+///
+/// The table is the one Mission Planner's `mavcmd.xml` describes, ported into the model.
+/// The interface must not write it out again: the meaning of a parameter belongs to the
+/// autopilot, not to the screen.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn list_mav_commands() -> CommandResult<Vec<MavCommandEvent>> {
+    Ok(mpcraft_mission::mavcmd::COMMANDS
+        .iter()
+        .map(|entry| MavCommandEvent {
+            name: entry.name.to_owned(),
+            value: entry.command as u32,
+            roles: entry.roles.iter().map(|role| role_name(*role)).collect(),
+            units: entry.units.iter().map(|unit| unit_name(*unit)).collect(),
+        })
+        .collect())
+}
+
+/// The name of the role of a parameter slot.
+fn role_name(role: mpcraft_mission::mavcmd::ParamRole) -> &'static str {
+    use mpcraft_mission::mavcmd::ParamRole;
+
+    match role {
+        ParamRole::Empty => "empty",
+        ParamRole::Latitude => "latitude",
+        ParamRole::Longitude => "longitude",
+        ParamRole::Altitude => "altitude",
+        ParamRole::Speed => "speed",
+        ParamRole::Distance => "distance",
+        ParamRole::Angle => "angle",
+        ParamRole::Other => "other",
+    }
+}
+
+/// The name of the unit of a parameter slot.
+fn unit_name(unit: mpcraft_mission::mavcmd::ParamUnit) -> &'static str {
+    use mpcraft_mission::mavcmd::ParamUnit;
+
+    match unit {
+        ParamUnit::None => "",
+        ParamUnit::Degrees => "°",
+        ParamUnit::Metres => "m",
+        ParamUnit::MetresPerSecond => "m/s",
+    }
+}
+
+/// A command a plan can hold.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MavCommandEvent {
+    /// The name of the command, for example `MAV_CMD_NAV_WAYPOINT`.
+    name: String,
+    /// The value the command travels with.
+    value: u32,
+    /// The role of each of the seven slots, in order.
+    roles: Vec<&'static str>,
+    /// The unit of each of the seven slots, in order.
+    units: Vec<&'static str>,
+}
+
 /// The graphs the user can choose.
 ///
 /// # Errors
@@ -819,10 +983,14 @@ fn main() {
             list_flight_modes,
             list_serial_ports,
             list_graphs,
+            list_mav_commands,
             graph_series,
             list_parameters,
             read_parameters,
             write_parameter,
+            validate_mission,
+            export_plan,
+            import_plan,
             arm,
             disarm,
             takeoff,

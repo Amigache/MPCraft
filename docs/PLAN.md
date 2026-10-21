@@ -623,6 +623,22 @@ The history is bounded twice over — by the number of samples and by how long t
 — and it lives in the application, not in the session: the session owns the link, and the
 history is a view of what the link has seen.
 
+### The parameters and the plan
+
+The **parameter editor** is a sheet over the window, opened from the Setup menu: the
+parameters the vehicle has reported, a search box, and a value that can be edited in place.
+The write waits for the vehicle to confirm it, and the interface shows the value the
+vehicle **stored**, which is not always the one that was asked for: a vehicle clamps to its
+range, and the operator has to see what the vehicle has rather than what they wanted.
+
+The rules about a plan are the autopilot's, so they live in the model and not in the
+interface. `mpcraft-mission::validate` holds the one rule upstream has: a waypoint with a
+zero altitude would fly the vehicle to the ground. The interface shows what the rule says
+and does not know why.
+
+The plan can be read from and written to a file — the QGC `.waypoints` format and the KML
+that Google Earth reads — and the file is read and written in Rust, where the formats live.
+
 ---
 
 ---
