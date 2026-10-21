@@ -44,6 +44,7 @@ use mpcraft_geo::tiles::TileService;
 use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
+pub mod bootloader;
 pub mod checklist;
 pub mod coordinates;
 pub mod diagnostics;
