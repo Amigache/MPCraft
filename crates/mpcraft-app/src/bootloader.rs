@@ -432,6 +432,28 @@ pub async fn write_firmware<P: Port>(
     Ok(info)
 }
 
+/// Erases the firmware of a board.
+///
+/// The board is waited for, asked what it is, and its flash is erased. The board is
+/// left without a firmware: it is what the operator wants when the board does not
+/// start, and when the firmware that is on it is not the one that should be.
+///
+/// # Errors
+///
+/// Returns an error when the board does not answer, or when it refuses the command.
+pub async fn erase_firmware<P: Port>(port: P) -> CommandResult<BoardInfo> {
+    let mut board = Bootloader::new(port);
+
+    board.wake_up(WAKE_TIMEOUT).await?;
+
+    let info = board.info().await?;
+
+    board.erase().await?;
+    board.reboot().await?;
+
+    Ok(info)
+}
+
 /// What a failure of the port becomes.
 fn io_error(error: std::io::Error) -> CommandError {
     CommandError::internal(format!("the board could not be spoken to: {error}"))

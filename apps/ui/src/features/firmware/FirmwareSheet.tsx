@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { pickSavePath } from "../../lib/ipc/dialog";
 import {
   firmwareDownload,
+  firmwareEraseBoard,
   firmwareManifest,
   firmwareWriteToBoard,
   listSerialPorts,
@@ -196,6 +197,22 @@ export function FirmwareSheet() {
     }
   };
 
+  const eraseBoard = async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const info = await firmwareEraseBoard(port);
+      setBoardInfo(info);
+      setNotice("The flash of the board was erased.");
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const writeToBoard = async () => {
     if (file === null) {
       setError("there is no file to write.");
@@ -362,6 +379,18 @@ export function FirmwareSheet() {
             >
               Write it to the board
             </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={busy || port === ""}
+              title="Leave the board without a firmware"
+              onClick={() => {
+                void eraseBoard();
+              }}
+            >
+              Erase the board
+            </button>
           </div>
 
           <p className={styles.text}>
@@ -375,8 +404,9 @@ export function FirmwareSheet() {
           {boardInfo !== null ? (
             <p className={styles.text}>
               The board is the {boardInfo.boardId} (revision{" "}
-              {boardInfo.boardRev}), with {Math.round(boardInfo.flashSize / 1024)}{" "}
-              kB of flash, speaking the protocol {boardInfo.blRev}.
+              {boardInfo.boardRev}), with{" "}
+              {Math.round(boardInfo.flashSize / 1024)} kB of flash, speaking the
+              protocol {boardInfo.blRev}.
             </p>
           ) : null}
         </section>

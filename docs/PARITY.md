@@ -183,7 +183,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | 🔽 | 5 |
 | 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔜 | 5 |
 | 8.5 | Board auto-detect | `BoardDetect.cs` | ✅ | 5 |
-| 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | 🔜 | 5 |
+| 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | 🔽 | 5 |
 | 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔜 | 5 |
 
 ## 9. Extensibility & integration
@@ -221,7 +221,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 117 |
-| 🔜 Planned | 35 |
+| 🔜 Planned | 34 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 3 |
 
@@ -285,6 +285,14 @@ waited for, asked what it is, its flash is erased, the firmware is written block
 block and the board is told to start again. What is not done yet is restarting the
 board into its bootloader by itself, so the link has to be closed and the board
 restarted by hand.
+
+The flash of a board can also be **erased**, from the same sheet: the board is asked
+what it is and its memory is left clean, which is what the operator wants when the
+board does not start. Restarting the board into its bootloader by itself is not done
+yet, and it cannot be done with the protocol library the project uses: the command
+that asks for it is not in the enumeration of the commands of the library, and the
+message that carries it is written with that enumeration. Until that is solved, the
+link has to be closed and the board restarted by hand.
 
 The **board** that is on the other end of the link is told by the output it prints when
 it starts, and that output is already captured: the link keeps the text that is not

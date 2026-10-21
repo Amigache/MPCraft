@@ -543,6 +543,16 @@ export async function firmwareWriteToBoard(
 }
 
 /**
+ * Erases the firmware of a board, over the port the board is on.
+ *
+ * The board has to be in its bootloader. It is left without a firmware, which is what
+ * the operator wants when the board does not start.
+ */
+export async function firmwareEraseBoard(port: string): Promise<BoardInfo> {
+  return call<BoardInfo>("firmware_erase_board", { port });
+}
+
+/**
  * Writes a bundle with what the application knows about itself.
  *
  * The bundle is a zip with a file per subject: the machine, the connection profiles and
