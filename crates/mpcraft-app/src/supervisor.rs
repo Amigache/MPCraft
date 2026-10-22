@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use mpcraft_link::{LinkError, Session, SessionOptions, SessionState};
+use mpcraft_link::{LinkError, Session, SessionOptions, SessionState, SigningSetup};
 use mpcraft_transport::ConnectionSpec;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{watch, Notify};
@@ -209,7 +209,11 @@ pub trait Connector: Send + Sync {
     /// # Errors
     ///
     /// Returns the reason the link could not be opened.
-    async fn connect(&self, spec: &ConnectionSpec) -> Result<Session, LinkError>;
+    async fn connect(
+        &self,
+        spec: &ConnectionSpec,
+        options: SessionOptions,
+    ) -> Result<Session, LinkError>;
 }
 
 /// The connector that opens real transports.
@@ -218,8 +222,12 @@ pub struct TransportConnector;
 
 #[async_trait]
 impl Connector for TransportConnector {
-    async fn connect(&self, spec: &ConnectionSpec) -> Result<Session, LinkError> {
-        Session::connect(spec, SessionOptions::default()).await
+    async fn connect(
+        &self,
+        spec: &ConnectionSpec,
+        options: SessionOptions,
+    ) -> Result<Session, LinkError> {
+        Session::connect(spec, options).await
     }
 }
 
@@ -235,6 +243,8 @@ struct SessionHandle {
 
 /// The state the supervisor shares with the task that publishes it.
 struct Inner {
+    /// The keys the link is signed with.
+    signing: std::sync::Mutex<Option<SigningSetup>>,
     /// The open link, if there is one.
     handle: Mutex<Option<SessionHandle>>,
     /// The state of the link, as the interface sees it.
@@ -317,6 +327,7 @@ impl SessionSupervisor {
         Self {
             inner: Arc::new(Inner {
                 handle: Mutex::new(None),
+                signing: Mutex::new(None),
                 status: Mutex::new(ConnectionStatus::Disconnected),
                 generation: AtomicU64::new(0),
                 policy,
@@ -348,6 +359,30 @@ impl SessionSupervisor {
     /// is bounded by [`ReconnectPolicy::attempt_timeout`], and the supervisor does not
     /// retry behind the caller's back. What happens to a link that drops *later* is the
     /// policy's business, and the policy runs in the background.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the target cannot be parsed or the link cannot be opened.
+    /// The keys the link is signed with, when it is signed.
+    ///
+    /// The keys are set before the link is opened, and they stay until they are changed:
+    /// a link that is opened again is signed the same way.
+    pub fn set_signing(&self, signing: Option<SigningSetup>) {
+        if let Ok(mut slot) = self.inner.signing.lock() {
+            *slot = signing;
+        }
+    }
+
+    /// The keys the link is signed with.
+    #[must_use]
+    pub fn signing(&self) -> Option<SigningSetup> {
+        self.inner.signing.lock().ok().and_then(|slot| slot.clone())
+    }
+
+    /// Opens a link to a vehicle.
+    ///
+    /// The keys of the link are taken from the state of the supervisor, so a link that
+    /// is opened again is signed the same way.
     ///
     /// # Errors
     ///
@@ -484,7 +519,20 @@ impl SessionSupervisor {
 
 /// Opens a session, within the bounds of the policy.
 async fn open(inner: &Inner, spec: &ConnectionSpec) -> Result<Session, LinkError> {
-    match tokio::time::timeout(inner.policy.attempt_timeout, inner.connector.connect(spec)).await {
+    // The keys of the link, when the link is signed.
+    let signing = inner.signing.lock().ok().and_then(|slot| slot.clone());
+
+    let options = SessionOptions {
+        signing,
+        ..SessionOptions::default()
+    };
+
+    match tokio::time::timeout(
+        inner.policy.attempt_timeout,
+        inner.connector.connect(spec, options),
+    )
+    .await
+    {
         Ok(result) => result,
         Err(_elapsed) => Err(LinkError::Timeout(inner.policy.attempt_timeout)),
     }
@@ -758,7 +806,11 @@ mod tests {
 
     #[async_trait]
     impl Connector for ScriptedConnector {
-        async fn connect(&self, _spec: &ConnectionSpec) -> Result<Session, LinkError> {
+        async fn connect(
+            &self,
+            _spec: &ConnectionSpec,
+            _options: SessionOptions,
+        ) -> Result<Session, LinkError> {
             let call = self.calls.fetch_add(1, Ordering::Relaxed);
 
             if call < self.sessions {

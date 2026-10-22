@@ -26,7 +26,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.11 | Packet-loss & reorder accounting | `MAVLinkInterface.readPacketAsync` | ✅ | 0 |
 | 1.12 | Plaintext / boot-output sniffing | `MAVLinkInterface.plaintxtline` | ✅ | 0 |
 | 1.13 | MAVLink 2 signing (out & in) | `MAVLinkInterface.generatePacket`, `CheckSignature` | ✅ | 0 |
-| 1.14 | Signing keyring persistence | `ExtLibs/ArduPilot/Mavlink/MAVAuthKeys.cs` | 🔜 | 0 |
+| 1.14 | Signing keyring persistence | `ExtLibs/ArduPilot/Mavlink/MAVAuthKeys.cs` | ✅ | 0 |
 | 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | 🔜 | 5 |
 | 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | ✅ | 7 |
 | 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | 🔜 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 118 |
-| 🔜 Planned | 33 |
+| ✅ Done | 119 |
+| 🔜 Planned | 32 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 4 |
 
-The 118 rows marked done are the connection, transport, parameter, mission and command
+The 119 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -308,10 +308,15 @@ shows the flight, the state of the vehicle as JSON, and the track of the flight 
 KML document that is being written. It is a small server, on purpose: it answers those
 three things and nothing else.
 
+The **keys** of a signed link are kept in the settings file, next to the connection
+profiles, and the file is meant to be edited by hand: every key has a name and its
+secret in hexadecimal. The link is signed with the first key that can be read, and a
+key whose secret is not hexadecimal is left out and said so, because a link signed with
+the wrong key does not work at all.
+
 The **link** can be signed, with the keys of MAVLink 2: every frame that goes out is
 signed, and every frame that comes in is verified against the keys that are known. A
-frame that arrives without a good signature is not from the vehicle. The keys are not
-kept in the file yet, so the link is signed only when the program is told the keys.
+frame that arrives without a good signature is not from the vehicle.
 
 The **diagnostics** of the application are gathered in one file, from the Help menu: the
 machine it runs on, the connection profiles that are saved and the state of the link.

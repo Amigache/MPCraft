@@ -200,6 +200,22 @@ fn tile_cache_dir() -> std::path::PathBuf {
         .unwrap_or_else(|| std::env::temp_dir().join("mpcraft-tiles"))
 }
 
+/// The bytes of a hexadecimal text, when it is hexadecimal.
+fn hex_to_bytes(text: &str) -> Option<[u8; 32]> {
+    let text = text.trim();
+    if text.len() != 64 {
+        return None;
+    }
+
+    let mut bytes = [0_u8; 32];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        let pair = text.get(index * 2..index * 2 + 2)?;
+        *byte = u8::from_str_radix(pair, 16).ok()?;
+    }
+
+    Some(bytes)
+}
+
 fn terrain_cache_dir() -> std::path::PathBuf {
     mpcraft_settings::platform_config_dir()
         .map(|directory| directory.join("terrain"))
@@ -276,6 +292,79 @@ impl AppState {
         store
             .save(&settings)
             .map_err(|error| CommandError::settings(error.to_string()))
+    }
+
+    /// The keys of the signed link.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, or when the
+    /// settings file cannot be read.
+    pub fn signing_keys(&self) -> CommandResult<Vec<mpcraft_settings::SigningKeyEntry>> {
+        let store = self.store()?;
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.signing_keys)
+    }
+
+    /// Saves the keys of the signed link.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, when the
+    /// settings file cannot be read, or when it cannot be written.
+    pub fn set_signing_keys(
+        &self,
+        keys: &[mpcraft_settings::SigningKeyEntry],
+    ) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.signing_keys = keys.to_vec();
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))
+    }
+
+    /// Gives the supervisor the keys of the link, so that the link that is opened next
+    /// is signed.
+    ///
+    /// A key whose secret is not hexadecimal is left out: a link that is signed with a
+    /// key that is not the one the vehicle has is a link that does not work at all, and
+    /// the operator has to be told which key is wrong.
+    pub fn apply_signing(&self) {
+        let keys = self.signing_keys().unwrap_or_default();
+
+        let mut keyring = mpcraft_link::SigningKeyring::new();
+        let mut signing_key = None;
+
+        for entry in &keys {
+            let Some(bytes) = hex_to_bytes(&entry.secret) else {
+                tracing::warn!("the key {} is not hexadecimal and is not used", entry.name);
+                continue;
+            };
+
+            let key = mpcraft_link::SigningKey::from_bytes(bytes);
+            keyring.insert(entry.name.clone(), key.clone());
+
+            // The first key that can be read is the one the frames are signed with.
+            if signing_key.is_none() {
+                signing_key = Some(key);
+            }
+        }
+
+        self.supervisor
+            .set_signing(Some(mpcraft_link::SigningSetup {
+                key: signing_key,
+                keyring,
+                link_id: 1,
+            }));
     }
 
     /// The settings store, when there is one.

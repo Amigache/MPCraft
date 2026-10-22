@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde::{Deserialize, Serialize};
 
 use crate::error::SettingsError;
+use crate::keys::SigningKeyEntry;
 use crate::profiles::ConnectionProfile;
 
 /// The name of the settings file inside the configuration directory.
@@ -35,6 +36,12 @@ pub struct Settings {
     /// keeping between two runs: the parameters an operator touches are the ones they
     /// touch every time.
     pub favourite_parameters: Vec<String>,
+
+    /// The keys of the signed link.
+    ///
+    /// A link that is signed needs a secret key on each side. The keys are kept here so
+    /// that the link is signed the same way every time it is opened.
+    pub signing_keys: Vec<SigningKeyEntry>,
 }
 
 /// A store of the persisted settings.
@@ -277,6 +284,7 @@ mod tests {
         store
             .save(&Settings {
                 favourite_parameters: Vec::new(),
+                signing_keys: Vec::new(),
                 connection_profiles: profiles.clone(),
             })
             .expect("the settings should be written");
@@ -340,6 +348,7 @@ mod tests {
         store
             .save(&Settings {
                 favourite_parameters: Vec::new(),
+                signing_keys: Vec::new(),
                 connection_profiles: first.clone(),
             })
             .expect("the first write should succeed");
@@ -372,6 +381,7 @@ mod tests {
         store
             .save(&Settings {
                 favourite_parameters: Vec::new(),
+                signing_keys: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::auto_connect(
                     "SITL",
                     "udp:127.0.0.1:14550",
@@ -395,6 +405,7 @@ mod tests {
         store
             .save(&Settings {
                 favourite_parameters: Vec::new(),
+                signing_keys: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::new("SITL", "udp:127.0.0.1:14550")],
             })
             .expect("the settings should be written");

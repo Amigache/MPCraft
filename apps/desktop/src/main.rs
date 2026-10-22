@@ -38,6 +38,9 @@ async fn connect(
     let handle = app.clone();
     let feeder = state.inner().clone();
 
+    // The link is signed with the keys that are saved, when there are any.
+    state.apply_signing();
+
     state
         .supervisor
         .connect(&req.target, move |snapshot| {
@@ -1498,6 +1501,59 @@ async fn http_server_stop(state: State<'_, AppState>) -> CommandResult<()> {
     Ok(())
 }
 
+/// The keys of the signed link.
+///
+/// The answer is the list of the keys that are saved, with their names and their
+/// secrets.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be read.
+#[tauri::command]
+async fn list_signing_keys(state: State<'_, AppState>) -> CommandResult<Vec<SigningKeyEvent>> {
+    Ok(state
+        .signing_keys()?
+        .into_iter()
+        .map(|key| SigningKeyEvent {
+            name: key.name,
+            secret: key.secret,
+        })
+        .collect())
+}
+
+/// Saves the keys of the signed link.
+///
+/// The keys are replaced: the list that is sent is the list that is kept.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be written.
+#[tauri::command]
+async fn set_signing_keys(
+    state: State<'_, AppState>,
+    keys: Vec<SigningKeyEvent>,
+) -> CommandResult<()> {
+    let keys: Vec<mpcraft_settings::SigningKeyEntry> = keys
+        .into_iter()
+        .map(|key| mpcraft_settings::SigningKeyEntry::new(key.name, key.secret))
+        .collect();
+
+    state.set_signing_keys(&keys)?;
+    state.apply_signing();
+
+    Ok(())
+}
+
+/// A key of the signed link, as the interface sees it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SigningKeyEvent {
+    /// The name the key is listed under.
+    name: String,
+    /// The secret, in hexadecimal.
+    secret: String,
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -2937,6 +2993,8 @@ fn main() {
             firmware_erase_board,
             http_server_start,
             http_server_stop,
+            list_signing_keys,
+            set_signing_keys,
             diagnostics_bundle,
             list_parameters,
             read_parameters,

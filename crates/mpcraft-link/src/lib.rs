@@ -81,8 +81,9 @@ pub use mission::{
     MissionError, PartialUpdate, PartialUpdateError, PartialUpdatePolicy, DEFAULT_ITEM_TIMEOUT,
     DEFAULT_PARTIAL_ITEM_RETRIES, DEFAULT_PARTIAL_ITEM_TIMEOUT,
 };
+pub use mpcraft_mavlink::signing::{SigningKey, SigningKeyring};
 pub use params::{ParamError, DEFAULT_LIST_TIMEOUT, DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT};
 pub use plaintext::PlaintextSniffer;
-pub use session::{ReceivedMessage, Session, SessionOptions, SessionState};
+pub use session::{ReceivedMessage, Session, SessionOptions, SessionState, SigningSetup};
 pub use telemetry::TelemetryAggregator;
 pub use vehicle::{Vehicle, VehicleId, VehicleKind, VehicleRegistry};

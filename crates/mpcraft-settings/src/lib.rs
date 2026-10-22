@@ -50,9 +50,11 @@
 #![warn(missing_docs)]
 
 mod error;
+mod keys;
 mod profiles;
 mod store;
 
 pub use error::SettingsError;
+pub use keys::SigningKeyEntry;
 pub use profiles::ConnectionProfile;
 pub use store::{platform_config_dir, Settings, SettingsStore};
