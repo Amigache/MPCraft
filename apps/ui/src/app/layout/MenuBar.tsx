@@ -11,6 +11,8 @@ import { useModesStore } from "../../lib/flight/modesStore";
 import { pickSavePath } from "../../lib/ipc/dialog";
 import {
   diagnosticsBundle,
+  httpServerStart,
+  httpServerStop,
   startLiveKml,
   stopLiveKml,
 } from "../../lib/ipc/bridge";
@@ -107,6 +109,9 @@ export function MenuBar() {
   const showJoystick = useUiStore((state) => state.showJoystick);
   const showTerrain = useUiStore((state) => state.showTerrain);
   const showFirmware = useUiStore((state) => state.showFirmware);
+
+  // Whether the web server is running: the menu says so, and the entry stops it.
+  const [serving, setServing] = useState(false);
   const showLog = useUiStore((state) => state.showLog);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
   const parameterGroups = useUiStore((state) => state.parameterGroups);
@@ -436,6 +441,38 @@ export function MenuBar() {
           separator: false,
           hint: "",
         })),
+        {
+          id: "http",
+          label: "Serve the flight on the network",
+          onSelect: () => {
+            close();
+
+            if (serving) {
+              void httpServerStop()
+                .then(() => {
+                  setServing(false);
+                  setNote("The server was stopped.");
+                })
+                .catch((cause: { message?: string }) => {
+                  setNote(cause.message ?? "The server could not be stopped.");
+                });
+              return;
+            }
+
+            void httpServerStart()
+              .then((port) => {
+                setServing(true);
+                setNote(`The flight is served on the port ${port}.`);
+              })
+              .catch((cause: { message?: string }) => {
+                setNote(cause.message ?? "The server could not be started.");
+              });
+          },
+          disabled: false,
+          checked: serving,
+          separator: false,
+          hint: "",
+        },
         {
           id: "view-sep-theme",
           label: "",

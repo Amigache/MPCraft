@@ -553,6 +553,20 @@ export async function firmwareEraseBoard(port: string): Promise<BoardInfo> {
 }
 
 /**
+ * Starts the web server, so that another program can follow the flight.
+ *
+ * The answer is the port it listens on.
+ */
+export async function httpServerStart(port?: number): Promise<number> {
+  return call<number>("http_server_start", { port: port ?? null });
+}
+
+/** Stops the web server. */
+export async function httpServerStop(): Promise<void> {
+  await call<void>("http_server_stop");
+}
+
+/**
  * Writes a bundle with what the application knows about itself.
  *
  * The bundle is a zip with a file per subject: the machine, the connection profiles and

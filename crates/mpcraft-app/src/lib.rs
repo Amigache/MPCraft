@@ -52,6 +52,7 @@ pub mod diagnostics;
 pub mod error;
 pub mod firmware;
 pub mod graphs;
+pub mod http;
 pub mod live_kml;
 pub mod logs;
 pub mod operations;
@@ -159,6 +160,13 @@ pub struct AppState {
     /// a survey of a field is planned with: the vehicle flies at a constant height over
     /// the ground, and the ground is read from these files.
     pub dted: std::sync::Arc<std::sync::Mutex<Option<mpcraft_geo::dted::DtedLibrary>>>,
+
+    ///
+    /// The web server, when it is running.
+    ///
+    /// The server lets another program follow the flight: the state of the vehicle and
+    /// the track of the flight are served as they are now.
+    pub http: std::sync::Arc<std::sync::Mutex<Option<crate::http::WebServer>>>,
 }
 
 impl Default for AppState {
@@ -172,6 +180,7 @@ impl Default for AppState {
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            http: std::sync::Arc::new(std::sync::Mutex::new(None)),
         }
     }
 }
@@ -401,6 +410,7 @@ mod tests {
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            http: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
 
         assert!(state
@@ -435,6 +445,7 @@ mod tests {
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            http: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
 
         let error = state

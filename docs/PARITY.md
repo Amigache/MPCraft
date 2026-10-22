@@ -197,7 +197,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 9.5 | Swarm / formation control | `Swarm/` | 🔜 | 6 |
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
 | 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🔜 | 5 |
-| 9.8 | HTTP server (MJPEG / KML stream) | `ExtLibs/Utilities/httpserver.cs` | 🔜 | 7 |
+| 9.8 | HTTP server (MJPEG / KML stream) | `ExtLibs/Utilities/httpserver.cs` | ✅ | 7 |
 | 9.9 | KML live output | `FlightPlanner.writeKML` | ✅ | 2 |
 
 ## 10. Application-level
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 117 |
-| 🔜 Planned | 34 |
+| ✅ Done | 118 |
+| 🔜 Planned | 33 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 4 |
 
-The 117 rows marked done are the connection, transport, parameter, mission and command
+The 118 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -289,16 +289,24 @@ restarted by hand.
 The flash of a board can also be **erased**, from the same sheet: the board is asked
 what it is and its memory is left clean, which is what the operator wants when the
 board does not start. Restarting the board into its bootloader by itself is not done
-yet, and it cannot be done with the protocol library the project uses: the command
-that asks for it is not in the enumeration of the commands of the library, and the
-message that carries it is written with that enumeration. Until that is solved, the
-link has to be closed and the board restarted by hand.
+yet: the command that asks for it (`MAV_CMD_FLASH_BOOTLOADER`, 42650) is not in the
+enumeration of commands of the protocol library the project uses, which stops at
+32000, and the message that carries it is written with that enumeration. It can be
+solved by keeping our own enumeration of the commands, or by taking the library from
+the MAVLink definitions ourselves; until then, the link has to be closed and the board
+restarted by hand.
 
 The **board** that is on the other end of the link is told by the output it prints when
 it starts, and that output is already captured: the link keeps the text that is not
 part of a MAVLink frame, and the board is recognised in it. The name it is given is the
 one the manifest of the firmware uses, so that the board that is detected is the one
 the firmware is chosen for.
+
+The **flight** can be served on the network, from the View menu: another program can
+follow it without a link of its own. The server answers three things ? the page that
+shows the flight, the state of the vehicle as JSON, and the track of the flight as the
+KML document that is being written. It is a small server, on purpose: it answers those
+three things and nothing else.
 
 The **diagnostics** of the application are gathered in one file, from the Help menu: the
 machine it runs on, the connection profiles that are saved and the state of the link.

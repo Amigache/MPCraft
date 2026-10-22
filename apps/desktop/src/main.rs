@@ -1444,6 +1444,68 @@ async fn firmware_erase_board(port: String) -> CommandResult<mpcraft_app::bootlo
     mpcraft_app::bootloader::erase_firmware(transport).await
 }
 
+/// Starts the web server, so that another program can follow the flight.
+///
+/// The server answers three things: the page that shows the flight, the state of the
+/// vehicle as JSON, and the track of the flight as a KML document.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the port cannot be opened.
+#[tauri::command]
+async fn http_server_start(
+    state: State<'_, AppState>,
+    port: Option<u16>,
+) -> CommandResult<u16> {
+    // A server that is already running is stopped first: there is only one port. The
+    // lock is let go before the server is opened, so that the task of the server is
+    // never waiting for it.
+    {
+        let mut cell = state
+            .http
+            .lock()
+            .map_err(|_| CommandError::internal("the server is locked"))?;
+
+        if let Some(server) = cell.take() {
+            server.stop();
+        }
+    }
+
+    let port = port.unwrap_or(mpcraft_app::http::DEFAULT_PORT);
+    let server =
+        mpcraft_app::http::WebServer::start(port, std::sync::Arc::new(state.inner().clone()))
+            .await?;
+
+    let listening = server.port();
+
+    let mut cell = state
+        .http
+        .lock()
+        .map_err(|_| CommandError::internal("the server is locked"))?;
+    *cell = Some(server);
+
+    Ok(listening)
+}
+
+/// Stops the web server.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn http_server_stop(state: State<'_, AppState>) -> CommandResult<()> {
+    let mut cell = state
+        .http
+        .lock()
+        .map_err(|_| CommandError::internal("the server is locked"))?;
+
+    if let Some(server) = cell.take() {
+        server.stop();
+    }
+
+    Ok(())
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -2881,6 +2943,8 @@ fn main() {
             firmware_download,
             firmware_write_to_board,
             firmware_erase_board,
+            http_server_start,
+            http_server_stop,
             diagnostics_bundle,
             list_parameters,
             read_parameters,
