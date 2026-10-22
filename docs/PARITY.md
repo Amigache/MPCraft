@@ -171,7 +171,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.10 | Terrain-follow route generation | `srtm.getIntersectionWithTerrain` | ✅ | 5 |
 | 7.11 | Terrain data protocol server | `ExtLibs/Utilities/TerrainFollow.cs` | 🔜 | 5 |
 | 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | 🔜 | 5 |
-| 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | 🔜 | 5 |
+| 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | ✅ | 5 |
 | 7.14 | ADS-B relay to other stations | `MainV2.ADSBRunner` | 🔜 | 5 |
 
 ## 8. Firmware & flashing
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 131 |
-| 🔜 Planned | 22 |
+| ✅ Done | 132 |
+| 🔜 Planned | 21 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 131 rows marked done are the connection, transport, parameter, mission and command
+The 132 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -442,6 +442,10 @@ service for the tiles: it asks the program, which takes them from the folder the
 operator has brought, from the disk where the ones that were fetched are kept, and from
 the service when it is in neither. A map that is drawn without a signal is a map that is
 drawn with the pictures that are on the disk.
+
+The **traffic of the air** is drawn on the map: a vehicle with a receiver for it sends
+what it hears, and the aircraft around it are marked with the name they say. The traffic
+is kept while it is heard, and an aircraft that is not heard any more is forgotten.
 
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of

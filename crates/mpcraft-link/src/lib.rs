@@ -56,6 +56,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod adsb;
 pub mod commands;
 pub mod error;
 pub mod ftp;
@@ -72,6 +73,7 @@ pub mod session;
 pub mod telemetry;
 pub mod vehicle;
 
+pub use adsb::{AdsbRegistry, AdsbVehicle};
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
 pub use ftp::{FtpClient, FtpEntry, FtpError, Opcode as FtpOpcode};

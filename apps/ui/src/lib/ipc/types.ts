@@ -84,6 +84,26 @@ export interface NtripStatus {
   readonly position: GeoPoint | null;
 }
 
+/** One aircraft of the traffic that the vehicle has heard. */
+export interface AdsbVehicle {
+  /** The address the aircraft has. */
+  readonly icaoAddress: number;
+  /** The name it says, when it says one. */
+  readonly callsign: string | null;
+  /** Where it is. */
+  readonly latitude: number;
+  /** Where it is. */
+  readonly longitude: number;
+  /** How high it is, in metres. */
+  readonly altitude: number;
+  /** Which way it is going, in degrees. */
+  readonly heading: number;
+  /** How fast it is going, in metres per second. */
+  readonly speed: number;
+  /** How fast it is going up or down, in metres per second. */
+  readonly verticalSpeed: number;
+}
+
 /** One slot of the on-screen display of the vehicle. */
 export interface OsdSlot {
   /** The screen the slot is on: five and six are the ones the operator chooses. */

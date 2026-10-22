@@ -2664,6 +2664,30 @@ struct StateEvent {
     messages: Vec<MessageEvent>,
     /// The board that is on the other end, when the vehicle has said which one it is.
     board: Option<String>,
+    /// The traffic that the vehicle has heard.
+    adsb: Vec<AdsbEvent>,
+}
+
+/// One aircraft of the traffic that the vehicle has heard.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdsbEvent {
+    /// The address the aircraft has.
+    icao_address: u32,
+    /// The name it says, when it says one.
+    callsign: Option<String>,
+    /// Where it is.
+    latitude: f64,
+    /// Where it is.
+    longitude: f64,
+    /// How high it is, in metres.
+    altitude: f64,
+    /// Which way it is going, in degrees.
+    heading: f64,
+    /// How fast it is going, in metres per second.
+    speed: f64,
+    /// How fast it is going up or down, in metres per second.
+    vertical_speed: f64,
 }
 
 /// A message the vehicle sent.
@@ -3070,6 +3094,24 @@ impl From<&LinkSnapshot> for StateEvent {
                             severity: message.severity,
                             severity_name: message.severity_name().to_owned(),
                             text: message.text.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            adsb: state
+                .map(|state| {
+                    state
+                        .adsb
+                        .iter()
+                        .map(|aircraft| AdsbEvent {
+                            icao_address: aircraft.icao_address,
+                            callsign: aircraft.callsign.clone(),
+                            latitude: aircraft.latitude,
+                            longitude: aircraft.longitude,
+                            altitude: aircraft.altitude,
+                            heading: aircraft.heading,
+                            speed: aircraft.speed,
+                            vertical_speed: aircraft.vertical_speed,
                         })
                         .collect()
                 })

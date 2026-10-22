@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { listen } from "../ipc/bridge";
 import type {
+  AdsbVehicle,
   ConnectionStatus,
   LossStats,
   Telemetry,
@@ -28,6 +29,7 @@ interface LinkStatePayload {
   readonly loss: LossStats;
   readonly messages: readonly VehicleMessage[];
   readonly board?: string | null;
+  readonly adsb?: readonly AdsbVehicle[];
 }
 
 /** The payload of the `playback-state` event. */
@@ -54,6 +56,13 @@ export interface LinkStore {
    * The board says it when it starts, and the link keeps what it said.
    */
   readonly board: string | null;
+  /**
+   * The traffic that the vehicle has heard.
+   *
+   * A vehicle with a receiver for the traffic of the air sends what it hears, and the
+   * map draws it.
+   */
+  readonly adsb: readonly AdsbVehicle[];
   /** The most recent telemetry snapshot. */
   readonly telemetry: Telemetry;
   /**
@@ -79,6 +88,7 @@ const INITIAL: LinkStore = {
   loss: { received: 0, lost: 0 },
   messages: [],
   board: null,
+  adsb: [],
   telemetry: EMPTY_TELEMETRY,
   playback: false,
   playbackPosition: 0,
@@ -148,8 +158,35 @@ function sameMessages(
   });
 }
 
-/** Whether two sets of loss statistics are the same. */
-function sameLoss(left: LossStats, right: LossStats): boolean {
+/** Whether two lists of the traffic of the air are the same.
+ *
+ * The traffic is drawn on the map, and the map is not re-drawn for nothing: the list
+ * is compared before it is replaced.
+ */
+function sameAdsb(
+  left: readonly AdsbVehicle[],
+  right: readonly AdsbVehicle[],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((aircraft, index) => {
+    const other = right[index];
+    return (
+      other !== undefined &&
+      aircraft.icaoAddress === other.icaoAddress &&
+      aircraft.latitude === other.latitude &&
+      aircraft.longitude === other.longitude &&
+      aircraft.altitude === other.altitude &&
+      aircraft.heading === other.heading
+    );
+  });
+}
+
+/** Whether two sets of loss statistics are the same. */function sameLoss(left: LossStats, right: LossStats): boolean {
   return left.received === right.received && left.lost === right.lost;
 }
 
@@ -221,6 +258,9 @@ export function startLinkBridge(): void {
           ? state.messages
           : messages,
         board: payload.board ?? null,
+        adsb: sameAdsb(state.adsb, payload.adsb ?? [])
+          ? state.adsb
+          : (payload.adsb ?? []),
         telemetry,
       };
     });

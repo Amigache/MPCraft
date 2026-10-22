@@ -29,13 +29,45 @@
   top: -9px;
 }
 
+/* An aircraft of the traffic that the vehicle has heard.
+ *
+ * It is drawn in the colour of the danger, because it is the thing the operator has to
+ * keep an eye on, and its name is written beside it. */
+
+.adsb {
+  align-items: center;
+  color: var(--colour-danger);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  gap: 2px;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.adsb::before {
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--colour-danger);
+  content: "";
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+}
+
 /* The controls, over the map, at the top right.
  *
  * They sit below the map's own controls: the zoom and the compass are there, and two
  * sets of buttons on top of one another is how a ground station becomes unusable. */
 
-/* The chooser of the provider of the tiles. */
+/* How many aircraft the vehicle has heard. */
 
+.traffic {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  white-space: nowrap;
+}
+
+/* The chooser of the provider of the tiles. */
 .provider {
   background: transparent;
   border: 1px solid transparent;

@@ -59,6 +59,9 @@ const CIRCLES_SOURCE = "fence-circles";
 /** The identifier of the source of the home position. */
 const HOME_SOURCE = "home";
 
+/** The identifier of the source of the traffic of the air. */
+const ADSB_SOURCE = "adsb";
+
 /** The smallest movement, in degrees, that is worth a point on the track. */
 const TRACK_STEP = 1e-5;
 
@@ -195,6 +198,9 @@ export function FlightMap() {
   const last = useRef<[number, number] | null>(null);
   const lastHome = useRef<Telemetry["home"] | undefined>(undefined);
   const items = useRef(new Map<number, ItemMarker>());
+
+  /** The markers of the traffic of the air, by the address of the aircraft. */
+  const traffic = useRef(new Map<string, maplibregl.Marker>());
   const fitted = useRef<{
     readonly editor: boolean;
     readonly count: number;
@@ -421,6 +427,15 @@ export function FlightMap() {
         },
       });
 
+      // The traffic of the air: what the vehicle has heard.
+      instance.addSource(ADSB_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        },
+      });
+
       instance.addLayer({
         id: "track-line",
         type: "line",
@@ -531,6 +546,20 @@ export function FlightMap() {
         },
       });
 
+      // The traffic of the air, drawn as a dot with a ring around it.
+      instance.addLayer({
+        id: "adsb-point",
+        type: "circle",
+        source: ADSB_SOURCE,
+        paint: {
+          "circle-radius": 4,
+          "circle-color": "#f85149",
+          "circle-stroke-color": "#f85149",
+          "circle-stroke-width": 1,
+          "circle-opacity": 0.35,
+        },
+      });
+
       setReady(true);
     };
 
@@ -587,6 +616,79 @@ export function FlightMap() {
       loaded.current = false;
     };
   }, [sources]);
+
+  // The traffic of the air: what the vehicle has heard is drawn on the map.
+  const adsb = useLinkStore((state) => state.adsb);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !ready) {
+      return;
+    }
+
+    const features = adsb
+      .filter(
+        (aircraft) =>
+          Number.isFinite(aircraft.latitude) &&
+          Number.isFinite(aircraft.longitude),
+      )
+      .map((aircraft) => ({
+        type: "Feature" as const,
+        properties: {
+          callsign: aircraft.callsign ?? "",
+          altitude: aircraft.altitude,
+          speed: aircraft.speed,
+        },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [aircraft.longitude, aircraft.latitude],
+        },
+      }));
+
+    setSourceData(instance, ADSB_SOURCE, {
+      type: "FeatureCollection",
+      features,
+    });
+
+    // The name of each aircraft is written beside it, with a marker of its own.
+    const seen = new Set<string>();
+
+    for (const aircraft of adsb) {
+      const key = String(aircraft.icaoAddress);
+      seen.add(key);
+
+      let marker = traffic.current.get(key);
+
+      if (marker === undefined) {
+        const element = document.createElement("div");
+        element.className = styles.adsb ?? "";
+        element.setAttribute("role", "presentation");
+        element.setAttribute("aria-hidden", "true");
+
+        marker = new maplibregl.Marker({ element, anchor: "bottom" });
+
+        // The marker needs a place before it is put on the map: until it has one, the
+        // map has nothing to draw it at.
+        marker.setLngLat([aircraft.longitude, aircraft.latitude]);
+
+        traffic.current.set(key, marker);
+        marker.addTo(instance);
+      }
+
+      marker.getElement().textContent =
+        aircraft.callsign ??
+        `0x${aircraft.icaoAddress.toString(16).toUpperCase()}`;
+
+      marker.setLngLat([aircraft.longitude, aircraft.latitude]);
+    }
+
+    for (const [key, marker] of traffic.current) {
+      if (!seen.has(key)) {
+        marker.remove();
+        traffic.current.delete(key);
+      }
+    }
+  }, [adsb, ready]);
 
   // The provider of the tiles. The style of the map is the provider's, and the sources
   // and the layers go with it: they are put back when the new style has loaded.
@@ -945,6 +1047,15 @@ export function FlightMap() {
       <div className={styles.canvas} ref={container} />
 
       <div className={styles.controls}>
+        {showControls && adsb.length > 0 ? (
+          <span
+            className={styles.traffic}
+            title="The aircraft the vehicle has heard"
+          >
+            {adsb.length} aircraft
+          </span>
+        ) : null}
+
         {showControls ? (
           <select
             className={styles.provider}

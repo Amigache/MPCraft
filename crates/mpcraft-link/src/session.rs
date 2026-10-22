@@ -247,6 +247,8 @@ pub struct SessionState {
     /// The list is bounded: a vehicle that talks a great deal must not grow the state
     /// without limit.
     pub messages: Vec<mpcraft_vehicle::VehicleMessage>,
+    /// The traffic that the vehicle has heard.
+    pub adsb: Vec<crate::adsb::AdsbVehicle>,
     /// Whether the board's output looks like a DroneCAN bus.
     pub looks_like_can_bus: bool,
     /// Whether the link is still open.
@@ -277,6 +279,8 @@ struct SessionContext {
     heartbeats: HeartbeatCollector,
     aggregator: TelemetryAggregator,
     plaintext: PlaintextSniffer,
+    /// The traffic that the vehicle has heard.
+    adsb: crate::adsb::AdsbRegistry,
     accountants: HashMap<VehicleId, LossAccountant>,
     last_packet_at: Option<Instant>,
     loss: LossStats,
@@ -368,6 +372,30 @@ impl SessionContext {
             }
         }
 
+        // The traffic the vehicle has heard is kept: it is drawn on the map.
+        if let MavMessage::ADSB_VEHICLE(traffic) = &message {
+            if traffic
+                .flags
+                .contains(mpcraft_mavlink::dialect::AdsbFlags::ADSB_FLAGS_VALID_COORDS)
+            {
+                let callsign: Vec<u8> = traffic.callsign.iter().copied().collect();
+
+                self.adsb.observe(
+                    crate::adsb::AdsbVehicle {
+                        icao_address: traffic.ICAO_address,
+                        callsign: crate::adsb::callsign_of(&callsign),
+                        latitude: f64::from(traffic.lat) / 1e7,
+                        longitude: f64::from(traffic.lon) / 1e7,
+                        altitude: f64::from(traffic.altitude) / 1000.0,
+                        heading: f64::from(traffic.heading) / 100.0,
+                        speed: f64::from(traffic.hor_velocity) / 100.0,
+                        vertical_speed: f64::from(traffic.ver_velocity) / 100.0,
+                    },
+                    now,
+                );
+            }
+        }
+
         // The protocol capabilities arrive in AUTOPILOT_VERSION and decide how the vehicle
         // encodes its parameter values.
         if let MavMessage::AUTOPILOT_VERSION(version) = &message {
@@ -424,6 +452,7 @@ impl SessionContext {
             parameters: self.parameters.clone(),
             plaintext: self.plaintext.lines(),
             messages: self.messages.iter().cloned().collect(),
+            adsb: self.adsb.vehicles(),
             looks_like_can_bus: self.plaintext.looks_like_can_bus(),
             connected,
         }
@@ -442,6 +471,7 @@ impl SessionState {
             parameters: mpcraft_params::ParameterStore::new(),
             plaintext: Vec::new(),
             messages: Vec::new(),
+            adsb: Vec::new(),
             looks_like_can_bus: false,
             connected: false,
         }

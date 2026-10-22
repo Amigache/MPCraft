@@ -46,6 +46,7 @@ FORMATS = {
     "char50": "<50s",
     "char70": "<70s",
     "char90": "<90s",
+    "char9": "<9s",
     "char251": "<251s",
 }
 
@@ -56,6 +57,7 @@ CLASSES = {
     "char50": 1,
     "char70": 1,
     "char90": 1,
+    "char9": 1,
     "char251": 1,
     "u16": 2,
     "i16": 2,
@@ -395,6 +397,26 @@ MESSAGES = {
             ("target_component", "u8"),
         ],
         [("payload", "char251")],
+    ),
+    246: message(
+        246,
+        "ADSB_VEHICLE",
+        184,
+        [
+            ("ICAO_address", "u32"),
+            ("lat", "i32"),
+            ("lon", "i32"),
+            ("altitude", "i32"),
+            ("heading", "u16"),
+            ("hor_velocity", "u16"),
+            ("ver_velocity", "i16"),
+            ("flags", "u16"),
+            ("squawk", "u16"),
+            ("altitude_type", "u8"),
+            ("callsign", "char9"),
+            ("emitter_type", "u8"),
+            ("tslc", "u8"),
+        ],
     ),
     11033: message(
         11033,
@@ -1349,6 +1371,7 @@ class Vehicle:
 
         last_heartbeat = 0.0
         last_current = 0.0
+        last_adsb = 0.0
 
         while True:
             # Answer whatever the ground station sends, so the link looks alive from its
@@ -1394,6 +1417,11 @@ class Vehicle:
             if now - last_heartbeat >= 1.0:
                 last_heartbeat = now
                 self.send_heartbeat()
+
+            # The traffic of the air, once every two seconds.
+            if now - last_adsb >= 2.0:
+                last_adsb = now
+                self.send_adsb()
 
             # The attitude, tilted as the vehicle flies the circle.
             roll = math.sin(elapsed * 0.2) * 0.15
@@ -1725,6 +1753,28 @@ class Vehicle:
                 self.socket.sendto(packet, client)
             except OSError as error:
                 print(f"could not send: {error}", flush=True)
+
+    def send_adsb(self):
+        """The traffic of the air that the vehicle can see."""
+        self.send(
+            246,
+            {
+                "ICAO_address": 0xABC123,
+                "lat": int((-35.3 + math.sin(self.start) * 0.01) * 1e7),
+                "lon": int((149.1 + math.cos(self.start) * 0.01) * 1e7),
+                "altitude": 800_000,
+                "heading": 45_00,
+                "hor_velocity": 4_500,
+                "ver_velocity": 100,
+                # The coordinates, the height, the way and the speed are all there.
+                "flags": 1 | 2 | 4 | 8 | 16,
+                "squawk": 1200,
+                "altitude_type": 1,
+                "callsign": "TEST123",
+                "emitter_type": 0,
+                "tslc": 0,
+            },
+        )
 
     def send_heartbeat(self):
         """The heartbeat: the vehicle's type, its mode and its capabilities."""

@@ -55,8 +55,10 @@ export function checkOverlaps() {
       if (
         style.overflowY === "auto" ||
         style.overflowY === "scroll" ||
+        style.overflowY === "hidden" ||
         style.overflowX === "auto" ||
-        style.overflowX === "scroll"
+        style.overflowX === "scroll" ||
+        style.overflowX === "hidden"
       ) {
         return true;
       }
@@ -68,12 +70,15 @@ export function checkOverlaps() {
   };
 
   /**
-   * Whether an element is cut away by a container that scrolls.
+   * Whether an element is cut away by a container that clips or scrolls.
    *
    * A row of a list that is longer than the list is not on the screen, and it
    * cannot be covered by anything either: it is not there to be pressed. The box of
    * such a row is measured all the same, and comparing it with the box of a control
    * that is on the screen would report a clash that nobody can see.
+   *
+   * The same is true of a marker of the map: the map clips what is outside of it,
+   * and a marker that is outside of the map is not on the screen.
    */
   const cutAway = (element) => {
     const rect = element.getBoundingClientRect();
@@ -86,8 +91,10 @@ export function checkOverlaps() {
       if (
         style.overflowY === "auto" ||
         style.overflowY === "scroll" ||
+        style.overflowY === "hidden" ||
         style.overflowX === "auto" ||
-        style.overflowX === "scroll"
+        style.overflowX === "scroll" ||
+        style.overflowX === "hidden"
       ) {
         const box = parent.getBoundingClientRect();
 
