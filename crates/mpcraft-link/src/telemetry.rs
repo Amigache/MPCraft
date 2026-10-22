@@ -14,8 +14,8 @@
 
 use mpcraft_vehicle::{
     Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, DroneId,
-    DroneIdLocation, Efi, Ekf, FlightMode, GeoPoint, GpsStatus, Imu, MissionProgress, PlanState,
-    Telemetry, Velocity, Vibration, Wind,
+    DroneIdLocation, Efi, Ekf, FlightMode, GeoPoint, GpsStatus, Imu, MissionProgress,
+    PassthroughData, PlanState, Telemetry, Velocity, Vibration, Wind,
 };
 
 use mpcraft_mavlink::dialect::messages::MissionState;
@@ -477,6 +477,15 @@ impl TelemetryAggregator {
                     direction: f64::from(wind.direction),
                     speed: f64::from(wind.speed),
                     vertical_speed: f64::from(wind.speed_z),
+                });
+            }
+
+            MavMessage::SERIAL_CONTROL(control) => {
+                // The answer of the vehicle to a passthrough: the bytes its port had.
+                let count = (control.count as usize).min(control.data.len());
+                self.telemetry.passthrough = Some(PassthroughData {
+                    device: control.device as u8,
+                    data: control.data[..count].to_vec(),
                 });
             }
 

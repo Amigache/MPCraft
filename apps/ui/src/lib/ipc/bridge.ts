@@ -920,6 +920,7 @@ const EMPTY_STATE: LinkState = {
     efi: null,
     droneId: null,
     wind: null,
+    passthrough: null,
     imu: null,
     barometer: null,
     controls: null,

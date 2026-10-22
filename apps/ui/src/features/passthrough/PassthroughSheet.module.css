@@ -100,6 +100,21 @@
   gap: var(--space-2);
 }
 
+.answer {
+  background: var(--colour-bg);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius-sm);
+  color: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+  padding: var(--space-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .notice {
   color: var(--colour-accent);
   font-size: var(--font-xs);

@@ -104,6 +104,7 @@ function normaliseTelemetry(telemetry: Telemetry | undefined): Telemetry {
     efi: telemetry.efi ?? null,
     droneId: telemetry.droneId ?? null,
     wind: telemetry.wind ?? null,
+    passthrough: telemetry.passthrough ?? null,
     imu: telemetry.imu ?? null,
     barometer: telemetry.barometer ?? null,
     controls: telemetry.controls ?? null,

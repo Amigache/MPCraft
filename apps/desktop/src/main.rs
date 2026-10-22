@@ -2391,6 +2391,8 @@ struct TelemetryEvent {
 
     /// The wind, when it is known.
     wind: Option<WindEvent>,
+    /// What came back from a serial port of the vehicle, when something did.
+    passthrough: Option<PassthroughEvent>,
     /// The state of the engine, when the vehicle has told it.
     efi: Option<EfiEvent>,
     /// The identification the vehicle broadcasts, when it broadcasts one.
@@ -2617,6 +2619,16 @@ struct EfiEvent {
     exhaust_temperature: f64,
 }
 
+/// What came back from a serial port of the vehicle.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PassthroughEvent {
+    /// The port the bytes came from.
+    device: u8,
+    /// The bytes, as they came.
+    data: Vec<u8>,
+}
+
 /// The wind where the vehicle is.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2810,6 +2822,13 @@ fn telemetry_of(telemetry: &Telemetry) -> TelemetryEvent {
             hdop: gps.hdop,
         }),
 
+        passthrough: telemetry
+            .passthrough
+            .as_ref()
+            .map(|passthrough| PassthroughEvent {
+                device: passthrough.device,
+                data: passthrough.data.clone(),
+            }),
         wind: telemetry.wind.map(|wind| WindEvent {
             direction: wind.direction,
             speed: wind.speed,

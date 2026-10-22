@@ -52,6 +52,12 @@ export interface BoardInfo {
   readonly flashSize: number;
 }
 
+/** What came back from a serial port of the vehicle. */
+export interface PassthroughData {
+  readonly device: number;
+  readonly data: readonly number[];
+}
+
 /** One vehicle of the manifest of the firmware. */
 export interface FirmwareBoard {
   readonly name: string;
@@ -296,6 +302,8 @@ export interface Telemetry {
 
   /** The wind where the vehicle is. */
   readonly wind: Wind | null;
+  /** What came back from a serial port of the vehicle, when something did. */
+  readonly passthrough: PassthroughData | null;
   /** The state of the engine, when the vehicle has told it. */
   readonly efi: Efi | null;
   /** The identification the vehicle broadcasts, when it broadcasts one. */

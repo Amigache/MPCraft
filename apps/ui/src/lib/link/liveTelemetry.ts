@@ -35,6 +35,7 @@ export const EMPTY_TELEMETRY: Telemetry = {
   efi: null,
   droneId: null,
   wind: null,
+  passthrough: null,
   imu: null,
   barometer: null,
   controls: null,

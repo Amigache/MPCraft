@@ -182,6 +182,17 @@ pub struct Wind {
     pub vertical_speed: f64,
 }
 
+/// What came back from a serial port of the vehicle.
+///
+/// The vehicle answers a passthrough with the bytes its port had, and this is them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PassthroughData {
+    /// The port the bytes came from.
+    pub device: u8,
+    /// The bytes, as they came.
+    pub data: Vec<u8>,
+}
+
 /// The state of the global positioning.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct GpsStatus {
@@ -447,6 +458,8 @@ pub struct Telemetry {
 
     /// The wind, once it is known.
     pub wind: Option<Wind>,
+    /// What came back from a serial port of the vehicle, once received.
+    pub passthrough: Option<PassthroughData>,
     /// The state of the engine, when the vehicle has told it.
     pub efi: Option<Efi>,
     /// The identification the vehicle broadcasts, when it broadcasts one.
@@ -592,6 +605,8 @@ pub struct TelemetryUpdate {
 
     /// New wind.
     pub wind: Option<Wind>,
+    /// New state of a serial port of the vehicle.
+    pub passthrough: Option<PassthroughData>,
     /// New state of the engine.
     pub efi: Option<Efi>,
     /// New identification of the vehicle.

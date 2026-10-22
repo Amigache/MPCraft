@@ -44,6 +44,7 @@ FORMATS = {
     "f32": "<f",
     "f64": "<d",
     "char50": "<50s",
+    "char70": "<70s",
     "char90": "<90s",
 }
 
@@ -52,6 +53,7 @@ CLASSES = {
     "i8": 1,
     "char16": 1,
     "char50": 1,
+    "char70": 1,
     "char90": 1,
     "u16": 2,
     "i16": 2,
@@ -235,6 +237,19 @@ MESSAGES = {
             ("end_index", "i16"),
             ("target_system", "u8"),
             ("target_component", "u8"),
+        ],
+    ),
+    126: message(
+        126,
+        "SERIAL_CONTROL",
+        220,
+        [
+            ("baudrate", "u32"),
+            ("timeout", "u16"),
+            ("device", "u8"),
+            ("flags", "u8"),
+            ("count", "u8"),
+            ("data", "char70"),
         ],
     ),
     242: message(
@@ -1561,6 +1576,7 @@ class Vehicle:
             51: self.on_mission_request,
             73: self.on_mission_item,
             76: self.on_command_long,
+            126: self.on_serial_control,
             243: self.on_set_home_position,
         }.get(message_id)
 
@@ -1849,6 +1865,24 @@ class Vehicle:
                 "mavtype": 0,  # MAV_MISSION_ACCEPTED
                 "mission_type": mission_type,
                 "opaque_id": 1,
+            },
+        )
+
+    def on_serial_control(self, values):
+        """The vehicle answers a passthrough with the bytes its port had."""
+        answer = b"MPCraft says hello\r\n"
+        data = answer.ljust(70, b"\x00")[:70]
+
+        self.send(
+            126,
+            {
+                "baudrate": 0,
+                "timeout": 0,
+                "device": values.get("device", 0),
+                # The flag that says this is an answer.
+                "flags": 1,
+                "count": len(answer),
+                "data": data.decode("ascii", errors="replace"),
             },
         )
 

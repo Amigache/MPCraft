@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { normaliseError } from "../../lib/ipc/bridge";
+import { useLiveValue } from "../../lib/link/liveTelemetry";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { serialControl } from "../../lib/ipc/bridge";
 import styles from "./PassthroughSheet.module.css";
@@ -34,6 +35,11 @@ export function PassthroughSheet() {
   const [text, setText] = useState("");
   const [baudrate, setBaudrate] = useState(0);
   const [timeout, setTimeout] = useState(200);
+
+  // What the vehicle answered with: the bytes its port had.
+  const passthrough = useLiveValue(
+    (telemetry) => telemetry.passthrough ?? null,
+  );
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +166,22 @@ export function PassthroughSheet() {
             </button>
           </div>
         </section>
+
+        {passthrough !== null ? (
+          <section className={styles.block}>
+            <h3 className={styles.heading}>What came back</h3>
+            <pre className={styles.answer}>
+              {new TextDecoder()
+                .decode(new Uint8Array(passthrough.data))
+                .replace(/[\u0000-\u0008\u000e-\u001f]/g, ".")}
+            </pre>
+            <p className={styles.text}>
+              {passthrough.data.length} byte
+              {passthrough.data.length === 1 ? "" : "s"} from the port{" "}
+              {passthrough.device}.
+            </p>
+          </section>
+        ) : null}
 
         {notice !== null ? (
           <p className={styles.notice} role="status">
