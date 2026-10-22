@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type React from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 
@@ -31,11 +32,21 @@ const AXIS_FONT = '11px ui-monospace, "Cascadia Mono", Consolas, monospace';
 /** The smallest the chart is allowed to be. */
 const MINIMUM_SIZE = 1;
 
+/** The colour of the line that says where the play-back is. */
+const PLAY_HEAD_COLOUR = "#f0b429";
+
 export interface GraphChartProps {
   /** The plan: the series, and the axes they are drawn on. */
   readonly plan: ChartPlan;
   /** The values, or null when there are none yet. */
   readonly values: AlignedValues | null;
+  /**
+   * Where the play-back is, in seconds.
+   *
+   * The line that says so is drawn over the graph: the grid of the samples, the
+   * graph and the map are the same moment seen from three sides.
+   */
+  readonly playHead?: number | null;
 }
 
 /**
@@ -49,6 +60,7 @@ function buildOptions(
   plan: ChartPlan,
   width: number,
   height: number,
+  head: React.MutableRefObject<number | null>,
 ): uPlot.Options {
   const axes: uPlot.Axis[] = [
     {
@@ -106,12 +118,57 @@ function buildOptions(
       points: { show: false },
     },
     scales: { x: { time: false } },
+    // The line that says where the play-back is. It is drawn over the graph, and it
+    // is the moment the grid of the samples and the map are showing too.
+    plugins: [
+      {
+        hooks: {
+          draw: [
+            (plot) => {
+              const at = head.current;
+
+              if (at === null) {
+                return;
+              }
+
+              const x = plot.valToPos(at, "x", true);
+
+              if (!Number.isFinite(x)) {
+                return;
+              }
+
+              const left = plot.bbox.left;
+              const right = plot.bbox.left + plot.bbox.width;
+
+              if (x < left || x > right) {
+                return;
+              }
+
+              const context = plot.ctx;
+              context.save();
+              context.strokeStyle = PLAY_HEAD_COLOUR;
+              context.lineWidth = 1;
+              context.beginPath();
+              context.moveTo(x, plot.bbox.top);
+              context.lineTo(x, plot.bbox.top + plot.bbox.height);
+              context.stroke();
+              context.restore();
+            },
+          ],
+        },
+      },
+    ],
   };
 }
 
-export function GraphChart({ plan, values }: GraphChartProps) {
+export function GraphChart({ plan, values, playHead = null }: GraphChartProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const chart = useRef<uPlot | null>(null);
+
+  // Where the play-back is. The chart reads it when it draws itself, and the value
+  // changes without the chart being built again.
+  const head = useRef<number | null>(null);
+  head.current = playHead;
 
   // The chart itself, built once for a plan.
   useEffect(() => {
@@ -121,7 +178,7 @@ export function GraphChart({ plan, values }: GraphChartProps) {
     }
 
     const plot = new uPlot(
-      buildOptions(plan, element.clientWidth, element.clientHeight),
+      buildOptions(plan, element.clientWidth, element.clientHeight, head),
       [],
       element,
     );

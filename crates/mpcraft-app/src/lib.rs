@@ -232,6 +232,39 @@ fn terrain_cache_dir() -> std::path::PathBuf {
 }
 
 impl AppState {
+    /// The values of a graph.
+    ///
+    /// A log that is being played back is the source of the values: the graph then shows
+    /// the flight that was recorded, and the play-head says where in it the window is.
+    /// The grid of the samples, the graph and the map are then the same moment seen
+    /// from three sides.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no graph with that name.
+    pub fn graph_series(
+        &self,
+        name: &str,
+        since: Option<std::time::Duration>,
+    ) -> CommandResult<crate::graphs::SeriesData> {
+        let playback = self
+            .playback
+            .lock()
+            .map_err(|_| CommandError::internal("the play-back is poisoned"))?;
+
+        if !playback.is_empty() {
+            let history = playback.history();
+
+            // The window of a log is the whole flight: the play-head is what says where
+            // in it the window is.
+            let since = if since.is_some() { None } else { since };
+
+            return crate::graphs::series_of(&history, name, since);
+        }
+
+        self.graphs.series(name, since)
+    }
+
     /// Feeds the state the link publishes into the parts of the application that keep
     /// a history of the flight.
     ///

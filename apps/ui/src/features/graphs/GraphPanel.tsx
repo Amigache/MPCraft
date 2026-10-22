@@ -4,6 +4,7 @@ import { formatNumber } from "../../lib/format";
 import { graphSeries, listGraphs } from "../../lib/ipc/bridge";
 import type { CommandError, GraphPreset, GraphSeries } from "../../lib/ipc/types";
 import { alignSeries, latestValues, planChart } from "../../lib/graphs/plan";
+import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { GraphChart } from "./GraphChart";
 import styles from "./GraphPanel.module.css";
@@ -38,6 +39,13 @@ export function GraphPanel() {
   const graphPreset = useUiStore((store) => store.graphPreset);
   const setGraphPreset = useUiStore((store) => store.setGraphPreset);
   const toggleGraphs = useUiStore((store) => store.toggleGraphs);
+
+  // Where the play-back is. A log that is being played back is what the graph draws,
+  // and the line that says where the play-head is is the moment the grid of the
+  // samples and the map are showing too.
+  const playback = useLinkStore((store) => store.playback);
+  const playbackPosition = useLinkStore((store) => store.playbackPosition);
+  const playHead = playback ? playbackPosition : null;
 
   // The catalogue. It is read once, when the panel opens.
   useEffect(() => {
@@ -194,7 +202,7 @@ export function GraphPanel() {
       </div>
 
       <div className={styles.plot}>
-        <GraphChart plan={plan} values={aligned} />
+        <GraphChart plan={plan} values={aligned} playHead={playHead} />
 
         {empty ? (
           <p className={styles.empty}>

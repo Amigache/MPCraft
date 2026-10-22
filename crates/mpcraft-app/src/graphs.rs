@@ -93,60 +93,77 @@ impl GraphHistory {
     ///
     /// Returns an error when there is no preset with that name.
     pub fn series(&self, name: &str, since: Option<Duration>) -> CommandResult<SeriesData> {
-        let Some(preset) = graph::preset_named(name) else {
-            return Err(CommandError::invalid_request(format!(
-                "there is no graph called {name:?}"
-            )));
-        };
-
-        let compiled = graph::catalogue()
-            .into_iter()
-            .find(|candidate| candidate.preset.name.full() == name);
-
-        let Some(compiled) = compiled else {
-            return Err(CommandError::invalid_request(format!(
-                "the graph {name:?} could not be read"
-            )));
-        };
-
         let history = self
             .history
             .lock()
             .map_err(|_| CommandError::internal("the history of the graphs is poisoned"))?;
 
-        let series = compiled
-            .series
-            .iter()
-            .map(|series| {
-                let values = history.series(&series.expression);
-
-                // The window is applied to the values, not to the samples: the instants are
-                // the same for every series of one sample, so the series stay aligned.
-                let values: Vec<_> = match since {
-                    Some(window) => {
-                        // The window is measured back from the newest sample: a graph
-                        // shows the recent past, not the beginning of the history.
-                        let oldest = history.newest().saturating_sub(window);
-                        values.into_iter().filter(|(at, _)| *at >= oldest).collect()
-                    }
-                    None => values,
-                };
-
-                SeriesPoints {
-                    name: series.name.to_owned(),
-                    unit: series.unit.to_owned(),
-                    x: values.iter().map(|(at, _)| at.as_secs_f64()).collect(),
-                    y: values.iter().map(|(_, value)| *value).collect(),
-                }
-            })
-            .collect();
-
-        Ok(SeriesData {
-            name: preset.name.full(),
-            description: preset.description.to_owned(),
-            series,
-        })
+        series_of(&history, name, since)
     }
+}
+
+/// The values of a preset over a history.
+///
+/// The history is the one of the flight, or the one of the log that is being played
+/// back: the two are the same kind of thing, and the graph does not care which one it
+/// is drawing.
+///
+/// # Errors
+///
+/// Returns an error when there is no preset with that name.
+pub fn series_of(
+    history: &graph::History,
+    name: &str,
+    since: Option<Duration>,
+) -> CommandResult<SeriesData> {
+    let Some(preset) = graph::preset_named(name) else {
+        return Err(CommandError::invalid_request(format!(
+            "there is no graph called {name:?}"
+        )));
+    };
+
+    let compiled = graph::catalogue()
+        .into_iter()
+        .find(|candidate| candidate.preset.name.full() == name);
+
+    let Some(compiled) = compiled else {
+        return Err(CommandError::invalid_request(format!(
+            "the graph {name:?} could not be read"
+        )));
+    };
+
+    let series = compiled
+        .series
+        .iter()
+        .map(|series| {
+            let values = history.series(&series.expression);
+
+            // The window is applied to the values, not to the samples: the instants are
+            // the same for every series of one sample, so the series stay aligned.
+            let values: Vec<_> = match since {
+                Some(window) => {
+                    // The window is measured back from the newest sample: a graph
+                    // shows the recent past, not the beginning of the history.
+                    let oldest = history.newest().saturating_sub(window);
+                    values.into_iter().filter(|(at, _)| *at >= oldest).collect()
+                }
+                None => values,
+            };
+
+            SeriesPoints {
+                name: series.name.to_owned(),
+                unit: series.unit.to_owned(),
+                x: values.iter().map(|(at, _)| at.as_secs_f64()).collect(),
+                y: values.iter().map(|(_, value)| *value).collect(),
+            }
+        })
+        .collect();
+
+    Ok(SeriesData {
+        name: preset.name.full(),
+        description: preset.description.to_owned(),
+        series,
+    })
 }
 
 /// A graph the user can choose.

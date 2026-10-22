@@ -149,7 +149,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 6.7 | Log browser — message tree + sample grid | `Log/LogBrowse.cs` | ✅ | 4 |
 | 6.8 | Log graphing with multi-axis | `LogBrowse.CreateChart` | ✅ | 4 |
 | 6.9 | Graph preset definitions | `graphs/mavgraphs.xml` | ✅ | 4 |
-| 6.10 | Cross-highlight grid ↔ graph ↔ map | `LogBrowse.GoToSample` | 🟡 | 4 |
+| 6.10 | Cross-highlight grid ↔ graph ↔ map | `LogBrowse.GoToSample` | ✅ | 4 |
 | 6.11 | tlog playback with scrub timeline | `FlightData.cs` tracklog | ✅ | 4 |
 | 6.12 | KML export of flight track | `Log/LogOutput.cs` | ✅ | 4 |
 | 6.13 | CSV export of samples | `LogBrowse` export | ✅ | 4 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 128 |
+| ✅ Done | 129 |
 | 🔜 Planned | 24 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 2 |
+| 🟡 Partial | 1 |
 
-The 128 rows marked done are the connection, transport, parameter, mission and command
+The 129 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -430,7 +430,9 @@ thrown away: what came before is kept and the place where the log is broken is s
 The **samples of a message** are a grid in the sheet of the logs: the fields of the
 message are the columns and the samples are the rows, with the instant each of them
 happened at. Clicking a row moves the flight to that moment, so the grid, the map and
-the play-back are the same thing seen from three sides.
+the play-back are the same thing seen from three sides. The **graph** is the fourth
+side of it: a log that is being played back is what the graph draws, and the line that
+says where the play-head is is the moment the grid and the map are showing too.
 
 The **tiles of the map** can be fetched before the flight and kept on the disk: a survey
 is flown where there is no signal, and the map of the field is drawn with the pictures

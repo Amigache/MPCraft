@@ -63,6 +63,13 @@ export interface LinkStore {
    * the link does not overwrite it while it is being shown.
    */
   readonly playback: boolean;
+  /**
+   * Where the play-back is, in seconds.
+   *
+   * It is the moment the graph, the grid of the samples and the map are all
+   * showing.
+   */
+  readonly playbackPosition: number;
 }
 
 /** The state of a link that is not open. */
@@ -74,6 +81,7 @@ const INITIAL: LinkStore = {
   board: null,
   telemetry: EMPTY_TELEMETRY,
   playback: false,
+  playbackPosition: 0,
 };
 
 /**
@@ -224,12 +232,12 @@ export function startLinkBridge(): void {
     const payload = event.payload;
 
     if (!payload.open) {
-      useLinkStore.setState({ playback: false });
+      useLinkStore.setState({ playback: false, playbackPosition: 0 });
       return;
     }
 
     liveTelemetry.publish(normaliseTelemetry(payload.telemetry));
-    useLinkStore.setState({ playback: true });
+    useLinkStore.setState({ playback: true, playbackPosition: payload.position });
   });
 }
 /** The primary vehicle on the link, which is the one the interface drives. */

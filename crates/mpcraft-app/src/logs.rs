@@ -827,6 +827,26 @@ impl Playback {
     pub fn position(&self) -> f64 {
         self.position.as_secs_f64()
     }
+
+    /// The telemetry of the flight as a history, the way the graphs draw it.
+    ///
+    /// The history is what the graph of the flight is drawn from: the values of the log
+    /// are the values of the graph, and the play-head says where in them the window is.
+    #[must_use]
+    pub fn history(&self) -> mpcraft_vehicle::graph::History {
+        let mut history = mpcraft_vehicle::graph::History::new(
+            self.samples.len().max(1),
+            std::time::Duration::from_secs_f64(self.duration() + 1.0),
+        );
+
+        for (at, telemetry) in &self.samples {
+            history.push(mpcraft_vehicle::graph::Sample::from_telemetry(
+                telemetry, *at,
+            ));
+        }
+
+        history
+    }
 }
 
 /// Reads a log and builds the history of its telemetry.

@@ -2227,7 +2227,7 @@ async fn graph_series(
     since: Option<f64>,
 ) -> CommandResult<SeriesData> {
     let since = since.map(std::time::Duration::from_secs_f64);
-    state.graphs.series(&name, since)
+    state.graph_series(&name, since)
 }
 
 /// The vehicle a command is for.
