@@ -607,6 +607,39 @@ impl Session {
         }
     }
 
+    /// Waits until a vehicle has said what it is.
+    ///
+    /// The wait is for *any* vehicle: it is what the automatic rate needs, because the
+    /// rate is chosen before anything is known about the vehicle on the other end.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no vehicle identifies itself within the timeout.
+    pub async fn wait_for_any_vehicle(&self, timeout: Duration) -> Result<VehicleId, LinkError> {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            let identified = self
+                .state
+                .borrow()
+                .vehicles
+                .iter()
+                .find(|seen| seen.autopilot.is_some())
+                .map(|seen| seen.id);
+
+            if let Some(id) = identified {
+                return Ok(id);
+            }
+
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(LinkError::Timeout(timeout));
+            }
+
+            tokio::time::sleep(remaining.min(Duration::from_millis(20))).await;
+        }
+    }
+
     /// The tunables this session was opened with.
     #[must_use]
     pub fn options(&self) -> SessionOptions {

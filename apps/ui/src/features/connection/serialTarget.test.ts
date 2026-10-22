@@ -4,7 +4,9 @@ import {
   BAUD_RATES,
   DEFAULT_BAUD,
   buildSerialTarget,
+  isAutoBaud,
   parseSerialTarget,
+  withAutoBaud,
   withBaud,
 } from "./serialTarget";
 
@@ -62,8 +64,33 @@ describe("the serial target", () => {
   });
 });
 
-describe("the rates an autopilot uses", () => {
-  it("are the usual ones", () => {
+describe("the rate that is left to the program", () => {
+  it("is written on the target", () => {
+    expect(withAutoBaud("serial:COM3:57600")).toBe("serial:COM3:57600|baud=auto");
+  });
+
+  it("replaces the rate that was there", () => {
+    expect(withAutoBaud("serial:COM3:115200|baud=57600")).toBe(
+      "serial:COM3:115200|baud=auto",
+    );
+  });
+
+  it("leaves a target of another kind alone", () => {
+    expect(withAutoBaud("udp:127.0.0.1:14550")).toBe("udp:127.0.0.1:14550");
+  });
+
+  it("is seen on the target", () => {
+    expect(isAutoBaud("serial:COM3:57600|baud=auto")).toBe(true);
+    expect(isAutoBaud("serial:COM3:57600")).toBe(false);
+    expect(isAutoBaud("udp:127.0.0.1:14550|baud=auto")).toBe(false);
+  });
+
+  it("leaves the device of the target alone", () => {
+    expect(parseSerialTarget("serial:COM3:57600|baud=auto")?.device).toBe("COM3");
+  });
+});
+
+describe("the rates an autopilot uses", () => {  it("are the usual ones", () => {
     expect(BAUD_RATES).toContain(57600);
     expect(BAUD_RATES).toContain(115200);
     expect(BAUD_RATES).toContain(230400);

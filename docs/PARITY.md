@@ -15,7 +15,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 1.1 | Serial port connection | `ExtLibs/Comms/CommsSerialPort.cs` | ✅ | 0 |
 | 1.2 | Serial port enumeration | `ExtLibs/Controls/ConnectionControl.cs` | ✅ | 1 |
-| 1.3 | Baud-rate selection & auto-baud | `ExtLibs/Controls/ConnectionControl.cs` | 🔜 | 1 |
+| 1.3 | Baud-rate selection & auto-baud | `ExtLibs/Controls/ConnectionControl.cs` | ✅ | 1 |
 | 1.4 | UDP client / server mode | `ExtLibs/Comms/CommsUdpSerial.cs` | ✅ | 0 |
 | 1.5 | UDP multi-endpoint fan-out | `CommsUdpSerial.EndPointList` | ✅ | 0 |
 | 1.6 | TCP client / server mode | `ExtLibs/Comms/CommsTCPSerial.cs` | ✅ | 0 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 133 |
-| 🔜 Planned | 20 |
+| ✅ Done | 134 |
+| 🔜 Planned | 19 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 133 rows marked done are the connection, transport, parameter, mission and command
+The 134 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -360,6 +360,11 @@ the frame of the vehicle, the receivers, the serial ports, the radio, the failsa
 the flight modes. Each of them is the sheet of the parameters of that subject, and the
 parameters that are a choice are drawn as the list of what they can be — the mode of a
 slot, the protocol of a port, the action of a failsafe.
+
+The **bar of the connection** carries the way of connecting, the port and the rate. The
+rate can be left to the program: a vehicle that is talking at a rate nobody wrote down
+is found by trying them one after another, and the rate at which the vehicle answers is
+the one it talks at.
 
 The **calibrations** are a sheet of their own, opened from the Setup menu, the way
 upstream has a screen for the accelerometer and another for the compass. The order is

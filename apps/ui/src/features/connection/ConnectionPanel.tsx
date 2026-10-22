@@ -4,10 +4,13 @@ import { listSerialPorts, useConnection } from "../../lib/ipc/bridge";
 import type { CommandError, SerialPort } from "../../lib/ipc/types";
 import { useProfilesStore } from "../../lib/connection/profilesStore";
 import {
+  AUTO_BAUD,
   BAUD_RATES,
   DEFAULT_BAUD,
   buildSerialTarget,
+  isAutoBaud,
   parseSerialTarget,
+  withAutoBaud,
   withBaud,
 } from "./serialTarget";
 import styles from "./ConnectionPanel.module.css";
@@ -89,6 +92,9 @@ export function ConnectionPanel() {
   const device = parsed?.device ?? "";
   const rate = parsed?.baud ?? baud;
 
+  // The rate may be left to the program, which finds it by trying the ones there are.
+  const autoBaud = isAutoBaud(target);
+
   // The ports that are offered: the ones of the machine, and the one the target names,
   // which may be a port of another machine or one that is not there any more.
   const devices = useMemo(() => {
@@ -166,16 +172,24 @@ export function ConnectionPanel() {
           <span className={styles.label}>Baud</span>
           <select
             className="select"
-            value={rate}
+            value={autoBaud ? AUTO_BAUD : rate}
             aria-label="Baud rate"
             onChange={(event) => {
-              const chosen = Number.parseInt(event.target.value, 10);
+              const value = event.target.value;
+
+              if (value === AUTO_BAUD) {
+                setTarget(withAutoBaud(target));
+                return;
+              }
+
+              const chosen = Number.parseInt(value, 10);
               if (Number.isFinite(chosen)) {
                 setBaud(chosen);
                 setTarget(withBaud(target, chosen));
               }
             }}
           >
+            <option value={AUTO_BAUD}>Automatic</option>
             {BAUD_RATES.map((value) => (
               <option key={value} value={value}>
                 {value}

@@ -25,6 +25,54 @@ export interface SerialTarget {
 /** The rate a serial link is opened at when the target does not say. */
 export const DEFAULT_BAUD = 57600;
 
+/** The value of the rate that leaves the choice to the program. */
+export const AUTO_BAUD = "auto";
+
+/**
+ * Whether the target leaves the rate to the program.
+ *
+ * A vehicle that is talking at a rate nobody wrote down is found by trying them one
+ * after another: the port is opened at each rate in turn, and the rate at which the
+ * vehicle answers is the one it talks at.
+ */
+export function isAutoBaud(target: string): boolean {
+  const trimmed = target.trim().toLowerCase();
+
+  if (!trimmed.startsWith("serial:")) {
+    return false;
+  }
+
+  return trimmed.split("|").some((option) => {
+    const [key, value] = option.split("=");
+
+    return (
+      key?.trim() === "baud" && (value ?? "").trim().toLowerCase() === AUTO_BAUD
+    );
+  });
+}
+
+/**
+ * Leaves the rate of a serial link to the program.
+ *
+ * A target that is not a serial one is left as it is: the rate of a serial link means
+ * nothing to a UDP address.
+ */
+export function withAutoBaud(target: string): string {
+  const parsed = parseSerialTarget(target);
+
+  if (!parsed) {
+    return target;
+  }
+
+  const withoutOptions = target.split("|").filter((option) => {
+    const key = option.split("=")[0];
+
+    return key?.trim().toLowerCase() !== "baud";
+  });
+
+  return `${withoutOptions.join("|")}|baud=${AUTO_BAUD}`;
+}
+
 /** The rate at which the ports of this machine are opened. */
 export const BAUD_RATES: readonly number[] = [
   57600, 115200, 230400, 460800, 921600, 14400, 38400, 19200, 9600,

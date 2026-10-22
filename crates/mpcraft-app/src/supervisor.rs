@@ -411,7 +411,7 @@ impl SessionSupervisor {
             session: None,
         });
 
-        let session = match open(&self.inner, &spec).await {
+        let session = match open_with_rate(&self.inner, &spec).await {
             Ok(session) => session,
             Err(error) => {
                 self.inner.set_status(ConnectionStatus::Failed);
@@ -537,6 +537,49 @@ async fn open(inner: &Inner, spec: &ConnectionSpec) -> Result<Session, LinkError
         Err(_elapsed) => Err(LinkError::Timeout(inner.policy.attempt_timeout)),
     }
 }
+
+/// Opens the link, finding the rate when the target leaves it to the program.
+///
+/// A vehicle that is talking at a rate nobody wrote down is found by trying them one
+/// after another: the port is opened at each rate in turn, and the rate at which the
+/// vehicle answers is the one it talks at.
+async fn open_with_rate(inner: &Inner, spec: &ConnectionSpec) -> Result<Session, LinkError> {
+    if !spec.options.auto_baud {
+        return open(inner, spec).await;
+    }
+
+    let mut last = None;
+
+    for baud in AUTO_BAUD_RATES {
+        let mut attempt = spec.clone();
+        attempt.options.baud_rate = baud;
+        attempt.options.auto_baud = false;
+
+        let session = open(inner, &attempt).await?;
+
+        // The vehicle has a moment to say that it is there. A port that is opened at
+        // the wrong rate answers with nothing at all.
+        match session
+            .wait_for_any_vehicle(inner.policy.attempt_timeout)
+            .await
+        {
+            Ok(_vehicle) => return Ok(session),
+            Err(error) => {
+                tracing::info!("nothing answered at {baud} bits per second");
+                last = Some(error);
+            }
+        }
+    }
+
+    Err(last.unwrap_or(LinkError::Timeout(Duration::from_secs(1))))
+}
+
+/// The rates a serial port is tried at when the target leaves the rate to the program.
+///
+/// The rates are the ones vehicles talk at, and the ones Mission Planner offers.
+const AUTO_BAUD_RATES: [u32; 9] = [
+    57600, 115200, 230400, 460800, 921600, 38400, 19200, 9600, 14400,
+];
 
 /// Publishes the state of the link until it is closed, and publishes the last state.
 async fn supervise<F>(

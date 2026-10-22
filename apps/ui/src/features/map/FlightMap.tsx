@@ -575,6 +575,12 @@ export function FlightMap() {
       setFailure(message);
     });
 
+    // The map has drawn itself: whatever went wrong before is over, and the message
+    // about it goes away with it.
+    instance.on("idle", () => {
+      setFailure(null);
+    });
+
     // A click on the map does one of two things: it tells the vehicle to go there, when
     // the tool is armed, and it adds an item to the plan, when the editor is armed for
     // it.
@@ -1119,8 +1125,9 @@ export function FlightMap() {
         </button>
       </div>
 
-      {saving ? (
-        <div className={styles.area} role="group" aria-label="Save the area">
+      <div className={styles.messages}>
+        {saving ? (
+          <div className={styles.area} role="group" aria-label="Save the area">
           <p className={styles.hint}>
             The tiles of the area are fetched and kept, so that the map is drawn with
             them when there is no signal.
@@ -1166,13 +1173,12 @@ export function FlightMap() {
         </div>
       ) : null}
 
-      {notice !== null ? (
-        <p className={styles.hint} role="status">
-          {notice}
-        </p>
-      ) : null}
+        {notice !== null ? (
+          <p className={styles.hint} role="status">
+            {notice}
+          </p>
+        ) : null}
 
-      <div className={styles.messages}>
         {adding ? (
           <p className={styles.hint} role="status">
             Click the map to add a waypoint

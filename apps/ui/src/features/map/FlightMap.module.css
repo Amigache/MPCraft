@@ -133,17 +133,19 @@
   color: var(--colour-accent);
 }
 
-/* The messages over the map, at the top left. They are stacked, so they never lie over
-   one another. */
+/* The messages over the map, at the bottom left, above the caption.
+ *
+ * They are a stack, so they never lie over one another, and they are under the bar of
+ * the controls, so they never lie over it either. */
 
 .messages {
+  bottom: calc(var(--space-2) + var(--control-h-sm) + var(--space-1));
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  left: var(--space-3);
+  left: var(--space-2);
   max-width: 380px;
   position: absolute;
-  top: var(--space-3);
   z-index: 3;
 }
 
@@ -296,11 +298,7 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  position: absolute;
-  right: var(--space-3);
-  top: var(--space-3);
   width: 280px;
-  z-index: 5;
 }
 
 .areaField {

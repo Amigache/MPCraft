@@ -94,6 +94,12 @@ impl FromStr for ConnectionScheme {
 pub struct ConnectionOptions {
     /// The baud rate of a serial port.
     pub baud_rate: u32,
+    /// Whether the rate is found by trying the ones there are.
+    ///
+    /// A vehicle that is talking at a rate nobody wrote down is a vehicle that is
+    /// found by trying them one after another: the port is opened at each rate in
+    /// turn, and the rate at which the vehicle answers is the one it talks at.
+    pub auto_baud: bool,
     /// Whether the DTR line is asserted when the port is opened.
     ///
     /// Mission Planner toggles DTR to reset boards that use it as a reset line, which is why
@@ -112,6 +118,7 @@ impl Default for ConnectionOptions {
     fn default() -> Self {
         Self {
             baud_rate: 57600,
+            auto_baud: false,
             dtr_on_open: false,
             server: false,
             replay_rate: 0.0,
@@ -211,6 +218,14 @@ impl ConnectionSpec {
                 (ConnectionScheme::Serial, "nodtr") => options.dtr_on_open = false,
                 (ConnectionScheme::Serial, "baud") => {
                     let text = value.ok_or(SpecError::MissingValue("baud".to_owned()))?;
+
+                    // The rate can be left to the program: it opens the port at each
+                    // rate in turn until the vehicle answers.
+                    if text.eq_ignore_ascii_case("auto") {
+                        options.auto_baud = true;
+                        continue;
+                    }
+
                     options.baud_rate = text
                         .parse()
                         .map_err(|_| SpecError::InvalidBaudRate(text.to_owned()))?;
@@ -429,6 +444,22 @@ mod tests {
     fn the_baud_rate_can_be_given_as_an_option() {
         let spec = ConnectionSpec::parse("serial:COM3|baud=115200").unwrap();
         assert_eq!(spec.options.baud_rate, 115200);
+    }
+
+    #[test]
+    fn the_baud_rate_can_be_left_to_the_program() {
+        let spec = ConnectionSpec::parse("serial:COM3|baud=auto").unwrap();
+        assert!(spec.options.auto_baud);
+        assert_eq!(spec.target, "COM3");
+
+        let spec = ConnectionSpec::parse("serial:COM3|baud=AUTO").unwrap();
+        assert!(spec.options.auto_baud);
+    }
+
+    #[test]
+    fn the_rate_is_not_left_to_the_program_by_default() {
+        let spec = ConnectionSpec::parse("serial:COM3:57600").unwrap();
+        assert!(!spec.options.auto_baud);
     }
 
     #[test]
