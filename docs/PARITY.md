@@ -303,7 +303,7 @@ one the manifest of the firmware uses, so that the board that is detected is the
 the firmware is chosen for.
 
 The **flight** can be served on the network, from the View menu: another program can
-follow it without a link of its own. The server answers three things ? the page that
+follow it without a link of its own. The server answers three things — the page that
 shows the flight, the state of the vehicle as JSON, and the track of the flight as the
 KML document that is being written. It is a small server, on purpose: it answers those
 three things and nothing else.
