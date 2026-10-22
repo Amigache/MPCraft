@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConnectionPanel } from "../../features/connection/ConnectionPanel";
+import { ConnectionBar } from "./ConnectionBar";
 import {
   armVehicle,
   closeLink,
@@ -941,6 +942,7 @@ export function MenuBar() {
       ))}
 
       <div className={styles.right}>
+        <ConnectionBar />
         {note !== null ? (
           <span className={styles.note} role="status">
             {note}

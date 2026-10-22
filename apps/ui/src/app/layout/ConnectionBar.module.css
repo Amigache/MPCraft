@@ -1,0 +1,47 @@
+/* The connection bar, on the right of the menu bar.
+ *
+ * It is the way of connecting, the port and the button that opens or closes the link.
+ */
+
+.bar {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+}
+
+.method {
+  font-size: var(--font-2xs);
+  height: 24px;
+  width: 84px;
+}
+
+.port {
+  font-size: var(--font-2xs);
+  height: 24px;
+  max-width: 220px;
+  min-width: 120px;
+}
+
+.baud {
+  font-size: var(--font-2xs);
+  height: 24px;
+  width: 76px;
+}
+
+.host {
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  height: 24px;
+  width: 170px;
+}
+
+.connect {
+  background: var(--colour-accent);
+  border-color: var(--colour-accent);
+  color: var(--colour-on-accent);
+}
+
+.disconnect {
+  background: var(--colour-surface-raised);
+}
