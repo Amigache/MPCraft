@@ -82,7 +82,11 @@ pub fn gather(state: &crate::AppState) -> Vec<Entry> {
     let link = match state.supervisor.state() {
         Some(session) => format!(
             "the link is open\n\n{:#?}",
-            session.vehicles.iter().map(|vehicle| vehicle.id).collect::<Vec<_>>()
+            session
+                .vehicles
+                .iter()
+                .map(|vehicle| vehicle.id)
+                .collect::<Vec<_>>()
         ),
         None => "there is no open link".to_owned(),
     };
@@ -223,11 +227,13 @@ mod tests {
 
         assert_eq!(&zip[0..4], &LOCAL_HEADER.to_le_bytes());
         assert!(
-            zip.windows(4).any(|window| window == CENTRAL_HEADER.to_le_bytes()),
+            zip.windows(4)
+                .any(|window| window == CENTRAL_HEADER.to_le_bytes()),
             "the bundle has a central directory"
         );
         assert!(
-            zip.windows(4).any(|window| window == END_OF_DIRECTORY.to_le_bytes()),
+            zip.windows(4)
+                .any(|window| window == END_OF_DIRECTORY.to_le_bytes()),
             "the bundle says where the directory ends"
         );
         assert!(

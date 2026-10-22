@@ -124,13 +124,9 @@ pub fn open_dted(directory: &Path) -> CommandResult<(DtedLibraryInfo, DtedLibrar
 ///
 /// Returns an error when no cell of the folder covers the place.
 pub fn dted_elevation(library: &DtedLibrary, lat: f64, lng: f64) -> CommandResult<f64> {
-    let elevation = library
-        .elevation(LatLng::new(lat, lng))
-        .map_err(|error| {
-            CommandError::invalid_request(format!(
-                "the height of that place is not known: {error}"
-            ))
-        })?;
+    let elevation = library.elevation(LatLng::new(lat, lng)).map_err(|error| {
+        CommandError::invalid_request(format!("the height of that place is not known: {error}"))
+    })?;
 
     Ok(elevation.metres)
 }

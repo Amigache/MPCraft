@@ -364,11 +364,7 @@ impl SessionSupervisor {
     ///
     /// Returns an error when there is no open link, when the vehicle does not confirm
     /// the move, or when it reports a different home.
-    pub async fn set_home_position(
-        &self,
-        vehicle: VehicleId,
-        home: GeoPoint,
-    ) -> CommandResult<()> {
+    pub async fn set_home_position(&self, vehicle: VehicleId, home: GeoPoint) -> CommandResult<()> {
         let session = self.open_session()?;
 
         session

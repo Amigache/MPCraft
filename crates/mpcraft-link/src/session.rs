@@ -33,7 +33,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mpcraft_mavlink::dialect::Dialect;
-use mpcraft_mavlink::frame::MavHeader;
+use mpcraft_mavlink::frame::{MavHeader, SIGNATURE_LEN};
+use mpcraft_mavlink::signing::{SigningKey, SigningKeyring, TimestampSource};
 use mpcraft_mavlink::{Frame, FrameParser, MavMessage, MavlinkVersion, Message};
 use mpcraft_params::ParameterStore;
 use mpcraft_transport::{ConnectionSpec, Transport};
@@ -92,7 +93,7 @@ fn ground_station_heartbeat() -> MavMessage {
 const ANNOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// The tunables of a session.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SessionOptions {
     /// How long the reader waits for data before checking for queued work.
     ///
@@ -100,6 +101,22 @@ pub struct SessionOptions {
     pub poll_interval: Duration,
     /// How long to wait for a vehicle to answer during the handshake.
     pub connect_timeout: Duration,
+    /// The keys of the link, when the link is signed.
+    pub signing: Option<SigningSetup>,
+}
+
+/// The keys of a link.
+///
+/// A session that has a key signs every frame it sends, and every frame it receives is
+/// verified against the keys it knows. A link with no keys is an ordinary link.
+#[derive(Debug, Clone, Default)]
+pub struct SigningSetup {
+    /// The key the outgoing frames are signed with.
+    pub key: Option<SigningKey>,
+    /// The keys the incoming frames are verified against.
+    pub keyring: SigningKeyring,
+    /// The id of this station on the link.
+    pub link_id: u8,
 }
 
 impl Default for SessionOptions {
@@ -107,6 +124,7 @@ impl Default for SessionOptions {
         Self {
             poll_interval: Duration::from_millis(10),
             connect_timeout: Duration::from_secs(30),
+            signing: None,
         }
     }
 }
@@ -195,6 +213,20 @@ pub struct SessionState {
     pub connected: bool,
 }
 
+/// The time the protocol counts the marks of time of the signatures in.
+///
+/// It is the time since the first of January of 2015, in hundredths of a microsecond.
+fn signature_now() -> u64 {
+    /// The first of January of 2015, in seconds since the epoch.
+    const EPOCH_2015: u64 = 1_420_070_400;
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+
+    now.as_secs().saturating_sub(EPOCH_2015) * 10_000 + u64::from(now.subsec_micros()) / 100
+}
+
 /// The mutable state the reader task owns.
 ///
 /// Bundling it into one struct keeps the reader task's functions from taking a dozen
@@ -211,9 +243,46 @@ struct SessionContext {
     capabilities: Option<u64>,
     parameters: ParameterStore,
     messages: VecDeque<mpcraft_vehicle::VehicleMessage>,
+    /// The keys the incoming frames are verified against, when the link is signed.
+    keyring: SigningKeyring,
 }
 
 impl SessionContext {
+    /// Whether a frame may be believed.
+    ///
+    /// On a link that is not signed, every frame is believed. On a link that is signed,
+    /// a frame has to carry a signature that one of the keys accounts for: a frame that
+    /// does not is not from the vehicle.
+    fn verify(&mut self, frame: &Frame) -> bool {
+        if self.keyring.is_empty() {
+            return true;
+        }
+
+        let Some(signature) = frame.signature else {
+            tracing::warn!("a frame arrived without a signature");
+            return false;
+        };
+
+        // The signature is over the frame without its own block.
+        let signed = &frame.raw[..frame.raw.len().saturating_sub(SIGNATURE_LEN)];
+
+        match self.keyring.verify(
+            signed,
+            signature.link_id,
+            signature.timestamp,
+            &signature.value,
+        ) {
+            Ok(name) => {
+                tracing::debug!("the frame was signed with the key {name}");
+                true
+            }
+            Err(error) => {
+                tracing::warn!("the frame was not signed properly: {error}");
+                false
+            }
+        }
+    }
+
     /// Handles one frame: updates the vehicle state and the telemetry.
     fn handle_frame(&mut self, frame: &Frame, now: Instant) {
         let id = VehicleId::new(frame.system_id, frame.component_id);
@@ -349,6 +418,8 @@ pub struct Session {
     state: watch::Receiver<SessionState>,
     options: SessionOptions,
     stopped: Arc<AtomicBool>,
+    /// The marks of time of the signatures, which have to increase.
+    timestamps: std::sync::Mutex<TimestampSource>,
 }
 
 impl Session {
@@ -386,13 +457,22 @@ impl Session {
     #[must_use]
     pub fn with_transport(transport: Box<dyn Transport>, options: SessionOptions) -> Self {
         let (commands, receiver) = mpsc::channel::<Command>(64);
-        let (state_tx, state_rx) = watch::channel(SessionContext::default().snapshot(true));
+
+        // The reader verifies the frames that arrive, so it needs the keys of the link.
+        let mut context = SessionContext::default();
+        if let Some(signing) = &options.signing {
+            context.keyring = signing.keyring.clone();
+        }
+
+        let (state_tx, state_rx) = watch::channel(context.snapshot(true));
 
         let stopped = Arc::new(AtomicBool::new(false));
         let task_stopped = Arc::clone(&stopped);
 
+        let reader_options = options.clone();
+
         tokio::spawn(async move {
-            run_reader(transport, receiver, state_tx, options, task_stopped).await;
+            run_reader(transport, receiver, state_tx, reader_options, task_stopped).await;
         });
 
         Self {
@@ -400,6 +480,7 @@ impl Session {
             state: state_rx,
             options,
             stopped,
+            timestamps: std::sync::Mutex::new(TimestampSource::new()),
         }
     }
 
@@ -459,7 +540,7 @@ impl Session {
     /// The tunables this session was opened with.
     #[must_use]
     pub fn options(&self) -> SessionOptions {
-        self.options
+        self.options.clone()
     }
 
     /// Waits until the session has stopped.
@@ -620,8 +701,35 @@ impl Session {
             sequence: next_sequence(),
         };
 
-        self.write(mpcraft_mavlink::frame::encode_v2(message, header))
-            .await
+        let bytes = match &self.options.signing {
+            Some(signing) => match signing.key.as_ref() {
+                Some(key) => {
+                    // The mark of time of the signature has to increase on every frame.
+                    let timestamp = {
+                        let mut source = self.timestamps.lock().map_err(|_| {
+                            LinkError::Protocol(mpcraft_mavlink::ProtocolError::Malformed(
+                                "the marks of time of the signatures are locked",
+                            ))
+                        })?;
+                        source.next(signature_now())
+                    };
+
+                    mpcraft_mavlink::frame::encode_v2_signed(
+                        message,
+                        header,
+                        &signing.keyring,
+                        key,
+                        signing.link_id,
+                        timestamp,
+                    )
+                }
+                // The link has keys to verify with, but none to sign with.
+                None => mpcraft_mavlink::frame::encode_v2(message, header),
+            },
+            None => mpcraft_mavlink::frame::encode_v2(message, header),
+        };
+
+        self.write(bytes).await
     }
 
     /// Sends a message and waits for the answer that completes the exchange.
@@ -866,6 +974,10 @@ async fn run_reader(
                 frames.clear();
                 if parser.feed(&buffer[..count], &mut frames).is_ok() {
                     for frame in &frames {
+                        if !context.verify(frame) {
+                            continue;
+                        }
+
                         context.handle_frame(frame, now);
                     }
                 }

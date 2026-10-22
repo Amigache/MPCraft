@@ -36,10 +36,7 @@ impl WebServer {
     /// # Errors
     ///
     /// Returns an error when the port cannot be opened.
-    pub async fn start(
-        port: u16,
-        state: Arc<crate::AppState>,
-    ) -> CommandResult<Self> {
+    pub async fn start(port: u16, state: Arc<crate::AppState>) -> CommandResult<Self> {
         let listener = TcpListener::bind(("0.0.0.0", port))
             .await
             .map_err(|error| {
@@ -130,7 +127,9 @@ fn answer(path: &str, state: &crate::AppState) -> (&'static str, String) {
 /// The state of the vehicle, as it is now.
 fn telemetry_of(state: &crate::AppState) -> serde_json::Value {
     match state.supervisor.state() {
-        Some(session) => serde_json::to_value(&session.telemetry).unwrap_or_else(|_| serde_json::json!({})),
+        Some(session) => {
+            serde_json::to_value(&session.telemetry).unwrap_or_else(|_| serde_json::json!({}))
+        }
         None => serde_json::json!({}),
     }
 }
@@ -143,9 +142,7 @@ fn kml_of(state: &crate::AppState) -> String {
         .ok()
         .and_then(|cell| cell.as_ref().map(|track| track.document()));
 
-    track.unwrap_or_else(|| {
-        mpcraft_mission::kml::write_track_kml("MPCraft track", &[])
-    })
+    track.unwrap_or_else(|| mpcraft_mission::kml::write_track_kml("MPCraft track", &[]))
 }
 
 /// The page that shows the flight.

@@ -16,11 +16,9 @@ use std::time::Duration;
 
 use mpcraft_log::ulog::{ULogFormat, ULogReader, ULogSample};
 use mpcraft_log::Value;
-use mpcraft_vehicle::graph::{History, Sample};
 use mpcraft_mavlink::MavGpsFixType;
-use mpcraft_vehicle::{
-    Attitude, Battery, FlightMode, GeoPoint, GpsStatus, Telemetry, Velocity,
-};
+use mpcraft_vehicle::graph::{History, Sample};
+use mpcraft_vehicle::{Attitude, Battery, FlightMode, GeoPoint, GpsStatus, Telemetry, Velocity};
 
 use crate::error::{CommandError, CommandResult};
 use crate::logs::{LogSummary, MessageCount, MessageSamples, TrackPoint};
@@ -121,7 +119,11 @@ pub fn samples(path: &Path, name: &str, limit: usize) -> CommandResult<MessageSa
 
         if fields.is_empty() {
             if let Some(format) = reader.formats().get(name) {
-                fields = format.fields.iter().map(|field| field.name.clone()).collect();
+                fields = format
+                    .fields
+                    .iter()
+                    .map(|field| field.name.clone())
+                    .collect();
             }
         }
 
@@ -292,10 +294,9 @@ fn apply(telemetry: &mut Telemetry, format: &ULogFormat, sample: &ULogSample) {
         }
 
         "vehicle_global_position" => {
-            let (Some(latitude), Some(longitude)) = (
-                number(format, sample, "lat"),
-                number(format, sample, "lon"),
-            ) else {
+            let (Some(latitude), Some(longitude)) =
+                (number(format, sample, "lat"), number(format, sample, "lon"))
+            else {
                 return;
             };
 
@@ -307,10 +308,9 @@ fn apply(telemetry: &mut Telemetry, format: &ULogFormat, sample: &ULogSample) {
         }
 
         "vehicle_gps_position" => {
-            let (Some(latitude), Some(longitude)) = (
-                number(format, sample, "lat"),
-                number(format, sample, "lon"),
-            ) else {
+            let (Some(latitude), Some(longitude)) =
+                (number(format, sample, "lat"), number(format, sample, "lon"))
+            else {
                 return;
             };
 
@@ -463,7 +463,10 @@ mod tests {
 
         assert!(!samples.fields.is_empty(), "the topic declares its fields");
         assert_eq!(samples.rows.len(), 10);
-        assert!(samples.total > 10, "the topic holds more samples than asked for");
+        assert!(
+            samples.total > 10,
+            "the topic holds more samples than asked for"
+        );
     }
 
     #[test]
@@ -472,8 +475,8 @@ mod tests {
             return;
         };
 
-        let error = samples(&path, "there_is_no_such_topic", 10)
-            .expect_err("the topic is not in the log");
+        let error =
+            samples(&path, "there_is_no_such_topic", 10).expect_err("the topic is not in the log");
 
         assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
     }

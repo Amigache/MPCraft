@@ -118,11 +118,9 @@ pub struct FirmwareManifest {
 /// Returns an error when the manifest cannot be fetched, or when it is not the document
 /// that was expected.
 pub async fn download_manifest(url: &str) -> CommandResult<FirmwareManifest> {
-    let response = reqwest::get(url)
-        .await
-        .map_err(|error| {
-            CommandError::internal(format!("the manifest could not be fetched: {error}"))
-        })?;
+    let response = reqwest::get(url).await.map_err(|error| {
+        CommandError::internal(format!("the manifest could not be fetched: {error}"))
+    })?;
 
     if !response.status().is_success() {
         return Err(CommandError::internal(format!(
@@ -222,7 +220,9 @@ fn parse_manifest(bytes: &[u8]) -> CommandResult<FirmwareManifest> {
 
     // The newest version comes first: it is the one that is wanted.
     for board in &mut boards {
-        board.versions.sort_by(|a, b| compare_versions(&b.version, &a.version));
+        board
+            .versions
+            .sort_by(|a, b| compare_versions(&b.version, &a.version));
         board
             .versions
             .iter_mut()
@@ -244,11 +244,9 @@ fn parse_manifest(bytes: &[u8]) -> CommandResult<FirmwareManifest> {
 ///
 /// Returns an error when the file cannot be fetched or cannot be written.
 pub async fn download_file(url: &str, output: &std::path::Path) -> CommandResult<u64> {
-    let response = reqwest::get(url)
-        .await
-        .map_err(|error| {
-            CommandError::internal(format!("the file could not be fetched: {error}"))
-        })?;
+    let response = reqwest::get(url).await.map_err(|error| {
+        CommandError::internal(format!("the file could not be fetched: {error}"))
+    })?;
 
     if !response.status().is_success() {
         return Err(CommandError::internal(format!(
@@ -257,9 +255,10 @@ pub async fn download_file(url: &str, output: &std::path::Path) -> CommandResult
         )));
     }
 
-    let bytes = response.bytes().await.map_err(|error| {
-        CommandError::internal(format!("the file could not be read: {error}"))
-    })?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| CommandError::internal(format!("the file could not be read: {error}")))?;
 
     let length = bytes.len() as u64;
 
@@ -345,10 +344,7 @@ mod tests {
             compare_versions("4.3.7", "4.3.6"),
             std::cmp::Ordering::Greater
         );
-        assert_eq!(
-            compare_versions("4.3.7", "4.4.0"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(compare_versions("4.3.7", "4.4.0"), std::cmp::Ordering::Less);
         assert_eq!(
             compare_versions("4.3.7", "4.3.7"),
             std::cmp::Ordering::Equal

@@ -248,6 +248,67 @@ mod tests {
     }
 
     #[test]
+    fn a_signed_frame_carries_its_signature_and_verifies() {
+        use crate::frame::{encode_v2_signed, FrameParser, MavHeader, IFLAG_SIGNED};
+
+        let mut keyring = SigningKeyring::new();
+        let key = SigningKey::from_seed("shared-secret");
+        keyring.insert("station-1", key.clone());
+
+        // A heartbeat is a message every vehicle understands.
+        let message =
+            crate::dialect::MavMessage::HEARTBEAT(crate::dialect::messages::HEARTBEAT_DATA {
+                custom_mode: 5,
+                mavtype: crate::dialect::MavType::MAV_TYPE_QUADROTOR,
+                autopilot: crate::dialect::MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
+                ..Default::default()
+            });
+
+        let frame = encode_v2_signed(
+            &message,
+            MavHeader {
+                system_id: 255,
+                component_id: 190,
+                sequence: 7,
+            },
+            &keyring,
+            &key,
+            3,
+            1234,
+        );
+
+        // The frame says that it is signed, and it carries the block of the signature.
+        assert_eq!(frame[2] & IFLAG_SIGNED, IFLAG_SIGNED);
+        assert_eq!(frame.len(), frame.len());
+
+        // The frame that comes back verifies with the key it was signed with.
+        let mut parser = FrameParser::new();
+        let mut frames = Vec::new();
+        if let Err(error) = parser.feed(&frame, &mut frames) {
+            panic!("the frame is read: {error} ? {} bytes", frame.len());
+        }
+
+        let parsed = frames.first().expect("the frame is there");
+        let signature = parsed.signature.expect("the frame is signed");
+
+        assert_eq!(signature.link_id, 3);
+        assert_eq!(signature.timestamp, 1234);
+
+        let signed = &parsed.raw[..parsed.raw.len() - crate::frame::SIGNATURE_LEN];
+        assert_eq!(
+            keyring
+                .verify(
+                    signed,
+                    signature.link_id,
+                    signature.timestamp,
+                    &signature.value
+                )
+                .expect("the frame was signed with the key"),
+            "station-1"
+        );
+    }
+
+    #[test]
     fn wrong_signature_is_rejected() {
         let mut keyring = SigningKeyring::new();
         keyring.insert("station-1", SigningKey::from_seed("shared-secret"));

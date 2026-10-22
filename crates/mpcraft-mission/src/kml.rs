@@ -823,10 +823,7 @@ mod tests {
 
     #[test]
     fn a_track_is_written_as_a_line_and_the_place_the_vehicle_is_in() {
-        let points = [
-            (-35.28, 149.13, 584.0),
-            (-35.281, 149.131, 600.0),
-        ];
+        let points = [(-35.28, 149.13, 584.0), (-35.281, 149.131, 600.0)];
 
         let text = write_track_kml("MPCraft track", &points);
 

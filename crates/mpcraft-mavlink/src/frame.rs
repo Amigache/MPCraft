@@ -78,6 +78,47 @@ pub fn encode_v2<M: mavlink::Message>(message: &M, header: MavHeader) -> Vec<u8>
     frame.raw_bytes().to_vec()
 }
 
+/// Encodes a message into a signed MAVLink 2 frame.
+///
+/// The frame carries the signature block: the id of the link, the timestamp of the
+/// signature and the signature itself. The signature is computed over the frame without
+/// the block, with the flag that says the frame is signed already set — which is what
+/// the other end signs over as well.
+///
+/// # Panics
+///
+/// Panics if the message cannot be serialised, which the generated bindings never do.
+#[must_use]
+pub fn encode_v2_signed<M: mavlink::Message>(
+    message: &M,
+    header: MavHeader,
+    keyring: &crate::signing::SigningKeyring,
+    key: &crate::signing::SigningKey,
+    link_id: u8,
+    timestamp: u64,
+) -> Vec<u8> {
+    let mut frame = encode_v2(message, header);
+
+    // The flag that says the frame is signed. It is set before the checksum is worked
+    // out, because the checksum covers the header.
+    frame[2] |= IFLAG_SIGNED;
+
+    // The checksum is worked out again, because the flag is part of what it covers.
+    if let Some(seed) = crate::dialect::extra_crc(message.message_id()) {
+        let crc_end = frame.len() - CRC_LEN;
+        let crc = calculate_crc(&frame[1..crc_end], seed);
+        frame[crc_end..].copy_from_slice(&crc.to_le_bytes());
+    }
+
+    let signature = keyring.sign(key, &frame, link_id, timestamp);
+
+    frame.push(link_id);
+    frame.extend_from_slice(&timestamp.to_le_bytes()[..6]);
+    frame.extend_from_slice(&signature);
+
+    frame
+}
+
 /// Encodes a message into a MAVLink 1 frame.
 ///
 /// MAVLink 1 message ids are limited to 255; a message with a larger id cannot be encoded
