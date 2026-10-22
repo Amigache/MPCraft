@@ -65,6 +65,7 @@ pub mod logs;
 pub mod loss;
 pub mod mission;
 pub mod mission_ftp;
+pub mod osd;
 pub mod params;
 pub mod plaintext;
 pub mod session;
@@ -85,6 +86,7 @@ pub use mission::{
     DEFAULT_PARTIAL_ITEM_RETRIES, DEFAULT_PARTIAL_ITEM_TIMEOUT,
 };
 pub use mpcraft_mavlink::signing::{SigningKey, SigningKeyring};
+pub use osd::{OsdSlot, OsdSlotConfig};
 pub use params::{ParamError, DEFAULT_LIST_TIMEOUT, DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT};
 pub use plaintext::PlaintextSniffer;
 pub use session::{ReceivedMessage, Session, SessionOptions, SessionState, SigningSetup};

@@ -396,6 +396,58 @@ MESSAGES = {
         ],
         [("payload", "char251")],
     ),
+    11033: message(
+        11033,
+        "OSD_PARAM_CONFIG",
+        195,
+        [
+            ("request_id", "u32"),
+            ("min_value", "f32"),
+            ("max_value", "f32"),
+            ("increment", "f32"),
+            ("target_system", "u8"),
+            ("target_component", "u8"),
+            ("osd_screen", "u8"),
+            ("osd_index", "u8"),
+            ("param_id", "char16"),
+        ],
+        [("config_type", "u8")],
+    ),
+    11034: message(
+        11034,
+        "OSD_PARAM_CONFIG_REPLY",
+        79,
+        [
+            ("request_id", "u32"),
+            ("result", "u8"),
+        ],
+    ),
+    11035: message(
+        11035,
+        "OSD_PARAM_SHOW_CONFIG",
+        128,
+        [
+            ("request_id", "u32"),
+            ("target_system", "u8"),
+            ("target_component", "u8"),
+            ("osd_screen", "u8"),
+            ("osd_index", "u8"),
+        ],
+    ),
+    11036: message(
+        11036,
+        "OSD_PARAM_SHOW_CONFIG_REPLY",
+        177,
+        [
+            ("request_id", "u32"),
+            ("min_value", "f32"),
+            ("max_value", "f32"),
+            ("increment", "f32"),
+            ("result", "u8"),
+            ("param_id", "char16"),
+        ],
+        [("config_type", "u8")],
+    ),
     126: message(
         126,
         "SERIAL_CONTROL",
@@ -1136,6 +1188,13 @@ class Vehicle:
         # The files that are being written, by the session of the transfer.
         self.ftp_writes = {}
 
+        # The slots of the on-screen display, and what each of them holds.
+        self.osd_slots = {
+            (5, 1): "BAT1_VOLT",
+            (5, 2): "BAT1_CURR",
+            (6, 1): "GPS0_LAT",
+        }
+
         # The parameters, by name.
         self.parameters = {name: value for name, value, _ in PARAMETERS}
         self.parameter_types = {name: kind for name, _, kind in PARAMETERS}
@@ -1747,6 +1806,8 @@ class Vehicle:
             76: self.on_command_long,
             126: self.on_serial_control,
             243: self.on_set_home_position,
+            11033: self.on_osd_param_config,
+            11035: self.on_osd_param_show_config,
         }.get(message_id)
 
         if handler is not None:
@@ -2230,6 +2291,44 @@ class Vehicle:
                 "flags": 1,
                 "count": len(answer),
                 "data": data.decode("ascii", errors="replace"),
+            },
+        )
+
+    def on_osd_param_show_config(self, values):
+        """The ground station asks what a slot of the display holds."""
+        screen = values.get("osd_screen", 0)
+        index = values.get("osd_index", 0)
+        name = self.osd_slots.get((screen, index), "")
+
+        self.send(
+            11036,
+            {
+                "request_id": values.get("request_id", 0),
+                "min_value": 0.0,
+                "max_value": 0.0,
+                "increment": 0.0,
+                # The answer says the slot is empty when the vehicle does not have it.
+                "result": 0 if name else 2,
+                "param_id": name,
+                "config_type": 0,
+            },
+        )
+
+    def on_osd_param_config(self, values):
+        """The ground station says what a slot of the display is to hold."""
+        screen = values.get("osd_screen", 0)
+        index = values.get("osd_index", 0)
+        name = values.get("param_id", "")
+
+        if name:
+            self.osd_slots[(screen, index)] = name
+            print(f"the slot {index} of the screen {screen} holds {name}", flush=True)
+
+        self.send(
+            11034,
+            {
+                "request_id": values.get("request_id", 0),
+                "result": 0,
             },
         )
 

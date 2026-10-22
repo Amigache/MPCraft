@@ -26,6 +26,7 @@ import type {
   MessageSamples,
   MavCommand,
   OutputFunction,
+  OsdSlot,
   Parameter,
   ParameterDifference,
   ParameterMetadata,
@@ -140,6 +141,35 @@ export async function uploadMission(
     ...vehicleRequest(vehicle),
     kind,
     items,
+  });
+}
+
+/**
+ * The slots of the on-screen display, and what each of them holds.
+ *
+ * The screens five and six are the ones the operator chooses. The answer is the name
+ * of the parameter each slot holds, when the vehicle says it.
+ */
+export async function osdSlots(): Promise<OsdSlot[]> {
+  return call<OsdSlot[]>("osd_slots", { req: {} });
+}
+
+/**
+ * Tells the vehicle what a slot of the on-screen display is to hold.
+ *
+ * The slot holds a parameter, and the range of the parameter is said with it.
+ */
+export async function osdSlotConfig(
+  screen: number,
+  index: number,
+  name: string,
+  min: number,
+  max: number,
+  increment: number,
+): Promise<void> {
+  await call<void>("osd_slot_config", {
+    req: {},
+    slot: { screen, index, name, min, max, increment },
   });
 }
 

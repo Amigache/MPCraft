@@ -14,7 +14,7 @@ use mpcraft_app::{
     ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction, PlanInfo,
     PlanKind, PresetInfo, SeriesData, SessionState,
 };
-use mpcraft_link::{Calibration, VehicleId};
+use mpcraft_link::{Calibration, OsdSlot, OsdSlotConfig, VehicleId};
 use mpcraft_mission::{MissionType, Plan};
 use mpcraft_transport::SerialTransport;
 use mpcraft_vehicle::Telemetry;
@@ -1539,6 +1539,73 @@ async fn flash_bootloader(state: State<'_, AppState>, req: VehicleRequest) -> Co
     let vehicle = resolve_vehicle(&state, &req)?;
 
     state.supervisor.flash_bootloader(vehicle).await
+}
+
+/// The slots of the on-screen display, and what each of them holds.
+///
+/// The screens five and six are the ones the operator chooses. The answer is the name
+/// of the parameter each slot holds, when the vehicle says it.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle does not answer.
+#[tauri::command]
+async fn osd_slots(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<Vec<OsdSlot>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.osd_slots(vehicle).await
+}
+
+/// What a slot of the on-screen display is to hold, as the interface says it.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OsdSlotRequest {
+    /// The screen the slot is on.
+    screen: u8,
+    /// The number of the slot on that screen.
+    index: u8,
+    /// The name of the parameter the slot is to hold.
+    name: String,
+    /// The lowest value the parameter takes.
+    min: f32,
+    /// The highest value the parameter takes.
+    max: f32,
+    /// The step the value moves by.
+    increment: f32,
+}
+
+/// Tells the vehicle what a slot of the on-screen display is to hold.
+///
+/// The slot holds a parameter, and the range of the parameter is said with it.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// refuses the change, or when the vehicle does not answer.
+#[tauri::command]
+async fn osd_slot_config(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    slot: OsdSlotRequest,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .osd_slot_config(
+            vehicle,
+            OsdSlotConfig {
+                screen: slot.screen,
+                index: slot.index,
+                name: slot.name,
+                config_type: mpcraft_mavlink::OsdParamConfigType::OSD_PARAM_NONE,
+                min: slot.min,
+                max: slot.max,
+                increment: slot.increment,
+            },
+        )
+        .await
 }
 
 /// The files the vehicle holds in a folder.
@@ -3180,6 +3247,8 @@ fn main() {
             flash_bootloader,
             ftp_list,
             ftp_read,
+            osd_slots,
+            osd_slot_config,
             http_server_start,
             http_server_stop,
             list_signing_keys,

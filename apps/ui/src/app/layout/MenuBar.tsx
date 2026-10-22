@@ -112,6 +112,7 @@ export function MenuBar() {
   const showPassthrough = useUiStore((state) => state.showPassthrough);
   const showFirmware = useUiStore((state) => state.showFirmware);
   const showFiles = useUiStore((state) => state.showFiles);
+  const showOsd = useUiStore((state) => state.showOsd);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -733,6 +734,18 @@ export function MenuBar() {
           onSelect: () => {
             close();
             showTerrain();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-osd",
+          label: "On-screen display…",
+          onSelect: () => {
+            close();
+            showOsd();
           },
           disabled: false,
           checked: undefined,

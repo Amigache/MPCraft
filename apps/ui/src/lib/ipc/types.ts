@@ -58,6 +58,18 @@ export interface PassthroughData {
   readonly data: readonly number[];
 }
 
+/** One slot of the on-screen display of the vehicle. */
+export interface OsdSlot {
+  /** The screen the slot is on: five and six are the ones the operator chooses. */
+  readonly screen: number;
+  /** The number of the slot on that screen. */
+  readonly index: number;
+  /** The name of the parameter the slot holds, when the vehicle says it. */
+  readonly name: string | null;
+  /** Whether the vehicle knows the slot. */
+  readonly known: boolean;
+}
+
 /** One file the vehicle holds, as the file transfer protocol describes it. */
 export interface FtpEntry {
   /** The name of the file, without the folder it is in. */

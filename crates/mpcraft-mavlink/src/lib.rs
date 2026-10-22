@@ -43,7 +43,7 @@ pub mod signing;
 pub use dialect::{
     CharArray, MavAutopilot, MavCmd, MavFrame, MavGpsFixType, MavMessage, MavMissionResult,
     MavMissionType, MavModeFlag, MavParamType, MavProtocolCapability, MavResult, MavSeverity,
-    MavState, MavSysStatusSensor, MavType, Message,
+    MavState, MavSysStatusSensor, MavType, Message, OsdParamConfigError, OsdParamConfigType,
 };
 pub use error::{ProtocolError, Result};
 pub use frame::{Frame, FrameParser, MavlinkVersion};

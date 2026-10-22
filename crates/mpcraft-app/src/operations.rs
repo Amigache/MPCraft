@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mpcraft_link::{
-    Calibration, FtpClient, FtpEntry, HomeRequest, PartialUpdate, PartialUpdatePolicy, Session,
-    VehicleId,
+    Calibration, FtpClient, FtpEntry, HomeRequest, OsdSlot, OsdSlotConfig, PartialUpdate,
+    PartialUpdatePolicy, Session, VehicleId,
 };
 use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionItem, MissionType, Plan};
@@ -37,6 +37,18 @@ const PLAN_TIMEOUT: Duration = Duration::from_secs(30);
 /// The payload of a message carries 239 bytes of data, and fewer are asked for so that
 /// the answer fits in one frame.
 const FTP_BLOCK: u8 = 230;
+
+/// The screens of the on-screen display whose slots the operator chooses.
+///
+/// The screens one to four are fixed by the vehicle; the fifth and the sixth are the
+/// ones that are configured.
+const OSD_SCREENS: [u8; 2] = [5, 6];
+
+/// How many slots each of those screens has.
+const OSD_SLOTS: u8 = 9;
+
+/// How long to wait for the vehicle to answer a question about a slot.
+const OSD_TIMEOUT: Duration = Duration::from_secs(3);
 
 impl SessionSupervisor {
     /// The session that is open, if there is one.
@@ -404,8 +416,44 @@ impl SessionSupervisor {
         Ok(client.list_directory(path).await?)
     }
 
-    /// Reads a file the vehicle holds, over the file transfer protocol.
+    /// Asks the vehicle what every slot of the on-screen display holds.
     ///
+    /// The screens five and six are the ones the operator chooses: each of them has
+    /// nine slots, and each slot holds one thing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the link cannot carry the
+    /// question.
+    pub async fn osd_slots(&self, vehicle: VehicleId) -> CommandResult<Vec<OsdSlot>> {
+        let session = self.open_session()?;
+
+        Ok(session.osd_slots(vehicle, &OSD_SCREENS, OSD_SLOTS).await?)
+    }
+
+    /// Tells the vehicle what a slot of the on-screen display is to hold.
+    ///
+    /// The slot holds a parameter, and the range of the parameter is said with it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the
+    /// change, or when the vehicle does not answer.
+    pub async fn osd_slot_config(
+        &self,
+        vehicle: VehicleId,
+        config: OsdSlotConfig,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .osd_slot_config(vehicle, config, OSD_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Reads a file the vehicle holds, over the file transfer protocol.    ///
     /// # Errors
     ///
     /// Returns an error when there is no open link, when the vehicle refuses the request,

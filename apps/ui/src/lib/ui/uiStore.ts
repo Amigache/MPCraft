@@ -386,6 +386,12 @@ export interface UiStore {
   readonly showFiles: () => void;
   /** Closes the sheet of the files of the vehicle. */
   readonly hideFiles: () => void;
+  /** Whether the sheet of the on-screen display is open over the window. */
+  readonly osdOpen: boolean;
+  /** Opens the sheet of the on-screen display. */
+  readonly showOsd: () => void;
+  /** Closes the sheet of the on-screen display. */
+  readonly hideOsd: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -437,6 +443,7 @@ export const useUiStore = create<UiStore>((set) => ({
   passthroughOpen: false,
   firmwareOpen: false,
   filesOpen: false,
+  osdOpen: false,
   logOpen: false,
   parameterGroups: [],
 
@@ -542,6 +549,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showPassthrough: () => set({ passthroughOpen: true }),
   showFirmware: () => set({ firmwareOpen: true }),
   showFiles: () => set({ filesOpen: true }),
+  showOsd: () => set({ osdOpen: true }),
 
   showLog: () => set({ logOpen: true }),
 
@@ -553,6 +561,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hidePassthrough: () => set({ passthroughOpen: false }),
   hideFirmware: () => set({ firmwareOpen: false }),
   hideFiles: () => set({ filesOpen: false }),
+  hideOsd: () => set({ osdOpen: false }),
 
   loadParameterGroups: async () => {
     try {

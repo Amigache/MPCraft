@@ -3,7 +3,7 @@
 Feature-by-feature comparison with Mission Planner. Every upstream feature must be marked
 **Done**, **Planned**, or **Dropped** (with rationale). No feature may be silently omitted.
 
-**Legend:** ✅ Done · 🔜 Planned (phase) · ⬜ Dropped · 🟡 Partial
+**Legend:** ✅ Done · 🔜 Planned (phase) · ⬜ Dropped · 🟡 Partial · 🔽 Partial, the work is under way
 
 Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_missionplanner/`).
 
@@ -130,7 +130,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 5.20 | RC input / output configuration | `ConfigRadioInput.cs`, `ConfigRadioOutput.cs` | ✅ | 3 |
 | 5.21 | Failsafe configuration | `ConfigFailSafe.cs` | ✅ | 3 |
 | 5.22 | Flight modes configuration | `ConfigFlightModes.cs` | ✅ | 3 |
-| 5.23 | OSD configuration | `ConfigOSD.cs` | 🔜 | 3 |
+| 5.23 | OSD configuration | `ConfigOSD.cs` | ✅ | 3 |
 | 5.24 | Mount / gimbal configuration | `ConfigMount.cs` | ✅ | 5 |
 | 5.25 | ESC calibration | `ConfigESCCalibration.cs` | ✅ | 3 |
 | 5.26 | Hardware device detection | `ExtLibs/ArduPilot/BoardDetect.cs` | ✅ | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 126 |
+| ✅ Done | 127 |
 | 🔜 Planned | 25 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 126 rows marked done are the connection, transport, parameter, mission and command
+The 127 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -366,6 +366,13 @@ upstream has a screen for the accelerometer and another for the compass. The ord
 sent to the vehicle and the vehicle counts the positions itself: the accelerometer in its
 six positions, the compass with the vehicle away from the metal of the bench. The
 compensation of the motors is a parameter, and the sheet takes the operator to it.
+
+The **on-screen display** is a sheet of its own too, opened from the Setup menu: a
+vehicle draws a display over the picture of its camera, and what it draws is a set of
+slots. The screens five and six are the ones the operator chooses, and the vehicle is
+asked what each of them holds. A slot is given a parameter, and the range of that
+parameter is said with it, so that the vehicle knows how to draw it. The two messages
+that carry this are the ones upstream uses as well.
 
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the

@@ -19,6 +19,9 @@ pub use mavlink::dialects::ardupilotmega::{
     SerialControlDev, SerialControlFlag,
 };
 
+// The enums the slots of the on-screen display use.
+pub use mavlink::dialects::ardupilotmega::{OsdParamConfigError, OsdParamConfigType};
+
 /// The type of the GPS fix.
 ///
 /// The enumeration is called `GPS_FIX_TYPE` in the dialect, and the generator prefixes

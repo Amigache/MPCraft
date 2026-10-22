@@ -8,6 +8,7 @@ import { CalibrationSheet } from "../../features/calibration/CalibrationSheet";
 import { JoystickSheet } from "../../features/joystick/JoystickSheet";
 import { FirmwareSheet } from "../../features/firmware/FirmwareSheet";
 import { FilesSheet } from "../../features/files/FilesSheet";
+import { OsdSheet } from "../../features/osd/OsdSheet";
 import { PassthroughSheet } from "../../features/passthrough/PassthroughSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
 import { LogSheet } from "../../features/logs/LogSheet";
@@ -42,6 +43,8 @@ export function AppShell() {
       state.terrainOpen ||
       state.passthroughOpen ||
       state.firmwareOpen ||
+      state.filesOpen ||
+      state.osdOpen ||
       state.logOpen,
   );
 
@@ -65,6 +68,7 @@ export function AppShell() {
       <PassthroughSheet />
       <FirmwareSheet />
       <FilesSheet />
+      <OsdSheet />
       <LogSheet />
     </div>
   );
