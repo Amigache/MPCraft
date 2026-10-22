@@ -308,6 +308,11 @@ shows the flight, the state of the vehicle as JSON, and the track of the flight 
 KML document that is being written. It is a small server, on purpose: it answers those
 three things and nothing else.
 
+The **link** can be signed, with the keys of MAVLink 2: every frame that goes out is
+signed, and every frame that comes in is verified against the keys that are known. A
+frame that arrives without a good signature is not from the vehicle. The keys are not
+kept in the file yet, so the link is signed only when the program is told the keys.
+
 The **diagnostics** of the application are gathered in one file, from the Help menu: the
 machine it runs on, the connection profiles that are saved and the state of the link.
 When the application falls over, the reason is written down where it can be found
