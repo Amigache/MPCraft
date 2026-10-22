@@ -42,6 +42,12 @@ pub struct Settings {
     /// A link that is signed needs a secret key on each side. The keys are kept here so
     /// that the link is signed the same way every time it is opened.
     pub signing_keys: Vec<SigningKeyEntry>,
+
+    /// The folder of tiles the operator has brought, when there is one.
+    ///
+    /// A map that is drawn without a signal is a map that is drawn with the pictures
+    /// that are on the disk. The folder is where those pictures are.
+    pub map_injection_folder: Option<String>,
 }
 
 /// A store of the persisted settings.
@@ -285,6 +291,7 @@ mod tests {
             .save(&Settings {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
+                map_injection_folder: None,
                 connection_profiles: profiles.clone(),
             })
             .expect("the settings should be written");
@@ -349,6 +356,7 @@ mod tests {
             .save(&Settings {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
+                map_injection_folder: None,
                 connection_profiles: first.clone(),
             })
             .expect("the first write should succeed");
@@ -382,6 +390,7 @@ mod tests {
             .save(&Settings {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
+                map_injection_folder: None,
                 connection_profiles: vec![ConnectionProfile::auto_connect(
                     "SITL",
                     "udp:127.0.0.1:14550",
@@ -406,6 +415,7 @@ mod tests {
             .save(&Settings {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
+                map_injection_folder: None,
                 connection_profiles: vec![ConnectionProfile::new("SITL", "udp:127.0.0.1:14550")],
             })
             .expect("the settings should be written");

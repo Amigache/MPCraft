@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { normaliseError, prefetchTiles } from "../../lib/ipc/bridge";
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
-import type { MavCommand, Plan, PlanItem, Telemetry } from "../../lib/ipc/types";
+import type { MapProvider, MavCommand, Plan, PlanItem, Telemetry } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useCommandStore } from "../../lib/plan/commandStore";
 import { carriesPosition, commandOf } from "../../lib/plan/planItems";
@@ -24,7 +24,8 @@ import {
   DEFAULT_ZOOM,
   TRACK_LIMIT,
 } from "./mapStyle";
-import { PROVIDERS, providerOf, styleOf } from "./providers";
+import { knownProviders, loadProviders, providerOf, styleOf } from "./providers";
+import { registerTileProtocol } from "./tiles";
 import styles from "./FlightMap.module.css";
 
 /**
@@ -212,7 +213,7 @@ export function FlightMap() {
     const instance = map.current;
     const provider = providerOf(mapProvider);
 
-    if (instance === null || provider.tiles === null) {
+    if (instance === null || provider === null || provider.tiles === null) {
       setSaving(false);
       return;
     }
@@ -299,16 +300,51 @@ export function FlightMap() {
     [draft, editorOpen, kind, plan],
   );
 
-  // The map itself, once.
+  // The sources of tiles are the backend's, and the backend is the one that fetches
+  // them: the map asks it for the tiles it needs.
+  const [sources, setSources] = useState<readonly MapProvider[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadProviders()
+      .then((found) => {
+        if (!cancelled) {
+          setSources(found);
+        }
+      })
+      .catch(() => {
+        // The map is drawn with what it has: a source that cannot be read is a map
+        // without tiles, and the map says so.
+        if (!cancelled) {
+          setFailure("The sources of tiles could not be read.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The map itself, once the sources are known.
   useEffect(() => {
     const element = container.current;
-    if (!element) {
+    if (!element || sources.length === 0) {
       return;
     }
 
+    const provider = providerOf(mapProvider);
+    if (provider === null) {
+      return;
+    }
+
+    // The tiles are asked for with the local scheme, so that the backend can answer
+    // them from the disk.
+    registerTileProtocol();
+
     const instance = new maplibregl.Map({
       container: element,
-      style: styleOf(providerOf(mapProvider)),
+      style: styleOf(provider),
       center: [DEFAULT_CENTRE[0], DEFAULT_CENTRE[1]],
       zoom: DEFAULT_ZOOM,
       attributionControl: false,
@@ -550,7 +586,7 @@ export function FlightMap() {
       map.current = null;
       loaded.current = false;
     };
-  }, []);
+  }, [sources]);
 
   // The provider of the tiles. The style of the map is the provider's, and the sources
   // and the layers go with it: they are put back when the new style has loaded.
@@ -560,12 +596,17 @@ export function FlightMap() {
       return;
     }
 
-    instance.setStyle(styleOf(providerOf(mapProvider)));
+    const provider = providerOf(mapProvider);
+    if (provider === null) {
+      return;
+    }
+
+    instance.setStyle(styleOf(provider));
 
     instance.once("styledata", () => {
       install.current?.();
     });
-  }, [mapProvider]);
+  }, [mapProvider, sources]);
 
   // The position, the heading and the track, written into the map directly.
   useEffect(() => {
@@ -914,7 +955,7 @@ export function FlightMap() {
               setMapProvider(event.target.value);
             }}
           >
-            {PROVIDERS.map((provider) => (
+            {knownProviders().map((provider) => (
               <option key={provider.id} value={provider.id}>
                 {provider.name}
               </option>
@@ -944,7 +985,8 @@ export function FlightMap() {
             {mapGoing ? "Click the map" : "Go here"}
           </button>
         ) : null}
-        {providerOf(mapProvider).tiles !== null ? (
+        {providerOf(mapProvider)?.tiles !== null &&
+        providerOf(mapProvider) !== null ? (
           <button
             type="button"
             className={styles.control}

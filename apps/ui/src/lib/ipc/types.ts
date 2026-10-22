@@ -58,6 +58,20 @@ export interface PassthroughData {
   readonly data: readonly number[];
 }
 
+/** One source of tiles the map can draw with. */
+export interface MapProvider {
+  /** The identifier the choice is kept under. */
+  readonly id: string;
+  /** The name the operator reads it with. */
+  readonly name: string;
+  /** The address of the style, for a map of vectors. */
+  readonly styleUrl: string | null;
+  /** The address of the tiles, for a map of pictures. */
+  readonly tiles: string | null;
+  /** The copyright the source asks to be shown. */
+  readonly attribution: string;
+}
+
 /** What the corrections of a base station are doing. */
 export interface NtripStatus {
   /** Whether the corrections are being sent. */

@@ -179,12 +179,24 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
+        let tiles = TileService::new(tile_cache_dir());
+
+        // The folder of tiles the operator has brought is read from the settings, so
+        // that the map is drawn with them from the first moment.
+        if let Some(store) = SettingsStore::platform() {
+            if let Ok(settings) = store.load() {
+                if let Some(folder) = settings.map_injection_folder {
+                    tiles.set_injection(Some(std::path::PathBuf::from(folder)));
+                }
+            }
+        }
+
         Self {
             supervisor: SessionSupervisor::new(),
             settings: SettingsStore::platform(),
             graphs: GraphHistory::new(),
             terrain: TerrainService::new(terrain_cache_dir()),
-            tiles: TileService::new(tile_cache_dir()),
+            tiles,
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
@@ -375,6 +387,48 @@ impl AppState {
         store
             .save(&settings)
             .map_err(|error| CommandError::settings(error.to_string()))
+    }
+
+    /// The folder of tiles the operator has brought, when there is one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, or when the
+    /// settings file cannot be read.
+    pub fn map_injection_folder(&self) -> CommandResult<Option<String>> {
+        let store = self.store()?;
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.map_injection_folder)
+    }
+
+    /// Says which folder of tiles the operator has brought.
+    ///
+    /// The folder is kept between two runs, and the map is told about it at once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform has no configuration directory, when the
+    /// settings file cannot be read, or when it cannot be written.
+    pub fn set_map_injection_folder(&self, folder: Option<String>) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.map_injection_folder = folder.clone();
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        self.tiles
+            .set_injection(folder.map(std::path::PathBuf::from));
+
+        Ok(())
     }
 
     /// Gives the supervisor the keys of the link, so that the link that is opened next

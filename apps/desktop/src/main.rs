@@ -2042,6 +2042,66 @@ async fn prefetch_tiles(
         .map_err(|error| CommandError::internal(error.to_string()))
 }
 
+/// The sources of tiles the map can draw with.
+///
+/// The sources are the ones that are free and that need neither an account nor a key.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn list_map_providers() -> CommandResult<Vec<mpcraft_geo::tiles::TileProvider>> {
+    Ok(mpcraft_geo::tiles::providers())
+}
+
+/// One tile of the map.
+///
+/// The tile is taken from the folder the operator has brought, then from the disk where
+/// the tiles that were fetched are kept, and from the service when it is in neither.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the tile cannot be fetched.
+#[tauri::command]
+async fn map_tile(
+    state: State<'_, AppState>,
+    provider: String,
+    zoom: u8,
+    x: u32,
+    y: u32,
+) -> CommandResult<Vec<u8>> {
+    state
+        .tiles
+        .tile(&provider, zoom, x, y)
+        .await
+        .map_err(|error| CommandError::internal(error.to_string()))
+}
+
+/// The folder of tiles the operator has brought, when there is one.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be read.
+#[tauri::command]
+async fn map_injection_folder(state: State<'_, AppState>) -> CommandResult<Option<String>> {
+    state.map_injection_folder()
+}
+
+/// Says which folder of tiles the operator has brought.
+///
+/// The folder is kept between two runs.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be written.
+#[tauri::command]
+async fn set_map_injection_folder(
+    state: State<'_, AppState>,
+    folder: Option<String>,
+) -> CommandResult<()> {
+    state.set_map_injection_folder(folder)
+}
+
 /// The track of a log: the places the vehicle went through.
 ///
 /// # Errors
@@ -3286,6 +3346,10 @@ fn main() {
             graph_series,
             log_summary,
             prefetch_tiles,
+            list_map_providers,
+            map_tile,
+            map_injection_folder,
+            set_map_injection_folder,
             log_message_samples,
             vehicle_logs,
             download_log,

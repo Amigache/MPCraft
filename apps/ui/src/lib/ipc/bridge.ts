@@ -23,6 +23,7 @@ import type {
   PlaybackInfo,
   LogTrackPoint,
   LossStats,
+  MapProvider,
   MessageSamples,
   MavCommand,
   NtripStatus,
@@ -202,6 +203,38 @@ export async function osdSlotConfig(
     req: {},
     slot: { screen, index, name, min, max, increment },
   });
+}
+
+/** The sources of tiles the map can draw with. */
+export async function listMapProviders(): Promise<MapProvider[]> {
+  return call<MapProvider[]>("list_map_providers");
+}
+
+/**
+ * One tile of the map.
+ *
+ * The tile is taken from the folder the operator has brought, then from the disk where
+ * the tiles that were fetched are kept, and from the service when it is in neither.
+ */
+export async function mapTile(
+  provider: string,
+  zoom: number,
+  x: number,
+  y: number,
+): Promise<number[]> {
+  return call<number[]>("map_tile", { provider, zoom, x, y });
+}
+
+/** The folder of tiles the operator has brought, when there is one. */
+export async function mapInjectionFolder(): Promise<string | null> {
+  return call<string | null>("map_injection_folder");
+}
+
+/** Says which folder of tiles the operator has brought. */
+export async function setMapInjectionFolder(
+  folder: string | null,
+): Promise<void> {
+  await call<void>("set_map_injection_folder", { folder });
 }
 
 /**

@@ -161,8 +161,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 7.1 | MapLibre base map with provider selection | `ExtLibs/Maps/*` | ✅ | 1 |
 | 7.2 | OSM / satellite / hybrid tile providers | `GMapProviders` registry | ✅ | 1 |
-| 7.3 | Tile caching on disk | `ExtLibs/Maps/MyImageCache.cs` | 🔜 | 1 |
-| 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | 🔜 | 2 |
+| 7.3 | Tile caching on disk | `ExtLibs/Maps/MyImageCache.cs` | ✅ | 1 |
+| 7.4 | Offline map injection (custom tile folder) | `FlightPlanner.BUT_InjectCustomMap_Click` | ✅ | 2 |
 | 7.5 | Tile prefetch for a region | `ExtLibs/GMap.NET.WindowsForms/TilePrefetcher.cs` | ✅ | 2 |
 | 7.6 | Geofence / rally / home markers | `ExtLibs/Maps/GMapMarker*.cs` | ✅ | 2 |
 | 7.7 | UTM / MGRS coordinate conversion | `ExtLibs/Utilities/utmpos.cs`, `GeoUtility` | ✅ | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 129 |
-| 🔜 Planned | 24 |
+| ✅ Done | 131 |
+| 🔜 Planned | 22 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 129 rows marked done are the connection, transport, parameter, mission and command
+The 131 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -437,7 +437,11 @@ says where the play-head is is the moment the grid and the map are showing too.
 The **tiles of the map** can be fetched before the flight and kept on the disk: a survey
 is flown where there is no signal, and the map of the field is drawn with the pictures
 that are there. The map's button says "Save the area", and the tiles of the region and
-of the levels of zoom below the present one are fetched.
+of the levels of zoom below the present one are fetched. The map does not ask the
+service for the tiles: it asks the program, which takes them from the folder the
+operator has brought, from the disk where the ones that were fetched are kept, and from
+the service when it is in neither. A map that is drawn without a signal is a map that is
+drawn with the pictures that are on the disk.
 
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of

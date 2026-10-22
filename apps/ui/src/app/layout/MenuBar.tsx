@@ -9,11 +9,12 @@ import {
   disarmVehicle,
 } from "../../lib/flight/flightActions";
 import { useModesStore } from "../../lib/flight/modesStore";
-import { pickSavePath } from "../../lib/ipc/dialog";
+import { pickFolder, pickSavePath } from "../../lib/ipc/dialog";
 import {
   diagnosticsBundle,
   httpServerStart,
   httpServerStop,
+  setMapInjectionFolder,
   startLiveKml,
   stopLiveKml,
 } from "../../lib/ipc/bridge";
@@ -133,6 +134,24 @@ export function MenuBar() {
   }, [loadParameterGroups]);
 
   const close = useCallback(() => setOpen(null), []);
+
+  // The folder of tiles the operator has brought: the map is drawn with the pictures
+  // that are in it, and the folder is kept between two runs.
+  const askMapFolder = useCallback(async () => {
+    const picked = await pickFolder();
+
+    if (!picked.ok) {
+      return;
+    }
+
+    try {
+      await setMapInjectionFolder(picked.path);
+      setNote(`The tiles are taken from ${picked.path}.`);
+    } catch (error) {
+      const cause = error as { message?: string };
+      setNote(cause.message ?? "The folder of tiles could not be kept.");
+    }
+  }, [setNote]);
   // A click anywhere else closes the menu.
   useEffect(() => {
     if (open === null) {
@@ -723,6 +742,18 @@ export function MenuBar() {
           onSelect: () => {
             close();
             showParameterPrefix("CAN_");
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-map-folder",
+          label: "The folder of tiles…",
+          onSelect: () => {
+            close();
+            void askMapFolder();
           },
           disabled: false,
           checked: undefined,

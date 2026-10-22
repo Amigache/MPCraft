@@ -55,8 +55,95 @@ pub struct Bounds {
 pub struct TileService {
     /// Where the tiles are kept.
     cache: PathBuf,
+    /// The folder of tiles the operator has brought, when there is one.
+    injection: std::sync::Arc<std::sync::Mutex<Option<PathBuf>>>,
     /// The client that asks for them.
     client: reqwest::Client,
+}
+
+/// One source of tiles.
+///
+/// The sources are the ones that are free and that need neither an account nor a key,
+/// because a ground station that asks for a key before it draws a map is a ground
+/// station that does not draw a map.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TileProvider {
+    /// The identifier the choice is kept under.
+    pub id: String,
+    /// The name the operator reads it with.
+    pub name: String,
+    /// The address of the style, for a map of vectors.
+    pub style_url: Option<String>,
+    /// The address of the tiles, for a map of pictures.
+    pub tiles: Option<String>,
+    /// The copyright the source asks to be shown.
+    pub attribution: String,
+}
+
+/// The sources of tiles, in the order they are offered.
+#[must_use]
+pub fn providers() -> Vec<TileProvider> {
+    vec![
+        TileProvider {
+            id: "openfreemap-liberty".to_owned(),
+            name: "OpenFreeMap Liberty".to_owned(),
+            style_url: Some("https://tiles.openfreemap.org/styles/liberty".to_owned()),
+            tiles: None,
+            attribution: "© OpenFreeMap contributors".to_owned(),
+        },
+        TileProvider {
+            id: "openfreemap-bright".to_owned(),
+            name: "OpenFreeMap Bright".to_owned(),
+            style_url: Some("https://tiles.openfreemap.org/styles/bright".to_owned()),
+            tiles: None,
+            attribution: "© OpenFreeMap contributors".to_owned(),
+        },
+        TileProvider {
+            id: "openfreemap-positron".to_owned(),
+            name: "OpenFreeMap Positron".to_owned(),
+            style_url: Some("https://tiles.openfreemap.org/styles/positron".to_owned()),
+            tiles: None,
+            attribution: "© OpenFreeMap contributors".to_owned(),
+        },
+        TileProvider {
+            id: "openstreetmap".to_owned(),
+            name: "OpenStreetMap".to_owned(),
+            style_url: None,
+            tiles: Some("https://tile.openstreetmap.org/{z}/{x}/{y}.png".to_owned()),
+            attribution: "© OpenStreetMap contributors".to_owned(),
+        },
+        TileProvider {
+            id: "opentopomap".to_owned(),
+            name: "OpenTopoMap".to_owned(),
+            style_url: None,
+            tiles: Some("https://a.tile.opentopomap.org/{z}/{x}/{y}.png".to_owned()),
+            attribution: "© OpenTopoMap contributors, © OpenStreetMap contributors".to_owned(),
+        },
+        TileProvider {
+            id: "esri-imagery".to_owned(),
+            name: "Esri World Imagery".to_owned(),
+            style_url: None,
+            tiles: Some(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    .to_owned(),
+            ),
+            attribution: "© Esri, Maxar, Earthstar Geographics".to_owned(),
+        },
+        TileProvider {
+            id: "cartodb-light".to_owned(),
+            name: "CartoDB Light".to_owned(),
+            style_url: None,
+            tiles: Some("https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png".to_owned()),
+            attribution: "© OpenStreetMap contributors, © CARTO".to_owned(),
+        },
+    ]
+}
+
+/// The source with the given identifier, when there is one.
+#[must_use]
+pub fn provider_of(id: &str) -> Option<TileProvider> {
+    providers().into_iter().find(|provider| provider.id == id)
 }
 
 impl TileService {
@@ -65,8 +152,28 @@ impl TileService {
     pub fn new(cache: PathBuf) -> Self {
         Self {
             cache,
+            injection: std::sync::Arc::new(std::sync::Mutex::new(None)),
             client: reqwest::Client::new(),
         }
+    }
+
+    /// Says which folder of tiles the operator has brought.
+    ///
+    /// The folder is looked at before the cache: the tiles the operator brought are
+    /// the ones they want to be seen.
+    pub fn set_injection(&self, folder: Option<PathBuf>) {
+        if let Ok(mut injection) = self.injection.lock() {
+            *injection = folder;
+        }
+    }
+
+    /// The folder of tiles the operator has brought, when there is one.
+    #[must_use]
+    pub fn injection_dir(&self) -> Option<PathBuf> {
+        self.injection
+            .lock()
+            .ok()
+            .and_then(|injection| injection.clone())
     }
 
     /// Where the tiles are kept.
@@ -159,8 +266,74 @@ impl TileService {
         Ok(true)
     }
 
-    /// Fetches every tile of a region, for the levels of zoom that are asked for.
+    /// The tile of a place, from the disk when it is there and from the service when it
+    /// is not.
     ///
+    /// The folder the operator has brought is looked at first, then the cache, and the
+    /// service is asked only when the tile is in neither. That is the order that makes
+    /// a map work where there is no signal: the tiles that were fetched beforehand are
+    /// the ones that are drawn.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tile cannot be fetched, or when it cannot be kept.
+    pub async fn tile(
+        &self,
+        provider: &str,
+        zoom: u8,
+        x: u32,
+        y: u32,
+    ) -> Result<Vec<u8>, TileError> {
+        if let Some(bytes) = self.injected(provider, zoom, x, y) {
+            return Ok(bytes);
+        }
+
+        let path = self.tile_path(provider, zoom, x, y);
+
+        if let Ok(bytes) = std::fs::read(&path) {
+            return Ok(bytes);
+        }
+
+        let Some(source) = provider_of(provider) else {
+            return Err(TileError::Fetch(format!(
+                "there is no source of tiles called {provider:?}"
+            )));
+        };
+
+        let Some(template) = source.tiles else {
+            return Err(TileError::Fetch(format!(
+                "the source {provider:?} is a map of vectors, and it has no tiles to fetch"
+            )));
+        };
+
+        self.fetch(&template, provider, zoom, x, y).await?;
+
+        let bytes = std::fs::read(&path)?;
+
+        Ok(bytes)
+    }
+
+    /// The tile of a place in the folder the operator has brought.
+    ///
+    /// The folder is looked at in the shape the tiles are kept in — the source, the
+    /// level of zoom and the place on the grid — and in the plain shape of a folder of
+    /// pictures: the level of zoom and the place.
+    fn injected(&self, provider: &str, zoom: u8, x: u32, y: u32) -> Option<Vec<u8>> {
+        let folder = self.injection_dir()?;
+
+        let candidates = [
+            folder.join(Self::tile_name(provider, zoom, x, y)),
+            folder.join(format!("{zoom}/{x}/{y}.{TILE_EXTENSION}")),
+            folder.join(format!("{zoom}_{x}_{y}.{TILE_EXTENSION}")),
+        ];
+
+        candidates
+            .into_iter()
+            .find(|path| path.is_file())
+            .and_then(|path| std::fs::read(path).ok())
+    }
+
+    /// Fetches every tile of a region, for the levels of zoom that are asked for.    ///
     /// The number of tiles that were fetched is returned: the tiles that were already
     /// on the disk are not counted, because they were not fetched.
     ///
