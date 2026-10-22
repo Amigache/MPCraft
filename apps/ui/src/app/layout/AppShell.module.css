@@ -6,12 +6,12 @@
   position: relative;
 }
 
-/* The window under the sheet: the menu strip, the screen and the status strip. It
-   becomes inert while a sheet lies over it. */
+/* The window under the sheet: the menu strip, the switcher of the screens, the screen
+   and the status strip. It becomes inert while a sheet lies over it. */
 
 .under {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   height: 100%;
   min-height: 0;
 }

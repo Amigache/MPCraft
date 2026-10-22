@@ -26,13 +26,15 @@ import type {
 import { alignSeries, planChart } from "../../lib/graphs/plan";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { GraphChart } from "../graphs/GraphChart";
-import styles from "./LogSheet.module.css";
+import styles from "./LogsScreen.module.css";
 
 /**
- * The sheet of the logs.
+ * The screen of the logs.
  *
  * A log is what a flight is remembered by, and this is where it is read: the messages
- * the log holds, how many of each there are, and the graphs drawn over it.
+ * the log holds, how many of each there are, and the graphs drawn over it. It is one of
+ * the four screens the switcher puts the window on, and leaving it puts the window back
+ * on the flight data.
  *
  * The graphs are the same ones the live view draws. The backend evaluates the
  * expressions over the telemetry of the log instead of over the telemetry of the link,
@@ -72,8 +74,12 @@ function showValue(value: SampleValue): string {
   return value ?? "";
 }
 
-export function LogSheet() {
-  const open = useUiStore((state) => state.logOpen);
+export function LogsScreen() {
+  // The screen is where this screen lives, so it renders exactly when the window is on
+  // it. It stays mounted in the shell while another screen is shown, so that the log that
+  // was opened and the graph that was chosen are not forgotten when the operator comes
+  // back to it.
+  const open = useUiStore((state) => state.screen === "logs");
   const hide = useUiStore((state) => state.hideLog);
 
   const [typed, setTyped] = useState<string>("");
@@ -107,7 +113,7 @@ export function LogSheet() {
   /** Whether the flight is being played. */
   const [playing, setPlaying] = useState(false);
 
-  // The catalogue of graphs is read once, when the sheet opens.
+  // The catalogue of graphs is read once, when the screen opens.
   useEffect(() => {
     if (!open) {
       return;
@@ -136,6 +142,24 @@ export function LogSheet() {
       cancelled = true;
     };
   }, [open]);
+
+  // The escape key takes the window back to the flight data.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        hide();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, hide]);
 
   // The log is read when it is opened, and the graph of it when the graph is chosen.
   useEffect(() => {
@@ -387,312 +411,296 @@ export function LogSheet() {
   };
 
   return (
-    <div
-      className={styles.backdrop}
-      role="presentation"
-      onClick={() => {
-        hide();
-      }}
-    >
-      <div
-        className={styles.panel}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="log-title"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        <header className={styles.header}>
-          <h2 className={styles.title} id="log-title">
-            Logs
-          </h2>
+    <div className={styles.screen}>
+      <header className={styles.header}>
+        <h1 className={styles.title} id="log-title">
+          Logs
+        </h1>
 
-          <div className={styles.headerActions}>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className="button"
+            disabled={busy}
+            onClick={() => {
+              void openFile();
+            }}
+          >
+            Open a log…
+          </button>
+
+          <button type="button" className="button" onClick={hide}>
+            Close
+          </button>
+        </div>
+      </header>
+
+      <div className={styles.body}>
+        <div className={styles.pathRow}>
+          <input
+            className="input"
+            type="text"
+            spellCheck={false}
+            autoComplete="off"
+            value={typed}
+            placeholder="the name of the log"
+            aria-label="The name of the log"
+            onChange={(event) => {
+              setTyped(event.target.value);
+            }}
+          />
+
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={busy || typed === ""}
+            onClick={() => {
+              setSummary(null);
+              setValues(null);
+              setPath(typed);
+              setRevision((count) => count + 1);
+            }}
+          >
+            Read
+          </button>
+        </div>
+
+        {path === null ? (
+          <p className={styles.note}>
+            No log is open. A log is what a flight is remembered by: it is the
+            stream of the frames that crossed the link, each of them with the
+            instant it was seen.
+          </p>
+        ) : null}
+
+        {flight > 0 ? (
+          <div className={styles.scrub}>
             <button
               type="button"
               className="button"
               disabled={busy}
+              title={playing ? "Pause the flight" : "Play the flight"}
               onClick={() => {
-                void openFile();
+                setPlaying(!playing);
               }}
             >
-              Open a log…
+              {playing ? "Pause" : "Play"}
             </button>
 
-            <button type="button" className="button" onClick={hide}>
-              Close
-            </button>
-          </div>
-        </header>
-
-        <div className={styles.body}>
-          <div className={styles.pathRow}>
             <input
-              className="input"
-              type="text"
-              spellCheck={false}
-              autoComplete="off"
-              value={typed}
-              placeholder="the name of the log"
-              aria-label="The name of the log"
+              className={styles.scrubBar}
+              type="range"
+              min={0}
+              max={flight}
+              step={PLAYBACK_STEP}
+              value={Math.min(position, flight)}
+              aria-label="Where the flight is"
               onChange={(event) => {
-                setTyped(event.target.value);
+                const value = Number(event.target.value);
+                setPosition(value);
+                void playbackSeek(value);
               }}
             />
 
-            <button
-              type="button"
-              className="button button--primary"
-              disabled={busy || typed === ""}
-              onClick={() => {
-                setSummary(null);
-                setValues(null);
-                setPath(typed);
-                setRevision((count) => count + 1);
-              }}
-            >
-              Read
-            </button>
+            <span className={styles.scrubTime}>
+              {position.toFixed(1)} s of {flight.toFixed(1)} s
+            </span>
           </div>
+        ) : null}
 
-          {path === null ? (
+        {summary !== null ? (
+          <>
             <p className={styles.note}>
-              No log is open. A log is what a flight is remembered by: it is the stream of
-              the frames that crossed the link, each of them with the instant it was
-              seen.
+              {summary.records} records, {duration.toFixed(1)} seconds,{" "}
+              {summary.messages.length} kinds of message.
             </p>
-          ) : null}
 
-          {flight > 0 ? (
-            <div className={styles.scrub}>
-              <button
-                type="button"
-                className="button"
-                disabled={busy}
-                title={playing ? "Pause the flight" : "Play the flight"}
-                onClick={() => {
-                  setPlaying(!playing);
+            <div className={styles.messages}>
+              {summary.messages.map((message) => (
+                <span key={message.name} className={styles.message}>
+                  <span className={styles.messageName}>{message.name}</span>
+                  <span className={styles.messageCount}>{message.count}</span>
+                </span>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className="button"
+            disabled={busy}
+            title="Ask the vehicle for the logs it holds in its own memory"
+            onClick={() => {
+              void readVehicleLogs();
+            }}
+          >
+            The logs of the vehicle
+          </button>
+        </div>
+
+        {logs.length > 0 ? (
+          <div className={styles.messages}>
+            {logs.map((log) => (
+              <span key={log.id} className={styles.message}>
+                <span className={styles.messageName}>
+                  {`Log ${log.id} · ${(log.size / 1024).toFixed(1)} kB`}
+                </span>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={busy}
+                  onClick={() => {
+                    void fetchLog(log);
+                  }}
+                >
+                  Download
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {summary !== null && summary.messages.length > 0 ? (
+          <>
+            <label className={styles.field}>
+              <span className={styles.label}>The samples of</span>
+              <select
+                className="select"
+                value={chosen}
+                aria-label="The message the samples are of"
+                onChange={(event) => {
+                  setChosen(event.target.value);
+                  void readSamples(event.target.value);
                 }}
               >
-                {playing ? "Pause" : "Play"}
-              </button>
-
-              <input
-                className={styles.scrubBar}
-                type="range"
-                min={0}
-                max={flight}
-                step={PLAYBACK_STEP}
-                value={Math.min(position, flight)}
-                aria-label="Where the flight is"
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setPosition(value);
-                  void playbackSeek(value);
-                }}
-              />
-
-              <span className={styles.scrubTime}>
-                {position.toFixed(1)} s of {flight.toFixed(1)} s
-              </span>
-            </div>
-          ) : null}
-
-          {summary !== null ? (
-            <>
-              <p className={styles.note}>
-                {summary.records} records, {duration.toFixed(1)} seconds,{" "}
-                {summary.messages.length} kinds of message.
-              </p>
-
-              <div className={styles.messages}>
+                <option value="">Choose a message</option>
                 {summary.messages.map((message) => (
-                  <span key={message.name} className={styles.message}>
-                    <span className={styles.messageName}>{message.name}</span>
-                    <span className={styles.messageCount}>{message.count}</span>
-                  </span>
+                  <option key={message.name} value={message.name}>
+                    {`${message.name} (${message.count})`}
+                  </option>
                 ))}
-              </div>
-            </>
-          ) : null}
+              </select>
+            </label>
 
+            {samples !== null ? (
+              <div className={styles.grid}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Seconds</th>
+                      {samples.fields.map((field) => (
+                        <th key={field} scope="col">
+                          {field}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {samples.rows.map((row, index) => (
+                      // The rows are the samples of the log, and they have no identity
+                      // of their own: the position in the list is the identity.
+                      // eslint-disable-next-line react/no-array-index-key
+                      <tr
+                        key={index}
+                        className={styles.row}
+                        onClick={() => {
+                          const at = samples.instants[index];
+
+                          if (at === undefined) {
+                            return;
+                          }
+
+                          setPosition(at);
+                          void playbackSeek(at);
+                        }}
+                      >
+                        <td className={styles.instant}>
+                          {(samples.instants[index] ?? 0).toFixed(2)}
+                        </td>
+                        {row.map((value, column) => (
+                          <td key={column}>{showValue(value)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <p className={styles.note}>
+                  {samples.rows.length} of {samples.total} samples. Click a row
+                  and the flight is moved to that moment.
+                </p>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {presets.length > 0 ? (
+          <label className={styles.field}>
+            <span className={styles.label}>Graph</span>
+            <select
+              className="select"
+              value={preset}
+              aria-label="The graph drawn over the log"
+              onChange={(event) => {
+                setPreset(event.target.value);
+              }}
+            >
+              {presets.map((entry) => (
+                <option key={entry.name} value={entry.name}>
+                  {entry.group} · {entry.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {aligned !== null && plan.series.length > 0 ? (
+          <div className={styles.chart}>
+            <GraphChart plan={plan} values={aligned} />
+          </div>
+        ) : null}
+
+        {path !== null ? (
           <div className={styles.actions}>
             <button
               type="button"
               className="button"
               disabled={busy}
-              title="Ask the vehicle for the logs it holds in its own memory"
+              title="Write the track of the log as a KML document"
               onClick={() => {
-                void readVehicleLogs();
+                void exportKml();
               }}
             >
-              The logs of the vehicle
+              Export the track (KML)
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={busy || preset === ""}
+              title="Write the samples of the graph as a CSV document"
+              onClick={() => {
+                void exportCsv();
+              }}
+            >
+              Export the samples (CSV)
             </button>
           </div>
+        ) : null}
 
-          {logs.length > 0 ? (
-            <div className={styles.messages}>
-              {logs.map((log) => (
-                <span key={log.id} className={styles.message}>
-                  <span className={styles.messageName}>
-                    {`Log ${log.id} · ${(log.size / 1024).toFixed(1)} kB`}
-                  </span>
-                  <button
-                    type="button"
-                    className="button"
-                    disabled={busy}
-                    onClick={() => {
-                      void fetchLog(log);
-                    }}
-                  >
-                    Download
-                  </button>
-                </span>
-              ))}
-            </div>
-          ) : null}
+        {notice !== null ? (
+          <p className={styles.notice} role="status">
+            {notice}
+          </p>
+        ) : null}
 
-          {summary !== null && summary.messages.length > 0 ? (
-            <>
-              <label className={styles.field}>
-                <span className={styles.label}>The samples of</span>
-                <select
-                  className="select"
-                  value={chosen}
-                  aria-label="The message the samples are of"
-                  onChange={(event) => {
-                    setChosen(event.target.value);
-                    void readSamples(event.target.value);
-                  }}
-                >
-                  <option value="">Choose a message</option>
-                  {summary.messages.map((message) => (
-                    <option key={message.name} value={message.name}>
-                      {`${message.name} (${message.count})`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {samples !== null ? (
-                <div className={styles.grid}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th scope="col">Seconds</th>
-                        {samples.fields.map((field) => (
-                          <th key={field} scope="col">
-                            {field}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {samples.rows.map((row, index) => (
-                        // The rows are the samples of the log, and they have no identity
-                        // of their own: the position in the list is the identity.
-                        // eslint-disable-next-line react/no-array-index-key
-                        <tr
-                          key={index}
-                          className={styles.row}
-                          onClick={() => {
-                            const at = samples.instants[index];
-
-                            if (at === undefined) {
-                              return;
-                            }
-
-                            setPosition(at);
-                            void playbackSeek(at);
-                          }}
-                        >
-                          <td className={styles.instant}>
-                            {(samples.instants[index] ?? 0).toFixed(2)}
-                          </td>
-                          {row.map((value, column) => (
-                            <td key={column}>{showValue(value)}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <p className={styles.note}>
-                    {samples.rows.length} of {samples.total} samples. Click a row and
-                    the flight is moved to that moment.
-                  </p>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-
-          {presets.length > 0 ? (
-            <label className={styles.field}>
-              <span className={styles.label}>Graph</span>
-              <select
-                className="select"
-                value={preset}
-                aria-label="The graph drawn over the log"
-                onChange={(event) => {
-                  setPreset(event.target.value);
-                }}
-              >
-                {presets.map((entry) => (
-                  <option key={entry.name} value={entry.name}>
-                    {entry.group} · {entry.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          {aligned !== null && plan.series.length > 0 ? (
-            <div className={styles.chart}>
-              <GraphChart plan={plan} values={aligned} />
-            </div>
-          ) : null}
-
-          {path !== null ? (
-            <div className={styles.actions}>
-              <button
-                type="button"
-                className="button"
-                disabled={busy}
-                title="Write the track of the log as a KML document"
-                onClick={() => {
-                  void exportKml();
-                }}
-              >
-                Export the track (KML)
-              </button>
-
-              <button
-                type="button"
-                className="button"
-                disabled={busy || preset === ""}
-                title="Write the samples of the graph as a CSV document"
-                onClick={() => {
-                  void exportCsv();
-                }}
-              >
-                Export the samples (CSV)
-              </button>
-            </div>
-          ) : null}
-
-          {notice !== null ? (
-            <p className={styles.notice} role="status">
-              {notice}
-            </p>
-          ) : null}
-
-          {error !== null ? (
-            <p className={styles.error} role="alert">
-              {error.code} — {error.message}
-            </p>
-          ) : null}
-        </div>
+        {error !== null ? (
+          <p className={styles.error} role="alert">
+            {error.code} — {error.message}
+          </p>
+        ) : null}
       </div>
     </div>
   );

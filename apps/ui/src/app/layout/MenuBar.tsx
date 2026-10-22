@@ -126,7 +126,9 @@ export function MenuBar() {
   const loadParameterGroups = useUiStore((state) => state.loadParameterGroups);
   const showParameterGroup = useUiStore((state) => state.showParameterGroup);
 
-  const editorOpen = usePlanEditorStore((state) => state.open);
+  // The plan editor is the screen of the plan, so the menu marks it checked when the
+  // window is on that screen.
+  const editorOpen = useUiStore((state) => state.screen === "plan");
   const openEditor = usePlanEditorStore((state) => state.openEditor);
 
   // The groups of the parameters are the same for every vehicle, so they are read

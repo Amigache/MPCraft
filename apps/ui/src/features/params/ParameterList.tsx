@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { MetadataIndex } from "../../lib/params/metadataStore";
 import type { KnownParameter } from "../../lib/params/paramsStore";
 import { ParameterRow } from "./ParameterRow";
-import styles from "./ParameterSheet.module.css";
+import styles from "./ParametersScreen.module.css";
 
 /**
  * The list of parameters.

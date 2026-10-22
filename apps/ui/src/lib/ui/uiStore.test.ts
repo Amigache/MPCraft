@@ -1,12 +1,43 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_HUD_FRACTION,
   DEFAULT_LEFT_FRACTION,
   DEFAULT_TOP_FRACTION,
+  SCREENS,
   TABS,
   useUiStore,
 } from "./uiStore";
+
+/**
+ * The store as it is when a screen is already stored.
+ *
+ * The screen is remembered between two runs, and what is remembered can be something
+ * that is not a screen: the store has to fall back rather than show a screen that does
+ * not exist. A storage is read through `window`, so the test gives one, and the store is
+ * built again because it takes its first value when the module is imported.
+ */
+async function storeWithStoredScreen(stored: string | null) {
+  const values = new Map<string, string>();
+  if (stored !== null) {
+    values.set("mpcraft.screen", stored);
+  }
+
+  (globalThis as { window?: unknown }).window = {
+    localStorage: {
+      getItem: (key: string) =>
+        values.has(key) ? (values.get(key) as string) : null,
+      setItem: (key: string, value: string) => {
+        values.set(key, value);
+      },
+    },
+  };
+
+  vi.resetModules();
+  const module = await import("./uiStore");
+
+  return { store: module.useUiStore, values };
+}
 
 describe("the state of the interface", () => {
   it("keeps the proportions of the layout within their limits", () => {
@@ -89,5 +120,74 @@ describe("the state of the interface", () => {
     useUiStore.getState().setActiveTab("gauges");
     expect(useUiStore.getState().activeTab).toBe("gauges");
     useUiStore.getState().setActiveTab("quick");
+  });
+});
+
+describe("the screens", () => {
+  it("names the screens the way upstream names its views", async () => {
+    const { store } = await storeWithStoredScreen(null);
+
+    expect(store.getState().screen).toBe("flightdata");
+    expect(SCREENS.map((screen) => screen.label)).toEqual([
+      "Flight data",
+      "Plan",
+      "Setup",
+      "Logs",
+    ]);
+  });
+
+  it("comes back to the screen it was on, and remembers the one it chooses", async () => {
+    const { store, values } = await storeWithStoredScreen("plan");
+
+    expect(store.getState().screen).toBe("plan");
+
+    store.getState().setScreen("logs");
+    expect(store.getState().screen).toBe("logs");
+    expect(values.get("mpcraft.screen")).toBe("logs");
+  });
+
+  it("falls back to the flight data when what was stored is not a screen", async () => {
+    const { store } = await storeWithStoredScreen("cockpit");
+
+    expect(store.getState().screen).toBe("flightdata");
+  });
+
+  it("puts the window on the screen of the parameters when a group is chosen", async () => {
+    const { store } = await storeWithStoredScreen(null);
+
+    store.getState().showParameterGroup("Frame");
+    expect(store.getState().screen).toBe("setup");
+    expect(store.getState().parameterGroup).toBe("Frame");
+    expect(store.getState().parameterPrefix).toBe(null);
+
+    store.getState().hideParameters();
+    expect(store.getState().screen).toBe("flightdata");
+  });
+
+  it("puts the window on the screen of the parameters when a prefix is chosen", async () => {
+    const { store } = await storeWithStoredScreen(null);
+
+    store.getState().showParameterPrefix("SERIAL");
+    expect(store.getState().screen).toBe("setup");
+    expect(store.getState().parameterPrefix).toBe("SERIAL");
+    expect(store.getState().parameterGroup).toBe(null);
+  });
+
+  it("puts the window on the screen of the logs and back to the flight data", async () => {
+    const { store } = await storeWithStoredScreen(null);
+
+    store.getState().showLog();
+    expect(store.getState().screen).toBe("logs");
+
+    store.getState().hideLog();
+    expect(store.getState().screen).toBe("flightdata");
+  });
+
+  it("keeps a sheet as a sheet: a short task does not change the screen", async () => {
+    const { store } = await storeWithStoredScreen(null);
+
+    store.getState().showCalibration();
+    expect(store.getState().screen).toBe("flightdata");
+    expect(store.getState().calibrationOpen).toBe(true);
   });
 });

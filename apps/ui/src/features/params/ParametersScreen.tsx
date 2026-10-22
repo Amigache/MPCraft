@@ -22,16 +22,15 @@ import { formatParameterValue } from "../../lib/params/paramValues";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { ParameterList } from "./ParameterList";
 import { ParameterTree } from "./ParameterTree";
-import styles from "./ParameterSheet.module.css";
+import styles from "./ParametersScreen.module.css";
 
 /**
- * The sheet of parameters.
+ * The screen of the parameters.
  *
  * Mission Planner keeps its parameters in a window of their own, with a tree of the
  * groups of parameters on the left and the parameters themselves on the right. MPCraft
- * is one window, so the parameters come as a sheet over it: the window is dimmed, the
- * sheet is laid over the top of it, and closing the sheet puts the window back as it
- * was.
+ * is one window with four screens, and the parameters are one of them: the switcher puts
+ * the window on this screen, and leaving it puts the window back on the flight data.
  *
  * The list is what the vehicle has reported. It is empty until the vehicle volunteers
  * something, which is why there is a button that asks for the whole list.
@@ -57,28 +56,17 @@ const MIN_TREE_WIDTH = 140;
 /** The widest the tree may be dragged. */
 const MAX_TREE_WIDTH = 480;
 
-/** The width of the sheet, in pixels, when nothing has been changed. */
-const DEFAULT_SHEET_WIDTH = 1040;
-
-/**
- * The room the list needs beside the tree, in pixels.
- *
- * A row is a star, a name, a value and a type: the name needs room to be read, and the
- * value and the type need room of their own.
- */
-const LIST_WIDTH = 620;
-
 /** The kinds of file the parameter dialog offers. */
 const PARAMETER_FILTERS = [
   { name: "Parameter file", extensions: ["param", "parm"] },
   { name: "All files", extensions: ["*"] },
 ];
 
-/** The widest the sheet may grow. */
-const MAX_SHEET_WIDTH = 1440;
-
-export function ParameterSheet() {
-  const open = useUiStore((state) => state.parametersOpen);
+export function ParametersScreen() {
+  // The screen is where this screen lives, so it renders exactly when the window is on
+  // it. It stays mounted in the shell while another screen is shown, so that the search
+  // and the chosen branch are not forgotten when the operator comes back.
+  const open = useUiStore((state) => state.screen === "setup");
   const hide = useUiStore((state) => state.hideParameters);
   const group = useUiStore((state) => state.parameterGroup);
   const prefix = useUiStore((state) => state.parameterPrefix);
@@ -120,8 +108,6 @@ export function ParameterSheet() {
 
   const panel = useRef<HTMLDivElement | null>(null);
   const search = useRef<HTMLInputElement | null>(null);
-  /** Whether the last pointerdown cancelled the edit. */
-  const cancelled = useRef(false);
 
   const linked = status === "connected" || status === "reconnecting";
 
@@ -181,14 +167,10 @@ export function ParameterSheet() {
     [favourites, group, matched, metadata, node, prefix],
   );
 
-  // The sheet grows when the tree is dragged wider, so that the list keeps the room it
-  // needs.
-  const sheetWidth = Math.min(
-    MAX_SHEET_WIDTH,
-    Math.max(DEFAULT_SHEET_WIDTH, treeWidth + LIST_WIDTH),
-  );
+  // The screen fills the window, so the room the list needs beside the tree is what the
+  // window gives it.
 
-  // The list is read again and again while the sheet is open: a parameter the vehicle
+  // The list is read again and again while the screen is open: a parameter the vehicle
   // changes on its own has to show up in the list without the operator asking for it.
   useEffect(() => {
     if (!open) {
@@ -213,7 +195,7 @@ export function ParameterSheet() {
   }, [open, refresh]);
 
   // The favourites are the ones the operator marked before, and they are kept between
-  // two runs: they are read when the sheet opens.
+  // two runs: they are read when the screen opens.
   useEffect(() => {
     if (!open) {
       return;
@@ -222,8 +204,9 @@ export function ParameterSheet() {
     void loadFavourites();
   }, [open, loadFavourites]);
 
-  // The search box has the focus as soon as the sheet opens, so that the operator can
-  // type the name of a parameter without reaching for the mouse.
+  // The search box has the focus as soon as the screen opens, so that the operator can
+  // type the name of a parameter without reaching for the mouse. When the screen is left,
+  // an edit that was not written is abandoned.
   useEffect(() => {
     if (open) {
       search.current?.focus();
@@ -232,8 +215,8 @@ export function ParameterSheet() {
     }
   }, [open]);
 
-  // The escape key closes the sheet — unless a value is being edited, in which case it
-  // belongs to the edit and the row takes it.
+  // The escape key takes the window back to the flight data — unless a value is being
+  // edited, in which case it belongs to the edit and the row takes it.
   useEffect(() => {
     if (!open) {
       return;
@@ -251,51 +234,6 @@ export function ParameterSheet() {
     };
   }, [open, editing, hide]);
 
-  // The sheet keeps the keyboard to itself: the tab goes round the sheet and never
-  // reaches the window underneath it.
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") {
-        return;
-      }
-
-      const root = panel.current;
-      if (root === null) {
-        return;
-      }
-
-      const focusable = root.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
-      );
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (first === undefined || last === undefined) {
-        return;
-      }
-
-      const active = document.activeElement;
-      const inside = active !== null && root.contains(active);
-
-      if (event.shiftKey && (!inside || active === first)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (!inside || active === last)) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   // A click somewhere else abandons the edit. The pointerdown that did it is
   // remembered, so that the click that follows it does not close the sheet as well.
   useEffect(() => {
@@ -304,19 +242,18 @@ export function ParameterSheet() {
     }
 
     const onPointerDown = (event: PointerEvent) => {
-      // Every pointerdown starts by forgetting the last one: the flag says whether
-      // *this* pointerdown cancelled the edit.
-      cancelled.current = false;
-
       const target = event.target;
       const editor =
         panel.current?.querySelector("[data-editor='true']") ?? null;
 
-      if (target instanceof Node && editor !== null && editor.contains(target)) {
+      if (
+        target instanceof Node &&
+        editor !== null &&
+        editor.contains(target)
+      ) {
         return;
       }
 
-      cancelled.current = true;
       setEditing(null);
     };
 
@@ -346,7 +283,9 @@ export function ParameterSheet() {
       setFileNotice(`The parameters were written to ${picked.path}.`);
       setPendingLoad(null);
     } catch (cause) {
-      setFileNotice(`${normaliseError(cause).code} — the file was not written.`);
+      setFileNotice(
+        `${normaliseError(cause).code} — the file was not written.`,
+      );
     } finally {
       setFileBusy(false);
     }
@@ -492,7 +431,9 @@ export function ParameterSheet() {
       await writeBatch(changes);
       setFileNotice(`${changes.length} parameters were put back as they were.`);
     } catch (cause) {
-      setFileNotice(`${normaliseError(cause).code} — the parameters were not put back.`);
+      setFileNotice(
+        `${normaliseError(cause).code} — the parameters were not put back.`,
+      );
     } finally {
       setFileBusy(false);
     }
@@ -504,9 +445,13 @@ export function ParameterSheet() {
 
     try {
       await writeParametersToFlash();
-      setFileNotice("The vehicle has written its parameters to its own memory.");
+      setFileNotice(
+        "The vehicle has written its parameters to its own memory.",
+      );
     } catch (cause) {
-      setFileNotice(`${normaliseError(cause).code} — the vehicle did not write them.`);
+      setFileNotice(
+        `${normaliseError(cause).code} — the vehicle did not write them.`,
+      );
     } finally {
       setFileBusy(false);
     }
@@ -528,290 +473,268 @@ export function ParameterSheet() {
   }
 
   return (
-    <div
-      className={styles.backdrop}
-      role="presentation"
-      onClick={() => {
-        if (cancelled.current) {
-          cancelled.current = false;
-          return;
-        }
+    <div ref={panel} className={styles.screen}>
+      <header className={styles.header}>
+        <h1 className={styles.title} id="parameters-title">
+          Parameters
+        </h1>
+        <span className={styles.count}>{parameters.length} reported</span>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className="button"
+            disabled={reading || !linked}
+            title={linked ? undefined : "no link"}
+            onClick={() => {
+              void readAll();
+            }}
+          >
+            {reading ? "Reading…" : "Read all"}
+          </button>
+          <button
+            type="button"
+            className="button"
+            disabled={fileBusy || !linked}
+            title="Read the parameters of a file and write them to the vehicle"
+            onClick={() => {
+              void openFile();
+            }}
+          >
+            Load…
+          </button>
 
-        hide();
-      }}
-    >
-      <div
-        ref={panel}
-        className={styles.panel}
-        style={{ width: `min(${sheetWidth}px, 100%)` }}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="parameters-title"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        <header className={styles.header}>
-          <h2 className={styles.title} id="parameters-title">
-            Parameters
-          </h2>
-          <span className={styles.count}>{parameters.length} reported</span>
-          <div className={styles.headerActions}>
-            <button
-              type="button"
-              className="button"
-              disabled={reading || !linked}
-              title={linked ? undefined : "no link"}
-              onClick={() => {
-                void readAll();
-              }}
-            >
-              {reading ? "Reading…" : "Read all"}
-            </button>
-            <button
-              type="button"
-              className="button"
-              disabled={fileBusy || !linked}
-              title="Read the parameters of a file and write them to the vehicle"
-              onClick={() => {
-                void openFile();
-              }}
-            >
-              Load…
-            </button>
+          <button
+            type="button"
+            className="button"
+            disabled={fileBusy || !linked}
+            title="Write the parameters of the vehicle to a file"
+            onClick={() => {
+              void saveFile();
+            }}
+          >
+            Save…
+          </button>
 
-            <button
-              type="button"
-              className="button"
-              disabled={fileBusy || !linked}
-              title="Write the parameters of the vehicle to a file"
-              onClick={() => {
-                void saveFile();
-              }}
-            >
-              Save…
-            </button>
+          <button
+            type="button"
+            className="button"
+            disabled={fileBusy || !linked}
+            title="Say how the parameters of the vehicle differ from the ones of a file"
+            onClick={() => {
+              void compareFile();
+            }}
+          >
+            Compare…
+          </button>
 
-            <button
-              type="button"
-              className="button"
-              disabled={fileBusy || !linked}
-              title="Say how the parameters of the vehicle differ from the ones of a file"
-              onClick={() => {
-                void compareFile();
-              }}
-            >
-              Compare…
-            </button>
+          <button
+            type="button"
+            className="button"
+            disabled={fileBusy || !linked || changed.length === 0}
+            title="Put back the parameters that were changed, as they were before"
+            onClick={() => {
+              void restoreDefaults();
+            }}
+          >
+            Restore the defaults
+          </button>
 
-            <button
-              type="button"
-              className="button"
-              disabled={fileBusy || !linked || changed.length === 0}
-              title="Put back the parameters that were changed, as they were before"
-              onClick={() => {
-                void restoreDefaults();
-              }}
-            >
-              Restore the defaults
-            </button>
+          <button
+            type="button"
+            className="button"
+            disabled={fileBusy || !linked}
+            title="Ask the vehicle to write its parameters to its own memory"
+            onClick={() => {
+              void writeToFlash();
+            }}
+          >
+            Write to flash
+          </button>
 
-            <button
-              type="button"
-              className="button"
-              disabled={fileBusy || !linked}
-              title="Ask the vehicle to write its parameters to its own memory"
-              onClick={() => {
-                void writeToFlash();
-              }}
-            >
-              Write to flash
-            </button>
+          <button type="button" className="button" onClick={hide}>
+            Close
+          </button>
+        </div>
+      </header>
 
-            <button type="button" className="button" onClick={hide}>
-              Close
-            </button>
-          </div>
-        </header>
+      {error !== null ? (
+        <p className={styles.errorBar} role="alert">
+          <span className={styles.code}>{error.code}</span> {error.message}
+        </p>
+      ) : null}
 
-        {error !== null ? (
-          <p className={styles.errorBar} role="alert">
-            <span className={styles.code}>{error.code}</span> {error.message}
-          </p>
+      {metadataError !== null ? (
+        <p className={styles.errorBar} role="alert">
+          <span className={styles.code}>{metadataError.code}</span>{" "}
+          {metadataError.message} — the descriptions of the parameters are not
+          shown.
+        </p>
+      ) : null}
+
+      <div className={styles.searchRow}>
+        <input
+          ref={search}
+          className={`input ${styles.search}`}
+          type="search"
+          value={query}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder="Search the parameters by name"
+          aria-label="Search the parameters by name"
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+        />
+        {query.trim().length > 0 ? (
+          <span className={styles.filtered}>
+            {rows.length} of {parameters.length}
+          </span>
         ) : null}
 
-        {metadataError !== null ? (
-          <p className={styles.errorBar} role="alert">
-            <span className={styles.code}>{metadataError.code}</span>{" "}
-            {metadataError.message} — the descriptions of the parameters are not
-            shown.
-          </p>
+        {group !== null ? (
+          <span className={styles.groupChip}>
+            <span className={styles.groupName}>{group}</span>
+            <button
+              type="button"
+              className="button"
+              title="Show every parameter again"
+              onClick={() => {
+                showParameterGroup(null);
+              }}
+            >
+              All
+            </button>
+          </span>
         ) : null}
+      </div>
 
-        <div className={styles.searchRow}>
-          <input
-            ref={search}
-            className={`input ${styles.search}`}
-            type="search"
-            value={query}
-            spellCheck={false}
-            autoComplete="off"
-            placeholder="Search the parameters by name"
-            aria-label="Search the parameters by name"
-            onChange={(event) => {
-              setQuery(event.target.value);
+      <div className={styles.body}>
+        <div className={styles.treePane} style={{ width: `${treeWidth}px` }}>
+          <ParameterTree
+            tree={tree}
+            selected={node.prefix}
+            onSelect={(prefix) => {
+              setSelected(prefix);
             }}
           />
-          {query.trim().length > 0 ? (
-            <span className={styles.filtered}>
-              {rows.length} of {parameters.length}
-            </span>
-          ) : null}
-
-          {group !== null ? (
-            <span className={styles.groupChip}>
-              <span className={styles.groupName}>{group}</span>
-              <button
-                type="button"
-                className="button"
-                title="Show every parameter again"
-                onClick={() => {
-                  showParameterGroup(null);
-                }}
-              >
-                All
-              </button>
-            </span>
-          ) : null}
         </div>
 
-        <div className={styles.body}>
-          <div className={styles.treePane} style={{ width: `${treeWidth}px` }}>
-            <ParameterTree
-              tree={tree}
-              selected={node.prefix}
-              onSelect={(prefix) => {
-                setSelected(prefix);
+        <Splitter
+          orientation="vertical"
+          label="The width of the tree of the parameters"
+          value={treeWidth}
+          min={MIN_TREE_WIDTH}
+          max={MAX_TREE_WIDTH}
+          onChange={setTreeWidth}
+        />
+
+        <div className={styles.listPane}>
+          {rows.length > 0 ? (
+            <ParameterList
+              rows={rows}
+              editing={editing}
+              writing={writing}
+              favourites={favourites}
+              metadata={metadata}
+              onEdit={setEditing}
+              onCancel={() => {
+                setEditing(null);
+              }}
+              onWrite={handleWrite}
+              onToggleFavourite={(name) => {
+                void toggleFavourite(name);
               }}
             />
-          </div>
-
-          <Splitter
-            orientation="vertical"
-            label="The width of the tree of the parameters"
-            value={treeWidth}
-            min={MIN_TREE_WIDTH}
-            max={MAX_TREE_WIDTH}
-            onChange={setTreeWidth}
-          />
-
-          <div className={styles.listPane}>
-            {rows.length > 0 ? (
-              <ParameterList
-                rows={rows}
-                editing={editing}
-                writing={writing}
-                favourites={favourites}
-                metadata={metadata}
-                onEdit={setEditing}
-                onCancel={() => {
-                  setEditing(null);
-                }}
-                onWrite={handleWrite}
-                onToggleFavourite={(name) => {
-                  void toggleFavourite(name);
-                }}
-              />
-            ) : (
-              <div className={styles.empty}>
-                {error !== null ? (
-                  <p className={styles.hint}>
-                    The parameters could not be read. The link may be down.
-                  </p>
-                ) : reading ? (
-                  <p className={styles.hint}>Reading the parameters…</p>
-                ) : query.trim().length > 0 ? (
-                  <p className={styles.hint}>
-                    No parameter matches “{query.trim()}”.
-                  </p>
-                ) : node.prefix !== "" ? (
-                  <p className={styles.hint}>
-                    Nothing under {node.label} matches the search.
-                  </p>
-                ) : (
-                  <>
-                    <p className={styles.hint}>
-                      The vehicle has not reported a parameter yet.
-                    </p>
-                    <p className={styles.hint}>
-                      Press <strong>Read all</strong> to ask it for the whole list.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <footer className={styles.footer}>
-          {lastWrite === null ? (
-            <span className={styles.idle}>
-              No parameter has been written yet.
-            </span>
-          ) : lastWrite.kind === "written" ? (
-            <span className={styles.written} role="status">
-              {lastWrite.parameter.name} written — the vehicle stored{" "}
-              {formatParameterValue(
-                lastWrite.parameter.value,
-                lastWrite.parameter.reportedType,
-              )}
-            </span>
           ) : (
-            <span className={styles.failed} role="alert">
-              <span className={styles.code}>{lastWrite.code}</span>{" "}
-              {lastWrite.message}
-            </span>
+            <div className={styles.empty}>
+              {error !== null ? (
+                <p className={styles.hint}>
+                  The parameters could not be read. The link may be down.
+                </p>
+              ) : reading ? (
+                <p className={styles.hint}>Reading the parameters…</p>
+              ) : query.trim().length > 0 ? (
+                <p className={styles.hint}>
+                  No parameter matches “{query.trim()}”.
+                </p>
+              ) : node.prefix !== "" ? (
+                <p className={styles.hint}>
+                  Nothing under {node.label} matches the search.
+                </p>
+              ) : (
+                <>
+                  <p className={styles.hint}>
+                    The vehicle has not reported a parameter yet.
+                  </p>
+                  <p className={styles.hint}>
+                    Press <strong>Read all</strong> to ask it for the whole
+                    list.
+                  </p>
+                </>
+              )}
+            </div>
           )}
-
-          {fileNotice !== null ? (
-            <p className={styles.favouriteError} role="status">
-              {fileNotice}
-            </p>
-          ) : null}
-
-          {pendingLoad !== null ? (
-            <p className={styles.favouriteError} role="alert">
-              {pendingLoad.length} parameters are waiting to be written to the
-              vehicle.
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  setPendingLoad(null);
-                }}
-              >
-                No
-              </button>
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  void confirmLoad();
-                }}
-              >
-                Yes
-              </button>
-            </p>
-          ) : null}
-
-          {favouriteError !== null ? (
-            <p className={styles.favouriteError} role="alert">
-              <span className={styles.code}>{favouriteError.code}</span>{" "}
-              {favouriteError.message} — the favourites have not been changed.
-            </p>
-          ) : null}
-        </footer>
+        </div>
       </div>
+
+      <footer className={styles.footer}>
+        {lastWrite === null ? (
+          <span className={styles.idle}>
+            No parameter has been written yet.
+          </span>
+        ) : lastWrite.kind === "written" ? (
+          <span className={styles.written} role="status">
+            {lastWrite.parameter.name} written — the vehicle stored{" "}
+            {formatParameterValue(
+              lastWrite.parameter.value,
+              lastWrite.parameter.reportedType,
+            )}
+          </span>
+        ) : (
+          <span className={styles.failed} role="alert">
+            <span className={styles.code}>{lastWrite.code}</span>{" "}
+            {lastWrite.message}
+          </span>
+        )}
+
+        {fileNotice !== null ? (
+          <p className={styles.favouriteError} role="status">
+            {fileNotice}
+          </p>
+        ) : null}
+
+        {pendingLoad !== null ? (
+          <p className={styles.favouriteError} role="alert">
+            {pendingLoad.length} parameters are waiting to be written to the
+            vehicle.
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setPendingLoad(null);
+              }}
+            >
+              No
+            </button>
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                void confirmLoad();
+              }}
+            >
+              Yes
+            </button>
+          </p>
+        ) : null}
+
+        {favouriteError !== null ? (
+          <p className={styles.favouriteError} role="alert">
+            <span className={styles.code}>{favouriteError.code}</span>{" "}
+            {favouriteError.message} — the favourites have not been changed.
+          </p>
+        ) : null}
+      </footer>
     </div>
   );
 }

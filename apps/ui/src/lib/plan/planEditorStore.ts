@@ -29,7 +29,7 @@ import {
   sameItems,
 } from "./planItems";
 import { usePlanStore } from "./planStore";
-import { useUiStore } from "../ui/uiStore";
+import { DEFAULT_SCREEN, useUiStore } from "../ui/uiStore";
 import { circlePoints } from "./circle";
 import { surveyPoints } from "./survey";
 
@@ -68,9 +68,18 @@ const WAYPOINT_COMMAND = "MAV_CMD_NAV_WAYPOINT";
 /** The frame a new item is given when there is no item before it. */
 const DEFAULT_FRAME = 3;
 
+/**
+ * Whether the window is on the screen of the plan.
+ *
+ * The screen is where the editor lives, so the editor is open exactly when the window is
+ * on it. The flag is not kept here as well: a store that copies another store's state can
+ * disagree with it, and the interface would then show one thing and behave as another.
+ */
+export function onPlanScreen(): boolean {
+  return useUiStore.getState().screen === "plan";
+}
+
 export interface PlanEditorStore {
-  /** Whether the editor is open. */
-  readonly open: boolean;
   /** The items as they are being edited. */
   readonly draft: readonly PlanItem[];
   /** The items as the vehicle holds them, for the comparison that says "changed". */
@@ -101,12 +110,10 @@ export interface PlanEditorStore {
   /** The plans that were taken back, so that they can be done again. */
   readonly future: readonly (readonly PlanItem[])[];
 
-  /** Opens the editor. */
+  /** Shows the screen of the plan, which is the editor. */
   readonly openEditor: () => void;
-  /** Closes the editor. */
+  /** Leaves the screen of the plan, keeping the edits. */
   readonly closeEditor: () => void;
-  /** Opens or closes the editor. */
-  readonly toggleEditor: () => void;
   /** Selects an item, or none. */
   readonly select: (seq: number | null) => void;
   /** Arms or disarms the adding of an item by a click on the map. */
@@ -263,7 +270,6 @@ function insertionIndex(
 }
 
 export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
-  open: false,
   draft: [],
   baseline: [],
   selected: null,
@@ -280,35 +286,23 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
 
   openEditor: () => {
     void useCommandStore.getState().load();
+    useUiStore.getState().setScreen("plan");
 
     // Edits that have not been sent are kept: throwing them away because the editor was
     // closed would be a ground station that loses work.
     if (isChanged(get())) {
-      set({
-        open: true,
-        adding: false,
-        pending: null,
-        error: null,
-        notice: null,
-      });
+      set({ adding: false, pending: null, error: null, notice: null });
       return;
     }
 
     const plan = usePlanStore.getState().plans[kindOf()];
     if (plan === null || plan === undefined) {
-      set({
-        open: true,
-        adding: false,
-        pending: null,
-        error: null,
-        notice: null,
-      });
+      set({ adding: false, pending: null, error: null, notice: null });
       void readFromVehicle();
       return;
     }
 
     set({
-      open: true,
       adding: false,
       pending: null,
       error: null,
@@ -319,15 +313,11 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
     });
   },
 
-  closeEditor: () =>
-    set({ open: false, adding: false, pending: null, error: null }),
-
-  toggleEditor: () => {
-    if (get().open) {
-      get().closeEditor();
-    } else {
-      get().openEditor();
-    }
+  closeEditor: () => {
+    // Leaving the screen of the plan does not throw the edits away; it only stops showing
+    // them, and the flags that belong to the moment of editing are cleared.
+    set({ adding: false, pending: null, error: null });
+    useUiStore.getState().setScreen(DEFAULT_SCREEN);
   },
 
   select: (selected) => set({ selected }),
@@ -745,7 +735,7 @@ usePlanStore.subscribe((state, previous) => {
 
   const editor = usePlanEditorStore.getState();
 
-  if (!editor.open) {
+  if (!onPlanScreen()) {
     return;
   }
 

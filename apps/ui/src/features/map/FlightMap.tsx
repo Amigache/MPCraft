@@ -15,7 +15,7 @@ import {
   ringOf,
 } from "../../lib/plan/fence";
 import { flyTo } from "../../lib/flight/flightActions";
-import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
+import { onPlanScreen, usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -285,7 +285,7 @@ export function FlightMap() {
   const plan = usePlanStore((state) => state.plans[kind]);
   const vehicles = useLinkStore((state) => state.vehicles);
 
-  const editorOpen = usePlanEditorStore((state) => state.open);
+  const editorOpen = useUiStore((state) => state.screen === "plan");
   const draft = usePlanEditorStore((state) => state.draft);
   const selected = usePlanEditorStore((state) => state.selected);
   const adding = usePlanEditorStore((state) => state.adding);
@@ -598,7 +598,7 @@ export function FlightMap() {
       }
 
       const editor = usePlanEditorStore.getState();
-      if (!editor.open || !editor.adding) {
+      if (!onPlanScreen() || !editor.adding) {
         return;
       }
       editor.addAt(event.lngLat.lat, event.lngLat.lng);
@@ -874,7 +874,7 @@ export function FlightMap() {
 
     const editor = usePlanEditorStore.getState();
 
-    if (!editor.open) {
+    if (!editorOpen) {
       for (const entry of items.current.values()) {
         entry.marker.remove();
       }

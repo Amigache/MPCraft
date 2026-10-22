@@ -204,7 +204,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 10.1 | Screen-switching shell | `ExtLibs/Controls/MainSwitcher.cs` | 🔜 | 1 |
+| 10.1 | Screen-switching shell | `ExtLibs/Controls/MainSwitcher.cs` | ✅ | 1 |
 | 10.2 | Theme system (light / dark / high-contrast) | `ThemeManager.cs`, `*.mpsystheme` | ✅ | 7 |
 | 10.3 | Internationalisation | `Strings.resx` + Crowdin | 🔜 | 7 |
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
@@ -220,8 +220,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 135 |
-| 🔜 Planned | 17 |
+| ✅ Done | 136 |
+| 🔜 Planned | 16 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
@@ -238,7 +238,21 @@ auxiliary functions - the map filling everything else, and a status strip. The l
 the attitude indicator, the map with the vehicle and the track, the plan drawn on it, the
 dials, the tiles and the vehicle's own messages are all on screen.
 
-The **parameter editor** is a sheet over the window: the tree of the groups by prefix on
+The **screens** are what upstream's main switcher is: the flight data, the plan, the
+configuration and the logs. The window is on one of them at a time, and the switcher above
+the body chooses which; the arrow keys move between them, and the body is the panel labelled
+by the one that is open. What a screen holds is kept when the operator leaves it and comes
+back - a log that was opened, a search that was typed, a graph that was chosen - because the
+screens stay mounted and only draw while they are the screen that is open, which is what
+upstream's tabs do with the panels underneath them. The short tasks are not screens: a
+calibration, a joystick mapping, a file transfer, the transponder or the video sheet are
+sheets that lie over whichever screen is open, because the operator does them and comes back
+to where they were, and while a sheet lies over the window its controls cannot be reached.
+The parameters and the logs used to be sheets of that kind; they became two of the four
+screens, and Escape takes the window back to the flight data. The screen the window was on is
+remembered between two runs.
+
+The **parameter editor** is the screen of the configuration: the tree of the groups by prefix on
 the left, the parameters on the right, a search box, and a value that can be edited in
 place. The write waits for the vehicle to confirm it, and the interface shows the value
 the vehicle stored, which is not always the one that was asked for: a vehicle clamps to
@@ -406,9 +420,9 @@ The **engine** of a vehicle that has one is read out in the tab of the state: th
 revolutions, the load, the fuel that flows and the fuel that has been burnt, the
 pressures and the temperatures.
 
-The **logs** are a sheet of their own, opened from the View menu. A log is what a flight
+The **logs** are a screen of their own, opened from the switcher or from the View menu. A log is what a flight
 is remembered by: the stream of the frames that crossed the link, each of them with the
-instant it was seen. The sheet says what the log holds — how many records, how long it
+instant it was seen. The screen says what the log holds — how many records, how long it
 lasts and how many of each kind of message — and draws the graphs of the catalogue over
 it. The graphs are the same ones the live view draws: the log is fed to the same
 aggregator the vehicle feeds, and the samples are the same samples.
@@ -436,7 +450,7 @@ a latitude in hundred-millionths of a degree is said in degrees, and a height in
 millimetres is said in metres. A log that ends in the middle of a message is not
 thrown away: what came before is kept and the place where the log is broken is said.
 
-The **samples of a message** are a grid in the sheet of the logs: the fields of the
+The **samples of a message** are a grid in the screen of the logs: the fields of the
 message are the columns and the samples are the rows, with the instant each of them
 happened at. Clicking a row moves the flight to that moment, so the grid, the map and
 the play-back are the same thing seen from three sides. The **graph** is the fourth

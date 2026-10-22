@@ -19,6 +19,7 @@ import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { FlightTestPanel } from "./FlightTestPanel";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { useActivityStore } from "../../lib/ui/activityStore";
+import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./ActionsPanel.module.css";
 
 /**
@@ -65,8 +66,11 @@ export function ActionsPanel() {
   const upload = usePlanStore((state) => state.upload);
   const clear = usePlanStore((state) => state.clear);
 
-  const editorOpen = usePlanEditorStore((state) => state.open);
-  const toggleEditor = usePlanEditorStore((state) => state.toggleEditor);
+  // The editor is the screen of the plan: the actions tab opens it by putting the window
+  // on that screen and closes it by going back to the flight data.
+  const editorOpen = useUiStore((state) => state.screen === "plan");
+  const openEditor = usePlanEditorStore((state) => state.openEditor);
+  const closeEditor = usePlanEditorStore((state) => state.closeEditor);
   const askUpload = usePlanEditorStore((state) => state.askUpload);
   const askDownload = usePlanEditorStore((state) => state.askDownload);
 
@@ -306,7 +310,7 @@ export function ActionsPanel() {
             type="button"
             className={`button ${editorOpen ? styles.editing : ""}`}
             aria-pressed={editorOpen}
-            onClick={toggleEditor}
+            onClick={() => (editorOpen ? closeEditor() : openEditor())}
             title="Edit the plan in a grid above the map"
           >
             {editorOpen ? "Close editor" : "Edit plan"}

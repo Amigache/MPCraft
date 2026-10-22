@@ -14,7 +14,6 @@ import { QuickViewPanel } from "../../features/quick-view/QuickViewPanel";
 import { ServoPanel } from "../../features/servos/ServoPanel";
 import { AuxPanel } from "../../features/servos/AuxPanel";
 import { StatusPanel } from "../../features/status/StatusPanel";
-import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import {
   MAX_GRAPH_HEIGHT,
   MAX_HUD_HEIGHT,
@@ -60,7 +59,12 @@ export function FlightData() {
   const setHudFraction = useUiStore((state) => state.setHudFraction);
   const setTopFraction = useUiStore((state) => state.setTopFraction);
 
-  const editorOpen = usePlanEditorStore((state) => state.open);
+  // The flight data and the plan are the same distribution — the plan only changes what
+  // goes above the map — so they share this component, and the component draws nothing
+  // while the window is on another screen.
+  const screen = useUiStore((state) => state.screen);
+  const editorOpen = screen === "plan";
+  const shown = screen === "flightdata" || screen === "plan";
 
   // The size of the window, and the height of the area the graphs and the map share.
   // They decide how many pixels the proportions are worth.
@@ -69,6 +73,10 @@ export function FlightData() {
   const [available, setAvailable] = useState(0);
 
   useEffect(() => {
+    if (!shown) {
+      return;
+    }
+
     const element = split.current;
     if (!element) {
       return;
@@ -83,7 +91,7 @@ export function FlightData() {
     observer.observe(element);
 
     return () => observer.disconnect();
-  }, []);
+  }, [shown]);
 
   const tallestGraph = Math.max(
     MIN_GRAPH_HEIGHT,
@@ -105,10 +113,7 @@ export function FlightData() {
 
   const hudHeight = Math.min(
     MAX_HUD_HEIGHT,
-    Math.max(
-      MIN_HUD_HEIGHT,
-      Math.round(windowSize.height * hudFraction),
-    ),
+    Math.max(MIN_HUD_HEIGHT, Math.round(windowSize.height * hudFraction)),
   );
 
   const drawnGraphHeight = Math.min(
@@ -118,6 +123,10 @@ export function FlightData() {
 
   // The graphs are put away while the plan is being edited.
   const graphsVisible = showGraphs && !editorOpen && !focusMap;
+
+  if (!shown) {
+    return null;
+  }
 
   return (
     <div className={styles.screen}>
@@ -144,7 +153,11 @@ export function FlightData() {
             />
 
             <div className={styles.tabs}>
-              <TabStrip tabs={TABS} active={activeTab} onSelect={setActiveTab} />
+              <TabStrip
+                tabs={TABS}
+                active={activeTab}
+                onSelect={setActiveTab}
+              />
 
               {/*
                 Every panel stays mounted, so that the console keeps what it has
@@ -238,7 +251,7 @@ export function FlightData() {
         </>
       ) : null}
 
-      <main className={styles.main}>
+      <div className={styles.main}>
         <div className={styles.split} ref={split}>
           {editorOpen && !focusMap ? (
             <>
@@ -286,7 +299,7 @@ export function FlightData() {
             <FlightMap />
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

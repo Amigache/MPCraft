@@ -8,7 +8,7 @@ import {
   parseParameterValue,
 } from "../../lib/params/paramValues";
 import { isIntegralType, paramTypeName } from "../../lib/params/paramTypes";
-import styles from "./ParameterSheet.module.css";
+import styles from "./ParametersScreen.module.css";
 
 /**
  * One parameter.

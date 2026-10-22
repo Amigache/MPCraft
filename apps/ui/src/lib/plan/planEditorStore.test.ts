@@ -10,6 +10,7 @@ vi.mock("../ipc/bridge", () => ({
   exportPlan: vi.fn(async () => undefined),
   importPlan: vi.fn(async () => ({ kind: "mission", items: [] })),
   listMavCommands: vi.fn(async () => []),
+  listParameterGroups: vi.fn(async () => []),
   normaliseError: (cause: unknown) => ({
     code: "internal",
     message: String(cause),
@@ -18,9 +19,11 @@ vi.mock("../ipc/bridge", () => ({
   validateMission: vi.fn(async () => []),
 }));
 
-const { usePlanEditorStore, isChanged } = await import("./planEditorStore");
+const { usePlanEditorStore, isChanged, onPlanScreen } =
+  await import("./planEditorStore");
 const { usePlanStore } = await import("./planStore");
 const { useCommandStore } = await import("./commandStore");
+const { DEFAULT_SCREEN, useUiStore } = await import("../ui/uiStore");
 const { uploadMission, validateMission } = await import("../ipc/bridge");
 
 /** The waypoint of the catalogue, for the test. */
@@ -28,7 +31,15 @@ const WAYPOINT: MavCommand = {
   name: "Waypoint",
   canonicalName: "MAV_CMD_NAV_WAYPOINT",
   value: 16,
-  roles: ["empty", "empty", "empty", "other", "latitude", "longitude", "altitude"],
+  roles: [
+    "empty",
+    "empty",
+    "empty",
+    "other",
+    "latitude",
+    "longitude",
+    "altitude",
+  ],
   units: ["", "", "", "", "°", "°", "m"],
 };
 
@@ -66,7 +77,6 @@ beforeEach(() => {
     error: null,
   });
   usePlanEditorStore.setState({
-    open: false,
     draft: [],
     baseline: [],
     selected: null,
@@ -80,6 +90,7 @@ beforeEach(() => {
     history: [],
     future: [],
   });
+  useUiStore.setState({ screen: DEFAULT_SCREEN });
 });
 
 describe("the plan that is being edited", () => {
@@ -87,7 +98,7 @@ describe("the plan that is being edited", () => {
     usePlanEditorStore.getState().openEditor();
 
     const state = usePlanEditorStore.getState();
-    expect(state.open).toBe(true);
+    expect(onPlanScreen()).toBe(true);
     expect(state.draft).toHaveLength(3);
     expect(isChanged(state)).toBe(false);
   });

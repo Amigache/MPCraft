@@ -5,11 +5,12 @@ import { DEFAULT_UNITS, type UnitSystem } from "../units";
 import { listParameterGroups } from "../ipc/bridge";
 
 /**
- * The state of the interface itself: which tab is open, how wide the panels are and what
- * is switched on.
+ * The state of the interface itself: which screen the window is on, which tab is open,
+ * how wide the panels are and what is switched on.
  *
- * It is a store rather than React state in the shell because the menu bar, the tab strip
- * and the map all read it, and a change in one of them must not re-render the others.
+ * It is a store rather than React state in the shell because the menu bar, the switcher,
+ * the tab strip and the map all read it, and a change in one of them must not re-render
+ * the others.
  */
 
 /**
@@ -23,6 +24,30 @@ export type Theme = "dark" | "light" | "contrast";
 
 /** The theme the interface is drawn in when nothing has been chosen. */
 export const DEFAULT_THEME: Theme = "dark";
+
+/**
+ * The screens the window can be on.
+ *
+ * These are the views Mission Planner's main switcher has: the flight data, the planner,
+ * the configuration, and the logs. The short tasks — a calibration, a joystick mapping,
+ * a file transfer — are not screens: they are sheets that lie over whichever screen is
+ * open, because the operator does them and comes back to where they were.
+ */
+export type ScreenId = "flightdata" | "plan" | "setup" | "logs";
+
+/** The screens, in the order the switcher shows them. */
+export const SCREENS: readonly {
+  readonly id: ScreenId;
+  readonly label: string;
+}[] = [
+  { id: "flightdata", label: "Flight data" },
+  { id: "plan", label: "Plan" },
+  { id: "setup", label: "Setup" },
+  { id: "logs", label: "Logs" },
+];
+
+/** The screen the window is on when nothing has been chosen. */
+export const DEFAULT_SCREEN: ScreenId = "flightdata";
 
 /** The tabs of the left column, in the order upstream has them. */
 export type TabId =
@@ -170,6 +195,13 @@ function writeText(key: string, value: string): void {
   }
 }
 
+/** Reads a stored screen, and falls back when what was stored is not a screen. */
+function readScreen(key: string): ScreenId {
+  const stored = readText(key, DEFAULT_SCREEN);
+  const known = SCREENS.find((screen) => screen.id === stored);
+  return known === undefined ? DEFAULT_SCREEN : known.id;
+}
+
 /** Reads a stored flag. */
 function readFlag(key: string, fallback: boolean): boolean {
   if (typeof window === "undefined") {
@@ -286,8 +318,8 @@ export interface UiStore {
   readonly theme: Theme;
   /** The system of units the operator reads the measurements in. */
   readonly units: UnitSystem;
-  /** Whether the sheet of parameters is open over the window. */
-  readonly parametersOpen: boolean;
+  /** The screen the window is on. */
+  readonly screen: ScreenId;
   /**
    * The group of parameters that are shown, when one is chosen.
    *
@@ -344,11 +376,11 @@ export interface UiStore {
   readonly setSpline: (spline: boolean) => void;
   /** Sets whether the plan is carried in the file the vehicle keeps it in. */
   readonly setMavftp: (mavftp: boolean) => void;
-  /** Whether the sheet of the logs is open over the window. */
-  readonly logOpen: boolean;
-  /** Opens the sheet of the logs. */
+  /** Puts the window on a screen. */
+  readonly setScreen: (screen: ScreenId) => void;
+  /** Puts the window on the screen of the logs. */
   readonly showLog: () => void;
-  /** Closes the sheet of the logs. */
+  /** Takes the window back to the screen it was on before. */
   readonly hideLog: () => void;
   /** Whether the sheet of the calibrations is open over the window. */
   readonly calibrationOpen: boolean;
@@ -410,29 +442,29 @@ export interface UiStore {
   readonly showVideo: () => void;
   /** Closes the sheet of the video streams. */
   readonly hideVideo: () => void;
-  /** Opens the sheet of parameters. */
+  /** Puts the window on the screen of the parameters. */
   readonly showParameters: () => void;
   /**
-   * Opens the sheet of parameters, showing the parameters of one group.
+   * Puts the window on the screen of the parameters, showing the parameters of one group.
    *
    * A group of nothing shows every parameter.
    */
   readonly showParameterGroup: (group: string | null) => void;
   /**
-   * Opens the sheet of parameters, showing the parameters whose names begin
-   * with the given word.
+   * Puts the window on the screen of the parameters, showing the parameters whose names
+   * begin with the given word.
    */
   readonly showParameterPrefix: (prefix: string | null) => void;
   /** Reads the groups the parameters belong to. */
   readonly loadParameterGroups: () => Promise<void>;
-  /** Closes the sheet of parameters. */
+  /** Takes the window back to the screen it was on before. */
   readonly hideParameters: () => void;
 }
 
 const clamp = (value: number, low: number, high: number): number =>
   Math.min(high, Math.max(low, value));
 
-export const useUiStore = create<UiStore>((set) => ({
+export const useUiStore = create<UiStore>((set, get) => ({
   activeTab: "quick",
   leftColumnFraction: readFraction(
     "mpcraft.leftFraction",
@@ -452,7 +484,7 @@ export const useUiStore = create<UiStore>((set) => ({
   theme: readText("mpcraft.theme", DEFAULT_THEME) as Theme,
   spline: readFlag("mpcraft.spline", false),
   mavftp: readFlag("mpcraft.mavftp", false),
-  parametersOpen: false,
+  screen: readScreen("mpcraft.screen"),
   parameterGroup: null,
   parameterPrefix: null,
   calibrationOpen: false,
@@ -465,7 +497,6 @@ export const useUiStore = create<UiStore>((set) => ({
   ntripOpen: false,
   transponderOpen: false,
   videoOpen: false,
-  logOpen: false,
   parameterGroups: [],
 
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -550,19 +581,24 @@ export const useUiStore = create<UiStore>((set) => ({
     set({ mavftp });
   },
 
-  // The sheet of parameters is not remembered between runs: it is a thing the operator
-  // opens, not a place the window is left in.
-  showParameters: () => set({ parametersOpen: true }),
+  setScreen: (screen) => {
+    // The screen is remembered: a ground station left open on the plan editor is opened
+    // again on it, the way upstream's window comes back to the tab it was on.
+    writeText("mpcraft.screen", screen);
+    set({ screen });
+  },
 
-  showParameterGroup: (group) =>
-    set({ parametersOpen: true, parameterGroup: group, parameterPrefix: null }),
+  showParameters: () => get().setScreen("setup"),
 
-  showParameterPrefix: (prefix) =>
-    set({
-      parametersOpen: true,
-      parameterGroup: null,
-      parameterPrefix: prefix,
-    }),
+  showParameterGroup: (group) => {
+    set({ parameterGroup: group, parameterPrefix: null });
+    get().setScreen("setup");
+  },
+
+  showParameterPrefix: (prefix) => {
+    set({ parameterGroup: null, parameterPrefix: prefix });
+    get().setScreen("setup");
+  },
 
   showCalibration: () => set({ calibrationOpen: true }),
   showJoystick: () => set({ joystickOpen: true }),
@@ -575,9 +611,9 @@ export const useUiStore = create<UiStore>((set) => ({
   showTransponder: () => set({ transponderOpen: true }),
   showVideo: () => set({ videoOpen: true }),
 
-  showLog: () => set({ logOpen: true }),
+  showLog: () => get().setScreen("logs"),
 
-  hideLog: () => set({ logOpen: false }),
+  hideLog: () => get().setScreen(DEFAULT_SCREEN),
 
   hideCalibration: () => set({ calibrationOpen: false }),
   hideJoystick: () => set({ joystickOpen: false }),
@@ -601,5 +637,5 @@ export const useUiStore = create<UiStore>((set) => ({
     }
   },
 
-  hideParameters: () => set({ parametersOpen: false }),
+  hideParameters: () => get().setScreen(DEFAULT_SCREEN),
 }));
