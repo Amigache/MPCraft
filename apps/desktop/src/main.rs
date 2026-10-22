@@ -1215,7 +1215,10 @@ async fn stop_live_kml(state: State<'_, AppState>) -> CommandResult<String> {
 /// Returns a `CommandError` with a stable code when there is no link, or when the
 /// vehicle does not answer in time.
 #[tauri::command]
-async fn home_position(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<PositionEvent> {
+async fn home_position(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<PositionEvent> {
     let vehicle = resolve_vehicle(&state, &req)?;
     let home = state.supervisor.home_position(vehicle).await?;
 
@@ -1347,12 +1350,7 @@ async fn dted_path(
         sample_step_m: sample_step,
     };
 
-    mpcraft_app::terrain::terrain_path(
-        library,
-        (from.lat, from.lng),
-        (to.lat, to.lng),
-        options,
-    )
+    mpcraft_app::terrain::terrain_path(library, (from.lat, from.lng), (to.lat, to.lng), options)
 }
 
 /// The manifest of the firmware: the vehicles and the versions of their firmware.
@@ -1389,10 +1387,7 @@ async fn firmware_download(url: String, output: String) -> CommandResult<u64> {
 ///
 /// Returns a `CommandError` with a stable code when the bundle cannot be written.
 #[tauri::command]
-async fn diagnostics_bundle(
-    state: State<'_, AppState>,
-    output: String,
-) -> CommandResult<String> {
+async fn diagnostics_bundle(state: State<'_, AppState>, output: String) -> CommandResult<String> {
     let entries = mpcraft_app::diagnostics::gather(&state);
 
     mpcraft_app::diagnostics::write_bundle(std::path::Path::new(&output), &entries)?;
@@ -1453,10 +1448,7 @@ async fn firmware_erase_board(port: String) -> CommandResult<mpcraft_app::bootlo
 ///
 /// Returns a `CommandError` with a stable code when the port cannot be opened.
 #[tauri::command]
-async fn http_server_start(
-    state: State<'_, AppState>,
-    port: Option<u16>,
-) -> CommandResult<u16> {
+async fn http_server_start(state: State<'_, AppState>, port: Option<u16>) -> CommandResult<u16> {
     // A server that is already running is stopped first: there is only one port. The
     // lock is let go before the server is opened, so that the task of the server is
     // never waiting for it.
