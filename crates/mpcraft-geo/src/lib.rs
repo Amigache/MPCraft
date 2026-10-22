@@ -14,17 +14,23 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod drawing;
 pub mod dted;
+pub mod dxf;
 pub mod height;
 pub mod projection;
+pub mod shapefile;
 pub mod terrain;
 pub mod terrain_path;
 pub mod terrain_service;
 pub mod tiles;
 pub mod zip;
 
+pub use drawing::{Drawing, DrawingError};
 pub use dted::{DtedBounds, DtedError, DtedFile, DtedHeader, DtedLayout, DtedLevel, DtedLibrary};
+pub use dxf::{DxfError, DxfFile};
 pub use projection::{utm_from_lat_lng, utm_to_lat_lng, LatLng, Mgrs, Utm, UtmZone, UtmZoneError};
+pub use shapefile::{ShapeError, ShapeFile, ShapePoint};
 pub use terrain::{TerrainError, TerrainProvider};
 pub use terrain_path::{TerrainPathOptions, TerrainPoint};
 

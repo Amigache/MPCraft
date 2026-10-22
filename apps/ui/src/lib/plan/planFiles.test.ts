@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { fileNameOf, formatOfPath, labelOfFormat } from "./planFiles";
+import {
+  fileNameOf,
+  formatOfPath,
+  isWritable,
+  labelOfFormat,
+} from "./planFiles";
 
 describe("the format a file name asks for", () => {
   it("is the QGC file for the names Mission Planner uses", () => {
@@ -11,6 +16,12 @@ describe("the format a file name asks for", () => {
 
   it("is the KML for the name Google Earth reads", () => {
     expect(formatOfPath("/home/pilot/plan.kml")).toBe("kml");
+  });
+
+  it("is the drawing for the files a GIS or a CAD program writes", () => {
+    expect(formatOfPath("C:\\drawings\\farm.shp")).toBe("shp");
+    expect(formatOfPath("track.dxf")).toBe("dxf");
+    expect(formatOfPath("TRACK.DXF")).toBe("dxf");
   });
 
   it("does not mind the case of the name", () => {
@@ -32,9 +43,23 @@ describe("the name a file is given", () => {
   });
 });
 
+describe("the way a format travels", () => {
+  it("writes the formats every ground station reads", () => {
+    expect(isWritable("waypoints")).toBe(true);
+    expect(isWritable("kml")).toBe(true);
+  });
+
+  it("only reads a drawing, because it carries no command", () => {
+    expect(isWritable("shp")).toBe(false);
+    expect(isWritable("dxf")).toBe(false);
+  });
+});
+
 describe("the label a format is given", () => {
   it("says what the file is", () => {
     expect(labelOfFormat("kml")).toContain("KML");
     expect(labelOfFormat("waypoints")).toContain("waypoints");
+    expect(labelOfFormat("shp")).toContain("shapefile");
+    expect(labelOfFormat("dxf")).toContain("DXF");
   });
 });

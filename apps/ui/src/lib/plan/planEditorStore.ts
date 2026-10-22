@@ -17,7 +17,7 @@ import type {
 } from "../ipc/types";
 import { useCommandStore } from "./commandStore";
 import { RALLY_POINT, VERTEX_EXCLUSION, VERTEX_INCLUSION } from "./fence";
-import type { PlanFileFormat } from "./planFiles";
+import type { PlanFileFormat, PlanLoadFormat } from "./planFiles";
 import {
   insertItem,
   moveItem,
@@ -53,7 +53,7 @@ export type PendingAction =
   | {
       readonly kind: "import";
       readonly path: string;
-      readonly format: PlanFileFormat;
+      readonly format: PlanLoadFormat;
     };
 
 /** What the editor is adding when the operator clicks on the map. */
@@ -159,7 +159,7 @@ export interface PlanEditorStore {
     points: readonly { lat: number; lng: number; alt: number }[],
   ) => void;
   /** Asks whether the edits may be thrown away for a file. */
-  readonly askImport: (path: string, format: PlanFileFormat) => Promise<void>;
+  readonly askImport: (path: string, format: PlanLoadFormat) => Promise<void>;
   /** Carries out the action the operator has confirmed. */
   readonly confirm: () => Promise<void>;
   /** Gives up on the action the editor was waiting for. */

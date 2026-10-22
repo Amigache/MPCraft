@@ -956,22 +956,45 @@ async fn export_plan(
 /// is not a plan this ground station understands.
 #[tauri::command]
 async fn import_plan(format: String, path: String) -> CommandResult<PlanInfo> {
-    let text = std::fs::read_to_string(&path)
-        .map_err(|error| CommandError::internal(format!("cannot read {path}: {error}")))?;
-
     let plan = match format.as_str() {
-        "kml" => mpcraft_mission::kml::read_kml(&text)
+        // A drawing is not text: the file is read as the bytes it is, and the projection
+        // written beside it — the `.prj` of the same name — is what says whether the
+        // coordinates of the drawing are degrees or metres of a zone.
+        "shp" => {
+            let bytes = std::fs::read(&path)
+                .map_err(|error| CommandError::internal(format!("cannot read {path}: {error}")))?;
+            let prj =
+                std::fs::read_to_string(std::path::Path::new(&path).with_extension("prj")).ok();
+            let drawing = mpcraft_geo::Drawing::read_shapefile(&bytes, prj.as_deref())
+                .map_err(|error| CommandError::invalid_request(error.to_string()))?;
+
+            mpcraft_mission::plan_from_places(&drawing.places)
+        }
+        "dxf" => {
+            let text = read_text(&path)?;
+            let drawing = mpcraft_geo::Drawing::read_dxf(&text)
+                .map_err(|error| CommandError::invalid_request(error.to_string()))?;
+
+            mpcraft_mission::plan_from_places(&drawing.places)
+        }
+        "kml" => mpcraft_mission::kml::read_kml(&read_text(&path)?)
             .map_err(|error| CommandError::invalid_request(error.to_string()))?,
-        "waypoints" | "wpl" | "qgc" => mpcraft_mission::qgc::read_waypoints(&text)
+        "waypoints" | "wpl" | "qgc" => mpcraft_mission::qgc::read_waypoints(&read_text(&path)?)
             .map_err(|error| CommandError::invalid_request(error.to_string()))?,
         other => {
             return Err(CommandError::invalid_request(format!(
-                "unknown format {other:?}; use waypoints or kml"
+                "unknown format {other:?}; use waypoints, kml, shp or dxf"
             )));
         }
     };
 
     Ok(PlanInfo::from(&plan))
+}
+
+/// Reads a plan file that is text.
+fn read_text(path: &str) -> Result<String, CommandError> {
+    std::fs::read_to_string(path)
+        .map_err(|error| CommandError::internal(format!("cannot read {path}: {error}")))
 }
 
 /// The commands a plan can hold, and what their parameters mean.

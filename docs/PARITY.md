@@ -95,7 +95,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.11 | Home position management | `getHomePositionAsync` | ✅ | 2 |
 | 4.12 | QGC `.waypoints` import / export | `FlightPlanner.cs` readQGC110wpfile | ✅ | 2 |
 | 4.13 | KML import / export | `FlightPlanner.cs` processKML | ✅ | 2 |
-| 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | 🔜 | 2 |
+| 4.14 | SHP / DXF import | `FlightPlanner.cs` LoadSHPFile | ✅ | 2 |
 | 4.15 | Circle / spline / survey mission generators | `FlightPlanner.cs` circle tools | ✅ | 2 |
 | 4.16 | Mission validation & warnings | `FlightPlanner.cs` checkZeroAlts | ✅ | 2 |
 | 4.17 | Undo / redo buffer | `FlightPlanner.cs` history | ✅ | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 121 |
-| 🔜 Planned | 28 |
+| ✅ Done | 122 |
+| 🔜 Planned | 27 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 4 |
 
-The 121 rows marked done are the connection, transport, parameter, mission and command
+The 122 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -265,6 +265,15 @@ refuses it keeps the one it had.
 A **part of the plan** can be written to the vehicle without touching the rest of it:
 the editor writes the plan from the item that is selected onwards, and the items
 before it stay on the vehicle as they are.
+
+A **drawing** can be read into the plan, which is how a route that was drawn on a map
+is flown without drawing it again: the operator picks a shapefile of a GIS or the DXF
+of a CAD program, and the places of the drawing become waypoints. The projection beside
+a shapefile is read — the `.prj` file of the same name — so a drawing that was made in
+a UTM zone comes back in degrees rather than in metres, and a drawing that says nothing
+of its projection is taken to be in the coordinates the ground station speaks. What a
+drawing cannot say is how high to fly, so its items start at a hundred metres above the
+home position, and the operator checks that before the plan goes to the vehicle.
 
 The **ground** can also be read from a folder of DTED cells, which is what the heights
 of the military format are called. The folder is opened from the Setup menu, the sheet

@@ -7,6 +7,7 @@ import type { PlanKind, PlanWarning } from "../../lib/ipc/types";
 import {
   fileNameOf,
   formatOfPath,
+  isWritable,
   labelOfFormat,
 } from "../../lib/plan/planFiles";
 import {
@@ -36,10 +37,23 @@ import styles from "./PlanEditor.module.css";
 /** What the file bar is doing. */
 type FileMode = "save" | "load" | null;
 
-/** The kinds of file the dialog offers. */
-const FILE_FILTERS = [
+/** The kinds of file a plan is written to. */
+const SAVE_FILTERS = [
   { name: "QGC waypoints", extensions: ["waypoints", "wpl", "qgc"] },
   { name: "KML", extensions: ["kml"] },
+] as const;
+
+/**
+ * The kinds of file a plan is read from.
+ *
+ * A drawing is on this list and not on the other one: it carries places and no commands,
+ * so it is a way in, not a way out.
+ */
+const LOAD_FILTERS = [
+  { name: "QGC waypoints", extensions: ["waypoints", "wpl", "qgc"] },
+  { name: "KML", extensions: ["kml"] },
+  { name: "ESRI shapefile", extensions: ["shp"] },
+  { name: "DXF drawing", extensions: ["dxf"] },
 ] as const;
 
 /**
@@ -203,8 +217,8 @@ export function PlanEditor() {
   const browse = async () => {
     const picked =
       fileMode === "save"
-        ? await pickSavePath(path || fileNameOf("waypoints"), FILE_FILTERS)
-        : await pickOpenPath(FILE_FILTERS);
+        ? await pickSavePath(path || fileNameOf("waypoints"), SAVE_FILTERS)
+        : await pickOpenPath(LOAD_FILTERS);
 
     if (picked.ok) {
       setPath(picked.path);
@@ -224,7 +238,16 @@ export function PlanEditor() {
       return;
     }
 
+    // A drawing is a way in only: writing a plan to one would be a file the drawing
+    // program cannot open and this one cannot read back.
     if (fileMode === "save") {
+      if (!isWritable(format)) {
+        setDialogNote(
+          "A drawing can be read, not written — name a .waypoints or .kml file.",
+        );
+        return;
+      }
+
       void saveToFile(path, format);
     } else {
       void askImport(path, format);
@@ -468,7 +491,7 @@ export function PlanEditor() {
 
           <span className={styles.format}>
             {format === null
-              ? "The name must end in .waypoints, .wpl or .kml"
+              ? "The name must end in .waypoints, .kml, .shp or .dxf"
               : labelOfFormat(format)}
           </span>
 

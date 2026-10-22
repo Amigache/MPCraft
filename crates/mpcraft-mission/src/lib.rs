@@ -33,12 +33,14 @@ use mpcraft_mavlink::MavCmd;
 use serde::{Deserialize, Serialize};
 
 pub mod altitude;
+pub mod drawing;
 pub mod kml;
 pub mod mavcmd;
 pub mod qgc;
 pub mod validate;
 pub mod wire;
 
+pub use drawing::{plan_from_places, IMPORTED_ALTITUDE};
 pub use kml::{read_kml, write_kml, KmlError};
 pub use qgc::{read_waypoints, write_waypoints, WaypointError};
 pub use wire::MissionType;
