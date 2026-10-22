@@ -1541,6 +1541,69 @@ async fn flash_bootloader(state: State<'_, AppState>, req: VehicleRequest) -> Co
     state.supervisor.flash_bootloader(vehicle).await
 }
 
+/// Starts sending the corrections of a base station to the vehicle.
+///
+/// The corrections come from a caster, and the address of the caster is the one the
+/// operator gives: `http://user:password@host:port/mount`. They go to the port of the
+/// GPS of the vehicle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the caster
+/// cannot be reached, or when it refuses.
+#[tauri::command]
+async fn ntrip_start(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    url: String,
+    gps_port: u8,
+    version1: bool,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    state
+        .ntrip
+        .start(
+            session,
+            vehicle,
+            mpcraft_app::ntrip::NtripSettings {
+                url,
+                gps_port,
+                version1,
+            },
+        )
+        .await
+        .map_err(|error| CommandError::internal(error.to_string()))
+}
+
+/// Stops sending the corrections of a base station.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn ntrip_stop(state: State<'_, AppState>) -> CommandResult<()> {
+    state.ntrip.stop();
+    Ok(())
+}
+
+/// What the corrections of a base station are doing.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn ntrip_status(
+    state: State<'_, AppState>,
+) -> CommandResult<mpcraft_app::ntrip::NtripStatus> {
+    Ok(state.ntrip.status())
+}
+
 /// The slots of the on-screen display, and what each of them holds.
 ///
 /// The screens five and six are the ones the operator chooses. The answer is the name
@@ -3249,6 +3312,9 @@ fn main() {
             ftp_read,
             osd_slots,
             osd_slot_config,
+            ntrip_start,
+            ntrip_stop,
+            ntrip_status,
             http_server_start,
             http_server_stop,
             list_signing_keys,

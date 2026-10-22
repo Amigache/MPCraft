@@ -2281,6 +2281,19 @@ class Vehicle:
         answer = b"MPCraft says hello\r\n"
         data = answer.ljust(70, b"\x00")[:70]
 
+        sent = values.get("count", 0)
+        if sent:
+            payload = values.get("data", "")
+            printable = "".join(
+                character
+                for character in payload[:sent]
+                if character.isprintable() and ord(character) < 128
+            )
+            print(
+                f"the port {values.get('device', 0)} received {sent} bytes: {printable}",
+                flush=True,
+            )
+
         self.send(
             126,
             {

@@ -58,6 +58,18 @@ export interface PassthroughData {
   readonly data: readonly number[];
 }
 
+/** What the corrections of a base station are doing. */
+export interface NtripStatus {
+  /** Whether the corrections are being sent. */
+  readonly running: boolean;
+  /** How many bytes of corrections have been sent to the vehicle. */
+  readonly bytes: number;
+  /** The last failure, when there was one. */
+  readonly error: string | null;
+  /** The position that was last sent to the caster. */
+  readonly position: GeoPoint | null;
+}
+
 /** One slot of the on-screen display of the vehicle. */
 export interface OsdSlot {
   /** The screen the slot is on: five and six are the ones the operator chooses. */

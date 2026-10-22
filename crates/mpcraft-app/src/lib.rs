@@ -55,6 +55,7 @@ pub mod graphs;
 pub mod http;
 pub mod live_kml;
 pub mod logs;
+pub mod ntrip;
 pub mod operations;
 pub mod supervisor;
 pub mod terrain;
@@ -167,6 +168,13 @@ pub struct AppState {
     /// The server lets another program follow the flight: the state of the vehicle and
     /// the track of the flight are served as they are now.
     pub http: std::sync::Arc<std::sync::Mutex<Option<crate::http::WebServer>>>,
+
+    ///
+    /// The corrections of a base station, when they are being sent to the vehicle.
+    ///
+    /// The corrections come from a caster, and they are for the receiver of the vehicle:
+    /// the service holds the client and the task that reads them.
+    pub ntrip: crate::ntrip::NtripService,
 }
 
 impl Default for AppState {
@@ -181,6 +189,7 @@ impl Default for AppState {
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            ntrip: crate::ntrip::NtripService::default(),
         }
     }
 }
@@ -240,6 +249,9 @@ impl AppState {
         let Some(position) = session.telemetry.position else {
             return Ok(());
         };
+
+        // The caster of the corrections needs to know where the vehicle is.
+        self.ntrip.set_position(position);
 
         let Ok(mut cell) = self.live_track.lock() else {
             return Ok(());
@@ -500,6 +512,7 @@ mod tests {
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            ntrip: crate::ntrip::NtripService::default(),
         };
 
         assert!(state
@@ -535,6 +548,7 @@ mod tests {
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            ntrip: crate::ntrip::NtripService::default(),
         };
 
         let error = state

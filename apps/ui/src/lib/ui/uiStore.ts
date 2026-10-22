@@ -392,6 +392,12 @@ export interface UiStore {
   readonly showOsd: () => void;
   /** Closes the sheet of the on-screen display. */
   readonly hideOsd: () => void;
+  /** Whether the sheet of the corrections of a base station is open. */
+  readonly ntripOpen: boolean;
+  /** Opens the sheet of the corrections of a base station. */
+  readonly showNtrip: () => void;
+  /** Closes the sheet of the corrections of a base station. */
+  readonly hideNtrip: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -444,6 +450,7 @@ export const useUiStore = create<UiStore>((set) => ({
   firmwareOpen: false,
   filesOpen: false,
   osdOpen: false,
+  ntripOpen: false,
   logOpen: false,
   parameterGroups: [],
 
@@ -550,6 +557,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showFirmware: () => set({ firmwareOpen: true }),
   showFiles: () => set({ filesOpen: true }),
   showOsd: () => set({ osdOpen: true }),
+  showNtrip: () => set({ ntripOpen: true }),
 
   showLog: () => set({ logOpen: true }),
 
@@ -562,6 +570,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hideFirmware: () => set({ firmwareOpen: false }),
   hideFiles: () => set({ filesOpen: false }),
   hideOsd: () => set({ osdOpen: false }),
+  hideNtrip: () => set({ ntripOpen: false }),
 
   loadParameterGroups: async () => {
     try {

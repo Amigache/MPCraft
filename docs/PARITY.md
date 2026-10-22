@@ -29,7 +29,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.14 | Signing keyring persistence | `ExtLibs/ArduPilot/Mavlink/MAVAuthKeys.cs` | ✅ | 0 |
 | 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | ✅ | 5 |
 | 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | ✅ | 7 |
-| 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | 🔜 | 5 |
+| 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | ✅ | 5 |
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 | 5 |
 | 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
 | 1.20 | Serial passthrough (`SERIAL_CONTROL`) | `MAVLinkSerialPort.cs` | ✅ | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 127 |
-| 🔜 Planned | 25 |
+| ✅ Done | 128 |
+| 🔜 Planned | 24 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 127 rows marked done are the connection, transport, parameter, mission and command
+The 128 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -373,6 +373,15 @@ slots. The screens five and six are the ones the operator chooses, and the vehic
 asked what each of them holds. A slot is given a parameter, and the range of that
 parameter is said with it, so that the vehicle knows how to draw it. The two messages
 that carry this are the ones upstream uses as well.
+
+The **corrections of a base station** are a sheet of their own, opened from the Setup
+menu: a base station watches the satellites it can see and works out how far each of
+them is, and it sends those corrections to a caster. The caster passes them to whoever
+asks, and the way of asking is NTRIP: an HTTP request that is answered with the stream
+of the corrections. The operator gives the address of the caster and the port of the
+GPS of the vehicle, and the corrections are given to it. The position of the vehicle
+travels with the request, as a GGA sentence, so that the caster knows which corrections
+are wanted.
 
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the

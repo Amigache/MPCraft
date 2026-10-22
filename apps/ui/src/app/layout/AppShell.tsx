@@ -9,6 +9,7 @@ import { JoystickSheet } from "../../features/joystick/JoystickSheet";
 import { FirmwareSheet } from "../../features/firmware/FirmwareSheet";
 import { FilesSheet } from "../../features/files/FilesSheet";
 import { OsdSheet } from "../../features/osd/OsdSheet";
+import { NtripSheet } from "../../features/ntrip/NtripSheet";
 import { PassthroughSheet } from "../../features/passthrough/PassthroughSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
 import { LogSheet } from "../../features/logs/LogSheet";
@@ -45,6 +46,7 @@ export function AppShell() {
       state.firmwareOpen ||
       state.filesOpen ||
       state.osdOpen ||
+      state.ntripOpen ||
       state.logOpen,
   );
 
@@ -69,6 +71,7 @@ export function AppShell() {
       <FirmwareSheet />
       <FilesSheet />
       <OsdSheet />
+      <NtripSheet />
       <LogSheet />
     </div>
   );

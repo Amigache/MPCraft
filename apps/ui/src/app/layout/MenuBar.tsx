@@ -113,6 +113,7 @@ export function MenuBar() {
   const showFirmware = useUiStore((state) => state.showFirmware);
   const showFiles = useUiStore((state) => state.showFiles);
   const showOsd = useUiStore((state) => state.showOsd);
+  const showNtrip = useUiStore((state) => state.showNtrip);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -746,6 +747,18 @@ export function MenuBar() {
           onSelect: () => {
             close();
             showOsd();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-ntrip",
+          label: "The corrections of a base station…",
+          onSelect: () => {
+            close();
+            showNtrip();
           },
           disabled: false,
           checked: undefined,

@@ -25,6 +25,7 @@ import type {
   LossStats,
   MessageSamples,
   MavCommand,
+  NtripStatus,
   OutputFunction,
   OsdSlot,
   Parameter,
@@ -142,6 +143,36 @@ export async function uploadMission(
     kind,
     items,
   });
+}
+
+/**
+ * Starts sending the corrections of a base station to the vehicle.
+ *
+ * The address of the caster is the one the operator gives:
+ * `http://user:password@host:port/mount`. The corrections go to the port of the GPS of
+ * the vehicle.
+ */
+export async function ntripStart(
+  url: string,
+  gpsPort: number,
+  version1: boolean,
+): Promise<void> {
+  await call<void>("ntrip_start", {
+    req: {},
+    url,
+    gpsPort,
+    version1,
+  });
+}
+
+/** Stops sending the corrections of a base station. */
+export async function ntripStop(): Promise<void> {
+  await call<void>("ntrip_stop");
+}
+
+/** What the corrections of a base station are doing. */
+export async function ntripStatus(): Promise<NtripStatus> {
+  return call<NtripStatus>("ntrip_status");
 }
 
 /**
