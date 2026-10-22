@@ -116,6 +116,7 @@ export function MenuBar() {
   const showOsd = useUiStore((state) => state.showOsd);
   const showNtrip = useUiStore((state) => state.showNtrip);
   const showTransponder = useUiStore((state) => state.showTransponder);
+  const showVideo = useUiStore((state) => state.showVideo);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -808,6 +809,18 @@ export function MenuBar() {
           checked: undefined,
           separator: false,
           hint: "",
+        },
+        {
+          id: "setup-video",
+          label: "Video streams…",
+          onSelect: () => {
+            close();
+            showVideo();
+          },
+          disabled: !linked,
+          checked: undefined,
+          separator: false,
+          hint: linked ? "" : "no link",
         },
         {
           id: "parameters",

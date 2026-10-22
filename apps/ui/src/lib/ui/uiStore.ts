@@ -404,6 +404,12 @@ export interface UiStore {
   readonly showTransponder: () => void;
   /** Closes the sheet of the transponder. */
   readonly hideTransponder: () => void;
+  /** Whether the sheet of the video streams is open over the window. */
+  readonly videoOpen: boolean;
+  /** Opens the sheet of the video streams. */
+  readonly showVideo: () => void;
+  /** Closes the sheet of the video streams. */
+  readonly hideVideo: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -458,6 +464,7 @@ export const useUiStore = create<UiStore>((set) => ({
   osdOpen: false,
   ntripOpen: false,
   transponderOpen: false,
+  videoOpen: false,
   logOpen: false,
   parameterGroups: [],
 
@@ -566,6 +573,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showOsd: () => set({ osdOpen: true }),
   showNtrip: () => set({ ntripOpen: true }),
   showTransponder: () => set({ transponderOpen: true }),
+  showVideo: () => set({ videoOpen: true }),
 
   showLog: () => set({ logOpen: true }),
 
@@ -580,6 +588,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hideOsd: () => set({ osdOpen: false }),
   hideNtrip: () => set({ ntripOpen: false }),
   hideTransponder: () => set({ transponderOpen: false }),
+  hideVideo: () => set({ videoOpen: false }),
 
   loadParameterGroups: async () => {
     try {

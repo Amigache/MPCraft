@@ -47,6 +47,8 @@ FORMATS = {
     "char70": "<70s",
     "char90": "<90s",
     "char9": "<9s",
+    "char32": "<32s",
+    "char160": "<160s",
     "char251": "<251s",
     "int16x16": "<16h",
 }
@@ -59,6 +61,8 @@ CLASSES = {
     "char70": 1,
     "char90": 1,
     "char9": 1,
+    "char32": 1,
+    "char160": 1,
     "char251": 1,
     "u16": 2,
     "i16": 2,
@@ -441,6 +445,29 @@ MESSAGES = {
             ("callsign", "char9"),
             ("emitter_type", "u8"),
             ("tslc", "u8"),
+        ],
+    ),
+    269: message(
+        269,
+        "VIDEO_STREAM_INFORMATION",
+        109,
+        [
+            ("framerate", "f32"),
+            ("bitrate", "u32"),
+            ("flags", "u16"),
+            ("resolution_h", "u16"),
+            ("resolution_v", "u16"),
+            ("rotation", "u16"),
+            ("hfov", "u16"),
+            ("stream_id", "u8"),
+            ("count", "u8"),
+            ("mavtype", "u8"),
+            ("name", "char32"),
+            ("uri", "char160"),
+        ],
+        [
+            ("encoding", "u8"),
+            ("camera_device_id", "u8"),
         ],
     ),
     11033: message(
@@ -1247,6 +1274,7 @@ class Vehicle:
             (5, 2): "BAT1_CURR",
             (6, 1): "GPS0_LAT",
         }
+        self.video_streaming = False
 
         # The parameters, by name.
         self.parameters = {name: value for name, value, _ in PARAMETERS}
@@ -2525,6 +2553,21 @@ class Vehicle:
         """The ground station gives a command."""
         command = values.get("command", 0)
 
+        if command == 512 and int(values.get("param1", 0.0)) == 269:
+            print(f"the video stream information was requested: {values.get('param1')}", flush=True)
+            self.send_video_stream_information()
+            return
+
+        if command == 2502:
+            self.video_streaming = True
+            self.acknowledge(command, RESULT_ACCEPTED)
+            return
+
+        if command == 2503:
+            self.video_streaming = False
+            self.acknowledge(command, RESULT_ACCEPTED)
+            return
+
         print(f"the command {command} was asked for", flush=True)
 
         if command == CMD_COMPONENT_ARM_DISARM:
@@ -2595,6 +2638,29 @@ class Vehicle:
             return
 
         self.acknowledge(command, RESULT_TEMPORARILY_REJECTED)
+
+    def send_video_stream_information(self):
+        """The camera says where its stream is and how it is encoded."""
+        print("the camera describes its video stream", flush=True)
+        self.send(
+            269,
+            {
+                "framerate": 30.0,
+                "bitrate": 2_000_000,
+                "flags": 1 if self.video_streaming else 0,
+                "resolution_h": 1280,
+                "resolution_v": 720,
+                "rotation": 0,
+                "hfov": 90,
+                "stream_id": 1,
+                "count": 1,
+                "mavtype": 0,
+                "name": "Front camera",
+                "uri": "rtsp://127.0.0.1:8554/front",
+                "encoding": 1,
+                "camera_device_id": 0,
+            },
+        )
 
     def acknowledge(self, command, result):
         """Answers a command."""

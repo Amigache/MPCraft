@@ -47,6 +47,7 @@ import type {
   VehicleLog,
   VehicleMessage,
   VehicleRequest,
+  VideoStream,
 } from "./types";
 
 export { listen };
@@ -203,6 +204,27 @@ export async function transponderStop(): Promise<void> {
 /** What the transponder is doing. */
 export async function transponderStatus(): Promise<TransponderStatus> {
   return call<TransponderStatus>("transponder_status");
+}
+
+/** Asks the camera of the vehicle what video streams it has. */
+export async function videoStreams(): Promise<VideoStream[]> {
+  return call<VideoStream[]>("video_streams", { req: {} });
+}
+
+/** Starts one of the camera's video streams. */
+export async function videoStreamStart(
+  componentId: number,
+  streamId: number,
+): Promise<void> {
+  await call<void>("video_stream_start", { req: {}, componentId, streamId });
+}
+
+/** Stops one of the camera's video streams. */
+export async function videoStreamStop(
+  componentId: number,
+  streamId: number,
+): Promise<void> {
+  await call<void>("video_stream_stop", { req: {}, componentId, streamId });
 }
 
 /**

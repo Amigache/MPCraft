@@ -25,6 +25,9 @@ pub use mavlink::dialects::ardupilotmega::{OsdParamConfigError, OsdParamConfigTy
 // The flags of the traffic of the air.
 pub use mavlink::dialects::ardupilotmega::{AdsbAltitudeType, AdsbEmitterType, AdsbFlags};
 
+// The flags that say whether a video stream is running.
+pub use mavlink::dialects::ardupilotmega::VideoStreamStatusFlags;
+
 /// The type of the GPS fix.
 ///
 /// The enumeration is called `GPS_FIX_TYPE` in the dialect, and the generator prefixes

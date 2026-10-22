@@ -196,7 +196,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 9.4 | Scripting host | `Script.cs` (IronPython) | 🔜 | 6 |
 | 9.5 | Swarm / formation control | `Swarm/` | 🔜 | 6 |
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
-| 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🔜 | 5 |
+| 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🟡 | 5 |
 | 9.8 | HTTP server (MJPEG / KML stream) | `ExtLibs/Utilities/httpserver.cs` | ✅ | 7 |
 | 9.9 | KML live output | `FlightPlanner.writeKML` | ✅ | 2 |
 
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 135 |
-| 🔜 Planned | 18 |
+| 🔜 Planned | 17 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 1 |
+| 🟡 Partial | 2 |
 
 The 135 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
@@ -460,6 +460,11 @@ The **transponder** of the vehicle is a sheet of its own: the vehicle is told wh
 is and what to say, and it relays the message, so that the aircraft around it see it.
 The operator gives the address of the aircraft, the name of the flight and the code.
 
+The **video streams** of the camera are described in a sheet of their own: the camera
+says the URI, the resolution and the frame rate of each stream, and the operator can
+start or stop it. The stream travels outside MAVLink, so the URI is what a separate video
+player connects to. Drawing that video inside MPCraft is not done yet.
+
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of
 variables and nothing else: no component knows which one is in use.
@@ -469,8 +474,10 @@ number, what kind of vehicle it is, where it says it is and what the operator sa
 it. The parts arrive in three different messages, and each one keeps what the others
 said.
 
-What is still missing from the window: the transponder, the generator of the vehicle
-and the way of injecting a map of one's own.
+The transponder, the generator telemetry and the folder of the operator's own map are
+available elsewhere in the application: in Setup, the vehicle state and the tile
+settings respectively. The video sheet describes and controls the stream, but does not
+draw the video inside MPCraft.
 
 The **generators of a survey** are three: the circle, the reticle of a field — the
 strips the vehicle flies one after the other, apart by the distance its sensor sweeps —

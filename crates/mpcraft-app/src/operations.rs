@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use mpcraft_link::{
     Calibration, FtpClient, FtpEntry, HomeRequest, OsdSlot, OsdSlotConfig, PartialUpdate,
-    PartialUpdatePolicy, Session, VehicleId,
+    PartialUpdatePolicy, Session, VehicleId, VideoStream,
 };
 use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionItem, MissionType, Plan};
@@ -483,6 +483,63 @@ impl SessionSupervisor {
         let _ = client.terminate_session(session_id).await;
 
         Ok(content)
+    }
+
+    /// Asks the camera of the vehicle what video streams it has.
+    ///
+    /// The camera answers with a URI, and the size and frame rate of each stream. The
+    /// video travels outside MAVLink, over that URI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the camera does not answer,
+    /// or when the link cannot carry the request.
+    pub async fn video_streams(&self, vehicle: VehicleId) -> CommandResult<Vec<VideoStream>> {
+        let session = self.open_session()?;
+
+        Ok(session.request_video_streams(vehicle).await?)
+    }
+
+    /// Starts one of the camera's video streams.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the
+    /// command, or when it does not answer.
+    pub async fn video_stream_start(
+        &self,
+        vehicle: VehicleId,
+        component_id: u8,
+        stream_id: u8,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .start_video_stream(vehicle, component_id, stream_id, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Stops one of the camera's video streams.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the
+    /// command, or when it does not answer.
+    pub async fn video_stream_stop(
+        &self,
+        vehicle: VehicleId,
+        component_id: u8,
+        stream_id: u8,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .stop_video_stream(vehicle, component_id, stream_id, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
     }
 
     /// Downloads the plan the vehicle keeps in a file of its own.

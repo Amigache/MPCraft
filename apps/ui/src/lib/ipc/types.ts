@@ -100,6 +100,28 @@ export interface TransponderStatus {
   };
 }
 
+/** A video stream the camera of the vehicle has described. */
+export interface VideoStream {
+  /** The component that owns the stream. */
+  readonly componentId: number;
+  /** The id of the stream. */
+  readonly streamId: number;
+  /** The name of the stream. */
+  readonly name: string;
+  /** The URI or port of the stream. */
+  readonly uri: string;
+  /** The horizontal resolution, in pixels. */
+  readonly width: number;
+  /** The vertical resolution, in pixels. */
+  readonly height: number;
+  /** How many frames the stream carries in a second. */
+  readonly framesPerSecond: number;
+  /** How many bits the stream carries in a second. */
+  readonly bitrate: number;
+  /** Whether the stream is running. */
+  readonly running: boolean;
+}
+
 /** One aircraft of the traffic that the vehicle has heard. */
 export interface AdsbVehicle {
   /** The address the aircraft has. */

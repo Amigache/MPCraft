@@ -57,6 +57,7 @@
 #![warn(missing_docs)]
 
 pub mod adsb;
+pub mod camera;
 pub mod commands;
 pub mod error;
 pub mod ftp;
@@ -76,6 +77,7 @@ pub mod transponder;
 pub mod vehicle;
 
 pub use adsb::{AdsbRegistry, AdsbVehicle};
+pub use camera::{VideoStream, VIDEO_STREAM_INFORMATION_ID};
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
 pub use ftp::{FtpClient, FtpEntry, FtpError, Opcode as FtpOpcode};

@@ -1664,6 +1664,67 @@ async fn transponder_status(
     Ok(state.transponder.status())
 }
 
+/// Asks the camera of the vehicle what video streams it has.
+///
+/// The camera answers with a URI, and the size and frame rate of each stream. The
+/// video travels outside MAVLink, over that URI.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// camera does not answer.
+#[tauri::command]
+async fn video_streams(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<Vec<mpcraft_link::VideoStream>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.video_streams(vehicle).await
+}
+
+/// Starts one of the camera's video streams.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// refuses the command, or when it does not answer.
+#[tauri::command]
+async fn video_stream_start(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    component_id: u8,
+    stream_id: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .video_stream_start(vehicle, component_id, stream_id)
+        .await
+}
+
+/// Stops one of the camera's video streams.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// refuses the command, or when it does not answer.
+#[tauri::command]
+async fn video_stream_stop(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    component_id: u8,
+    stream_id: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .video_stream_stop(vehicle, component_id, stream_id)
+        .await
+}
+
 /// The slots of the on-screen display, and what each of them holds.
 ///
 /// The screens five and six are the ones the operator chooses. The answer is the name
@@ -3484,6 +3545,9 @@ fn main() {
             transponder_start,
             transponder_stop,
             transponder_status,
+            video_streams,
+            video_stream_start,
+            video_stream_stop,
             http_server_start,
             http_server_stop,
             list_signing_keys,
