@@ -16,6 +16,7 @@ pub use mavlink::dialects::ardupilotmega::MavMessage;
 pub use mavlink::dialects::ardupilotmega::{
     MavAutopilot, MavCmd, MavFrame, MavMissionResult, MavMissionType, MavModeFlag, MavParamType,
     MavProtocolCapability, MavResult, MavSeverity, MavState, MavSysStatusSensor, MavType,
+    SerialControlDev, SerialControlFlag,
 };
 
 /// The type of the GPS fix.

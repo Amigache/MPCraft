@@ -32,7 +32,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | 🔜 | 5 |
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 | 5 |
 | 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
-| 1.20 | Serial passthrough (`SERIAL_CONTROL`) | `MAVLinkSerialPort.cs` | 🔜 | 5 |
+| 1.20 | Serial passthrough (`SERIAL_CONTROL`) | `MAVLinkSerialPort.cs` | 🔽 | 5 |
 
 ## 2. Flight data & telemetry
 
@@ -75,7 +75,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 3.11 | RC override | `SendRCOverride` | ✅ | 3 |
 | 3.12 | Manual control | `SendManualControl` | ✅ | 3 |
 | 3.13 | Camera / gimbal control | `CameraProtocol`, `GimbalManagerProtocol` | 🔜 | 5 |
-| 3.14 | Serial port pass-through | `SendSerialControl` | 🔜 | 5 |
+| 3.14 | Serial port pass-through | `SendSerialControl` | 🔽 | 5 |
 | 3.15 | Flight-mode presets & custom modes | `ConfigFlightModes.cs` | ✅ | 3 |
 
 ## 4. Mission planning
@@ -221,7 +221,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 119 |
-| 🔜 Planned | 32 |
+| 🔜 Planned | 30 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 4 |
 
@@ -307,6 +307,12 @@ follow it without a link of its own. The server answers three things — the pag
 shows the flight, the state of the vehicle as JSON, and the track of the flight as the
 KML document that is being written. It is a small server, on purpose: it answers those
 three things and nothing else.
+
+The **serial ports** of the vehicle can be reached from the File menu: the bytes travel
+inside a MAVLink message and the vehicle hands them over to the port, which is how a
+program talks to what is on it. The port, the speed and the time the vehicle waits are
+chosen, and the text that is written goes as it is. What comes back from the port is not
+shown yet.
 
 The **keys** of a signed link are kept in the settings file, next to the connection
 profiles, and the file is meant to be edited by hand: every key has a name and its

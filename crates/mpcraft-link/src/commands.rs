@@ -521,6 +521,71 @@ impl Session {
         .await
     }
 
+    /// Writes bytes to a serial port of the vehicle.
+    ///
+    /// The vehicle has several serial ports ? the telemetry ones, the ones of the GPS ? and
+    /// this is how a program reaches them: the bytes travel inside a MAVLink message,
+    /// and the vehicle hands them over to the port.
+    ///
+    /// The data goes in blocks of seventy bytes, the most a message carries, and the
+    /// vehicle is asked to answer with what the port had to say.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session is closed or the write fails.
+    pub async fn serial_control(
+        &self,
+        vehicle: VehicleId,
+        device: u8,
+        data: &[u8],
+        baudrate: u32,
+        timeout: u16,
+    ) -> Result<(), LinkError> {
+        use mpcraft_mavlink::dialect::messages::SERIAL_CONTROL_DATA;
+        use mpcraft_mavlink::dialect::{MavMessage, SerialControlDev, SerialControlFlag};
+
+        let device = match device {
+            1 => SerialControlDev::SERIAL_CONTROL_DEV_TELEM2,
+            2 => SerialControlDev::SERIAL_CONTROL_DEV_GPS1,
+            3 => SerialControlDev::SERIAL_CONTROL_DEV_GPS2,
+            4 => SerialControlDev::SERIAL_CONTROL_DEV_TELEM3,
+            _ => SerialControlDev::SERIAL_CONTROL_DEV_TELEM1,
+        };
+
+        let mut flags = SerialControlFlag::SERIAL_CONTROL_FLAG_EXCLUSIVE;
+
+        let mut rest = data;
+        let mut blocks = rest.len().div_ceil(70);
+
+        while !rest.is_empty() {
+            if blocks == 1 {
+                flags |= SerialControlFlag::SERIAL_CONTROL_FLAG_RESPOND;
+            }
+
+            let count = rest.len().min(70);
+            let mut payload = [0_u8; 70];
+            payload[..count].copy_from_slice(&rest[..count]);
+
+            let message = MavMessage::SERIAL_CONTROL(SERIAL_CONTROL_DATA {
+                baudrate,
+                timeout,
+                device,
+                flags,
+                count: count as u8,
+                data: payload,
+                target_system: vehicle.system_id,
+                target_component: vehicle.component_id,
+            });
+
+            self.write_message(&message).await?;
+
+            rest = &rest[count..];
+            blocks -= 1;
+        }
+
+        Ok(())
+    }
+
     /// Executes a command with integer parameters.
     ///
     /// The integer form exists for the commands whose position is scaled by `1e7` — a

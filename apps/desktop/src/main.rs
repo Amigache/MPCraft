@@ -1554,6 +1554,32 @@ struct SigningKeyEvent {
     secret: String,
 }
 
+/// Writes bytes to a serial port of the vehicle.
+///
+/// The text travels as it is written: the bytes of the text are what the port of the
+/// vehicle receives.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link
+/// cannot carry the message.
+#[tauri::command]
+async fn serial_control(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device: u8,
+    data: String,
+    baudrate: u32,
+    timeout: u16,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .serial_control(vehicle, device, data.as_bytes(), baudrate, timeout)
+        .await
+}
+
 /// The event that carries the telemetry of a log that is being played back.
 const PLAYBACK_EVENT: &str = "playback-state";
 
@@ -2995,6 +3021,7 @@ fn main() {
             http_server_stop,
             list_signing_keys,
             set_signing_keys,
+            serial_control,
             diagnostics_bundle,
             list_parameters,
             read_parameters,

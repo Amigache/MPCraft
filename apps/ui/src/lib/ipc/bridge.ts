@@ -567,6 +567,27 @@ export async function httpServerStop(): Promise<void> {
 }
 
 /**
+ * Writes bytes to a serial port of the vehicle.
+ *
+ * The bytes travel inside a MAVLink message and the vehicle hands them over to the port.
+ * The speed of the port is left alone when it is zero.
+ */
+export async function serialControl(
+  device: number,
+  data: string,
+  baudrate: number,
+  timeout: number,
+): Promise<void> {
+  await call<void>("serial_control", {
+    req: {},
+    device,
+    data,
+    baudrate,
+    timeout,
+  });
+}
+
+/**
  * Writes a bundle with what the application knows about itself.
  *
  * The bundle is a zip with a file per subject: the machine, the connection profiles and

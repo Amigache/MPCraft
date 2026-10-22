@@ -109,6 +109,7 @@ export function MenuBar() {
   const showCalibration = useUiStore((state) => state.showCalibration);
   const showJoystick = useUiStore((state) => state.showJoystick);
   const showTerrain = useUiStore((state) => state.showTerrain);
+  const showPassthrough = useUiStore((state) => state.showPassthrough);
   const showFirmware = useUiStore((state) => state.showFirmware);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
@@ -250,6 +251,18 @@ export function MenuBar() {
           checked: liveKml !== null ? true : undefined,
           separator: false,
           hint: liveKml === null ? "" : liveKml,
+        },
+        {
+          id: "passthrough",
+          label: "Serial passthrough?",
+          onSelect: () => {
+            close();
+            showPassthrough();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
         },
         {
           id: "exit",

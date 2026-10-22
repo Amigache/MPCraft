@@ -357,6 +357,12 @@ export interface UiStore {
   readonly showTerrain: () => void;
   /** Closes the sheet of the terrain. */
   readonly hideTerrain: () => void;
+  /** Whether the sheet of the serial passthrough is open over the window. */
+  readonly passthroughOpen: boolean;
+  /** Opens the sheet of the serial passthrough. */
+  readonly showPassthrough: () => void;
+  /** Closes the sheet of the serial passthrough. */
+  readonly hidePassthrough: () => void;
   /** Whether the sheet of the firmware is open over the window. */
   readonly firmwareOpen: boolean;
   /** Opens the sheet of the firmware. */
@@ -410,6 +416,7 @@ export const useUiStore = create<UiStore>((set) => ({
   calibrationOpen: false,
   joystickOpen: false,
   terrainOpen: false,
+  passthroughOpen: false,
   firmwareOpen: false,
   logOpen: false,
   parameterGroups: [],
@@ -508,6 +515,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showCalibration: () => set({ calibrationOpen: true }),
   showJoystick: () => set({ joystickOpen: true }),
   showTerrain: () => set({ terrainOpen: true }),
+  showPassthrough: () => set({ passthroughOpen: true }),
   showFirmware: () => set({ firmwareOpen: true }),
 
   showLog: () => set({ logOpen: true }),
@@ -517,6 +525,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hideCalibration: () => set({ calibrationOpen: false }),
   hideJoystick: () => set({ joystickOpen: false }),
   hideTerrain: () => set({ terrainOpen: false }),
+  hidePassthrough: () => set({ passthroughOpen: false }),
   hideFirmware: () => set({ firmwareOpen: false }),
 
   loadParameterGroups: async () => {

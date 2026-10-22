@@ -321,6 +321,33 @@ impl SessionSupervisor {
         Ok(())
     }
 
+    /// Writes bytes to a serial port of the vehicle.
+    ///
+    /// The vehicle has several serial ports ? the telemetry ones, the ones of the GPS ? and
+    /// this is how a program reaches them: the bytes travel inside a MAVLink message and
+    /// the vehicle hands them over to the port.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the link cannot carry the
+    /// message.
+    pub async fn serial_control(
+        &self,
+        vehicle: VehicleId,
+        device: u8,
+        data: &[u8],
+        baudrate: u32,
+        timeout: u16,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .serial_control(vehicle, device, data, baudrate, timeout)
+            .await?;
+
+        Ok(())
+    }
+
     /// Asks the vehicle to restart.
     ///
     /// # Errors
