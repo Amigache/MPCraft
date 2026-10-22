@@ -115,6 +115,7 @@ export function MenuBar() {
   const showFiles = useUiStore((state) => state.showFiles);
   const showOsd = useUiStore((state) => state.showOsd);
   const showNtrip = useUiStore((state) => state.showNtrip);
+  const showTransponder = useUiStore((state) => state.showTransponder);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -790,6 +791,18 @@ export function MenuBar() {
           onSelect: () => {
             close();
             showNtrip();
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-transponder",
+          label: "The transponder…",
+          onSelect: () => {
+            close();
+            showTransponder();
           },
           disabled: false,
           checked: undefined,

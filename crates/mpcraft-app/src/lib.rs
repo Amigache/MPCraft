@@ -59,6 +59,7 @@ pub mod ntrip;
 pub mod operations;
 pub mod supervisor;
 pub mod terrain;
+pub mod transponder;
 pub mod ulog;
 
 pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
@@ -175,6 +176,13 @@ pub struct AppState {
     /// The corrections come from a caster, and they are for the receiver of the vehicle:
     /// the service holds the client and the task that reads them.
     pub ntrip: crate::ntrip::NtripService,
+
+    ///
+    /// The transponder of the vehicle, when it is being told what to say.
+    ///
+    /// The vehicle relays the message of the transponder, and the aircraft around it see
+    /// it.
+    pub transponder: crate::transponder::TransponderService,
 }
 
 impl Default for AppState {
@@ -202,6 +210,7 @@ impl Default for AppState {
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
+            transponder: crate::transponder::TransponderService::default(),
         }
     }
 }
@@ -297,6 +306,22 @@ impl AppState {
 
         // The caster of the corrections needs to know where the vehicle is.
         self.ntrip.set_position(position);
+
+        // The transponder says where the vehicle is and how it is going.
+        let heading = session
+            .telemetry
+            .attitude
+            .map(|attitude| attitude.yaw)
+            .unwrap_or(0.0);
+
+        let (speed, vertical_speed) = session
+            .telemetry
+            .velocity
+            .map(|velocity| (velocity.ground_speed, -velocity.down))
+            .unwrap_or((0.0, 0.0));
+
+        self.transponder
+            .set_vehicle(position, heading, speed, vertical_speed);
 
         let Ok(mut cell) = self.live_track.lock() else {
             return Ok(());
@@ -600,6 +625,7 @@ mod tests {
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
+            transponder: crate::transponder::TransponderService::default(),
         };
 
         assert!(state
@@ -636,6 +662,7 @@ mod tests {
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
+            transponder: crate::transponder::TransponderService::default(),
         };
 
         let error = state

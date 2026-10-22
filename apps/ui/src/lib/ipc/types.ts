@@ -84,6 +84,22 @@ export interface NtripStatus {
   readonly position: GeoPoint | null;
 }
 
+/** What the transponder is doing. */
+export interface TransponderStatus {
+  /** Whether the transponder is being told what to say. */
+  readonly running: boolean;
+  /** How many times the vehicle has been told. */
+  readonly sent: number;
+  /** The last failure, when there was one. */
+  readonly error: string | null;
+  /** What the transponder says. */
+  readonly settings: {
+    readonly icaoAddress: number;
+    readonly flightId: string;
+    readonly squawk: number;
+  };
+}
+
 /** One aircraft of the traffic that the vehicle has heard. */
 export interface AdsbVehicle {
   /** The address the aircraft has. */

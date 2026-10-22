@@ -398,6 +398,12 @@ export interface UiStore {
   readonly showNtrip: () => void;
   /** Closes the sheet of the corrections of a base station. */
   readonly hideNtrip: () => void;
+  /** Whether the sheet of the transponder is open over the window. */
+  readonly transponderOpen: boolean;
+  /** Opens the sheet of the transponder. */
+  readonly showTransponder: () => void;
+  /** Closes the sheet of the transponder. */
+  readonly hideTransponder: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -451,6 +457,7 @@ export const useUiStore = create<UiStore>((set) => ({
   filesOpen: false,
   osdOpen: false,
   ntripOpen: false,
+  transponderOpen: false,
   logOpen: false,
   parameterGroups: [],
 
@@ -558,6 +565,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showFiles: () => set({ filesOpen: true }),
   showOsd: () => set({ osdOpen: true }),
   showNtrip: () => set({ ntripOpen: true }),
+  showTransponder: () => set({ transponderOpen: true }),
 
   showLog: () => set({ logOpen: true }),
 
@@ -571,6 +579,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hideFiles: () => set({ filesOpen: false }),
   hideOsd: () => set({ osdOpen: false }),
   hideNtrip: () => set({ ntripOpen: false }),
+  hideTransponder: () => set({ transponderOpen: false }),
 
   loadParameterGroups: async () => {
     try {

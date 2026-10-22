@@ -1858,6 +1858,7 @@ class Vehicle:
             243: self.on_set_home_position,
             11033: self.on_osd_param_config,
             11035: self.on_osd_param_show_config,
+            246: self.on_adsb_vehicle,
         }.get(message_id)
 
         if handler is not None:
@@ -2355,6 +2356,15 @@ class Vehicle:
                 "count": len(answer),
                 "data": data.decode("ascii", errors="replace"),
             },
+        )
+
+    def on_adsb_vehicle(self, values):
+        """The ground station says what the transponder is to say."""
+        print(
+            f"the transponder says {values.get('callsign', '')} "
+            f"at {values.get('lat', 0) / 1e7}, {values.get('lon', 0) / 1e7} "
+            f"with the code {values.get('squawk', 0)}",
+            flush=True,
         )
 
     def on_osd_param_show_config(self, values):

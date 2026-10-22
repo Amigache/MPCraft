@@ -1604,6 +1604,66 @@ async fn ntrip_status(
     Ok(state.ntrip.status())
 }
 
+/// Starts telling the vehicle what its transponder is to say.
+///
+/// The vehicle relays the message, and the aircraft around it see it.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// transponder is already being told.
+#[tauri::command]
+async fn transponder_start(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    icao_address: u32,
+    flight_id: String,
+    squawk: u16,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    state
+        .transponder
+        .start(
+            session,
+            vehicle,
+            mpcraft_app::transponder::TransponderSettings {
+                icao_address,
+                flight_id,
+                squawk,
+            },
+        )
+        .map_err(CommandError::internal)
+}
+
+/// Stops telling the vehicle what its transponder is to say.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn transponder_stop(state: State<'_, AppState>) -> CommandResult<()> {
+    state.transponder.stop();
+    Ok(())
+}
+
+/// What the transponder is doing.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn transponder_status(
+    state: State<'_, AppState>,
+) -> CommandResult<mpcraft_app::transponder::TransponderStatus> {
+    Ok(state.transponder.status())
+}
+
 /// The slots of the on-screen display, and what each of them holds.
 ///
 /// The screens five and six are the ones the operator chooses. The answer is the name
@@ -3421,6 +3481,9 @@ fn main() {
             ntrip_start,
             ntrip_stop,
             ntrip_status,
+            transponder_start,
+            transponder_stop,
+            transponder_status,
             http_server_start,
             http_server_stop,
             list_signing_keys,

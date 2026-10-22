@@ -23,7 +23,7 @@ pub use mavlink::dialects::ardupilotmega::{
 pub use mavlink::dialects::ardupilotmega::{OsdParamConfigError, OsdParamConfigType};
 
 // The flags of the traffic of the air.
-pub use mavlink::dialects::ardupilotmega::AdsbFlags;
+pub use mavlink::dialects::ardupilotmega::{AdsbAltitudeType, AdsbEmitterType, AdsbFlags};
 
 /// The type of the GPS fix.
 ///

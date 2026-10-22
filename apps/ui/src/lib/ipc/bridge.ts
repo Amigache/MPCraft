@@ -41,6 +41,7 @@ import type {
   TerrainPathPoint,
   TerrainPoint,
   TileBounds,
+  TransponderStatus,
   VehicleEvent,
   VehicleKey,
   VehicleLog,
@@ -174,6 +175,34 @@ export async function ntripStop(): Promise<void> {
 /** What the corrections of a base station are doing. */
 export async function ntripStatus(): Promise<NtripStatus> {
   return call<NtripStatus>("ntrip_status");
+}
+
+/**
+ * Starts telling the vehicle what its transponder is to say.
+ *
+ * The vehicle relays the message, and the aircraft around it see it.
+ */
+export async function transponderStart(
+  icaoAddress: number,
+  flightId: string,
+  squawk: number,
+): Promise<void> {
+  await call<void>("transponder_start", {
+    req: {},
+    icaoAddress,
+    flightId,
+    squawk,
+  });
+}
+
+/** Stops telling the vehicle what its transponder is to say. */
+export async function transponderStop(): Promise<void> {
+  await call<void>("transponder_stop");
+}
+
+/** What the transponder is doing. */
+export async function transponderStatus(): Promise<TransponderStatus> {
+  return call<TransponderStatus>("transponder_status");
 }
 
 /**

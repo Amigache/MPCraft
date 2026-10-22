@@ -52,7 +52,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 2.12 | EKF status & vibration display | `Controls/EKFStatus.cs`, `Vibration.cs` | ✅ | 3 |
 | 2.13 | Servo & relay output display | `Controls/ServoOptions.cs`, `RelayOptions.cs` | ✅ | 3 |
 | 2.14 | Auxiliary function display | `Controls/AuxOptions.cs` | ✅ | 3 |
-| 2.15 | Transponder (Mode-S) control | `FlightData.cs` tabTransponder | 🔜 | 5 |
+| 2.15 | Transponder (Mode-S) control | `FlightData.cs` tabTransponder | ✅ | 5 |
 | 2.16 | EFI / generator telemetry | `CurrentState.cs` | ✅ | 5 |
 | 2.17 | OpenDroneID display | `ExtLibs/ArduPilot/OpenDroneID.cs` | ✅ | 5 |
 | 2.18 | Wind direction indicator | `Controls/WindDir.cs` | ✅ | 2 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 132 |
-| 🔜 Planned | 21 |
+| ✅ Done | 133 |
+| 🔜 Planned | 20 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 132 rows marked done are the connection, transport, parameter, mission and command
+The 133 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -446,6 +446,10 @@ drawn with the pictures that are on the disk.
 The **traffic of the air** is drawn on the map: a vehicle with a receiver for it sends
 what it hears, and the aircraft around it are marked with the name they say. The traffic
 is kept while it is heard, and an aircraft that is not heard any more is forgotten.
+
+The **transponder** of the vehicle is a sheet of its own: the vehicle is told where it
+is and what to say, and it relays the message, so that the aircraft around it see it.
+The operator gives the address of the aircraft, the name of the flight and the code.
 
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of
