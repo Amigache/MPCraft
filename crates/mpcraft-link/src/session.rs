@@ -158,6 +158,37 @@ type Matcher = Box<dyn Fn(&ReceivedMessage) -> bool + Send>;
 /// A predicate that decides whether a collection of messages is complete.
 type Completion = Box<dyn Fn(&[ReceivedMessage]) -> bool + Send>;
 
+/// A frame whose message the compiled dialect does not carry.
+///
+/// The vehicle speaks more than the bindings know: the file transfer is the oldest
+/// example. Such a frame cannot be decoded into a [`Dialect`], so it is handed over with
+/// its payload as it came, and the module that speaks the message reads it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawMessage {
+    /// The system id of the sender.
+    pub system_id: u8,
+    /// The component id of the sender.
+    pub component_id: u8,
+    /// The message id.
+    pub message_id: u32,
+    /// The payload, as it arrived: MAVLink 2 trims the zeros at its end, so a fixed-size
+    /// message is shorter than its definition says and the reader pads it.
+    pub payload: Vec<u8>,
+}
+
+impl RawMessage {
+    /// The payload, padded with zeros to the length the definition gives it.
+    #[must_use]
+    pub fn padded(&self, length: usize) -> Vec<u8> {
+        let mut payload = self.payload.clone();
+        payload.resize(length.max(self.payload.len()), 0);
+        payload
+    }
+}
+
+/// A predicate that decides whether a raw message matches a request.
+type RawMatcher = Box<dyn Fn(&RawMessage) -> bool + Send>;
+
 /// A command sent to the reader task.
 enum Command {
     /// Write bytes to the link.
@@ -173,6 +204,15 @@ enum Command {
         matcher: Matcher,
         /// Where to deliver the matching message.
         respond: oneshot::Sender<Result<ReceivedMessage, LinkError>>,
+    },
+    /// Wait for a frame whose message the dialect does not carry.
+    RequestRaw {
+        /// The id of the message that is waited for.
+        message_id: u32,
+        /// The predicate the payload must satisfy.
+        matcher: RawMatcher,
+        /// Where to deliver the matching frame.
+        respond: oneshot::Sender<Result<RawMessage, LinkError>>,
     },
     /// Collect messages that match a predicate until the collection is complete.
     Collect {
@@ -732,6 +772,140 @@ impl Session {
         self.write(bytes).await
     }
 
+    /// Encodes a message the dialect does not carry, signing it when the link is signed.
+    fn encode_raw(
+        &self,
+        message_id: u32,
+        payload: &[u8],
+        header: MavHeader,
+    ) -> Result<Vec<u8>, LinkError> {
+        // A frame whose seed is unknown would be one the vehicle refuses; saying so here is
+        // better than a silent drop on the other end.
+        if mpcraft_mavlink::dialect::extra_crc(message_id).is_none() {
+            return Err(LinkError::Protocol(
+                mpcraft_mavlink::ProtocolError::Malformed(
+                    "the message has no checksum seed and cannot be sent",
+                ),
+            ));
+        }
+
+        let bytes = match &self.options.signing {
+            Some(signing) => match signing.key.as_ref() {
+                Some(key) => {
+                    // The mark of time of the signature has to increase on every frame.
+                    let timestamp = {
+                        let mut source = self.timestamps.lock().map_err(|_| {
+                            LinkError::Protocol(mpcraft_mavlink::ProtocolError::Malformed(
+                                "the marks of time of the signatures are locked",
+                            ))
+                        })?;
+                        source.next(signature_now())
+                    };
+
+                    mpcraft_mavlink::frame::encode_v2_bytes_signed(
+                        message_id,
+                        payload,
+                        header,
+                        &signing.keyring,
+                        key,
+                        signing.link_id,
+                        timestamp,
+                    )
+                }
+                None => mpcraft_mavlink::frame::encode_v2_bytes(message_id, payload, header),
+            },
+            None => mpcraft_mavlink::frame::encode_v2_bytes(message_id, payload, header),
+        };
+
+        Ok(bytes)
+    }
+
+    /// Writes a message the dialect does not carry.
+    ///
+    /// The payload is written as it is, with the zeros at its end trimmed the way MAVLink 2
+    /// trims them, and the checksum is the one of the message's own seed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session is closed, the write fails, or the seed of the
+    /// message is not known.
+    pub async fn write_raw(&self, message_id: u32, payload: &[u8]) -> Result<(), LinkError> {
+        let header = MavHeader {
+            system_id: GCS_SYSTEM_ID,
+            component_id: GCS_COMPONENT_ID,
+            sequence: next_sequence(),
+        };
+
+        let bytes = self.encode_raw(message_id, payload, header)?;
+
+        self.write(bytes).await
+    }
+
+    /// Registers a matcher for a frame whose message the dialect does not carry.
+    ///
+    /// The matcher is registered *before* the request that triggers it is sent: a vehicle on
+    /// a fast link can answer before the request has even left the session.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session has closed.
+    pub async fn begin_raw<F>(&self, message_id: u32, matcher: F) -> Result<RawHandle, LinkError>
+    where
+        F: Fn(&RawMessage) -> bool + Send + 'static,
+    {
+        let (respond, wait) = oneshot::channel();
+        self.commands
+            .send(Command::RequestRaw {
+                message_id,
+                matcher: Box::new(matcher),
+                respond,
+            })
+            .await
+            .map_err(|_| LinkError::SessionClosed)?;
+
+        Ok(RawHandle { wait })
+    }
+
+    /// Sends a message the dialect does not carry and waits for the frame that answers it.
+    ///
+    /// Like [`Session::exchange`], the answer is waited for on a matcher registered before
+    /// the write, and the payload is written a second time when the first goes unanswered
+    /// by the middle of the timeout.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes, the write fails, or the timeout expires.
+    pub(crate) async fn exchange_raw<F>(
+        &self,
+        timeout: Duration,
+        message_id: u32,
+        payload: &[u8],
+        matcher: F,
+    ) -> Result<RawMessage, LinkError>
+    where
+        F: Fn(&RawMessage) -> bool + Send + 'static,
+    {
+        let mut handle = self.begin_raw(message_id, matcher).await?;
+
+        let start = Instant::now();
+
+        let mut attempt = 0u8;
+        loop {
+            self.write_raw(message_id, payload).await?;
+            attempt += 1;
+
+            // The first attempt gets half of the budget, the retry the other half.
+            let share = if attempt == 1 { timeout / 2 } else { timeout };
+            let budget = share.saturating_sub(start.elapsed());
+
+            match handle.wait_for(budget).await {
+                Ok(message) => return Ok(message),
+                Err(LinkError::Timeout(_)) if attempt < 2 => continue,
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
     /// Sends a message and waits for the answer that completes the exchange.
     ///
     /// The matcher is registered before the message is written, because a vehicle on a
@@ -780,6 +954,44 @@ impl Session {
     /// Stops the session.
     pub async fn stop(&self) {
         let _ = self.commands.send(Command::Stop).await;
+    }
+}
+
+/// A registered matcher, waiting for a frame whose message the dialect does not carry.
+///
+/// Created by [`Session::begin_raw`]. Registering the matcher before the request is sent
+/// is what stops a fast answer from being lost.
+#[derive(Debug)]
+pub struct RawHandle {
+    wait: oneshot::Receiver<Result<RawMessage, LinkError>>,
+}
+
+impl RawHandle {
+    /// Waits for the message.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes before the message arrives, or when the
+    /// timeout expires.
+    pub async fn wait(mut self, timeout: Duration) -> Result<RawMessage, LinkError> {
+        self.wait_for(timeout).await
+    }
+
+    /// Waits for the message, for at most the given budget.
+    ///
+    /// The handle is **not** consumed, so a transaction that re-sends its request can keep
+    /// waiting on the same matcher.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session closes before the message arrives, or when the
+    /// budget runs out.
+    pub async fn wait_for(&mut self, budget: Duration) -> Result<RawMessage, LinkError> {
+        match tokio::time::timeout(budget, &mut self.wait).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(LinkError::SessionClosed),
+            Err(_) => Err(LinkError::Timeout(budget)),
+        }
     }
 }
 
@@ -878,6 +1090,13 @@ struct PendingRequest {
     respond: oneshot::Sender<Result<ReceivedMessage, LinkError>>,
 }
 
+/// A pending request waiting for a frame whose message the dialect does not carry.
+struct PendingRaw {
+    message_id: u32,
+    matcher: RawMatcher,
+    respond: oneshot::Sender<Result<RawMessage, LinkError>>,
+}
+
 /// A pending request that collects messages until it is complete.
 struct PendingCollection {
     matcher: Matcher,
@@ -900,6 +1119,7 @@ async fn run_reader(
 
     let mut context = SessionContext::default();
     let mut pending: Vec<PendingRequest> = Vec::new();
+    let mut pending_raw: Vec<PendingRaw> = Vec::new();
     let mut collections: Vec<PendingCollection> = Vec::new();
 
     let mut last_announce = Instant::now();
@@ -930,6 +1150,17 @@ async fn run_reader(
                 }
                 Command::Request { matcher, respond } => {
                     pending.push(PendingRequest { matcher, respond });
+                }
+                Command::RequestRaw {
+                    message_id,
+                    matcher,
+                    respond,
+                } => {
+                    pending_raw.push(PendingRaw {
+                        message_id,
+                        matcher,
+                        respond,
+                    });
                 }
                 Command::Collect {
                     matcher,
@@ -994,6 +1225,9 @@ async fn run_reader(
                 if !pending.is_empty() {
                     deliver(&mut pending, &frames);
                 }
+                if !pending_raw.is_empty() {
+                    deliver_raw(&mut pending_raw, &frames);
+                }
                 if !collections.is_empty() {
                     deliver_collections(&mut collections, &frames);
                 }
@@ -1052,6 +1286,43 @@ fn deliver(pending: &mut Vec<PendingRequest>, frames: &[Frame]) {
             // The caller has given up — it timed out, or the session is shutting down.
             // Keeping the matcher would leak it, and every message that arrives would be
             // tested against a predicate nobody is waiting for.
+            None if request.respond.is_closed() => {}
+            None => remaining.push(request),
+        }
+    }
+
+    *pending = remaining;
+}
+
+/// Delivers frames whose messages the dialect does not carry.
+fn deliver_raw(pending: &mut Vec<PendingRaw>, frames: &[Frame]) {
+    let mut remaining = Vec::with_capacity(pending.len());
+
+    for request in pending.drain(..) {
+        let mut matched = None;
+
+        for frame in frames {
+            if frame.message_id != request.message_id {
+                continue;
+            }
+
+            let raw = RawMessage {
+                system_id: frame.system_id,
+                component_id: frame.component_id,
+                message_id: frame.message_id,
+                payload: frame.payload.clone(),
+            };
+
+            if (request.matcher)(&raw) {
+                matched = Some(raw);
+                break;
+            }
+        }
+
+        match matched {
+            Some(raw) => {
+                let _ = request.respond.send(Ok(raw));
+            }
             None if request.respond.is_closed() => {}
             None => remaining.push(request),
         }

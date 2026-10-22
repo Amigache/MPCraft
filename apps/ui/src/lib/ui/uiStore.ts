@@ -273,6 +273,15 @@ export interface UiStore {
    * operator asks for it.
    */
   readonly spline: boolean;
+  /**
+   * Whether the plan is carried to the vehicle in the file it keeps it in.
+   *
+   * A plan usually travels with the mission protocol, and the vehicle asks for each
+   * item. It can also travel in the file the vehicle keeps it in, over the file
+   * transfer protocol, which is the way upstream offers it — the `chk_usemavftp` box
+   * of the plan editor.
+   */
+  readonly mavftp: boolean;
   /** The theme the interface is drawn in. */
   readonly theme: Theme;
   /** The system of units the operator reads the measurements in. */
@@ -333,6 +342,8 @@ export interface UiStore {
   readonly setTheme: (theme: Theme) => void;
   /** Chooses whether the path of the plan is drawn as a smooth curve. */
   readonly setSpline: (spline: boolean) => void;
+  /** Sets whether the plan is carried in the file the vehicle keeps it in. */
+  readonly setMavftp: (mavftp: boolean) => void;
   /** Whether the sheet of the logs is open over the window. */
   readonly logOpen: boolean;
   /** Opens the sheet of the logs. */
@@ -369,6 +380,12 @@ export interface UiStore {
   readonly showFirmware: () => void;
   /** Closes the sheet of the firmware. */
   readonly hideFirmware: () => void;
+  /** Whether the sheet of the files of the vehicle is open over the window. */
+  readonly filesOpen: boolean;
+  /** Opens the sheet of the files of the vehicle. */
+  readonly showFiles: () => void;
+  /** Closes the sheet of the files of the vehicle. */
+  readonly hideFiles: () => void;
   /** Opens the sheet of parameters. */
   readonly showParameters: () => void;
   /**
@@ -410,6 +427,7 @@ export const useUiStore = create<UiStore>((set) => ({
   units: readText("mpcraft.units", DEFAULT_UNITS) as UnitSystem,
   theme: readText("mpcraft.theme", DEFAULT_THEME) as Theme,
   spline: readFlag("mpcraft.spline", false),
+  mavftp: readFlag("mpcraft.mavftp", false),
   parametersOpen: false,
   parameterGroup: null,
   parameterPrefix: null,
@@ -418,6 +436,7 @@ export const useUiStore = create<UiStore>((set) => ({
   terrainOpen: false,
   passthroughOpen: false,
   firmwareOpen: false,
+  filesOpen: false,
   logOpen: false,
   parameterGroups: [],
 
@@ -498,6 +517,11 @@ export const useUiStore = create<UiStore>((set) => ({
     set({ spline });
   },
 
+  setMavftp: (mavftp) => {
+    writeFlag("mpcraft.mavftp", mavftp);
+    set({ mavftp });
+  },
+
   // The sheet of parameters is not remembered between runs: it is a thing the operator
   // opens, not a place the window is left in.
   showParameters: () => set({ parametersOpen: true }),
@@ -517,6 +541,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showTerrain: () => set({ terrainOpen: true }),
   showPassthrough: () => set({ passthroughOpen: true }),
   showFirmware: () => set({ firmwareOpen: true }),
+  showFiles: () => set({ filesOpen: true }),
 
   showLog: () => set({ logOpen: true }),
 
@@ -527,6 +552,7 @@ export const useUiStore = create<UiStore>((set) => ({
   hideTerrain: () => set({ terrainOpen: false }),
   hidePassthrough: () => set({ passthroughOpen: false }),
   hideFirmware: () => set({ firmwareOpen: false }),
+  hideFiles: () => set({ filesOpen: false }),
 
   loadParameterGroups: async () => {
     try {

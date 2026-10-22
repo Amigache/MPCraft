@@ -1,10 +1,12 @@
 import { create } from "zustand";
 
 import {
+  downloadMissionFtp,
   exportPlan,
   importPlan,
   normaliseError,
   uploadMission,
+  uploadMissionFtp,
   uploadMissionPartial,
   validateMission,
 } from "../ipc/bridge";
@@ -27,6 +29,7 @@ import {
   sameItems,
 } from "./planItems";
 import { usePlanStore } from "./planStore";
+import { useUiStore } from "../ui/uiStore";
 import { circlePoints } from "./circle";
 import { surveyPoints } from "./survey";
 
@@ -588,7 +591,14 @@ export const usePlanEditorStore = create<PlanEditorStore>((set, get) => ({
     if (pending.kind === "upload") {
       const items = get().draft;
       try {
-        await uploadMission(items, kindOf());
+        // The plan either travels with the mission protocol, or in the file the vehicle
+        // keeps it in. The operator says which, the way upstream does with its box.
+        if (useUiStore.getState().mavftp) {
+          await uploadMissionFtp(items, kindOf());
+        } else {
+          await uploadMission(items, kindOf());
+        }
+
         set({
           busy: false,
           baseline: items,
@@ -675,6 +685,31 @@ async function readFromVehicle(): Promise<void> {
   const kind = kindOf();
 
   usePlanEditorStore.setState({ busy: true, error: null });
+
+  // The plan is either asked for with the mission protocol, or read from the file the
+  // vehicle keeps it in. The operator says which, the way upstream does with its box.
+  if (useUiStore.getState().mavftp) {
+    try {
+      const plan = await downloadMissionFtp(kind);
+
+      usePlanEditorStore.setState({
+        busy: false,
+        draft: renumber(plan.items),
+        baseline: plan.items,
+        selected: null,
+        notice: `The plan was read from the file of the vehicle: ${plan.items.length} item${
+          plan.items.length === 1 ? "" : "s"
+        }.`,
+      });
+    } catch (cause) {
+      usePlanEditorStore.setState({
+        busy: false,
+        error: normaliseError(cause),
+      });
+    }
+
+    return;
+  }
 
   const plan = await usePlanStore.getState().download(kind);
   if (plan === null) {

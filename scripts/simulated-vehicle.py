@@ -46,6 +46,7 @@ FORMATS = {
     "char50": "<50s",
     "char70": "<70s",
     "char90": "<90s",
+    "char251": "<251s",
 }
 
 CLASSES = {
@@ -55,6 +56,7 @@ CLASSES = {
     "char50": 1,
     "char70": 1,
     "char90": 1,
+    "char251": 1,
     "u16": 2,
     "i16": 2,
     "u32": 4,
@@ -107,11 +109,155 @@ CMD_PREFLIGHT_CALIBRATION = 241
 CMD_COMPONENT_ARM_DISARM = 400
 CMD_GET_HOME_POSITION = 410
 CMD_DO_SET_HOME = 179
+# The command ArduPilot gives to itself: its number is larger than the ones the
+# protocol library knows.
+CMD_FLASH_BOOTLOADER = 42650
 
 # The messages of the home.
 HOME_POSITION = 242
 SET_HOME_POSITION = 243
 MISSION_WRITE_PARTIAL_LIST = 38
+
+# The opcodes of the file transfer protocol.
+FTP_NONE = 0
+FTP_TERMINATE_SESSION = 1
+FTP_RESET_SESSIONS = 2
+FTP_LIST_DIRECTORY = 3
+FTP_OPEN_FILE_RO = 4
+FTP_READ_FILE = 5
+FTP_CREATE_FILE = 6
+FTP_WRITE_FILE = 7
+FTP_LIST_DIRECTORY_WITH_TIME = 16
+FTP_ACK = 128
+FTP_NAK = 129
+
+# The files the vehicle holds, as the file transfer protocol describes them: the kind
+# of the entry, the name, and how many bytes it has.
+VEHICLE_FILES = {
+    "/": [
+        ("D", "logs", 0),
+        ("D", "scripts", 0),
+        ("D", "@MISSION", 0),
+        ("F", "boot.txt", 128),
+        ("F", "setup.parm", 64),
+    ],
+    "/logs": [
+        ("F", "2024-01-01.bin", 4096),
+        ("F", "2024-02-02.bin", 8192),
+    ],
+    "/scripts": [
+        ("F", "init.lua", 256),
+    ],
+    "/@MISSION": [
+        ("F", "mission.dat", 0),
+        ("F", "fence.dat", 0),
+        ("F", "rally.dat", 0),
+    ],
+}
+
+# The bytes of the files the vehicle holds.
+VEHICLE_FILE_BYTES = {
+    "/boot.txt": b"MPCraft simulated vehicle\r\n",
+    "/setup.parm": b"PARAM,1,2\r\n",
+    "/logs/2024-01-01.bin": bytes(index % 251 for index in range(4096)),
+    "/logs/2024-02-02.bin": bytes(index % 251 for index in range(8192)),
+    "/scripts/init.lua": b"-- the script of the vehicle\r\n",
+}
+
+# The number that says a file holds a plan.
+MISSION_MAGIC = 0x763D
+
+# The length of the header of a file of a plan.
+MISSION_HEADER_LEN = 12
+
+# The length of one item of a file of a plan: the payload of a MISSION_ITEM_INT.
+MISSION_ITEM_LEN = 38
+
+
+def pack_plan(mission_type, items):
+    """Packs a plan into the file the vehicle keeps it in.
+
+    The file is a header of twelve bytes and the items, each one the payload of a
+    MISSION_ITEM_INT message.
+    """
+    header = bytearray(MISSION_HEADER_LEN)
+    header[0:2] = MISSION_MAGIC.to_bytes(2, "little")
+    header[2:4] = mission_type.to_bytes(2, "little")
+    header[4:6] = (0).to_bytes(2, "little")
+    header[6:8] = (0).to_bytes(2, "little")
+    header[8:10] = len(items).to_bytes(2, "little")
+    header[10:12] = (0).to_bytes(2, "little")
+
+    body = b""
+
+    for index, item in enumerate(items):
+        body += struct.pack(
+            "<ffffiifHHBBBBB",
+            item["param1"],
+            item["param2"],
+            item["param3"],
+            item["param4"],
+            int(item["x"] * 1e7),
+            int(item["y"] * 1e7),
+            item["z"],
+            index,
+            item["command"],
+            0,
+            0,
+            item["frame"],
+            item["current"],
+            item["autocontinue"],
+        ) + bytes([mission_type])
+
+    return bytes(header) + body
+
+
+def normalise_path(path):
+    """The path of a file, with the bar at the front and without one at the end."""
+    if not path.startswith("/"):
+        path = "/" + path
+
+    if len(path) > 1:
+        path = path.rstrip("/")
+
+    return path
+
+
+def unpack_plan(data):
+    """Reads a plan from the file the vehicle keeps it in."""
+    magic = int.from_bytes(data[0:2], "little")
+    if magic != MISSION_MAGIC:
+        raise ValueError("the file does not hold a plan")
+
+    mission_type = int.from_bytes(data[2:4], "little")
+    count = int.from_bytes(data[8:10], "little")
+
+    items = []
+
+    for index in range(count):
+        start = MISSION_HEADER_LEN + index * MISSION_ITEM_LEN
+        chunk = data[start : start + MISSION_ITEM_LEN]
+        fields = struct.unpack("<ffffiifHHBBBBB", chunk[:37])
+
+        items.append(
+            {
+                "seq": index,
+                "command": fields[8],
+                "frame": fields[11],
+                "param1": fields[0],
+                "param2": fields[1],
+                "param3": fields[2],
+                "param4": fields[3],
+                "x": fields[4] / 1e7,
+                "y": fields[5] / 1e7,
+                "z": fields[6],
+                "current": fields[12],
+                "autocontinue": fields[13],
+            }
+        )
+
+    return mission_type, items
+
 
 
 class Message:
@@ -238,6 +384,17 @@ MESSAGES = {
             ("target_system", "u8"),
             ("target_component", "u8"),
         ],
+    ),
+    110: message(
+        110,
+        "FILE_TRANSFER_PROTOCOL",
+        84,
+        [
+            ("target_network", "u8"),
+            ("target_system", "u8"),
+            ("target_component", "u8"),
+        ],
+        [("payload", "char251")],
     ),
     126: message(
         126,
@@ -973,6 +1130,12 @@ class Vehicle:
         # Whether the vehicle wants the integer form of the mission items.
         self.mission_int = mission_int
 
+        # The files that are open for reading, by the session of the transfer.
+        self.ftp_sessions = {}
+
+        # The files that are being written, by the session of the transfer.
+        self.ftp_writes = {}
+
         # The parameters, by name.
         self.parameters = {name: value for name, value, _ in PARAMETERS}
         self.parameter_types = {name: kind for name, _, kind in PARAMETERS}
@@ -1475,7 +1638,7 @@ class Vehicle:
         """Sends a message to the ground station.
 
         A message that cannot be built is a mistake in the vehicle, and it is said out
-        loud — but the vehicle keeps flying: one broken message must not take the whole
+        loud â€” but the vehicle keeps flying: one broken message must not take the whole
         simulation down, or the mistake goes unnoticed for as long as nobody looks at
         the log.
         """
@@ -1554,6 +1717,12 @@ class Vehicle:
 
         if message_id not in MESSAGES:
             # A message this vehicle does not know about is ignored.
+            return
+
+        if message_id == 110:
+            # The payload of the file transfer is binary, so it is read as bytes and
+            # not as text.
+            self.on_file_transfer_protocol(payload)
             return
 
         values = decode(message_id, payload)
@@ -1868,6 +2037,184 @@ class Vehicle:
             },
         )
 
+    # ---------------------------------------------------------- file transfer
+
+    def ftp_answer(self, seq, opcode, session=0, data=b"", offset=0, nak=False):
+        """Sends the answer of the file transfer protocol.
+
+        The answer carries the number of the request plus one, which is how the ground
+        station tells it from the answer to another request.
+        """
+        header = bytearray(12)
+        header[0] = (seq + 1) & 0xFF
+        header[1] = ((seq + 1) >> 8) & 0xFF
+        header[2] = session
+        header[3] = FTP_NAK if nak else FTP_ACK
+        header[4] = len(data)
+        header[5] = opcode
+        header[8:12] = offset.to_bytes(4, "little")
+
+        self.send(110, {"payload": bytes(header) + data})
+
+    def on_file_transfer_protocol(self, payload):
+        """The ground station is asking for the files of the vehicle."""
+        raw = payload.ljust(254, b"\x00")[:254]
+
+        # The first three bytes are the network, the system and the component the
+        # request is for. The rest is the payload of the transfer.
+        body = raw[3:]
+
+        seq = int.from_bytes(body[0:2], "little")
+        session = body[2]
+        opcode = body[3]
+        size = body[4]
+        offset = int.from_bytes(body[8:12], "little")
+        data = body[12 : 12 + min(size, 239)]
+
+        print(
+            f"the file transfer asked for the opcode {opcode} (session {session}, "
+            f"offset {offset}, {size} bytes)",
+            flush=True,
+        )
+
+        if opcode in (FTP_LIST_DIRECTORY, FTP_LIST_DIRECTORY_WITH_TIME):
+            self.ftp_list(seq, opcode, data, offset)
+        elif opcode == FTP_OPEN_FILE_RO:
+            self.ftp_open(seq, opcode, data)
+        elif opcode == FTP_READ_FILE:
+            self.ftp_read(seq, opcode, session, offset, size)
+        elif opcode == FTP_CREATE_FILE:
+            self.ftp_create(seq, opcode, data)
+        elif opcode == FTP_WRITE_FILE:
+            self.ftp_write(seq, opcode, session, offset, size, data)
+        elif opcode == FTP_TERMINATE_SESSION:
+            self.ftp_finish(session)
+            self.ftp_answer(seq, opcode, session=session)
+        elif opcode == FTP_RESET_SESSIONS:
+            self.ftp_answer(seq, opcode, session=session)
+        elif opcode == FTP_NONE:
+            self.ftp_answer(seq, opcode, session=session)
+        else:
+            # The vehicle does not know the command.
+            self.ftp_answer(seq, opcode, session=session, nak=True, data=bytes([7]))
+
+    def ftp_list(self, seq, opcode, data, offset):
+        """The listing of a folder."""
+        folder = normalise_path(
+            data.split(b"\x00")[0].decode("utf-8", "replace")
+        )
+
+        entries = VEHICLE_FILES.get(folder)
+        if entries is None:
+            self.ftp_answer(seq, opcode, nak=True, data=bytes([10]))
+            return
+
+        withtime = opcode == FTP_LIST_DIRECTORY_WITH_TIME
+
+        # The offset of the request says how many entries have already been read.
+        entries = entries[offset:]
+
+        body = b""
+        for kind, name, size in entries:
+            if kind == "F":
+                # The plan of the vehicle is packed when it is asked for, so its size is
+                # the one of the file that holds it.
+                content = self.file_bytes(f"{folder}/{name}")
+                if content is not None:
+                    size = len(content)
+
+            if withtime:
+                body += f"{kind}{name}\t{size}\t1700000000\0".encode("utf-8")
+            elif kind == "F":
+                body += f"F{name}\t{size}\0".encode("utf-8")
+            else:
+                body += f"D{name}\0".encode("utf-8")
+
+        self.ftp_answer(seq, opcode, data=body[:239], offset=offset)
+
+    def ftp_open(self, seq, opcode, data):
+        """A file is opened for reading."""
+        path = normalise_path(data.split(b"\x00")[0].decode("utf-8", "replace"))
+
+        content = self.file_bytes(path)
+        if content is None:
+            self.ftp_answer(seq, opcode, nak=True, data=bytes([10]))
+            return
+
+        session = len(self.ftp_sessions) + 1
+        self.ftp_sessions[session] = path
+
+        self.ftp_answer(
+            seq, opcode, session=session, data=len(content).to_bytes(4, "little")
+        )
+
+    def file_bytes(self, path):
+        """The bytes of a file the vehicle holds."""
+        path = normalise_path(path)
+
+        if path == "/@MISSION/mission.dat":
+            return pack_plan(MISSION_MISSION, self.plans[MISSION_MISSION])
+        if path == "/@MISSION/fence.dat":
+            return pack_plan(MISSION_FENCE, self.plans[MISSION_FENCE])
+        if path == "/@MISSION/rally.dat":
+            return pack_plan(MISSION_RALLY, self.plans[MISSION_RALLY])
+
+        return VEHICLE_FILE_BYTES.get(path)
+
+    def ftp_read(self, seq, opcode, session, offset, size):
+        """The bytes of a file that is open."""
+        path = self.ftp_sessions.get(session)
+        if path is None:
+            self.ftp_answer(seq, opcode, session=session, nak=True, data=bytes([4]))
+            return
+
+        content = self.file_bytes(path) or b""
+        chunk = content[offset : offset + min(size, 239)]
+
+        self.ftp_answer(seq, opcode, session=session, data=chunk, offset=offset)
+
+    def ftp_create(self, seq, opcode, data):
+        """A file is created for writing."""
+        path = normalise_path(data.split(b"\x00")[0].decode("utf-8", "replace"))
+
+        session = len(self.ftp_sessions) + 1
+        self.ftp_sessions[session] = path
+        self.ftp_writes[session] = bytearray()
+
+        self.ftp_answer(seq, opcode, session=session)
+
+    def ftp_write(self, seq, opcode, session, offset, size, data):
+        """A block of a file that is being written."""
+        if session not in self.ftp_writes:
+            self.ftp_answer(seq, opcode, session=session, nak=True, data=bytes([4]))
+            return
+
+        block = data[: min(size, 239)]
+        self.ftp_writes[session].extend(block)
+
+        self.ftp_answer(seq, opcode, session=session, offset=offset + len(block))
+
+    def ftp_finish(self, session):
+        """A file that was written is put in place."""
+        path = self.ftp_sessions.get(session)
+        content = bytes(self.ftp_writes.pop(session, b""))
+
+        if path is None or not content:
+            return
+
+        if path.startswith("/@MISSION/"):
+            try:
+                mission_type, items = unpack_plan(content)
+            except ValueError:
+                print(f"the file {path} does not hold a plan", flush=True)
+                return
+
+            self.plans[mission_type] = items
+            print(f"the plan was written to {path}", flush=True)
+            return
+
+        VEHICLE_FILE_BYTES[path] = content
+
     def on_serial_control(self, values):
         """The vehicle answers a passthrough with the bytes its port had."""
         answer = b"MPCraft says hello\r\n"
@@ -1944,6 +2291,8 @@ class Vehicle:
         """The ground station gives a command."""
         command = values.get("command", 0)
 
+        print(f"the command {command} was asked for", flush=True)
+
         if command == CMD_COMPONENT_ARM_DISARM:
             # The first parameter says which way: one to arm, zero to disarm.
             self.armed = values.get("param1", 0.0) >= 0.5
@@ -2001,6 +2350,13 @@ class Vehicle:
             # The first parameter is the base mode and the second is the custom mode.
             self.mode = int(values.get("param2", 0.0))
             self.send_status_text(f"the mode is now {self.mode}")
+            self.acknowledge(command, RESULT_ACCEPTED)
+            return
+
+        if command == CMD_FLASH_BOOTLOADER:
+            # The command ArduPilot gives to itself: its number is larger than the
+            # ones the protocol library knows, so it travels the raw way.
+            self.send_status_text("restarting into the bootloader")
             self.acknowledge(command, RESULT_ACCEPTED)
             return
 

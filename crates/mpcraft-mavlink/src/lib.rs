@@ -35,6 +35,7 @@
 
 pub mod dialect;
 pub mod error;
+pub mod foreign;
 pub mod frame;
 pub mod inspector;
 pub mod signing;

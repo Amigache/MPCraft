@@ -64,7 +64,9 @@ pub fn extra_crc(message_id: u32) -> Option<u8> {
         .iter()
         .any(|(_, id)| *id == message_id)
     {
-        return None;
+        // The messages the dialect does not carry, but the vehicle speaks, have their
+        // seed written down with them: the checksum of their frames is as real as any.
+        return crate::foreign::foreign(message_id).map(|message| message.crc_extra);
     }
     Some(Dialect::extra_crc(message_id))
 }
@@ -79,10 +81,15 @@ pub fn extra_crc(message_id: u32) -> Option<u8> {
 /// ```
 #[must_use]
 pub fn message_name(message_id: u32) -> Option<&'static str> {
-    Dialect::all_messages()
+    if let Some(name) = Dialect::all_messages()
         .iter()
         .find(|(_, id)| *id == message_id)
         .map(|(name, _)| *name)
+    {
+        return Some(name);
+    }
+
+    crate::foreign::foreign(message_id).map(|message| message.name)
 }
 
 /// Returns the message id of a canonical message name, if the dialect knows it.
@@ -96,6 +103,7 @@ pub fn message_name(message_id: u32) -> Option<&'static str> {
 #[must_use]
 pub fn message_id(name: &str) -> Option<u32> {
     Dialect::message_id_from_name(name)
+        .or_else(|| crate::foreign::foreign_by_name(name).map(|message| message.id))
 }
 
 /// The number of messages defined in the compiled dialect.

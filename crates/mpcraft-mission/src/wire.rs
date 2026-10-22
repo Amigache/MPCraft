@@ -201,7 +201,7 @@ impl MissionItem {
 ///
 /// The frames that matter for a plan are the global ones. The `_INT` variants are deprecated
 /// synonyms and are mapped onto their modern equivalent.
-fn frame_of(frame: u32) -> MavFrame {
+pub(crate) fn frame_of(frame: u32) -> MavFrame {
     match frame {
         0 => MavFrame::MAV_FRAME_GLOBAL,
         1 => MavFrame::MAV_FRAME_LOCAL_NED,

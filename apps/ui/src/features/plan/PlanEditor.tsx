@@ -108,6 +108,8 @@ export function PlanEditor() {
 
   const spline = useUiStore((state) => state.spline);
   const setSpline = useUiStore((state) => state.setSpline);
+  const mavftp = useUiStore((state) => state.mavftp);
+  const setMavftp = useUiStore((state) => state.setMavftp);
   const askUpload = usePlanEditorStore((state) => state.askUpload);
   const askDownload = usePlanEditorStore((state) => state.askDownload);
   const uploadPartial = usePlanEditorStore((state) => state.uploadPartial);
@@ -445,6 +447,18 @@ export function PlanEditor() {
               }}
             />
             <span>Spline</span>
+          </label>
+
+          <label className={styles.spline}>
+            <input
+              type="checkbox"
+              checked={mavftp}
+              aria-label="Carry the plan in the file the vehicle keeps it in"
+              onChange={(event) => {
+                setMavftp(event.target.checked);
+              }}
+            />
+            <span>MAVFTP</span>
           </label>
         </div>
 

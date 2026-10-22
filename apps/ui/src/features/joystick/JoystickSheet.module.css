@@ -10,7 +10,9 @@
   display: flex;
   inset: 0;
   justify-content: center;
-  padding: var(--space-3);
+  /* The sheet starts under the bar of the menus, so that its own header does not
+     sit over the bar. */
+  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3) var(--space-3);
   position: fixed;
   z-index: 60;
 }

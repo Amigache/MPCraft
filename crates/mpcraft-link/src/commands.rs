@@ -30,7 +30,7 @@
 //! `MAV_RESULT_IN_PROGRESS` first, and with the final result later. The transaction waits
 //! for the final result; the interim one is not an answer.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 // `SET_MODE` is deprecated in favour of `MAV_CMD_DO_SET_MODE`, but the legacy message
 // carries the custom mode exactly — as a `u32`, without the float rounding the command
@@ -48,6 +48,9 @@ use crate::vehicle::VehicleId;
 
 /// The message id of `COMMAND_LONG`.
 pub const COMMAND_LONG_ID: u32 = 76;
+
+/// The command to reboot into the bootloader.
+pub const MAV_CMD_FLASH_BOOTLOADER: u16 = 42650;
 
 /// The message id of `COMMAND_INT`.
 pub const COMMAND_INT_ID: u32 = 75;
@@ -91,6 +94,17 @@ pub enum CommandError {
         /// The result the vehicle reported.
         result: MavResult,
     },
+    /// The vehicle understood the command and refused it.
+    ///
+    /// The command is one whose number the enumeration of the protocol library does not
+    /// carry — ArduPilot gives commands to itself with numbers above the ones the
+    /// library knows — so the number itself is what is said.
+    RefusedRaw {
+        /// The number of the command that was sent.
+        command: u32,
+        /// The result the vehicle reported.
+        result: MavResult,
+    },
 }
 
 impl std::fmt::Display for CommandError {
@@ -98,6 +112,9 @@ impl std::fmt::Display for CommandError {
         match self {
             Self::Refused { command, result } => {
                 write!(f, "the vehicle refused {command:?}: {result:?}")
+            }
+            Self::RefusedRaw { command, result } => {
+                write!(f, "the vehicle refused the command {command}: {result:?}")
             }
         }
     }
@@ -521,6 +538,77 @@ impl Session {
         .await
     }
 
+    /// Reboots a vehicle into the bootloader so it can be flashed.
+    ///
+    /// The command is sent as a raw `COMMAND_LONG` because the value of
+    /// `MAV_CMD_FLASH_BOOTLOADER` is larger than the command ids the generated bindings
+    /// carry — the enumeration of the protocol library stops at 32000, and this command is
+    /// 42650. The vehicle answers with `COMMAND_ACK`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn flash_bootloader(
+        &self,
+        vehicle: VehicleId,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        let payload_base = encode_command_long(
+            vehicle.system_id,
+            vehicle.component_id,
+            MAV_CMD_FLASH_BOOTLOADER as u32,
+            0,
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        );
+
+        let mut collector = self
+            .begin_collect(
+                move |message: &ReceivedMessage| is_acknowledgement_of(message, vehicle),
+                |messages: &[ReceivedMessage]| acknowledgement_result_raw(messages).is_some(),
+            )
+            .await?;
+
+        let start = Instant::now();
+        let mut attempt: u8 = 0;
+        loop {
+            let mut payload = payload_base;
+            payload[32] = attempt;
+            self.write_raw(COMMAND_LONG_ID, &payload).await?;
+            attempt += 1;
+
+            // The first attempt gets half of the budget, the retry the other half.
+            let share = if attempt == 1 { timeout / 2 } else { timeout };
+            let budget = share.saturating_sub(start.elapsed());
+
+            match collector.wait_for(budget).await {
+                Ok(messages) => {
+                    if let Some(result) = acknowledgement_result_raw(&messages) {
+                        if result == MavResult::MAV_RESULT_ACCEPTED {
+                            return Ok(());
+                        }
+
+                        if result == MavResult::MAV_RESULT_IN_PROGRESS {
+                            continue;
+                        }
+
+                        return Err(LinkError::from(CommandError::RefusedRaw {
+                            command: MAV_CMD_FLASH_BOOTLOADER as u32,
+                            result,
+                        }));
+                    }
+
+                    if attempt < 2 {
+                        continue;
+                    }
+
+                    return Err(LinkError::Timeout(timeout));
+                }
+                Err(LinkError::Timeout(_)) if attempt < 2 => continue,
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
     /// Writes bytes to a serial port of the vehicle.
     ///
     /// The vehicle has several serial ports ? the telemetry ones, the ones of the GPS ? and
@@ -685,6 +773,52 @@ fn acknowledgement_result(messages: &[ReceivedMessage], command: MavCmd) -> Opti
         })
 }
 
+/// Encodes a `COMMAND_LONG` payload for a command id the generated bindings cannot hold.
+///
+/// The layout is the one of the protocol: seven parameters as little endian floats, the
+/// command as a 16-bit little endian number, and the vehicle the command is for.
+fn encode_command_long(
+    target_system: u8,
+    target_component: u8,
+    command: u32,
+    confirmation: u8,
+    params: [f32; 7],
+) -> [u8; 33] {
+    let mut payload = [0_u8; 33];
+
+    for (index, param) in params.iter().enumerate() {
+        payload[index * 4..(index + 1) * 4].copy_from_slice(&param.to_le_bytes());
+    }
+
+    payload[28] = (command & 0xFF) as u8;
+    payload[29] = ((command >> 8) & 0xFF) as u8;
+    payload[30] = target_system;
+    payload[31] = target_component;
+    payload[32] = confirmation;
+
+    payload
+}
+
+/// The result of the last acknowledgement of a raw command.
+///
+/// The generated `COMMAND_ACK` carries the command as an enumeration that stops short of
+/// the values ArduPilot uses for its own commands, so the id of the command cannot be
+/// compared here. The acknowledgement is matched on the vehicle instead — the same way
+/// the ordinary commands are — and the result is taken from the last one that is not
+/// interim.
+fn acknowledgement_result_raw(messages: &[ReceivedMessage]) -> Option<MavResult> {
+    messages
+        .iter()
+        .rev()
+        .find_map(|message| match &message.message {
+            MavMessage::COMMAND_ACK(ack) => match ack.result {
+                MavResult::MAV_RESULT_IN_PROGRESS => None,
+                result => Some(result),
+            },
+            _ => None,
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -702,6 +836,13 @@ mod tests {
                 ..Default::default()
             }),
         }
+    }
+
+    #[test]
+    fn command_long_raw_encodes_the_large_command_id() {
+        let payload = encode_command_long(1, 1, 42650, 0, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        assert_eq!(payload[28], (42650 & 0xFF) as u8);
+        assert_eq!(payload[29], ((42650 >> 8) & 0xFF) as u8);
     }
 
     #[test]

@@ -58,6 +58,28 @@ export interface PassthroughData {
   readonly data: readonly number[];
 }
 
+/** One file the vehicle holds, as the file transfer protocol describes it. */
+export interface FtpEntry {
+  /** The name of the file, without the folder it is in. */
+  readonly name: string;
+  /** The whole path of the file. */
+  readonly path: string;
+  /** How many bytes the file has, or -1 when the vehicle did not say. */
+  readonly size: number;
+  /** Whether the entry is a folder. */
+  readonly isDirectory: boolean;
+}
+
+/** A file the vehicle holds: its name, its size and its bytes. */
+export interface FtpFile {
+  /** The path of the file. */
+  readonly path: string;
+  /** How many bytes the file has. */
+  readonly size: number;
+  /** The bytes of the file. */
+  readonly content: readonly number[];
+}
+
 /** One vehicle of the manifest of the firmware. */
 export interface FirmwareBoard {
   readonly name: string;

@@ -8,7 +8,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mpcraft_link::{
-    Calibration, HomeRequest, PartialUpdate, PartialUpdatePolicy, Session, VehicleId,
+    Calibration, FtpClient, FtpEntry, HomeRequest, PartialUpdate, PartialUpdatePolicy, Session,
+    VehicleId,
 };
 use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionItem, MissionType, Plan};
@@ -30,6 +31,12 @@ const HOME_TIMEOUT: Duration = Duration::from_millis(700);
 /// A plan is many messages, and the vehicle asks for them one at a time, so the
 /// allowance is generous.
 const PLAN_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How many bytes are asked for at a time when a file is read over the file transfer.
+///
+/// The payload of a message carries 239 bytes of data, and fewer are asked for so that
+/// the answer fits in one frame.
+const FTP_BLOCK: u8 = 230;
 
 impl SessionSupervisor {
     /// The session that is open, if there is one.
@@ -358,6 +365,104 @@ impl SessionSupervisor {
         let session = self.open_session()?;
 
         session.reboot(vehicle).await?;
+
+        Ok(())
+    }
+
+    /// Reboots the vehicle into its bootloader, so that a firmware can be written to it.
+    ///
+    /// The command is one ArduPilot gives to itself — `MAV_CMD_FLASH_BOOTLOADER`, whose
+    /// number is larger than the commands the protocol library knows — so it travels the
+    /// raw way.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the command,
+    /// or when the vehicle does not answer.
+    pub async fn flash_bootloader(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session.flash_bootloader(vehicle, COMMAND_TIMEOUT).await?;
+
+        Ok(())
+    }
+
+    /// Lists the files the vehicle holds, over the file transfer protocol.
+    ///
+    /// The vehicle answers with the entries of the folder: the name of each one, whether
+    /// it is a folder, and how big it is.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the request,
+    /// or when the vehicle does not answer.
+    pub async fn ftp_list(&self, path: &str) -> CommandResult<Vec<FtpEntry>> {
+        let session = self.open_session()?;
+
+        let client = FtpClient::new(session.clone());
+
+        Ok(client.list_directory(path).await?)
+    }
+
+    /// Reads a file the vehicle holds, over the file transfer protocol.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the request,
+    /// or when the vehicle does not answer.
+    pub async fn ftp_read(&self, path: &str) -> CommandResult<Vec<u8>> {
+        let session = self.open_session()?;
+
+        let client = FtpClient::new(session.clone());
+
+        let (session_id, size) = client.open_file_read(path).await?;
+
+        let mut content = Vec::new();
+        let mut offset: u32 = 0;
+
+        // The vehicle answers with at most 239 bytes at a time.
+        while offset < size {
+            let block = client.read_file(session_id, offset, FTP_BLOCK).await?;
+
+            if block.is_empty() {
+                break;
+            }
+
+            offset += block.len() as u32;
+            content.extend_from_slice(&block);
+        }
+
+        let _ = client.terminate_session(session_id).await;
+
+        Ok(content)
+    }
+
+    /// Downloads the plan the vehicle keeps in a file of its own.
+    ///
+    /// The plan is not asked for with the mission protocol: it is read from the file
+    /// the vehicle keeps it in, over the file transfer protocol. It is the way a plan is
+    /// carried when the vehicle does not want to talk the mission protocol.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the
+    /// request, or when the file does not hold a plan.
+    pub async fn download_plan_ftp(&self, mission_type: MissionType) -> CommandResult<Plan> {
+        let session = self.open_session()?;
+
+        Ok(mpcraft_link::mission_ftp::download_plan(&session, mission_type).await?)
+    }
+
+    /// Writes a plan to the file the vehicle keeps it in.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the
+    /// request, or when the vehicle does not answer.
+    pub async fn upload_plan_ftp(&self, plan: &Plan) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        mpcraft_link::mission_ftp::upload_plan(&session, plan).await?;
 
         Ok(())
     }

@@ -27,7 +27,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.12 | Plaintext / boot-output sniffing | `MAVLinkInterface.plaintxtline` | ✅ | 0 |
 | 1.13 | MAVLink 2 signing (out & in) | `MAVLinkInterface.generatePacket`, `CheckSignature` | ✅ | 0 |
 | 1.14 | Signing keyring persistence | `ExtLibs/ArduPilot/Mavlink/MAVAuthKeys.cs` | ✅ | 0 |
-| 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | 🔜 | 5 |
+| 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | ✅ | 5 |
 | 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | ✅ | 7 |
 | 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | 🔜 | 5 |
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 | 5 |
@@ -102,7 +102,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 4.18 | Elevation profile graph | `Controls/ElevationProfile.cs` | ✅ | 2 |
 | 4.19 | Waypoint radius (loiter) editing | `FlightPlanner.cs` loiter radius | ✅ | 2 |
 | 4.20 | Spline / smooth path display | `FlightPlanner.cs` | ✅ | 2 |
-| 4.21 | MAVFTP mission transfer | `chk_usemavftp` path | 🔜 | 5 |
+| 4.21 | MAVFTP mission transfer | `chk_usemavftp` path | ✅ | 5 |
 
 ## 5. Parameters & configuration
 
@@ -180,10 +180,10 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 8.1 | Firmware manifest download | `GCSViews/ConfigurationView/ConfigFirmwareManifest.cs` | ✅ | 5 |
 | 8.2 | Firmware selection by board | `ConfigFirmware.cs` | ✅ | 5 |
-| 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | 🔽 | 5 |
+| 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | ✅ | 5 |
 | 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔜 | 5 |
 | 8.5 | Board auto-detect | `BoardDetect.cs` | ✅ | 5 |
-| 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | 🔽 | 5 |
+| 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | ✅ | 5 |
 | 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔜 | 5 |
 
 ## 9. Extensibility & integration
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 122 |
-| 🔜 Planned | 27 |
+| ✅ Done | 126 |
+| 🔜 Planned | 25 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 4 |
+| 🟡 Partial | 2 |
 
-The 122 rows marked done are the connection, transport, parameter, mission and command
+The 126 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -291,19 +291,35 @@ the autopilot, the one that is written to a board.
 The **firmware** can also be written to a board, from the same sheet: the board has to
 be in its bootloader, and the file is written to it over the port serie — the board is
 waited for, asked what it is, its flash is erased, the firmware is written block by
-block and the board is told to start again. What is not done yet is restarting the
-board into its bootloader by itself, so the link has to be closed and the board
-restarted by hand.
+block and the board is told to start again.
+
+The board can also be **restarted into its bootloader** from the same sheet: the vehicle
+is asked to do it, and it does. The command that asks for it (`MAV_CMD_FLASH_BOOTLOADER`,
+42650) is not in the enumeration of commands of the protocol library the project uses,
+which stops at 32000, so it is written by hand: the message that carries it is built
+byte by byte, the number of the command goes in it as it is, and the answer of the
+vehicle is read as an answer is read. The link stops carrying MAVLink when the board is
+in the bootloader, because the board is then waiting for the protocol of the bootloader.
 
 The flash of a board can also be **erased**, from the same sheet: the board is asked
 what it is and its memory is left clean, which is what the operator wants when the
-board does not start. Restarting the board into its bootloader by itself is not done
-yet: the command that asks for it (`MAV_CMD_FLASH_BOOTLOADER`, 42650) is not in the
-enumeration of commands of the protocol library the project uses, which stops at
-32000, and the message that carries it is written with that enumeration. It can be
-solved by keeping our own enumeration of the commands, or by taking the library from
-the MAVLink definitions ourselves; until then, the link has to be closed and the board
-restarted by hand.
+board does not start.
+
+The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
+of its own, and the file transfer protocol is how a program reaches it. The folders are
+listed the way the vehicle says them, the operator walks into them, and a file is
+brought to the disk of the computer. The protocol is not one the library of the project
+carries — the message is the 110th, and its seed is not among the ones the library
+knows — so it is written by hand as well: the header of the transfer, the opcodes, and
+the payload of each answer.
+
+A **plan** can also be carried in the file the vehicle keeps it in, over that same
+protocol, the way upstream offers it with its `chk_usemavftp` box. The editor has the
+box too: with it marked, the plan is read from the file of the vehicle and written to
+it, instead of travelling with the mission protocol. The file is the one ArduPilot
+keeps — `@MISSION/mission.dat` for the mission, and one of its own for the fence and
+for the rally points — and its format is a header of twelve bytes and the items, each
+one the payload of a `MISSION_ITEM_INT` message.
 
 The **board** that is on the other end of the link is told by the output it prints when
 it starts, and that output is already captured: the link keeps the text that is not

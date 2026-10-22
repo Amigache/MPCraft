@@ -6,6 +6,7 @@ import {
   firmwareEraseBoard,
   firmwareManifest,
   firmwareWriteToBoard,
+  flashBootloader,
   listSerialPorts,
   normaliseError,
 } from "../../lib/ipc/bridge";
@@ -15,6 +16,7 @@ import type {
   FirmwareManifest,
   SerialPort,
 } from "../../lib/ipc/types";
+import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./FirmwareSheet.module.css";
 
@@ -64,6 +66,11 @@ export function FirmwareSheet() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // The bootloader is reached by asking the vehicle to restart into it, and that needs
+  // a link to a vehicle.
+  const status = useLinkStore((state) => state.status);
+  const linked = status === "connected" || status === "reconnecting";
 
   // The manifest is read when the sheet is opened: it changes with every release, and
   // the operator is here to see what there is now.
@@ -234,6 +241,24 @@ export function FirmwareSheet() {
     }
   };
 
+  const restartIntoBootloader = async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      await flashBootloader();
+      setNotice(
+        "The vehicle was told to restart into its bootloader. The link is closed " +
+          "when the board stops answering.",
+      );
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className={styles.backdrop} role="presentation" onClick={hide}>
       <div
@@ -345,6 +370,26 @@ export function FirmwareSheet() {
 
         <section className={styles.block}>
           <h3 className={styles.heading}>Writing it to a board</h3>
+
+          <div className={styles.row}>
+            <button
+              type="button"
+              className="button"
+              disabled={busy || !linked}
+              title="Ask the vehicle to restart into its bootloader"
+              onClick={() => {
+                void restartIntoBootloader();
+              }}
+            >
+              Restart the vehicle into its bootloader
+            </button>
+          </div>
+
+          <p className={styles.text}>
+            The vehicle is asked to restart into its bootloader. It stops speaking
+            MAVLink when it is there, and the port is then opened in the manner of
+            the bootloader.
+          </p>
 
           <div className={styles.fields}>
             <label className={styles.field}>

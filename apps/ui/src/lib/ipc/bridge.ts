@@ -14,6 +14,8 @@ import type {
   DtedLibraryInfo,
   FirmwareManifest,
   FlightMode,
+  FtpEntry,
+  FtpFile,
   GraphPreset,
   GraphSeries,
   GeoPoint,
@@ -139,6 +141,29 @@ export async function uploadMission(
     kind,
     items,
   });
+}
+
+/**
+ * Downloads the plan the vehicle keeps in a file of its own.
+ *
+ * The plan is not asked for with the mission protocol: it is read from the file the
+ * vehicle keeps it in, over the file transfer protocol.
+ */
+export async function downloadMissionFtp(kind: PlanKind): Promise<Plan> {
+  return call<Plan>("download_mission_ftp", { kind });
+}
+
+/**
+ * Writes a plan to the file the vehicle keeps it in.
+ *
+ * The plan is not written with the mission protocol: it is written to the file the
+ * vehicle keeps it in, over the file transfer protocol.
+ */
+export async function uploadMissionFtp(
+  items: readonly PlanItem[],
+  kind: PlanKind,
+): Promise<void> {
+  await call<void>("upload_mission_ftp", { kind, items });
 }
 
 /**
@@ -550,6 +575,36 @@ export async function firmwareWriteToBoard(
  */
 export async function firmwareEraseBoard(port: string): Promise<BoardInfo> {
   return call<BoardInfo>("firmware_erase_board", { port });
+}
+
+/**
+ * Reboots the vehicle into its bootloader, so that a firmware can be written to it.
+ *
+ * The vehicle is told to restart in the bootloader. The link stops carrying MAVLink
+ * afterwards, because the board is then waiting for the protocol of the bootloader.
+ */
+export async function flashBootloader(): Promise<void> {
+  await call<void>("flash_bootloader", { req: {} });
+}
+
+/**
+ * Lists the files the vehicle holds in a folder.
+ *
+ * The list is what the vehicle answered with: the name of every entry, whether it is a
+ * folder, and how big it is.
+ */
+export async function ftpList(path: string): Promise<FtpEntry[]> {
+  return call<FtpEntry[]>("ftp_list", { path });
+}
+
+/**
+ * Reads a file the vehicle holds.
+ *
+ * The bytes are returned as they were read. When a place is given, the file is written
+ * down there as well.
+ */
+export async function ftpRead(path: string, output?: string): Promise<FtpFile> {
+  return call<FtpFile>("ftp_read", { path, output: output ?? null });
 }
 
 /**

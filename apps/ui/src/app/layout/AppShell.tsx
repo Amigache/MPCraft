@@ -7,6 +7,7 @@ import { FlightData } from "../../features/flight-data/FlightData";
 import { CalibrationSheet } from "../../features/calibration/CalibrationSheet";
 import { JoystickSheet } from "../../features/joystick/JoystickSheet";
 import { FirmwareSheet } from "../../features/firmware/FirmwareSheet";
+import { FilesSheet } from "../../features/files/FilesSheet";
 import { PassthroughSheet } from "../../features/passthrough/PassthroughSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
 import { LogSheet } from "../../features/logs/LogSheet";
@@ -63,6 +64,7 @@ export function AppShell() {
       <TerrainSheet />
       <PassthroughSheet />
       <FirmwareSheet />
+      <FilesSheet />
       <LogSheet />
     </div>
   );

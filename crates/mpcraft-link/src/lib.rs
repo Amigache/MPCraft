@@ -58,11 +58,13 @@
 
 pub mod commands;
 pub mod error;
+pub mod ftp;
 pub mod heartbeat;
 pub mod home;
 pub mod logs;
 pub mod loss;
 pub mod mission;
+pub mod mission_ftp;
 pub mod params;
 pub mod plaintext;
 pub mod session;
@@ -71,6 +73,7 @@ pub mod vehicle;
 
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
+pub use ftp::{FtpClient, FtpEntry, FtpError, Opcode as FtpOpcode};
 pub use heartbeat::{Heartbeat, HeartbeatCollector, HeartbeatRejection};
 pub use home::{
     HomeError, HomeRequest, DEFAULT_HOME_RETRIES, DEFAULT_HOME_TIMEOUT, HOME_POSITION_ID,

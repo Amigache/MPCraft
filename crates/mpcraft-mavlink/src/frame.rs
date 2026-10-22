@@ -119,6 +119,94 @@ pub fn encode_v2_signed<M: mavlink::Message>(
     frame
 }
 
+/// Encodes a message the dialect does not know into a MAVLink 2 frame.
+///
+/// The payload is written as it is — with the zeros at its end trimmed, the way MAVLink 2
+/// trims them — and the checksum is worked out with the seed of the message: the one of
+/// the dialect, or the one written down with a [foreign message](crate::foreign). This is
+/// how MPCraft speaks a message the generated bindings do not carry.
+///
+/// # Panics
+///
+/// Panics when the payload is longer than a frame can carry, or when the seed of the
+/// message is not known: a frame with the wrong seed would be refused by the vehicle, and
+/// a message whose seed nobody knows cannot be put on the wire at all.
+#[must_use]
+pub fn encode_v2_bytes(message_id: u32, payload: &[u8], header: MavHeader) -> Vec<u8> {
+    assert!(
+        payload.len() <= MAX_PAYLOAD_LEN,
+        "a payload of {} bytes does not fit in a frame",
+        payload.len()
+    );
+
+    // MAVLink 2 trims the zeros at the end of the payload: the length says what is there.
+    let mut length = payload.len();
+    while length > 0 && payload[length - 1] == 0 {
+        length -= 1;
+    }
+
+    let mut frame = Vec::with_capacity(V2_HEADER_LEN + length + CRC_LEN);
+    frame.push(STX_V2);
+    frame.push(u8::try_from(length).unwrap_or(0));
+    frame.push(0);
+    frame.push(0);
+    frame.push(header.sequence);
+    frame.push(header.system_id);
+    frame.push(header.component_id);
+
+    let id = message_id.to_le_bytes();
+    frame.extend_from_slice(&id[..3]);
+    frame.extend_from_slice(&payload[..length]);
+
+    let Some(seed) = crate::dialect::extra_crc(message_id) else {
+        panic!("the seed of message {message_id} is not known");
+    };
+
+    let crc = calculate_crc(&frame[1..], seed);
+    frame.extend_from_slice(&crc.to_le_bytes());
+
+    frame
+}
+
+/// Encodes a message the dialect does not know into a signed MAVLink 2 frame.
+///
+/// The signature is over the frame with the flag that says it is signed already set, which
+/// is what the other end signs over as well.
+///
+/// # Panics
+///
+/// Panics when the payload is longer than a frame can carry, or when the seed of the
+/// message is not known.
+#[must_use]
+pub fn encode_v2_bytes_signed(
+    message_id: u32,
+    payload: &[u8],
+    header: MavHeader,
+    keyring: &crate::signing::SigningKeyring,
+    key: &crate::signing::SigningKey,
+    link_id: u8,
+    timestamp: u64,
+) -> Vec<u8> {
+    let mut frame = encode_v2_bytes(message_id, payload, header);
+
+    frame[2] |= IFLAG_SIGNED;
+
+    let Some(seed) = crate::dialect::extra_crc(message_id) else {
+        panic!("the seed of message {message_id} is not known");
+    };
+    let crc_end = frame.len() - CRC_LEN;
+    let crc = calculate_crc(&frame[1..crc_end], seed);
+    frame[crc_end..].copy_from_slice(&crc.to_le_bytes());
+
+    let signature = keyring.sign(key, &frame, link_id, timestamp);
+
+    frame.push(link_id);
+    frame.extend_from_slice(&timestamp.to_le_bytes()[..6]);
+    frame.extend_from_slice(&signature);
+
+    frame
+}
+
 /// Encodes a message into a MAVLink 1 frame.
 ///
 /// MAVLink 1 message ids are limited to 255; a message with a larger id cannot be encoded
@@ -736,6 +824,73 @@ mod tests {
         }
         crc = crc_accumulate(0x2f, crc);
         assert_eq!(crc, calculate_crc(&data, 0x2f));
+    }
+
+    #[test]
+    fn a_message_the_dialect_does_not_know_round_trips_through_the_parser() {
+        // FILE_TRANSFER_PROTOCOL: the network, the system, the component and a payload of
+        // 251 bytes. The last byte is set so that nothing is trimmed.
+        let mut payload = vec![0_u8; 254];
+        payload[1] = 1;
+        payload[2] = 1;
+        payload[6] = 4;
+        payload[253] = 0xAB;
+
+        let frame = encode_v2_bytes(
+            110,
+            &payload,
+            MavHeader {
+                system_id: 255,
+                component_id: 190,
+                sequence: 3,
+            },
+        );
+
+        let mut parser = FrameParser::new();
+        let mut frames = Vec::new();
+        parser.feed(&frame, &mut frames).expect("the frame is read");
+
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].message_id, 110);
+        assert_eq!(frames[0].sequence, 3);
+        assert_eq!(frames[0].payload, payload);
+        assert!(
+            FrameParser::verify_crc(&frames[0]).is_ok(),
+            "the seed of the message is known"
+        );
+    }
+
+    #[test]
+    fn the_zeros_at_the_end_of_a_raw_payload_are_trimmed() {
+        let payload = vec![0_u8; 254];
+        let frame = encode_v2_bytes(
+            110,
+            &payload,
+            MavHeader {
+                system_id: 255,
+                component_id: 190,
+                sequence: 0,
+            },
+        );
+
+        // Ten bytes of header, no payload and the checksum: every byte of the payload was
+        // a zero.
+        assert_eq!(frame.len(), V2_HEADER_LEN + CRC_LEN);
+        assert_eq!(frame[1], 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "the seed of message")]
+    fn a_raw_message_whose_seed_is_unknown_is_not_put_on_the_wire() {
+        let _ = encode_v2_bytes(
+            999_999,
+            &[1, 2, 3],
+            MavHeader {
+                system_id: 255,
+                component_id: 190,
+                sequence: 0,
+            },
+        );
     }
 
     #[test]

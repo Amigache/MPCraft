@@ -111,6 +111,7 @@ export function MenuBar() {
   const showTerrain = useUiStore((state) => state.showTerrain);
   const showPassthrough = useUiStore((state) => state.showPassthrough);
   const showFirmware = useUiStore((state) => state.showFirmware);
+  const showFiles = useUiStore((state) => state.showFiles);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -263,6 +264,18 @@ export function MenuBar() {
           checked: undefined,
           separator: false,
           hint: "",
+        },
+        {
+          id: "vehicle-files",
+          label: "The files of the vehicle…",
+          onSelect: () => {
+            close();
+            showFiles();
+          },
+          disabled: !linked,
+          checked: undefined,
+          separator: false,
+          hint: linked ? "" : "no link",
         },
         {
           id: "exit",

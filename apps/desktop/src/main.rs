@@ -1524,6 +1524,82 @@ async fn http_server_stop(state: State<'_, AppState>) -> CommandResult<()> {
     Ok(())
 }
 
+/// Reboots the vehicle into its bootloader, so that a firmware can be written to it.
+///
+/// The vehicle is told to restart in the bootloader. The link is closed afterwards: the
+/// board stops talking MAVLink when it is in the bootloader, and the port is then opened
+/// again in the manner of the bootloader.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// refuses the command.
+#[tauri::command]
+async fn flash_bootloader(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.flash_bootloader(vehicle).await
+}
+
+/// The files the vehicle holds in a folder.
+///
+/// The list is what the vehicle answered with: the name of every entry, whether it is a
+/// folder, and how big it is.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// refuses the request, or when the vehicle does not answer.
+#[tauri::command]
+async fn ftp_list(
+    state: State<'_, AppState>,
+    path: String,
+) -> CommandResult<Vec<mpcraft_link::FtpEntry>> {
+    state.supervisor.ftp_list(&path).await
+}
+
+/// The content of a file the vehicle holds.
+///
+/// The bytes are returned as they were read, and the file is written down where the
+/// operator says.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// refuses the request, or when the file cannot be written.
+#[tauri::command]
+async fn ftp_read(
+    state: State<'_, AppState>,
+    path: String,
+    output: Option<String>,
+) -> CommandResult<FtpFileEvent> {
+    let content = state.supervisor.ftp_read(&path).await?;
+
+    if let Some(output) = output {
+        std::fs::write(&output, &content).map_err(|error| {
+            CommandError::internal(format!("the file could not be written: {error}"))
+        })?;
+    }
+
+    Ok(FtpFileEvent {
+        path,
+        size: content.len(),
+        content,
+    })
+}
+
+/// A file the vehicle holds: its name, its size and its bytes.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FtpFileEvent {
+    /// The name of the file.
+    path: String,
+    /// How many bytes the file has.
+    size: usize,
+    /// The bytes of the file.
+    content: Vec<u8>,
+}
+
 /// The keys of the signed link.
 ///
 /// The answer is the list of the keys that are saved, with their names and their
@@ -2112,6 +2188,48 @@ async fn download_mission(
         .await?;
 
     Ok(PlanInfo::from(&plan))
+}
+
+/// Downloads the plan the vehicle keeps in a file of its own.
+///
+/// The plan is not asked for with the mission protocol: it is read from the file the
+/// vehicle keeps it in, over the file transfer protocol.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle
+/// refuses the request, or when the file does not hold a plan.
+#[tauri::command]
+async fn download_mission_ftp(
+    state: State<'_, AppState>,
+    kind: PlanKind,
+) -> CommandResult<PlanInfo> {
+    let plan = state
+        .supervisor
+        .download_plan_ftp(mission_type_of(kind))
+        .await?;
+
+    Ok(PlanInfo::from(&plan))
+}
+
+/// Writes a plan to the file the vehicle keeps it in.
+///
+/// The plan is not written with the mission protocol: it is written to the file the
+/// vehicle keeps it in, over the file transfer protocol.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the
+/// vehicle refuses the plan.
+#[tauri::command]
+async fn upload_mission_ftp(
+    state: State<'_, AppState>,
+    kind: PlanKind,
+    items: Vec<PlanItemRequest>,
+) -> CommandResult<()> {
+    let plan = plan_of(kind, &items)?;
+
+    state.supervisor.upload_plan_ftp(&plan).await
 }
 
 /// Uploads a plan to the vehicle.
@@ -3059,6 +3177,9 @@ fn main() {
             firmware_download,
             firmware_write_to_board,
             firmware_erase_board,
+            flash_bootloader,
+            ftp_list,
+            ftp_read,
             http_server_start,
             http_server_stop,
             list_signing_keys,
@@ -3077,7 +3198,9 @@ fn main() {
             takeoff,
             set_mode,
             download_mission,
+            download_mission_ftp,
             upload_mission,
+            upload_mission_ftp,
             upload_mission_partial,
             set_current_item,
             clear_mission,

@@ -72,6 +72,11 @@
   --radius-sm: 3px;
   --radius: 6px;
 
+  /* The height of the bar of the menus and of the connection.
+     The sheets are drawn over the window, and they start under it: a sheet whose
+     header sat over the bar would put its button on top of the bar's own. */
+  --bar-height: 36px;
+
   /* The size of the controls. A desktop tool has small controls, and the space they
      take is the space a dozen of them do not. */
   --control-h: 24px;
