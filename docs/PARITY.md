@@ -223,7 +223,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | ✅ Done | 119 |
 | 🔜 Planned | 30 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 4 |
+| 🟡 Partial | 6 |
 
 The 119 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
