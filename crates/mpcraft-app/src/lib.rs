@@ -164,6 +164,13 @@ pub struct AppState {
     pub dted: std::sync::Arc<std::sync::Mutex<Option<mpcraft_geo::dted::DtedLibrary>>>,
 
     ///
+    /// The request of the terrain that has been answered.
+    ///
+    /// The vehicle asks for the terrain again and again, and the same request is
+    /// answered once.
+    answered_terrain: std::sync::Arc<std::sync::Mutex<Option<mpcraft_link::TerrainRequest>>>,
+
+    ///
     /// The web server, when it is running.
     ///
     /// The server lets another program follow the flight: the state of the vehicle and
@@ -208,6 +215,7 @@ impl Default for AppState {
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            answered_terrain: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
@@ -300,13 +308,16 @@ impl AppState {
     pub fn feed(&self, session: &SessionState) -> CommandResult<()> {
         self.graphs.record(&session.telemetry);
 
+        // The vehicle asks for the terrain of the ground it is over, and the answer is
+        // read from the files of the terrain.
+        self.answer_terrain(session);
+
         let Some(position) = session.telemetry.position else {
             return Ok(());
         };
 
         // The caster of the corrections needs to know where the vehicle is.
         self.ntrip.set_position(position);
-
         // The transponder says where the vehicle is and how it is going.
         let heading = session
             .telemetry
@@ -374,6 +385,105 @@ impl AppState {
         store
             .save(&settings)
             .map_err(|error| CommandError::settings(error.to_string()))
+    }
+
+    /// Answers the request of the terrain the vehicle has made.
+    ///
+    /// The heights are read from the files of the terrain, and the answer goes out on
+    /// the link. The same request is answered once: the vehicle asks again and again,
+    /// and the answer of the same one is the same.
+    fn answer_terrain(&self, session: &SessionState) {
+        let Some(request) = session.terrain_request else {
+            return;
+        };
+
+        // The same request is answered once: the vehicle asks again and again, and the
+        // answer of the same one is the same.
+        if self
+            .answered_terrain
+            .lock()
+            .ok()
+            .and_then(|answered| *answered)
+            == Some(request)
+        {
+            return;
+        }
+
+        let Ok(library) = self.dted.lock() else {
+            return;
+        };
+
+        let Some(library) = library.as_ref() else {
+            // There is no ground to read the heights from. The request is not answered,
+            // and the vehicle asks again when the files are there.
+            return;
+        };
+
+        let mut squares = Vec::new();
+
+        for (bit, _) in request.squares() {
+            let origin = request.square_of(bit);
+
+            let mut heights = [0_i16; mpcraft_link::terrain::GRID_POINTS];
+            let mut complete = true;
+
+            for (index, height) in heights.iter_mut().enumerate() {
+                let x = index % mpcraft_link::terrain::GRID_SIDE;
+                let y = index / mpcraft_link::terrain::GRID_SIDE;
+
+                let (latitude, longitude) = request.point_of(origin, x, y);
+
+                // The height is read from the cell of the terrain that covers the
+                // place: a place outside every cell has no height.
+                let found = library
+                    .cell_at(latitude, longitude)
+                    .and_then(|cell| cell.elevation_at(latitude, longitude).ok());
+
+                match found {
+                    Some(found) => *height = found as i16,
+                    None => {
+                        // A square with a height missing is not answered: the vehicle
+                        // asks again, and the file may be there the next time.
+                        complete = false;
+                        break;
+                    }
+                }
+            }
+
+            if !complete {
+                continue;
+            }
+
+            squares.push(mpcraft_link::TerrainSquare {
+                latitude: request.latitude,
+                longitude: request.longitude,
+                grid_spacing: request.grid_spacing,
+                bit: bit as u8,
+                heights,
+            });
+        }
+
+        tracing::debug!("the terrain is answered with {} squares", squares.len());
+
+        let Some(link) = self.supervisor.session() else {
+            return;
+        };
+
+        // The request is answered now, and it is not answered again.
+        if let Ok(mut answered) = self.answered_terrain.lock() {
+            *answered = Some(request);
+        }
+
+        tokio::spawn(async move {
+            for square in squares {
+                let message = mpcraft_mavlink::dialect::MavMessage::TERRAIN_DATA(square.message());
+
+                if let Err(error) = link.write_message(&message).await {
+                    tracing::warn!("the terrain could not be answered: {error}");
+                    return;
+                }
+            }
+        });
     }
 
     /// The keys of the signed link.
@@ -623,6 +733,7 @@ mod tests {
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            answered_terrain: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
@@ -660,6 +771,7 @@ mod tests {
             playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
             live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
             dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            answered_terrain: std::sync::Arc::new(std::sync::Mutex::new(None)),
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),

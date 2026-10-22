@@ -48,6 +48,7 @@ FORMATS = {
     "char90": "<90s",
     "char9": "<9s",
     "char251": "<251s",
+    "int16x16": "<16h",
 }
 
 CLASSES = {
@@ -61,6 +62,7 @@ CLASSES = {
     "char251": 1,
     "u16": 2,
     "i16": 2,
+    "int16x16": 2,
     "u32": 4,
     "i32": 4,
     "f32": 4,
@@ -397,6 +399,29 @@ MESSAGES = {
             ("target_component", "u8"),
         ],
         [("payload", "char251")],
+    ),
+    133: message(
+        133,
+        "TERRAIN_REQUEST",
+        6,
+        [
+            ("mask", "u64"),
+            ("lat", "i32"),
+            ("lon", "i32"),
+            ("grid_spacing", "u16"),
+        ],
+    ),
+    134: message(
+        134,
+        "TERRAIN_DATA",
+        229,
+        [
+            ("lat", "i32"),
+            ("lon", "i32"),
+            ("grid_spacing", "u16"),
+            ("data", "int16x16"),
+            ("gridbit", "u8"),
+        ],
     ),
     246: message(
         246,
@@ -1034,6 +1059,8 @@ def pack_field(kind, value):
         if isinstance(value, str):
             value = value.encode("utf-8")
         return value[:length].ljust(length, b"\x00")
+    if kind.endswith("x16"):
+        return struct.pack(FORMATS[kind], *value)
     return struct.pack(FORMATS[kind], value)
 
 
@@ -1073,6 +1100,10 @@ def decode(message_id, payload):
             # The payload was truncated: the bytes that did not arrive are zero, which
             # is what the specification says about a short payload.
             chunk = chunk.ljust(size, b"\x00")
+
+        if kind.endswith("x16"):
+            values[name] = list(struct.unpack(FORMATS[kind], chunk))
+            continue
 
         values[name] = struct.unpack(FORMATS[kind], chunk)[0]
 
@@ -1372,6 +1403,7 @@ class Vehicle:
         last_heartbeat = 0.0
         last_current = 0.0
         last_adsb = 0.0
+        last_terrain = 0.0
 
         while True:
             # Answer whatever the ground station sends, so the link looks alive from its
@@ -1422,6 +1454,12 @@ class Vehicle:
             if now - last_adsb >= 2.0:
                 last_adsb = now
                 self.send_adsb()
+
+            # The vehicle asks for the terrain of the ground it is over, once every
+            # five seconds.
+            if now - last_terrain >= 5.0:
+                last_terrain = now
+                self.send_terrain_request()
 
             # The attitude, tilted as the vehicle flies the circle.
             roll = math.sin(elapsed * 0.2) * 0.15
@@ -1859,6 +1897,7 @@ class Vehicle:
             11033: self.on_osd_param_config,
             11035: self.on_osd_param_show_config,
             246: self.on_adsb_vehicle,
+            134: self.on_terrain_data,
         }.get(message_id)
 
         if handler is not None:
@@ -2356,6 +2395,29 @@ class Vehicle:
                 "count": len(answer),
                 "data": data.decode("ascii", errors="replace"),
             },
+        )
+
+    def send_terrain_request(self):
+        """The vehicle asks for the terrain of the ground it is over."""
+        lat, lng, _ = self.position()
+
+        self.send(
+            133,
+            {
+                "lat": int(lat * 1e7),
+                "lon": int(lng * 1e7),
+                "grid_spacing": 100,
+                # The square at the top left of the grid.
+                "mask": 1,
+            },
+        )
+
+    def on_terrain_data(self, values):
+        """The ground station answers with the heights of a square of the grid."""
+        print(
+            f"the terrain of the square {values.get('gridbit', 0)} was answered "
+            f"with {values.get('data', [0])[0]} metres",
+            flush=True,
         )
 
     def on_adsb_vehicle(self, values):

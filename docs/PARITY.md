@@ -169,7 +169,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.8 | SRTM terrain elevation lookup | `ExtLibs/Utilities/srtm.cs` | ✅ | 2 |
 | 7.9 | DTED local elevation | `ExtLibs/Utilities/DTED.cs` | ✅ | 5 |
 | 7.10 | Terrain-follow route generation | `srtm.getIntersectionWithTerrain` | ✅ | 5 |
-| 7.11 | Terrain data protocol server | `ExtLibs/Utilities/TerrainFollow.cs` | 🔜 | 5 |
+| 7.11 | Terrain data protocol server | `ExtLibs/Utilities/TerrainFollow.cs` | ✅ | 5 |
 | 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | 🔜 | 5 |
 | 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | ✅ | 5 |
 | 7.14 | ADS-B relay to other stations | `MainV2.ADSBRunner` | 🔜 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 134 |
-| 🔜 Planned | 19 |
+| ✅ Done | 135 |
+| 🔜 Planned | 18 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 1 |
 
-The 134 rows marked done are the connection, transport, parameter, mission and command
+The 135 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -282,6 +282,10 @@ those heights a **survey that follows the ground** is worked out: the strips run
 the line that joins the two places, one after the other, and the vehicle flies at the
 same height over the ground everywhere, which is what a camera that needs the same
 distance to the ground everywhere needs. The survey is added to the plan.
+
+The vehicle that follows the ground asks for it: the request says where the vehicle is
+and which squares of the grid are wanted, and the ground station answers with the
+heights of the squares, read from the cells that are open.
 
 The **firmware** of the vehicles is chosen from the Setup menu: the manifest that
 ArduPilot publishes is read, and the operator picks the vehicle, the version and the

@@ -249,6 +249,8 @@ pub struct SessionState {
     pub messages: Vec<mpcraft_vehicle::VehicleMessage>,
     /// The traffic that the vehicle has heard.
     pub adsb: Vec<crate::adsb::AdsbVehicle>,
+    /// The request of the terrain the vehicle has made, when it has made one.
+    pub terrain_request: Option<crate::terrain::TerrainRequest>,
     /// Whether the board's output looks like a DroneCAN bus.
     pub looks_like_can_bus: bool,
     /// Whether the link is still open.
@@ -281,6 +283,8 @@ struct SessionContext {
     plaintext: PlaintextSniffer,
     /// The traffic that the vehicle has heard.
     adsb: crate::adsb::AdsbRegistry,
+    /// The request of the terrain the vehicle has made.
+    terrain_request: Option<crate::terrain::TerrainRequest>,
     accountants: HashMap<VehicleId, LossAccountant>,
     last_packet_at: Option<Instant>,
     loss: LossStats,
@@ -396,6 +400,16 @@ impl SessionContext {
             }
         }
 
+        // The vehicle asks for the terrain of the ground it is over.
+        if let MavMessage::TERRAIN_REQUEST(request) = &message {
+            self.terrain_request = Some(crate::terrain::TerrainRequest {
+                latitude: f64::from(request.lat) / 1e7,
+                longitude: f64::from(request.lon) / 1e7,
+                grid_spacing: request.grid_spacing,
+                mask: request.mask,
+            });
+        }
+
         // The protocol capabilities arrive in AUTOPILOT_VERSION and decide how the vehicle
         // encodes its parameter values.
         if let MavMessage::AUTOPILOT_VERSION(version) = &message {
@@ -453,6 +467,7 @@ impl SessionContext {
             plaintext: self.plaintext.lines(),
             messages: self.messages.iter().cloned().collect(),
             adsb: self.adsb.vehicles(),
+            terrain_request: self.terrain_request,
             looks_like_can_bus: self.plaintext.looks_like_can_bus(),
             connected,
         }
@@ -472,6 +487,7 @@ impl SessionState {
             plaintext: Vec::new(),
             messages: Vec::new(),
             adsb: Vec::new(),
+            terrain_request: None,
             looks_like_can_bus: false,
             connected: false,
         }

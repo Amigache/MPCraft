@@ -71,6 +71,7 @@ pub mod params;
 pub mod plaintext;
 pub mod session;
 pub mod telemetry;
+pub mod terrain;
 pub mod transponder;
 pub mod vehicle;
 
@@ -94,5 +95,6 @@ pub use params::{ParamError, DEFAULT_LIST_TIMEOUT, DEFAULT_READ_TIMEOUT, DEFAULT
 pub use plaintext::PlaintextSniffer;
 pub use session::{ReceivedMessage, Session, SessionOptions, SessionState, SigningSetup};
 pub use telemetry::TelemetryAggregator;
+pub use terrain::{TerrainRequest, TerrainSquare};
 pub use transponder::{Transponder, TRANSPONDER_INTERVAL};
 pub use vehicle::{Vehicle, VehicleId, VehicleKind, VehicleRegistry};
