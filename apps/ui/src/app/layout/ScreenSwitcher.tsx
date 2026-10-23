@@ -1,4 +1,5 @@
 import { SCREENS, useUiStore } from "../../lib/ui/uiStore";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { TabStrip } from "../../components/TabStrip";
 
 /**
@@ -17,6 +18,15 @@ import { TabStrip } from "../../components/TabStrip";
 export function ScreenSwitcher() {
   const screen = useUiStore((state) => state.screen);
   const setScreen = useUiStore((state) => state.setScreen);
+  const t = useLocaleStore((state) => state.t);
 
-  return <TabStrip tabs={SCREENS} active={screen} onSelect={setScreen} />;
+  // The names are said through the bundles, so that the switcher says the same thing as the rest
+  // of the window in the language the operator reads.
+  return (
+    <TabStrip
+      tabs={SCREENS.map((entry) => ({ id: entry.id, label: t(entry.label) }))}
+      active={screen}
+      onSelect={setScreen}
+    />
+  );
 }

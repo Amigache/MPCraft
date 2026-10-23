@@ -22,6 +22,8 @@ import { useLinkStore } from "../../lib/link/linkStore";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { TABS, useUiStore, type Theme } from "../../lib/ui/uiStore";
+import { LOCALES } from "../../lib/i18n/strings";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import styles from "./MenuBar.module.css";
 
 /**
@@ -30,6 +32,10 @@ import styles from "./MenuBar.module.css";
  * Every entry either does something or is visibly disabled: a menu that leads nowhere is
  * worse than no menu at all. The state of the link and the target it is open on are on
  * the right, where they can be read without opening anything.
+ *
+ * The names the bar says are read through the bundles of `lib/i18n`, so that the bar, the
+ * switcher and the panels of the window speak the same language, and the one that is chosen
+ * is kept for the next run.
  */
 
 /** One entry of a menu. */
@@ -89,6 +95,12 @@ export function MenuBar() {
   const download = usePlanStore((state) => state.download);
   const upload = usePlanStore((state) => state.upload);
   const clear = usePlanStore((state) => state.clear);
+
+  // The bar says its names through the bundles, so that the menus, the switcher and the panels
+  // read the same words in the same language.
+  const locale = useLocaleStore((state) => state.locale);
+  const setLocale = useLocaleStore((state) => state.setLocale);
+  const t = useLocaleStore((state) => state.t);
 
   const activeTab = useUiStore((state) => state.activeTab);
   const setActiveTab = useUiStore((state) => state.setActiveTab);
@@ -199,11 +211,11 @@ export function MenuBar() {
   const menus: readonly Menu[] = [
     {
       id: "file",
-      label: "File",
+      label: t("File"),
       items: [
         {
           id: "connect",
-          label: "Connect…",
+          label: t("Connect…"),
           onSelect: () => {
             close();
             setConnecting(true);
@@ -215,7 +227,7 @@ export function MenuBar() {
         },
         {
           id: "disconnect",
-          label: "Disconnect",
+          label: t("Disconnect"),
           onSelect: () => {
             close();
             void closeLink();
@@ -223,7 +235,7 @@ export function MenuBar() {
           disabled: !linked,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "file-sep",
@@ -283,7 +295,7 @@ export function MenuBar() {
         },
         {
           id: "passthrough",
-          label: "Serial passthrough?",
+          label: t("Serial passthrough?"),
           onSelect: () => {
             close();
             showPassthrough();
@@ -295,7 +307,7 @@ export function MenuBar() {
         },
         {
           id: "vehicle-files",
-          label: "The files of the vehicle…",
+          label: t("The files of the vehicle…"),
           onSelect: () => {
             close();
             showFiles();
@@ -303,11 +315,11 @@ export function MenuBar() {
           disabled: !linked,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "exit",
-          label: "Exit",
+          label: t("Exit"),
           onSelect: () => {
             close();
             void getCurrentWindow()
@@ -323,11 +335,11 @@ export function MenuBar() {
     },
     {
       id: "flight",
-      label: "Flight",
+      label: t("Flight"),
       items: [
         {
           id: "arm",
-          label: "Arm",
+          label: t("Arm"),
           onSelect: () => {
             close();
             void armVehicle();
@@ -335,11 +347,11 @@ export function MenuBar() {
           disabled: !linked,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "disarm",
-          label: "Disarm",
+          label: t("Disarm"),
           onSelect: () => {
             close();
             void disarmVehicle();
@@ -347,7 +359,7 @@ export function MenuBar() {
           disabled: !linked,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "flight-sep-1",
@@ -360,7 +372,7 @@ export function MenuBar() {
         },
         {
           id: "set-mode",
-          label: "Set mode…",
+          label: t("Set mode…"),
           onSelect: () => {
             close();
             setActiveTab("actions");
@@ -381,7 +393,7 @@ export function MenuBar() {
         },
         {
           id: "download",
-          label: "Download plan",
+          label: t("Download plan"),
           onSelect: () => {
             close();
             void download("mission");
@@ -389,11 +401,11 @@ export function MenuBar() {
           disabled: !linked || busy,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "upload",
-          label: "Upload plan",
+          label: t("Upload plan"),
           onSelect: () => {
             close();
             void upload("mission", plan?.items ?? []);
@@ -405,7 +417,7 @@ export function MenuBar() {
         },
         {
           id: "clear",
-          label: "Clear plan",
+          label: t("Clear plan"),
           onSelect: () => {
             close();
             void clear("mission");
@@ -413,7 +425,7 @@ export function MenuBar() {
           disabled: !linked || busy,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "flight-sep-3",
@@ -426,7 +438,7 @@ export function MenuBar() {
         },
         {
           id: "joystick",
-          label: "Joystick…",
+          label: t("Joystick…"),
           onSelect: () => {
             close();
             showJoystick();
@@ -440,11 +452,11 @@ export function MenuBar() {
     },
     {
       id: "view",
-      label: "View",
+      label: t("View"),
       items: [
         {
           id: "focus-map",
-          label: "The map alone",
+          label: t("The map alone"),
           onSelect: () => {
             close();
             toggleFocusMap();
@@ -456,7 +468,7 @@ export function MenuBar() {
         },
         {
           id: "logs",
-          label: "Logs",
+          label: t("Logs"),
           onSelect: () => {
             close();
             showLog();
@@ -477,7 +489,7 @@ export function MenuBar() {
         },
         {
           id: "theme",
-          label: "The theme",
+          label: t("The theme"),
           onSelect: undefined,
           disabled: true,
           checked: undefined,
@@ -486,7 +498,7 @@ export function MenuBar() {
         },
         ...THEMES.map((entry): MenuItem => ({
           id: `theme-${entry.id}`,
-          label: entry.label,
+          label: t(entry.label),
           onSelect: () => {
             close();
             setTheme(entry.id);
@@ -497,8 +509,40 @@ export function MenuBar() {
           hint: "",
         })),
         {
+          id: "view-language-sep",
+          label: "",
+          onSelect: undefined,
+          disabled: false,
+          checked: undefined,
+          separator: true,
+          hint: "",
+        },
+        {
+          id: "language",
+          label: t("The language"),
+          onSelect: undefined,
+          disabled: true,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        ...LOCALES.map((entry): MenuItem => ({
+          id: `language-${entry.id}`,
+          // A language is named in its own words, so that the two can be told apart by somebody
+          // who cannot read either of them.
+          label: entry.label,
+          onSelect: () => {
+            close();
+            setLocale(entry.id);
+          },
+          disabled: false,
+          checked: locale === entry.id,
+          separator: false,
+          hint: "",
+        })),
+        {
           id: "http",
-          label: "Serve the flight on the network",
+          label: t("Serve the flight on the network"),
           onSelect: () => {
             close();
 
@@ -539,7 +583,7 @@ export function MenuBar() {
         },
         {
           id: "units",
-          label: "Units in feet and miles",
+          label: t("Units in feet and miles"),
           onSelect: () => {
             close();
             setUnits(units === "imperial" ? "metric" : "imperial");
@@ -551,7 +595,7 @@ export function MenuBar() {
         },
         {
           id: "side-panel",
-          label: "Side panel",
+          label: t("Side panel"),
           onSelect: () => {
             close();
             toggleLeftColumn();
@@ -563,7 +607,7 @@ export function MenuBar() {
         },
         {
           id: "graphs",
-          label: "Graphs",
+          label: t("Graphs"),
           onSelect: () => {
             close();
             toggleGraphs();
@@ -577,7 +621,7 @@ export function MenuBar() {
         },
         {
           id: "follow",
-          label: "Follow the vehicle",
+          label: t("Follow the vehicle"),
           onSelect: () => {
             close();
             setFollowVehicle(!followVehicle);
@@ -589,7 +633,7 @@ export function MenuBar() {
         },
         {
           id: "map-controls",
-          label: "Map controls",
+          label: t("Map controls"),
           onSelect: () => {
             close();
             toggleMapControls();
@@ -610,7 +654,7 @@ export function MenuBar() {
         },
         ...TABS.map((tab) => ({
           id: `tab-${tab.id}`,
-          label: tab.label,
+          label: t(tab.label),
           onSelect: () => {
             close();
             setActiveTab(tab.id);
@@ -624,11 +668,11 @@ export function MenuBar() {
     },
     {
       id: "setup",
-      label: "Setup",
+      label: t("Setup"),
       items: [
         {
           id: "modes",
-          label: "Flight modes",
+          label: t("Flight modes"),
           onSelect: () => {
             close();
             showParameterPrefix("FLTMODE");
@@ -649,7 +693,7 @@ export function MenuBar() {
         },
         {
           id: "calibration-accelerometer",
-          label: "Accelerometer",
+          label: t("Accelerometer"),
           onSelect: () => {
             close();
             showCalibration();
@@ -661,7 +705,7 @@ export function MenuBar() {
         },
         {
           id: "calibration-compass",
-          label: "Compass",
+          label: t("Compass"),
           onSelect: () => {
             close();
             showCalibration();
@@ -673,7 +717,7 @@ export function MenuBar() {
         },
         {
           id: "setup-frame",
-          label: "Frame type",
+          label: t("Frame type"),
           onSelect: () => {
             close();
             showParameterPrefix("FRAME_");
@@ -685,7 +729,7 @@ export function MenuBar() {
         },
         {
           id: "setup-gps",
-          label: "GPS",
+          label: t("GPS"),
           onSelect: () => {
             close();
             showParameterPrefix("GPS_");
@@ -697,7 +741,7 @@ export function MenuBar() {
         },
         {
           id: "setup-serial",
-          label: "Serial ports",
+          label: t("Serial ports"),
           onSelect: () => {
             close();
             showParameterPrefix("SERIAL");
@@ -709,7 +753,7 @@ export function MenuBar() {
         },
         {
           id: "setup-radio",
-          label: "Radio",
+          label: t("Radio"),
           onSelect: () => {
             close();
             showParameterPrefix("RC_");
@@ -721,7 +765,7 @@ export function MenuBar() {
         },
         {
           id: "setup-failsafe",
-          label: "Fail safe",
+          label: t("Fail safe"),
           onSelect: () => {
             close();
             showParameterPrefix("FS_");
@@ -733,7 +777,7 @@ export function MenuBar() {
         },
         {
           id: "setup-mount",
-          label: "Mount",
+          label: t("Mount"),
           onSelect: () => {
             close();
             showParameterPrefix("MNT_");
@@ -745,7 +789,7 @@ export function MenuBar() {
         },
         {
           id: "setup-dronecan",
-          label: "DroneCAN",
+          label: t("DroneCAN"),
           onSelect: () => {
             close();
             showParameterPrefix("CAN_");
@@ -757,7 +801,7 @@ export function MenuBar() {
         },
         {
           id: "setup-map-folder",
-          label: "The folder of tiles…",
+          label: t("The folder of tiles…"),
           onSelect: () => {
             close();
             void askMapFolder();
@@ -769,7 +813,7 @@ export function MenuBar() {
         },
         {
           id: "setup-terrain",
-          label: "Terrain…",
+          label: t("Terrain…"),
           onSelect: () => {
             close();
             showTerrain();
@@ -781,7 +825,7 @@ export function MenuBar() {
         },
         {
           id: "setup-osd",
-          label: "On-screen display…",
+          label: t("On-screen display…"),
           onSelect: () => {
             close();
             showOsd();
@@ -793,7 +837,7 @@ export function MenuBar() {
         },
         {
           id: "setup-ntrip",
-          label: "The corrections of a base station…",
+          label: t("The corrections of a base station…"),
           onSelect: () => {
             close();
             showNtrip();
@@ -805,7 +849,7 @@ export function MenuBar() {
         },
         {
           id: "setup-transponder",
-          label: "The transponder…",
+          label: t("The transponder…"),
           onSelect: () => {
             close();
             showTransponder();
@@ -817,7 +861,7 @@ export function MenuBar() {
         },
         {
           id: "setup-adsb",
-          label: "The traffic of the air…",
+          label: t("The traffic of the air…"),
           onSelect: () => {
             close();
             showAdsb();
@@ -825,11 +869,11 @@ export function MenuBar() {
           disabled: !linked,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "setup-video",
-          label: "Video streams…",
+          label: t("Video streams…"),
           onSelect: () => {
             close();
             showVideo();
@@ -837,11 +881,11 @@ export function MenuBar() {
           disabled: !linked,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "setup-camera",
-          label: "The camera and the gimbal…",
+          label: t("The camera and the gimbal…"),
           onSelect: () => {
             close();
             showCamera();
@@ -849,11 +893,11 @@ export function MenuBar() {
           disabled: !linked,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : "no link",
+          hint: linked ? "" : t("no link"),
         },
         {
           id: "setup-pictures",
-          label: "The pictures and where they were taken…",
+          label: t("The pictures and where they were taken…"),
           onSelect: () => {
             close();
             showPictures();
@@ -867,7 +911,7 @@ export function MenuBar() {
         },
         {
           id: "parameters",
-          label: "Parameters…",
+          label: t("Parameters…"),
           onSelect: () => {
             close();
             showParameters();
@@ -879,7 +923,7 @@ export function MenuBar() {
         },
         {
           id: "mission-planner",
-          label: "Mission planner",
+          label: t("Mission planner"),
           onSelect: () => {
             close();
             setActiveTab("actions");
@@ -914,7 +958,7 @@ export function MenuBar() {
         })),
         {
           id: "firmware",
-          label: "Firmware…",
+          label: t("Firmware…"),
           onSelect: () => {
             close();
             showFirmware();
@@ -928,11 +972,11 @@ export function MenuBar() {
     },
     {
       id: "help",
-      label: "Help",
+      label: t("Help"),
       items: [
         {
           id: "diagnostics",
-          label: "Write a diagnostics bundle…",
+          label: t("Write a diagnostics bundle…"),
           onSelect: () => {
             close();
 
@@ -965,7 +1009,7 @@ export function MenuBar() {
         },
         {
           id: "about",
-          label: "About MPCraft",
+          label: t("About MPCraft"),
           onSelect: () => {
             close();
             setAbout(true);

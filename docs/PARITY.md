@@ -206,7 +206,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 10.1 | Screen-switching shell | `ExtLibs/Controls/MainSwitcher.cs` | ✅ | 1 |
 | 10.2 | Theme system (light / dark / high-contrast) | `ThemeManager.cs`, `*.mpsystheme` | ✅ | 7 |
-| 10.3 | Internationalisation | `Strings.resx` + Crowdin | 🔜 | 7 |
+| 10.3 | Internationalisation | `Strings.resx` + Crowdin | 🔽 | 7 |
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | ✅ | 0 |
 | 10.6 | Auto-updater | `Updater/` | 🔜 | 7 |
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 139 |
-| 🔜 Planned | 13 |
+| 🔜 Planned | 12 |
 | ⬜ Dropped | 1 |
-| 🟡 Partial | 2 |
+| Partial (🟡 / 🔽) | 3 |
 
 The 138 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
@@ -527,6 +527,14 @@ cannot do yet.
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of
 variables and nothing else: no component knows which one is in use.
+
+The **language** the window is read in is chosen in the same menu and kept for the next run.
+A string is looked up by what it says in English, because that is the language the code is
+written in, so a part that has not been translated yet still says what it said before rather
+than showing a blank, and a gap is a change that can be reviewed. Each language is named in its
+own words, so that the two can be told apart by somebody who cannot read either of them. The bar
+of the menus, the switcher of the screens and the tabs of the left column speak from the bundles;
+the sheets and the panels follow one by one, and a test says which names have no entry.
 
 The **identification of the vehicle** is in the tab of the state: what it is, its
 number, what kind of vehicle it is, where it says it is and what the operator says about

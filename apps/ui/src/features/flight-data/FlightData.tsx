@@ -27,6 +27,7 @@ import {
   useUiStore,
 } from "../../lib/ui/uiStore";
 import { useWindowSize } from "../../lib/ui/windowSize";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import styles from "./FlightData.module.css";
 
 /**
@@ -53,6 +54,7 @@ export function FlightData() {
   const showGraphs = useUiStore((state) => state.showGraphs);
   const activeTab = useUiStore((state) => state.activeTab);
   const setActiveTab = useUiStore((state) => state.setActiveTab);
+  const t = useLocaleStore((state) => state.t);
   const setLeftColumnFraction = useUiStore(
     (state) => state.setLeftColumnFraction,
   );
@@ -154,7 +156,10 @@ export function FlightData() {
 
             <div className={styles.tabs}>
               <TabStrip
-                tabs={TABS}
+                tabs={TABS.map((entry) => ({
+                  id: entry.id,
+                  label: t(entry.label),
+                }))}
                 active={activeTab}
                 onSelect={setActiveTab}
               />
