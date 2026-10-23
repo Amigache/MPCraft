@@ -360,6 +360,28 @@ const bundles: Record<Locale, Record<string, string>> = {
       "La dirección de la fuente no es una que se pueda usar. MPCraft lee el tráfico de una dirección HTTP; un receptor que habla por una conexión simple no se lee.",
     "The distance round the vehicle is not one that can be used.":
       "La distancia alrededor del vehículo no es una que se pueda usar.",
+
+    // The sheet of the video streams.
+    "The video streams of the vehicle": "Los canales de vídeo del vehículo",
+    "The camera describes its streams with a URI, their resolution and frame rate. The stream travels outside MAVLink: use the URI with a video player.":
+      "La cámara describe sus canales con la URI, su resolución y su velocidad de imagen. El canal viaja fuera de MAVLink: usa la URI con un reproductor de vídeo.",
+    "Ask the camera": "Preguntar a la cámara",
+    "There is no link.": "No hay enlace.",
+    "The camera is being asked.": "Se está preguntando a la cámara.",
+    "The camera did not describe any video streams.":
+      "La cámara no describió ningún canal de vídeo.",
+    "Stream {id}": "Canal {id}",
+    Running: "Funcionando",
+    Stopped: "Parado",
+    Address: "La dirección",
+    "Not provided": "No se dijo",
+    Picture: "La imagen",
+    "Frame rate": "Velocidad de imagen",
+    "Bit rate": "Velocidad de bits",
+    "Start the stream": "Empezar el canal",
+    "Stop the stream": "Parar el canal",
+    "The stream {name} has stopped.": "El canal {name} se ha parado.",
+    "The stream {name} has started.": "El canal {name} ha empezado.",
   },
 };
 

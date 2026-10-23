@@ -7,6 +7,7 @@ import {
   videoStreamStop,
 } from "../../lib/ipc/bridge";
 import type { VideoStream } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./VideoSheet.module.css";
@@ -23,6 +24,8 @@ import styles from "./VideoSheet.module.css";
 export function VideoSheet() {
   const open = useUiStore((state) => state.videoOpen);
   const hide = useUiStore((state) => state.hideVideo);
+
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
@@ -57,6 +60,8 @@ export function VideoSheet() {
   }
 
   const toggle = async (stream: VideoStream) => {
+    const name = stream.name || String(stream.streamId);
+
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -64,10 +69,10 @@ export function VideoSheet() {
     try {
       if (stream.running) {
         await videoStreamStop(stream.componentId, stream.streamId);
-        setNotice(`The stream ${stream.name || stream.streamId} has stopped.`);
+        setNotice(t("The stream {name} has stopped.", { name }));
       } else {
         await videoStreamStart(stream.componentId, stream.streamId);
-        setNotice(`The stream ${stream.name || stream.streamId} has started.`);
+        setNotice(t("The stream {name} has started.", { name }));
       }
 
       await read();
@@ -84,20 +89,23 @@ export function VideoSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="The video streams of the vehicle"
+        aria-label={t("The video streams of the vehicle")}
         onClick={(event) => event.stopPropagation()}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>The video streams of the vehicle</h2>
+          <h2 className={styles.title}>
+            {t("The video streams of the vehicle")}
+          </h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            The camera describes its streams with a URI, their resolution and frame
-            rate. The stream travels outside MAVLink: use the URI with a video player.
+            {t(
+              "The camera describes its streams with a URI, their resolution and frame rate. The stream travels outside MAVLink: use the URI with a video player.",
+            )}
           </p>
 
           <div className={styles.row}>
@@ -107,9 +115,11 @@ export function VideoSheet() {
               disabled={busy || !linked}
               onClick={() => void read()}
             >
-              Ask the camera
+              {t("Ask the camera")}
             </button>
-            {!linked ? <span className={styles.text}>There is no link.</span> : null}
+            {!linked ? (
+              <span className={styles.text}>{t("There is no link.")}</span>
+            ) : null}
           </div>
         </section>
 
@@ -117,8 +127,8 @@ export function VideoSheet() {
           {streams.length === 0 ? (
             <p className={styles.text}>
               {busy
-                ? "The camera is being asked."
-                : "The camera did not describe any video streams."}
+                ? t("The camera is being asked.")
+                : t("The camera did not describe any video streams.")}
             </p>
           ) : (
             <ul className={styles.list}>
@@ -129,23 +139,25 @@ export function VideoSheet() {
                 >
                   <div className={styles.streamHead}>
                     <h3 className={styles.streamName}>
-                      {stream.name || `Stream ${stream.streamId}`}
+                      {stream.name || t("Stream {id}", { id: stream.streamId })}
                     </h3>
                     <span className={styles.state}>
-                      {stream.running ? "Running" : "Stopped"}
+                      {stream.running ? t("Running") : t("Stopped")}
                     </span>
                   </div>
 
                   <dl className={styles.facts}>
-                    <dt>Address</dt>
-                    <dd className={styles.uri}>{stream.uri || "Not provided"}</dd>
-                    <dt>Picture</dt>
+                    <dt>{t("Address")}</dt>
+                    <dd className={styles.uri}>
+                      {stream.uri || t("Not provided")}
+                    </dd>
+                    <dt>{t("Picture")}</dt>
                     <dd>
                       {stream.width} × {stream.height}
                     </dd>
-                    <dt>Frame rate</dt>
+                    <dt>{t("Frame rate")}</dt>
                     <dd>{stream.framesPerSecond.toFixed(1)} fps</dd>
-                    <dt>Bit rate</dt>
+                    <dt>{t("Bit rate")}</dt>
                     <dd>{stream.bitrate} bit/s</dd>
                   </dl>
 
@@ -155,7 +167,9 @@ export function VideoSheet() {
                     disabled={busy}
                     onClick={() => void toggle(stream)}
                   >
-                    {stream.running ? "Stop the stream" : "Start the stream"}
+                    {stream.running
+                      ? t("Stop the stream")
+                      : t("Start the stream")}
                   </button>
                 </li>
               ))}
