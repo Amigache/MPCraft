@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { formatDistance } from "../../lib/format";
 import { distanceBetween } from "../../lib/geo";
 import type { PlanItem } from "../../lib/ipc/types";
@@ -31,6 +32,8 @@ export interface RouteBarProps {
 export function RouteBar({ latitude, longitude }: RouteBarProps) {
   const plans = usePlanStore((state) => state.plans);
   const kind = usePlanStore((state) => state.kind);
+
+  const t = useLocaleStore((state) => state.t);
 
   const plan = plans[kind];
 
@@ -76,7 +79,7 @@ export function RouteBar({ latitude, longitude }: RouteBarProps) {
   const fraction = total === 0 ? 0 : Math.min(1, travelled / total);
 
   return (
-    <div className={styles.bar} role="group" aria-label="The route">
+    <div className={styles.bar} role="group" aria-label={t("The route")}>
       <div className={styles.track}>
         <div
           className={styles.travelled}
@@ -86,12 +89,14 @@ export function RouteBar({ latitude, longitude }: RouteBarProps) {
 
       <div className={styles.figures}>
         <span className={styles.figure}>
-          {formatDistance(travelled)} flown
+          {t("{distance} flown", { distance: formatDistance(travelled) })}
         </span>
         <span className={styles.figure}>
-          {formatDistance(remaining)} to go
+          {t("{distance} to go", { distance: formatDistance(remaining) })}
         </span>
-        <span className={styles.figure}>{formatDistance(total)} in all</span>
+        <span className={styles.figure}>
+          {t("{distance} in all", { distance: formatDistance(total) })}
+        </span>
       </div>
     </div>
   );

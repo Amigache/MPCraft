@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { preflightChecklist } from "../../lib/ipc/bridge";
 import type { ChecklistEntry, CommandError } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
@@ -17,10 +18,14 @@ import styles from "./PreFlightPanel.module.css";
  */
 export function PreFlightPanel() {
   const [entries, setEntries] = useState<readonly ChecklistEntry[]>([]);
-  const [answered, setAnswered] = useState<Readonly<Record<string, boolean>>>({});
+  const [answered, setAnswered] = useState<Readonly<Record<string, boolean>>>(
+    {},
+  );
   const [error, setError] = useState<CommandError | null>(null);
 
   const status = useLinkStore((state) => state.status);
+
+  const t = useLocaleStore((state) => state.t);
 
   // The checks follow the vehicle, so they are asked for again and again.
   useEffect(() => {
@@ -56,7 +61,10 @@ export function PreFlightPanel() {
   }, [status]);
 
   const answer = (description: string) => {
-    setAnswered((current) => ({ ...current, [description]: !current[description] }));
+    setAnswered((current) => ({
+      ...current,
+      [description]: !current[description],
+    }));
   };
 
   if (error) {
@@ -74,8 +82,8 @@ export function PreFlightPanel() {
       <div className={styles.panel}>
         <p className={styles.empty}>
           {status === "connected"
-            ? "The checklist is empty."
-            : "There is no vehicle on the link."}
+            ? t("The checklist is empty.")
+            : t("There is no vehicle on the link.")}
         </p>
       </div>
     );
@@ -96,14 +104,20 @@ export function PreFlightPanel() {
                     checked={checked}
                     onChange={() => answer(entry.description)}
                   />
-                  <span className={styles.description}>{entry.description}</span>
+                  <span className={styles.description}>
+                    {entry.description}
+                  </span>
                 </label>
               </li>
             );
           }
 
           // An unknown value is a dash, not a cross.
-          const state = !entry.known ? "unknown" : entry.passed ? "passed" : "failed";
+          const state = !entry.known
+            ? "unknown"
+            : entry.passed
+              ? "passed"
+              : "failed";
 
           return (
             <li

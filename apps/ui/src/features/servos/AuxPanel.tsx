@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { outputFunctions } from "../../lib/ipc/bridge";
 import type { CommandError, OutputFunction } from "../../lib/ipc/types";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -18,6 +19,8 @@ import styles from "./AuxPanel.module.css";
 export function AuxPanel() {
   const [functions, setFunctions] = useState<readonly OutputFunction[]>([]);
   const [error, setError] = useState<CommandError | null>(null);
+
+  const t = useLocaleStore((state) => state.t);
 
   // The functions are read when the tab is opened: the vehicle says what its
   // outputs are for with the parameters, and those are only known once they have
@@ -55,7 +58,7 @@ export function AuxPanel() {
 
   return (
     <div className={styles.panel}>
-      <h3 className={styles.heading}>Auxiliary functions</h3>
+      <h3 className={styles.heading}>{t("Auxiliary functions")}</h3>
 
       {error !== null ? (
         <p className={styles.error} role="alert">
@@ -65,20 +68,25 @@ export function AuxPanel() {
 
       {!error && functions.length === 0 ? (
         <p className={styles.empty}>
-          The vehicle has not said what its outputs are for. It tells it with the
-          parameters <code>SERVO1_FUNCTION</code> and its brothers.
+          {t("The vehicle has not said what its outputs are for.")}{" "}
+          {t("It tells it with the parameters")} <code>SERVO1_FUNCTION</code>{" "}
+          {t("and its brothers.")}
         </p>
       ) : null}
 
       <ul className={styles.list}>
         {functions.map((entry) => (
           <li key={entry.output} className={styles.row}>
-            <span className={styles.output}>Output {entry.output}</span>
+            <span className={styles.output}>
+              {t("Output {number}", { number: entry.output })}
+            </span>
             <span className={styles.name}>
-              {entry.name ?? `Function ${entry.value}`}
+              {entry.name ?? t("Function {number}", { number: entry.value })}
             </span>
             {entry.motor !== null ? (
-              <span className={styles.motor}>Motor {entry.motor}</span>
+              <span className={styles.motor}>
+                {t("Motor {number}", { number: entry.motor })}
+              </span>
             ) : null}
           </li>
         ))}

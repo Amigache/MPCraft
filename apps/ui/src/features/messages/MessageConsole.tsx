@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { messageTone } from "../../lib/messages/severity";
 import type { VehicleMessage } from "../../lib/ipc/types";
@@ -26,6 +27,8 @@ export function MessageConsole() {
   const [shown, setShown] = useState<VehicleMessage[]>([]);
   const previous = useRef<readonly VehicleMessage[]>([]);
   const list = useRef<HTMLOListElement | null>(null);
+
+  const t = useLocaleStore((state) => state.t);
 
   // The backend sends the whole list every time. The console keeps its own copy, so
   // that clearing it does not fill up again with the same messages, and so that the
@@ -77,12 +80,14 @@ export function MessageConsole() {
           disabled={shown.length === 0}
           onClick={() => setShown([])}
         >
-          Clear
+          {t("Clear")}
         </button>
       </div>
 
       {shown.length === 0 ? (
-        <p className={styles.empty}>The vehicle has not said anything yet.</p>
+        <p className={styles.empty}>
+          {t("The vehicle has not said anything yet.")}
+        </p>
       ) : (
         <ol className={styles.list} ref={list}>
           {shown.map((message, index) => {

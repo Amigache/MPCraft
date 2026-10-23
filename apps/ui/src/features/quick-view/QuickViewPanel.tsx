@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { LiveValue } from "../../components/LiveValue";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import {
   formatAltitude,
   formatCurrent,
@@ -27,9 +28,13 @@ interface Tile {
   readonly id: string;
   readonly label: string;
   /** Picks the value out of a snapshot. */
-  readonly select: (telemetry: Telemetry) => number | string | boolean | null | undefined;
+  readonly select: (
+    telemetry: Telemetry,
+  ) => number | string | boolean | null | undefined;
   /** Renders the value. */
   readonly format?: (value: number | string | boolean) => string;
+  /** Whether what the format gives is a word that the bundles say. */
+  readonly word?: boolean;
 }
 
 const TILES: readonly Tile[] = [
@@ -85,6 +90,7 @@ const TILES: readonly Tile[] = [
     label: "Armed",
     select: (telemetry) => telemetry.armed ?? null,
     format: (value) => formatYesNo(value as boolean),
+    word: true,
   },
   {
     id: "satellites",
@@ -167,6 +173,8 @@ export function QuickViewPanel() {
   const [chosen, setChosen] = useState<string[]>(readChoice);
   const [configuring, setConfiguring] = useState(false);
 
+  const t = useLocaleStore((state) => state.t);
+
   useEffect(() => {
     writeChoice(chosen);
   }, [chosen]);
@@ -184,14 +192,18 @@ export function QuickViewPanel() {
   return (
     <div className={styles.panel}>
       <div className={styles.bar}>
-        <span className={styles.count}>{tiles.length} tiles</span>
+        <span className={styles.count}>
+          {t(tiles.length === 1 ? "{count} tile" : "{count} tiles", {
+            count: tiles.length,
+          })}
+        </span>
         <button
           type="button"
           className="button"
           aria-expanded={configuring}
           onClick={() => setConfiguring((value) => !value)}
         >
-          {configuring ? "Done" : "Configure"}
+          {configuring ? t("Done") : t("Configure")}
         </button>
       </div>
 
@@ -205,7 +217,7 @@ export function QuickViewPanel() {
                   checked={chosen.includes(tile.id)}
                   onChange={() => toggle(tile.id)}
                 />
-                <span>{tile.label}</span>
+                <span>{t(tile.label)}</span>
               </label>
             </li>
           ))}
@@ -215,11 +227,15 @@ export function QuickViewPanel() {
       <div className={styles.grid}>
         {tiles.map((tile) => (
           <div key={tile.id} className={styles.tile}>
-            <span className={styles.tileLabel}>{tile.label}</span>
+            <span className={styles.tileLabel}>{t(tile.label)}</span>
             <LiveValue
               className={styles.tileValue}
               select={tile.select}
-              format={tile.format}
+              format={(value) => {
+                const said = tile.format ? tile.format(value) : String(value);
+
+                return tile.word ? t(said) : said;
+              }}
             />
           </div>
         ))}

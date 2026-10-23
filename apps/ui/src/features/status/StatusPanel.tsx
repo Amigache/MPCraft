@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { LiveValue } from "../../components/LiveValue";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { vehicleCoordinates } from "../../lib/ipc/bridge";
 import {
   formatAltitude,
@@ -31,6 +32,8 @@ export function StatusPanel() {
   const status = useLinkStore((state) => state.status);
   const board = useLinkStore((state) => state.board);
   const plan = usePlanStore((state) => state.plans.mission);
+
+  const t = useLocaleStore((state) => state.t);
 
   const vehicle = vehicles[0] ?? null;
   const item = currentItemNumber(plan);
@@ -85,31 +88,31 @@ export function StatusPanel() {
   return (
     <div className={styles.panel}>
       <section className={styles.section}>
-        <h3 className={styles.heading}>Vehicle</h3>
-        <Row label="System">{vehicle ? vehicle.systemId : "—"}</Row>
-        <Row label="Component">{vehicle ? vehicle.componentId : "—"}</Row>
-        <Row label="Family">{formatText(vehicle?.kind ?? null)}</Row>
-        <Row label="Board">{board ?? "—"}</Row>
-        <Row label="Mode">
+        <h3 className={styles.heading}>{t("Vehicle")}</h3>
+        <Row label={t("System")}>{vehicle ? vehicle.systemId : "—"}</Row>
+        <Row label={t("Component")}>{vehicle ? vehicle.componentId : "—"}</Row>
+        <Row label={t("Family")}>{formatText(vehicle?.kind ?? null)}</Row>
+        <Row label={t("Board")}>{board ?? "—"}</Row>
+        <Row label={t("Mode")}>
           <LiveValue select={(telemetry) => telemetry.mode} />
         </Row>
-        <Row label="Armed">
+        <Row label={t("Armed")}>
           <LiveValue
             select={(telemetry) => telemetry.armed}
-            format={(value) => formatYesNo(value as boolean)}
+            format={(value) => t(formatYesNo(value as boolean))}
           />
         </Row>
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Global positioning</h3>
-        <Row label="Fix">
+        <h3 className={styles.heading}>{t("Global positioning")}</h3>
+        <Row label={t("Fix")}>
           <LiveValue
             select={(telemetry) => telemetry.gps?.fixType ?? null}
-            format={(value) => formatFixType(value as number)}
+            format={(value) => formatFixType(value as number, t)}
           />
         </Row>
-        <Row label="Satellites">
+        <Row label={t("Satellites")}>
           <LiveValue
             select={(telemetry) => telemetry.gps?.satellites ?? null}
             format={(value) => (value as number).toString()}
@@ -121,25 +124,25 @@ export function StatusPanel() {
             format={(value) => (value as number).toFixed(2)}
           />
         </Row>
-        <Row label="Second receiver">
+        <Row label={t("Second receiver")}>
           <LiveValue
             select={(telemetry) => telemetry.gps2?.fixType ?? null}
-            format={(value) => formatFixType(value as number)}
+            format={(value) => formatFixType(value as number, t)}
           />
         </Row>
-        <Row label="Second satellites">
+        <Row label={t("Second satellites")}>
           <LiveValue
             select={(telemetry) => telemetry.gps2?.satellites ?? null}
             format={(value) => (value as number).toString()}
           />
         </Row>
-        <Row label="Latitude">
+        <Row label={t("Latitude")}>
           <LiveValue
             select={(telemetry) => telemetry.position?.lat ?? null}
             format={(value) => `${(value as number).toFixed(6)}°`}
           />
         </Row>
-        <Row label="Longitude">
+        <Row label={t("Longitude")}>
           <LiveValue
             select={(telemetry) => telemetry.position?.lng ?? null}
             format={(value) => `${(value as number).toFixed(6)}°`}
@@ -155,19 +158,19 @@ export function StatusPanel() {
               ).toLocaleString("en-US")} N`}
         </Row>
         <Row label="MGRS">{coordinates?.mgrs ?? "—"}</Row>
-        <Row label="Home latitude">
+        <Row label={t("Home latitude")}>
           <LiveValue
             select={(telemetry) => telemetry.home?.lat ?? null}
             format={(value) => `${(value as number).toFixed(6)}°`}
           />
         </Row>
-        <Row label="Home longitude">
+        <Row label={t("Home longitude")}>
           <LiveValue
             select={(telemetry) => telemetry.home?.lng ?? null}
             format={(value) => `${(value as number).toFixed(6)}°`}
           />
         </Row>
-        <Row label="Home altitude">
+        <Row label={t("Home altitude")}>
           <LiveValue
             select={(telemetry) => telemetry.home?.alt ?? null}
             format={(value) => `${Math.round(value as number)} m`}
@@ -176,53 +179,56 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Battery</h3>
-        <Row label="Voltage">
+        <h3 className={styles.heading}>{t("Battery")}</h3>
+        <Row label={t("Voltage")}>
           <LiveValue
             select={(telemetry) => telemetry.battery?.voltage ?? null}
             format={(value) => formatVoltage(value as number)}
           />
         </Row>
-        <Row label="Current">
+        <Row label={t("Current")}>
           <LiveValue
             select={(telemetry) => telemetry.battery?.current ?? null}
             format={(value) => formatCurrent(value as number)}
           />
         </Row>
-        <Row label="Remaining">
+        <Row label={t("Remaining")}>
           <LiveValue
             select={(telemetry) => telemetry.battery?.remaining ?? null}
             format={(value) => formatPercent(value as number)}
           />
         </Row>
-        <Row label="Altitude">
+        <Row label={t("Altitude")}>
           <LiveValue
             select={(telemetry) => telemetry.position?.alt ?? null}
             format={(value) => formatAltitude(value as number)}
           />
         </Row>
-        <Row label="Ground speed">
+        <Row label={t("Ground speed")}>
           <LiveValue
             select={(telemetry) => telemetry.velocity?.groundSpeed ?? null}
             format={(value) => formatSpeed(value as number)}
           />
         </Row>
         {banks.map((bank) => (
-          <Row key={bank.id} label={`Bank ${bank.id + 1}`}>
+          <Row
+            key={bank.id}
+            label={t("Bank {number}", { number: bank.id + 1 })}
+          >
             <BankCells id={bank.id} />
           </Row>
         ))}
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Wind</h3>
-        <Row label="From">
+        <h3 className={styles.heading}>{t("Wind")}</h3>
+        <Row label={t("From")}>
           <LiveValue
             select={(telemetry) => telemetry.wind?.direction ?? null}
             format={(value) => `${Math.round(value as number)}°`}
           />
         </Row>
-        <Row label="Speed">
+        <Row label={t("Speed")}>
           <LiveValue
             select={(telemetry) => telemetry.wind?.speed ?? null}
             format={(value) => `${(value as number).toFixed(1)} m/s`}
@@ -231,38 +237,38 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Identification</h3>
-        <Row label="Kind">
+        <h3 className={styles.heading}>{t("Identification")}</h3>
+        <Row label={t("Kind")}>
           <LiveValue
             select={(telemetry) => telemetry.droneId?.kind ?? null}
             format={(value) => String(value)}
           />
         </Row>
-        <Row label="Id">
+        <Row label={t("Id")}>
           <LiveValue
             select={(telemetry) => telemetry.droneId?.id ?? null}
             format={(value) => String(value)}
           />
         </Row>
-        <Row label="Vehicle">
+        <Row label={t("Vehicle")}>
           <LiveValue
             select={(telemetry) => telemetry.droneId?.kindOfVehicle ?? null}
             format={(value) => String(value)}
           />
         </Row>
-        <Row label="Height">
+        <Row label={t("Height")}>
           <LiveValue
             select={(telemetry) => telemetry.droneId?.location?.height ?? null}
             format={(value) => `${(value as number).toFixed(1)} m`}
           />
         </Row>
-        <Row label="Speed">
+        <Row label={t("Speed")}>
           <LiveValue
             select={(telemetry) => telemetry.droneId?.location?.speed ?? null}
             format={(value) => `${(value as number).toFixed(1)} m/s`}
           />
         </Row>
-        <Row label="Says">
+        <Row label={t("Says")}>
           <LiveValue
             select={(telemetry) => telemetry.droneId?.description ?? null}
             format={(value) => String(value)}
@@ -271,50 +277,50 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Engine</h3>
-        <Row label="Revolutions">
+        <h3 className={styles.heading}>{t("Engine")}</h3>
+        <Row label={t("Revolutions")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.rpm ?? null}
             format={(value) => `${Math.round(value as number)} rpm`}
           />
         </Row>
-        <Row label="Load">
+        <Row label={t("Load")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.engineLoad ?? null}
             format={(value) => `${(value as number).toFixed(0)} %`}
           />
         </Row>
-        <Row label="Fuel flow">
+        <Row label={t("Fuel flow")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.fuelFlow ?? null}
             format={(value) => `${(value as number).toFixed(0)} cm³/h`}
           />
         </Row>
-        <Row label="Fuel burnt">
+        <Row label={t("Fuel burnt")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.fuelConsumed ?? null}
             format={(value) => `${(value as number).toFixed(0)} cm³`}
           />
         </Row>
-        <Row label="Fuel pressure">
+        <Row label={t("Fuel pressure")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.fuelPressure ?? null}
             format={(value) => `${(value as number).toFixed(1)} kPa`}
           />
         </Row>
-        <Row label="Intake">
+        <Row label={t("Intake")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.intakeTemperature ?? null}
             format={(value) => `${(value as number).toFixed(1)} °C`}
           />
         </Row>
-        <Row label="Head">
+        <Row label={t("Head")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.headTemperature ?? null}
             format={(value) => `${(value as number).toFixed(1)} °C`}
           />
         </Row>
-        <Row label="Exhaust">
+        <Row label={t("Exhaust")}>
           <LiveValue
             select={(telemetry) => telemetry.efi?.exhaustTemperature ?? null}
             format={(value) => `${(value as number).toFixed(1)} °C`}
@@ -323,26 +329,26 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Estimator</h3>
-        <Row label="Velocity">
+        <h3 className={styles.heading}>{t("Estimator")}</h3>
+        <Row label={t("Velocity")}>
           <LiveValue
             select={(telemetry) => telemetry.ekf?.velocityVariance ?? null}
             format={(value) => formatVariance(value as number)}
           />
         </Row>
-        <Row label="Horizontal">
+        <Row label={t("Horizontal")}>
           <LiveValue
             select={(telemetry) => telemetry.ekf?.horizontalVariance ?? null}
             format={(value) => formatVariance(value as number)}
           />
         </Row>
-        <Row label="Vertical">
+        <Row label={t("Vertical")}>
           <LiveValue
             select={(telemetry) => telemetry.ekf?.verticalVariance ?? null}
             format={(value) => formatVariance(value as number)}
           />
         </Row>
-        <Row label="Compass">
+        <Row label={t("Compass")}>
           <LiveValue
             select={(telemetry) => telemetry.ekf?.compassVariance ?? null}
             format={(value) => formatVariance(value as number)}
@@ -351,7 +357,7 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Vibration</h3>
+        <h3 className={styles.heading}>{t("Vibration")}</h3>
         <Row label="X">
           <LiveValue
             select={(telemetry) => telemetry.vibration?.x ?? null}
@@ -373,7 +379,7 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Route</h3>
+        <h3 className={styles.heading}>{t("Route")}</h3>
         <RouteBar
           latitude={vehiclePosition?.lat ?? null}
           longitude={vehiclePosition?.lng ?? null}
@@ -381,18 +387,23 @@ export function StatusPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Plan</h3>
-        <Row label="Item">
-          {item === null ? "—" : `${item} of ${plan?.items.length ?? 0}`}
+        <h3 className={styles.heading}>{t("Plan")}</h3>
+        <Row label={t("Item")}>
+          {item === null
+            ? "—"
+            : t("{number} of {count}", {
+                number: item,
+                count: plan?.items.length ?? 0,
+              })}
         </Row>
-        <Row label="Items">{plan ? plan.items.length : "—"}</Row>
+        <Row label={t("Items")}>{plan ? plan.items.length : "—"}</Row>
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.heading}>Link</h3>
-        <Row label="State">{status}</Row>
-        <Row label="Received">{loss.received.toLocaleString("en-US")}</Row>
-        <Row label="Lost">{loss.lost.toLocaleString("en-US")}</Row>
+        <h3 className={styles.heading}>{t("Link")}</h3>
+        <Row label={t("State")}>{t(status)}</Row>
+        <Row label={t("Received")}>{loss.received.toLocaleString("en-US")}</Row>
+        <Row label={t("Lost")}>{loss.lost.toLocaleString("en-US")}</Row>
       </section>
     </div>
   );
@@ -462,13 +473,16 @@ function formatAcceleration(value: number): string {
   return `${value.toFixed(2)} m/s²`;
 }
 
+/** How a part of the interface says something in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 /** The name of the GPS fix, as the MAVLink specification calls it. */
-function formatFixType(value: number): string {
+function formatFixType(value: number, t: Say): string {
   switch (value) {
     case 0:
-      return "no GPS";
+      return t("no GPS");
     case 1:
-      return "no fix";
+      return t("no fix");
     case 2:
       return "2D";
     case 3:
@@ -476,14 +490,14 @@ function formatFixType(value: number): string {
     case 4:
       return "DGPS";
     case 5:
-      return "RTK float";
+      return t("RTK float");
     case 6:
       return "RTK fixed";
     case 7:
-      return "static";
+      return t("static");
     case 8:
       return "PPP";
     default:
-      return `fix ${value}`;
+      return t("fix {number}", { number: value });
   }
 }

@@ -1,4 +1,5 @@
 import type { Telemetry } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { Gauge } from "./Gauge";
 import styles from "./GaugesPanel.module.css";
 
@@ -34,11 +35,13 @@ function selectHeading(telemetry: Telemetry): number | null {
 }
 
 export function GaugesPanel() {
+  const t = useLocaleStore((state) => state.t);
+
   return (
     <div className={styles.grid}>
       <div className={styles.cell}>
         <Gauge
-          label="Speed"
+          label={t("Speed")}
           unit="m/s"
           select={selectSpeed}
           min={0}
@@ -47,7 +50,7 @@ export function GaugesPanel() {
       </div>
       <div className={styles.cell}>
         <Gauge
-          label="Altitude"
+          label={t("Altitude")}
           unit="m"
           select={selectAltitude}
           min={0}
@@ -56,7 +59,7 @@ export function GaugesPanel() {
       </div>
       <div className={styles.cell}>
         <Gauge
-          label="V-speed"
+          label={t("V-speed")}
           unit="m/s"
           select={selectVerticalSpeed}
           min={-10}
@@ -66,7 +69,7 @@ export function GaugesPanel() {
       </div>
       <div className={styles.cell}>
         <Gauge
-          label="Heading"
+          label={t("Heading")}
           unit="deg"
           select={selectHeading}
           min={0}

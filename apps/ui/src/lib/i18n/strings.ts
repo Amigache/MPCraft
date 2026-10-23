@@ -107,6 +107,7 @@ const bundles: Record<Locale, Record<string, string>> = {
 
     "Write a diagnostics bundle…": "Escribir un paquete de diagnóstico…",
     "About MPCraft": "Sobre MPCraft",
+    "Main menu": "El menú principal",
 
     // The switcher of the screens.
     "Flight data": "Datos del vuelo",
@@ -679,6 +680,141 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Se escribió {count} byte de {name} en {path}.",
     "{count} bytes of {name} were written to {path}.":
       "Se escribieron {count} bytes de {name} en {path}.",
+
+    // The console of the messages the vehicle sends.
+    Clear: "Vaciar",
+    "The vehicle has not said anything yet.":
+      "El vehículo todavía no ha dicho nada.",
+
+    // The quick view: the tiles, one value at a glance.
+    "{count} tile": "{count} ficha",
+    "{count} tiles": "{count} fichas",
+    Done: "Terminado",
+    Configure: "Elegir las fichas",
+    Altitude: "Altitud",
+    "Ground speed": "Velocidad sobre el suelo",
+    Heading: "Rumbo",
+    Battery: "Batería",
+    Charge: "Carga",
+    Current: "Corriente",
+    Satellites: "Satélites",
+    Throttle: "Gas",
+    "Air speed": "Velocidad del aire",
+    Climb: "Ascenso",
+    Signal: "Señal",
+
+    // The status tab: what the vehicle is and what the link is doing.
+    "Global positioning": "El posicionamiento",
+    System: "El sistema",
+    Component: "El componente",
+    Family: "La familia",
+    Fix: "El arreglo",
+    "Second receiver": "El segundo receptor",
+    "Second satellites": "Satélites del segundo",
+    "Home latitude": "Latitud de casa",
+    "Home longitude": "Longitud de casa",
+    "Home altitude": "Altitud de casa",
+    Voltage: "Voltaje",
+    Remaining: "Lo que queda",
+    "Bank {number}": "Banco {number}",
+    Wind: "El viento",
+    From: "De donde viene",
+    Identification: "La identificación",
+    Kind: "La clase",
+    Id: "El número",
+    Height: "La altura",
+    Says: "Lo que dice",
+    Engine: "El motor",
+    Revolutions: "Revoluciones",
+    Load: "La carga",
+    "Fuel flow": "El consumo de combustible",
+    "Fuel burnt": "Combustible quemado",
+    "Fuel pressure": "Presión del combustible",
+    Intake: "La entrada",
+    Head: "La culata",
+    Exhaust: "El escape",
+    Estimator: "El estimador",
+    Velocity: "La velocidad",
+    Horizontal: "Lo horizontal",
+    Vertical: "Lo vertical",
+    Vibration: "La vibración",
+    Route: "La ruta",
+    Link: "El enlace",
+    State: "El estado",
+    Item: "El elemento",
+    Items: "Los elementos",
+    "{number} of {count}": "{number} de {count}",
+    // What the state of the satellites is called, one by one.
+    "no GPS": "sin GPS",
+    "no fix": "sin arreglo",
+    "RTK float": "RTK flotante",
+    static: "estático",
+    "fix {number}": "arreglo {number}",
+
+    // The bar of the route.
+    "The route": "La ruta",
+    "{distance} flown": "{distance} volado",
+    "{distance} to go": "{distance} por recorrer",
+    "{distance} in all": "{distance} en total",
+
+    // The outputs of the vehicle and what they are for.
+    Outputs: "Las salidas",
+    "Output {number}": "Salida {number}",
+    "Radio channels": "Los canales de la radio",
+    "Channel {number}": "Canal {number}",
+    Strength: "La fuerza",
+    "Auxiliary functions": "Las funciones auxiliares",
+    "The vehicle has not said what its outputs are for.":
+      "El vehículo no ha dicho para qué son sus salidas.",
+    "It tells it with the parameters": "Lo dice con los parámetros",
+    "and its brothers.": "y sus hermanos.",
+    "Function {number}": "Función {number}",
+    "Motor {number}": "Motor {number}",
+
+    // The check list before the flight.
+    "The checklist is empty.": "La lista de comprobación está vacía.",
+
+    // The dials.
+    "V-speed": "Velocidad vertical",
+
+    // The graphs.
+    "The graph": "El gráfico",
+    "Hide the graphs and give the map the whole area":
+      "Quitar los gráficos y dar al mapa todo el espacio",
+    "Hide graphs": "Quitar los gráficos",
+    "The catalogue of graphs could not be read.":
+      "No se pudo leer el catálogo de gráficos.",
+    "Waiting for the vehicle to report.":
+      "Se espera a que el vehículo informe.",
+
+    // The grid of the items of a plan.
+    Command: "La orden",
+    Frame: "El marco",
+    Alt: "Altitud",
+    Auto: "Seguir",
+    "The item the vehicle is executing":
+      "El elemento que el vehículo está ejecutando",
+    "The frame of item {number}": "El marco del elemento {number}",
+    "Whether the vehicle goes on by itself after item {number}":
+      "Si el vehículo sigue solo después del elemento {number}",
+    "Move the item up": "Subir el elemento",
+    "Move item {number} up": "Subir el elemento {number}",
+    "Move the item down": "Bajar el elemento",
+    "Move item {number} down": "Bajar el elemento {number}",
+    "Delete the item": "Borrar el elemento",
+    "Delete item {number}": "Borrar el elemento {number}",
+    "The items of the plan": "Los elementos del plan",
+    "The command of item {number}": "La orden del elemento {number}",
+    "Parameter {parameter} of item {number}":
+      "El parámetro {parameter} del elemento {number}",
+    "The altitude of item {number}": "La altitud del elemento {number}",
+    "The latitude of item {number}": "La latitud del elemento {number}",
+    "The longitude of item {number}": "La longitud del elemento {number}",
+    // The frames a plan is expressed in.
+    "Above the sea": "Sobre el mar",
+    "Above the home": "Sobre casa",
+    "Above the ground": "Sobre el suelo",
+    "Frame {number}": "El marco {number}",
   },
 };
 

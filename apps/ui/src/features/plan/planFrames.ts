@@ -25,7 +25,12 @@ export const FRAMES: readonly Frame[] = [
 /** The frame a new item is given when there is nothing to copy it from. */
 export const DEFAULT_FRAME = 3;
 
+/** How a part of the interface says something in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 /** The name of a frame, when the frame is one of the ones offered. */
-export function labelOfFrame(value: number): string {
-  return FRAMES.find((frame) => frame.value === value)?.label ?? `Frame ${value}`;
+export function labelOfFrame(value: number, t: Say): string {
+  const frame = FRAMES.find((entry) => entry.value === value);
+
+  return frame ? t(frame.label) : t("Frame {number}", { number: value });
 }

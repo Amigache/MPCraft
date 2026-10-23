@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import { formatNumber } from "../../lib/format";
 import { graphSeries, listGraphs } from "../../lib/ipc/bridge";
-import type { CommandError, GraphPreset, GraphSeries } from "../../lib/ipc/types";
+import type {
+  CommandError,
+  GraphPreset,
+  GraphSeries,
+} from "../../lib/ipc/types";
 import { alignSeries, latestValues, planChart } from "../../lib/graphs/plan";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { GraphChart } from "./GraphChart";
@@ -39,6 +44,8 @@ export function GraphPanel() {
   const graphPreset = useUiStore((store) => store.graphPreset);
   const setGraphPreset = useUiStore((store) => store.setGraphPreset);
   const toggleGraphs = useUiStore((store) => store.toggleGraphs);
+
+  const t = useLocaleStore((store) => store.t);
 
   // Where the play-back is. A log that is being played back is what the graph draws,
   // and the line that says where the play-head is is the moment the grid of the
@@ -87,7 +94,8 @@ export function GraphPanel() {
   }, [graphPreset, presets, setGraphPreset]);
 
   const preset = useMemo(
-    () => presets.find((entry) => entry.name === graphPreset) ?? presets[0] ?? null,
+    () =>
+      presets.find((entry) => entry.name === graphPreset) ?? presets[0] ?? null,
     [graphPreset, presets],
   );
 
@@ -142,7 +150,9 @@ export function GraphPanel() {
 
   const aligned = useMemo(
     () =>
-      values && values.name === preset?.name ? alignSeries(values.series) : null,
+      values && values.name === preset?.name
+        ? alignSeries(values.series)
+        : null,
     [preset, values],
   );
 
@@ -171,7 +181,7 @@ export function GraphPanel() {
         <select
           className={`select ${styles.preset}`}
           value={preset?.name ?? ""}
-          aria-label="The graph"
+          aria-label={t("The graph")}
           disabled={presets.length === 0}
           onChange={(event) => setGraphPreset(event.target.value)}
         >
@@ -195,9 +205,9 @@ export function GraphPanel() {
           type="button"
           className="button"
           onClick={toggleGraphs}
-          title="Hide the graphs and give the map the whole area"
+          title={t("Hide the graphs and give the map the whole area")}
         >
-          Hide graphs
+          {t("Hide graphs")}
         </button>
       </div>
 
@@ -207,8 +217,8 @@ export function GraphPanel() {
         {empty ? (
           <p className={styles.empty}>
             {state === "failed"
-              ? "The catalogue of graphs could not be read."
-              : "Waiting for the vehicle to report."}
+              ? t("The catalogue of graphs could not be read.")
+              : t("Waiting for the vehicle to report.")}
           </p>
         ) : null}
       </div>
@@ -222,8 +232,12 @@ export function GraphPanel() {
               aria-hidden="true"
             />
             <span className={styles.name}>{entry.name}</span>
-            <span className={styles.value}>{formatNumber(latest[index] ?? null, 2)}</span>
-            {entry.unit ? <span className={styles.unit}>{entry.unit}</span> : null}
+            <span className={styles.value}>
+              {formatNumber(latest[index] ?? null, 2)}
+            </span>
+            {entry.unit ? (
+              <span className={styles.unit}>{entry.unit}</span>
+            ) : null}
           </li>
         ))}
       </ul>

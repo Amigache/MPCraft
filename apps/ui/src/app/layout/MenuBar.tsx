@@ -1052,7 +1052,12 @@ export function MenuBar() {
   };
 
   return (
-    <div className={styles.bar} role="menubar" aria-label="Main menu" ref={bar}>
+    <div
+      className={styles.bar}
+      role="menubar"
+      aria-label={t("Main menu")}
+      ref={bar}
+    >
       {menus.map((menu) => (
         <div className={styles.menu} key={menu.id}>
           <button

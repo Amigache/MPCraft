@@ -7,6 +7,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import type { MavCommand, PlanItem } from "../../lib/ipc/types";
 import {
   carriesPosition,
@@ -39,7 +40,10 @@ const COORDINATE_DIGITS = 7;
 const ALTITUDE_DIGITS = 1;
 
 /** What a change to an item is. */
-export type ItemChange = (seq: number, patch: Partial<Omit<PlanItem, "seq">>) => void;
+export type ItemChange = (
+  seq: number,
+  patch: Partial<Omit<PlanItem, "seq">>,
+) => void;
 
 export interface PlanGridProps {
   /** The items of the plan, in order. */
@@ -82,15 +86,14 @@ export function PlanGrid({
   onMove,
   onRemove,
 }: PlanGridProps) {
+  const t = useLocaleStore((state) => state.t);
+
   const scroll = useRef<HTMLDivElement | null>(null);
 
   // The columns of the grid follow the plan: a plan of delays has one parameter column
   // and a plan of waypoints has another. Four empty boxes for a command that has no
   // parameters are noise.
-  const slots = useMemo(
-    () => slotsOfPlan(items, commands),
-    [commands, items],
-  );
+  const slots = useMemo(() => slotsOfPlan(items, commands), [commands, items]);
 
   const columns = useMemo<ColumnDef<PlanItem, unknown>[]>(
     () => [
@@ -103,7 +106,7 @@ export function PlanGrid({
             className={row.original.current ? styles.current : styles.number}
             title={
               row.original.current
-                ? "The item the vehicle is executing"
+                ? t("The item the vehicle is executing")
                 : undefined
             }
           >
@@ -113,28 +116,35 @@ export function PlanGrid({
       },
       {
         id: "command",
-        header: "Command",
+        header: t("Command"),
         size: 152,
         cell: ({ row }) => (
-          <CommandCell item={row.original} commands={commands} onChange={onChange} />
+          <CommandCell
+            item={row.original}
+            commands={commands}
+            onChange={onChange}
+            t={t}
+          />
         ),
       },
       {
         id: "frame",
-        header: "Frame",
+        header: t("Frame"),
         size: 116,
         cell: ({ row }) => (
           <select
             className={`select ${styles.select}`}
             value={row.original.frame}
-            aria-label={`The frame of item ${row.original.seq + 1}`}
+            aria-label={t("The frame of item {number}", {
+              number: row.original.seq + 1,
+            })}
             onChange={(event) => {
               onChange(row.original.seq, { frame: Number(event.target.value) });
             }}
           >
             {FRAMES.map((frame) => (
               <option key={frame.value} value={frame.value}>
-                {frame.label}
+                {t(frame.label)}
               </option>
             ))}
           </select>
@@ -150,12 +160,13 @@ export function PlanGrid({
             slot={slot}
             commands={commands}
             onChange={onChange}
+            t={t}
           />
         ),
       })),
       {
         id: "lat",
-        header: "Latitude",
+        header: t("Latitude"),
         size: 100,
         cell: ({ row }) => (
           <PositionCell
@@ -163,12 +174,13 @@ export function PlanGrid({
             commands={commands}
             axis="lat"
             onChange={onChange}
+            t={t}
           />
         ),
       },
       {
         id: "lon",
-        header: "Longitude",
+        header: t("Longitude"),
         size: 100,
         cell: ({ row }) => (
           <PositionCell
@@ -176,12 +188,13 @@ export function PlanGrid({
             commands={commands}
             axis="lon"
             onChange={onChange}
+            t={t}
           />
         ),
       },
       {
         id: "alt",
-        header: "Alt",
+        header: t("Alt"),
         size: 72,
         cell: ({ row }) => (
           <PositionCell
@@ -189,23 +202,27 @@ export function PlanGrid({
             commands={commands}
             axis="alt"
             onChange={onChange}
+            t={t}
           />
         ),
       },
       {
         id: "autocontinue",
-        header: "Auto",
-        size: 48,
+        header: t("Auto"),
+        size: 68,
         cell: ({ row }) => (
           <input
             className={styles.check}
             type="checkbox"
             checked={row.original.autocontinue}
-            aria-label={`Whether the vehicle goes on by itself after item ${
-              row.original.seq + 1
-            }`}
+            aria-label={t(
+              "Whether the vehicle goes on by itself after item {number}",
+              { number: row.original.seq + 1 },
+            )}
             onChange={(event) => {
-              onChange(row.original.seq, { autocontinue: event.target.checked });
+              onChange(row.original.seq, {
+                autocontinue: event.target.checked,
+              });
             }}
           />
         ),
@@ -219,8 +236,10 @@ export function PlanGrid({
             <button
               type="button"
               className={styles.iconButton}
-              title="Move the item up"
-              aria-label={`Move item ${row.original.seq + 1} up`}
+              title={t("Move the item up")}
+              aria-label={t("Move item {number} up", {
+                number: row.original.seq + 1,
+              })}
               disabled={row.original.seq === 0}
               onClick={() => {
                 onMove(row.original.seq, -1);
@@ -231,8 +250,10 @@ export function PlanGrid({
             <button
               type="button"
               className={styles.iconButton}
-              title="Move the item down"
-              aria-label={`Move item ${row.original.seq + 1} down`}
+              title={t("Move the item down")}
+              aria-label={t("Move item {number} down", {
+                number: row.original.seq + 1,
+              })}
               disabled={row.original.seq === items.length - 1}
               onClick={() => {
                 onMove(row.original.seq, 1);
@@ -243,8 +264,10 @@ export function PlanGrid({
             <button
               type="button"
               className={`${styles.iconButton} ${styles.remove}`}
-              title="Delete the item"
-              aria-label={`Delete item ${row.original.seq + 1}`}
+              title={t("Delete the item")}
+              aria-label={t("Delete item {number}", {
+                number: row.original.seq + 1,
+              })}
               onClick={() => {
                 onRemove(row.original.seq);
               }}
@@ -255,7 +278,7 @@ export function PlanGrid({
         ),
       },
     ],
-    [commands, items.length, onChange, onMove, onRemove, slots],
+    [commands, items.length, onChange, onMove, onRemove, slots, t],
   );
 
   const table = useReactTable({
@@ -280,7 +303,7 @@ export function PlanGrid({
       <div
         className={styles.canvas}
         role="grid"
-        aria-label="The items of the plan"
+        aria-label={t("The items of the plan")}
         aria-rowcount={rows.length + 1}
         aria-colcount={columns.length}
         style={{ width: `${total}px`, minWidth: "100%" }}
@@ -355,15 +378,20 @@ export function PlanGrid({
   );
 }
 
+/** How a part of the interface says something in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 /** The command of an item, as a list of the ones the ground station knows. */
 function CommandCell({
   item,
   commands,
   onChange,
+  t,
 }: {
   readonly item: PlanItem;
   readonly commands: readonly MavCommand[];
   readonly onChange: ItemChange;
+  readonly t: Say;
 }) {
   const known = commands.some((command) => command.value === item.commandValue);
 
@@ -371,7 +399,7 @@ function CommandCell({
     <select
       className={`select ${styles.select}`}
       value={item.commandValue}
-      aria-label={`The command of item ${item.seq + 1}`}
+      aria-label={t("The command of item {number}", { number: item.seq + 1 })}
       onChange={(event) => {
         const value = Number(event.target.value);
         const command = commandOf(commands, value);
@@ -400,11 +428,13 @@ function ParameterCell({
   slot,
   commands,
   onChange,
+  t,
 }: {
   readonly item: PlanItem;
   readonly slot: number;
   readonly commands: readonly MavCommand[];
   readonly onChange: ItemChange;
+  readonly t: Say;
 }) {
   const command = commandOf(commands, item.commandValue);
   const role = command?.roles[slot] ?? "empty";
@@ -422,7 +452,10 @@ function ParameterCell({
       <PlanNumberCell
         value={item.params[slot] ?? 0}
         format={showParameter}
-        label={`Parameter ${slot + 1} of item ${item.seq + 1}`}
+        label={t("Parameter {parameter} of item {number}", {
+          parameter: slot + 1,
+          number: item.seq + 1,
+        })}
         onCommit={(value) => {
           const params = [...item.params] as [number, number, number, number];
           params[slot] = value;
@@ -440,11 +473,13 @@ function PositionCell({
   commands,
   axis,
   onChange,
+  t,
 }: {
   readonly item: PlanItem;
   readonly commands: readonly MavCommand[];
   readonly axis: "lat" | "lon" | "alt";
   readonly onChange: ItemChange;
+  readonly t: Say;
 }) {
   const command = commandOf(commands, item.commandValue);
 
@@ -458,7 +493,7 @@ function PositionCell({
       <PlanNumberCell
         value={item.z}
         format={showAltitude}
-        label={`The altitude of item ${item.seq + 1}`}
+        label={t("The altitude of item {number}", { number: item.seq + 1 })}
         onCommit={(value) => {
           onChange(item.seq, { z: value });
         }}
@@ -472,7 +507,12 @@ function PositionCell({
     <PlanNumberCell
       value={isLatitude ? item.x : item.y}
       format={showCoordinate}
-      label={`The ${isLatitude ? "latitude" : "longitude"} of item ${item.seq + 1}`}
+      label={t(
+        isLatitude
+          ? "The latitude of item {number}"
+          : "The longitude of item {number}",
+        { number: item.seq + 1 },
+      )}
       onCommit={(value) => {
         onChange(item.seq, isLatitude ? { x: value } : { y: value });
       }}
