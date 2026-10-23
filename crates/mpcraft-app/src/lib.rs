@@ -44,6 +44,7 @@ use mpcraft_geo::tiles::TileService;
 use mpcraft_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 
+pub mod adsb_relay;
 pub mod board;
 pub mod bootloader;
 pub mod checklist;
@@ -190,6 +191,13 @@ pub struct AppState {
     /// The vehicle relays the message of the transponder, and the aircraft around it see
     /// it.
     pub transponder: crate::transponder::TransponderService,
+
+    ///
+    /// The traffic of the air, sent back onto the link.
+    ///
+    /// The aircraft the station read from a source of its own are not on the link, so the
+    /// relay puts them there: the other stations listening to this link see them.
+    pub adsb_relay: crate::adsb_relay::AdsbRelayService,
 }
 
 impl Default for AppState {
@@ -219,6 +227,7 @@ impl Default for AppState {
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
+            adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
         }
     }
 }
@@ -318,6 +327,9 @@ impl AppState {
 
         // The caster of the corrections needs to know where the vehicle is.
         self.ntrip.set_position(position);
+        // The relay asks the source for the traffic around the place the vehicle is, and it
+        // sorts the aircraft by how far they are from it.
+        self.adsb_relay.set_position(position);
         // The transponder says where the vehicle is and how it is going.
         let heading = session
             .telemetry
@@ -737,6 +749,7 @@ mod tests {
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
+            adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
         };
 
         assert!(state
@@ -775,6 +788,7 @@ mod tests {
             http: std::sync::Arc::new(std::sync::Mutex::new(None)),
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
+            adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
         };
 
         let error = state

@@ -53,7 +53,12 @@ async fn connect(
                 }
             }
 
-            if let Err(error) = handle.emit(STATE_EVENT, StateEvent::from(snapshot)) {
+            let mut event = StateEvent::from(snapshot);
+            // The aircraft the station read from its own source are added to what the vehicle
+            // sent, so that the map draws both and the operator sees which came from where.
+            event.add_station_traffic(&feeder.adsb_relay.aircraft());
+
+            if let Err(error) = handle.emit(STATE_EVENT, event) {
                 tracing::warn!("could not publish the state: {error}");
             }
         })
@@ -1664,6 +1669,62 @@ async fn transponder_status(
     Ok(state.transponder.status())
 }
 
+/// Starts sending the traffic that the station reads onto the link.
+///
+/// The aircraft the vehicle sent are already on the link. The ones the station read from a
+/// source of its own are what the relay adds, one each second, so that the other stations
+/// listening to this link see them too.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the settings are
+/// not ones that can be used.
+#[tauri::command]
+async fn adsb_relay_start(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    server: String,
+    radius_nm: u32,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    state.adsb_relay.start(
+        session,
+        vehicle,
+        mpcraft_app::adsb_relay::AdsbRelaySettings { server, radius_nm },
+    )?;
+
+    Ok(())
+}
+
+/// Stops sending the traffic of the station onto the link.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn adsb_relay_stop(state: State<'_, AppState>) -> CommandResult<()> {
+    state.adsb_relay.stop();
+    Ok(())
+}
+
+/// What the relay of the traffic is doing.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn adsb_relay_status(
+    state: State<'_, AppState>,
+) -> CommandResult<mpcraft_app::adsb_relay::AdsbRelayStatus> {
+    Ok(state.adsb_relay.status())
+}
+
 /// Asks the camera of the vehicle what video streams it has.
 ///
 /// The camera answers with a URI, and the size and frame rate of each stream. The
@@ -2797,6 +2858,8 @@ struct AdsbEvent {
     icao_address: u32,
     /// The name it says, when it says one.
     callsign: Option<String>,
+    /// The code it is squawking, when it says one.
+    squawk: u16,
     /// Where it is.
     latitude: f64,
     /// Where it is.
@@ -2809,6 +2872,24 @@ struct AdsbEvent {
     speed: f64,
     /// How fast it is going up or down, in metres per second.
     vertical_speed: f64,
+    /// Where the aircraft was heard from: the vehicle sent it, or the station read it.
+    source: mpcraft_link::AdsbSource,
+}
+
+/// One aircraft of the traffic, as the interface sees it.
+fn adsb_event_of(aircraft: &mpcraft_link::AdsbVehicle) -> AdsbEvent {
+    AdsbEvent {
+        icao_address: aircraft.icao_address,
+        callsign: aircraft.callsign.clone(),
+        squawk: aircraft.squawk,
+        latitude: aircraft.latitude,
+        longitude: aircraft.longitude,
+        altitude: aircraft.altitude,
+        heading: aircraft.heading,
+        speed: aircraft.speed,
+        vertical_speed: aircraft.vertical_speed,
+        source: aircraft.source,
+    }
 }
 
 /// A message the vehicle sent.
@@ -3219,23 +3300,11 @@ impl From<&LinkSnapshot> for StateEvent {
                         .collect()
                 })
                 .unwrap_or_default(),
+            // The traffic the vehicle sent. The aircraft the station read from a source of its
+            // own are added where the event is published, because that is where the relay can
+            // be reached.
             adsb: state
-                .map(|state| {
-                    state
-                        .adsb
-                        .iter()
-                        .map(|aircraft| AdsbEvent {
-                            icao_address: aircraft.icao_address,
-                            callsign: aircraft.callsign.clone(),
-                            latitude: aircraft.latitude,
-                            longitude: aircraft.longitude,
-                            altitude: aircraft.altitude,
-                            heading: aircraft.heading,
-                            speed: aircraft.speed,
-                            vertical_speed: aircraft.vertical_speed,
-                        })
-                        .collect()
-                })
+                .map(|state| state.adsb.iter().map(adsb_event_of).collect())
                 .unwrap_or_default(),
         }
     }
@@ -3429,6 +3498,25 @@ impl StateEvent {
             ConnectionStatus::Failed => "fallo",
         }
     }
+
+    /// Adds the aircraft the station read from a source of its own.
+    ///
+    /// An aircraft that the vehicle also sent is not put twice: what the link already carries
+    /// is kept, and the relay does not send it back. The list is put in the order of the
+    /// addresses, so that the traffic is shown the same way every time.
+    fn add_station_traffic(&mut self, aircraft: &[mpcraft_link::AdsbVehicle]) {
+        for plane in aircraft {
+            if !self
+                .adsb
+                .iter()
+                .any(|seen| seen.icao_address == plane.icao_address)
+            {
+                self.adsb.push(adsb_event_of(plane));
+            }
+        }
+
+        self.adsb.sort_by_key(|event| event.icao_address);
+    }
 }
 
 impl Default for StateEvent {
@@ -3545,6 +3633,9 @@ fn main() {
             transponder_start,
             transponder_stop,
             transponder_status,
+            adsb_relay_start,
+            adsb_relay_stop,
+            adsb_relay_status,
             video_streams,
             video_stream_start,
             video_stream_stop,
@@ -3615,18 +3706,19 @@ fn main() {
                                 }
                             }
 
+                            let mut event = StateEvent::from(snapshot);
+                            event.add_station_traffic(&feeder.adsb_relay.aircraft());
+
                             // The title carries the link state, so it is visible even
                             // without the interface in front.
                             if let Some(window) = titler.get_webview_window("main") {
                                 let _ = window.set_title(&format!(
                                     "MPCraft \u{2014} {}",
-                                    StateEvent::from(snapshot).status_label()
+                                    event.status_label()
                                 ));
                             }
 
-                            if let Err(error) =
-                                emitter.emit(STATE_EVENT, StateEvent::from(snapshot))
-                            {
+                            if let Err(error) = emitter.emit(STATE_EVENT, event) {
                                 tracing::warn!("could not publish the state: {error}");
                             }
                         })

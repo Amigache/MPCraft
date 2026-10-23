@@ -102,6 +102,12 @@ impl From<mpcraft_link::LinkError> for CommandError {
     }
 }
 
+impl From<crate::adsb_relay::RelayError> for CommandError {
+    fn from(error: crate::adsb_relay::RelayError) -> Self {
+        Self::new(error.code(), error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

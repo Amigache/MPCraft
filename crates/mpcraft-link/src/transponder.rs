@@ -81,7 +81,11 @@ impl Transponder {
 }
 
 /// The name of the flight, as the message carries it.
-fn char_array_of(name: &str) -> CharArray<9> {
+///
+/// The message has nine bytes for a name, so a longer one is cut. The traffic module needs
+/// the same thing for the aircraft it sends, and it uses this rather than writing its own.
+#[must_use]
+pub fn char_array_of(name: &str) -> CharArray<9> {
     let mut array = CharArray::from([0_u8; 9]);
 
     for (index, byte) in name.as_bytes().iter().take(9).enumerate() {

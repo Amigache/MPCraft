@@ -116,6 +116,7 @@ export function MenuBar() {
   const showOsd = useUiStore((state) => state.showOsd);
   const showNtrip = useUiStore((state) => state.showNtrip);
   const showTransponder = useUiStore((state) => state.showTransponder);
+  const showAdsb = useUiStore((state) => state.showAdsb);
   const showVideo = useUiStore((state) => state.showVideo);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
@@ -811,6 +812,18 @@ export function MenuBar() {
           checked: undefined,
           separator: false,
           hint: "",
+        },
+        {
+          id: "setup-adsb",
+          label: "The traffic of the air…",
+          onSelect: () => {
+            close();
+            showAdsb();
+          },
+          disabled: !linked,
+          checked: undefined,
+          separator: false,
+          hint: linked ? "" : "no link",
         },
         {
           id: "setup-video",

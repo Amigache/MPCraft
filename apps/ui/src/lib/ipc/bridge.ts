@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 
 import type {
+  AdsbRelayStatus,
   BoardInfo,
   ChecklistEntry,
   CommandError,
@@ -204,6 +205,30 @@ export async function transponderStop(): Promise<void> {
 /** What the transponder is doing. */
 export async function transponderStatus(): Promise<TransponderStatus> {
   return call<TransponderStatus>("transponder_status");
+}
+
+/**
+ * Starts sending the traffic that the station reads onto the link.
+ *
+ * The aircraft the vehicle sent are already on the link. The ones the station read from a
+ * source of its own are what the relay adds, one each second, so that the other stations
+ * listening to this link see them too.
+ */
+export async function adsbRelayStart(
+  server: string,
+  radiusNm: number,
+): Promise<void> {
+  await call<void>("adsb_relay_start", { req: {}, server, radiusNm });
+}
+
+/** Stops sending the traffic of the station onto the link. */
+export async function adsbRelayStop(): Promise<void> {
+  await call<void>("adsb_relay_stop");
+}
+
+/** What the relay of the traffic is doing. */
+export async function adsbRelayStatus(): Promise<AdsbRelayStatus> {
+  return call<AdsbRelayStatus>("adsb_relay_status");
 }
 
 /** Asks the camera of the vehicle what video streams it has. */

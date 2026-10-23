@@ -12,6 +12,7 @@ import { FilesSheet } from "../../features/files/FilesSheet";
 import { OsdSheet } from "../../features/osd/OsdSheet";
 import { NtripSheet } from "../../features/ntrip/NtripSheet";
 import { TransponderSheet } from "../../features/transponder/TransponderSheet";
+import { AdsbSheet } from "../../features/adsb/AdsbSheet";
 import { VideoSheet } from "../../features/video/VideoSheet";
 import { PassthroughSheet } from "../../features/passthrough/PassthroughSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
@@ -56,6 +57,7 @@ export function AppShell() {
       state.osdOpen ||
       state.ntripOpen ||
       state.transponderOpen ||
+      state.adsbOpen ||
       state.videoOpen,
   );
 
@@ -89,6 +91,7 @@ export function AppShell() {
       <OsdSheet />
       <NtripSheet />
       <TransponderSheet />
+      <AdsbSheet />
       <VideoSheet />
     </div>
   );

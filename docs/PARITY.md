@@ -172,7 +172,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.11 | Terrain data protocol server | `ExtLibs/Utilities/TerrainFollow.cs` | ✅ | 5 |
 | 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | 🔜 | 5 |
 | 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | ✅ | 5 |
-| 7.14 | ADS-B relay to other stations | `MainV2.ADSBRunner` | 🔜 | 5 |
+| 7.14 | ADS-B relay to other stations | `MainV2.ADSBRunner` | ✅ | 5 |
 
 ## 8. Firmware & flashing
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 136 |
-| 🔜 Planned | 16 |
+| ✅ Done | 137 |
+| 🔜 Planned | 15 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 135 rows marked done are the connection, transport, parameter, mission and command
+The 137 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -469,6 +469,20 @@ drawn with the pictures that are on the disk.
 The **traffic of the air** is drawn on the map: a vehicle with a receiver for it sends
 what it hears, and the aircraft around it are marked with the name they say. The traffic
 is kept while it is heard, and an aircraft that is not heard any more is forgotten.
+
+The station can also read the traffic from a source of its own, and what it reads there is
+put onto the link, because the other stations listening to this link would not see it
+otherwise. Once a second the relay takes the aircraft that came from its own source — not
+the ones the vehicle sent, which are already on the link — keeps the ten closest to the
+vehicle, and sends one of them, going through the list in order rather than sending the same
+one again. The list is asked for every ten seconds, which is what the service that publishes
+the traffic asks of its readers, and the client says who is asking, because a client that
+says nothing about itself is refused. Upstream does the same (`MainV2.ADSBRunner`), with the
+same rule of the ten closest within ten kilometres and one second apart. What upstream also
+does — opening a plain connection to a receiver and decoding the messages itself — is not
+ported here: an address that is not a URL is refused rather than guessed at. The sheet of the
+traffic, opened from Setup, holds the address of the source and how far round the vehicle the
+list is asked for, and says what the relay is doing.
 
 The **transponder** of the vehicle is a sheet of its own: the vehicle is told where it
 is and what to say, and it relays the message, so that the aircraft around it see it.

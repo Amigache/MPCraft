@@ -181,7 +181,9 @@ function sameAdsb(
       aircraft.latitude === other.latitude &&
       aircraft.longitude === other.longitude &&
       aircraft.altitude === other.altitude &&
-      aircraft.heading === other.heading
+      aircraft.heading === other.heading &&
+      aircraft.squawk === other.squawk &&
+      aircraft.source === other.source
     );
   });
 }

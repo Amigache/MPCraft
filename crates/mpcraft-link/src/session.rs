@@ -388,12 +388,15 @@ impl SessionContext {
                     crate::adsb::AdsbVehicle {
                         icao_address: traffic.ICAO_address,
                         callsign: crate::adsb::callsign_of(&callsign),
+                        squawk: traffic.squawk,
                         latitude: f64::from(traffic.lat) / 1e7,
                         longitude: f64::from(traffic.lon) / 1e7,
                         altitude: f64::from(traffic.altitude) / 1000.0,
                         heading: f64::from(traffic.heading) / 100.0,
                         speed: f64::from(traffic.hor_velocity) / 100.0,
                         vertical_speed: f64::from(traffic.ver_velocity) / 100.0,
+                        // The vehicle sent it, so the relay does not send it back.
+                        source: crate::adsb::AdsbSource::Vehicle,
                     },
                     now,
                 );

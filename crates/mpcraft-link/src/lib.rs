@@ -76,7 +76,7 @@ pub mod terrain;
 pub mod transponder;
 pub mod vehicle;
 
-pub use adsb::{AdsbRegistry, AdsbVehicle};
+pub use adsb::{AdsbRegistry, AdsbSource, AdsbVehicle};
 pub use camera::{VideoStream, VIDEO_STREAM_INFORMATION_ID};
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;

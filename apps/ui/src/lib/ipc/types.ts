@@ -122,12 +122,14 @@ export interface VideoStream {
   readonly running: boolean;
 }
 
-/** One aircraft of the traffic that the vehicle has heard. */
+/** One aircraft of the traffic, from the vehicle or from a source of the station. */
 export interface AdsbVehicle {
   /** The address the aircraft has. */
   readonly icaoAddress: number;
   /** The name it says, when it says one. */
   readonly callsign: string | null;
+  /** The code it is squawking, when it says one. */
+  readonly squawk: number;
   /** Where it is. */
   readonly latitude: number;
   /** Where it is. */
@@ -140,6 +142,29 @@ export interface AdsbVehicle {
   readonly speed: number;
   /** How fast it is going up or down, in metres per second. */
   readonly verticalSpeed: number;
+  /** Where it was heard from: the vehicle sent it, or the station read it. */
+  readonly source: "vehicle" | "station";
+}
+
+/** What the relay of the traffic is doing. */
+export interface AdsbRelayStatus {
+  /** Whether the relay is sending. */
+  readonly running: boolean;
+  /** How many aircraft have been sent onto the link. */
+  readonly sent: number;
+  /** Which place of the list the next one will be taken from. */
+  readonly index: number;
+  /** How many aircraft the station has read and is keeping. */
+  readonly aircraft: number;
+  /** The last failure, when there was one. */
+  readonly error: string | null;
+  /** Where the vehicle is, because the list is asked around it. */
+  readonly position: GeoPoint | null;
+  /** What the relay reads from and how far it looks. */
+  readonly settings: {
+    readonly server: string;
+    readonly radiusNm: number;
+  };
 }
 
 /** One slot of the on-screen display of the vehicle. */

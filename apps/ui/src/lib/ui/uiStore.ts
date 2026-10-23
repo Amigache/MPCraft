@@ -436,6 +436,12 @@ export interface UiStore {
   readonly showTransponder: () => void;
   /** Closes the sheet of the transponder. */
   readonly hideTransponder: () => void;
+  /** Whether the sheet of the traffic of the air is open over the window. */
+  readonly adsbOpen: boolean;
+  /** Opens the sheet of the traffic of the air. */
+  readonly showAdsb: () => void;
+  /** Closes the sheet of the traffic of the air. */
+  readonly hideAdsb: () => void;
   /** Whether the sheet of the video streams is open over the window. */
   readonly videoOpen: boolean;
   /** Opens the sheet of the video streams. */
@@ -496,6 +502,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   osdOpen: false,
   ntripOpen: false,
   transponderOpen: false,
+  adsbOpen: false,
   videoOpen: false,
   parameterGroups: [],
 
@@ -609,6 +616,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   showOsd: () => set({ osdOpen: true }),
   showNtrip: () => set({ ntripOpen: true }),
   showTransponder: () => set({ transponderOpen: true }),
+  showAdsb: () => set({ adsbOpen: true }),
   showVideo: () => set({ videoOpen: true }),
 
   showLog: () => get().setScreen("logs"),
@@ -624,6 +632,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   hideOsd: () => set({ osdOpen: false }),
   hideNtrip: () => set({ ntripOpen: false }),
   hideTransponder: () => set({ transponderOpen: false }),
+  hideAdsb: () => set({ adsbOpen: false }),
   hideVideo: () => set({ videoOpen: false }),
 
   loadParameterGroups: async () => {
