@@ -10,6 +10,7 @@ members = [
     "crates/mpcraft-params",
     "crates/mpcraft-log",
     "crates/mpcraft-settings",
+    "crates/mpcraft-plugin",
     "crates/mpcraft-app",
     "crates/mpcraft-cli",
     "apps/desktop",
@@ -33,6 +34,7 @@ mpcraft-geo = { path = "crates/mpcraft-geo" }
 mpcraft-params = { path = "crates/mpcraft-params" }
 mpcraft-log = { path = "crates/mpcraft-log" }
 mpcraft-settings = { path = "crates/mpcraft-settings" }
+mpcraft-plugin = { path = "crates/mpcraft-plugin" }
 mpcraft-app = { path = "crates/mpcraft-app" }
 mpcraft-cli = { path = "crates/mpcraft-cli" }
 
@@ -77,6 +79,11 @@ csv = "1"
 regex = "1"
 flate2 = "1"
 sha2 = "0.10"
+
+# The WASM runtime behind the plugin sandbox. It is the only runtime dependency in the workspace,
+# and only `mpcraft-plugin` uses it: the layer above hands the sandbox a manifest and gets typed
+# results back, so nothing else has to know that a runtime exists.
+wasmtime = "50"
 dirs = "6"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 

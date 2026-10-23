@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::SettingsError;
 use crate::keys::SigningKeyEntry;
+use crate::plugins::PluginEntry;
 use crate::profiles::ConnectionProfile;
 
 /// The name of the settings file inside the configuration directory.
@@ -42,6 +43,13 @@ pub struct Settings {
     /// A link that is signed needs a secret key on each side. The keys are kept here so
     /// that the link is signed the same way every time it is opened.
     pub signing_keys: Vec<SigningKeyEntry>,
+
+    /// The plugins the operator has chosen to run.
+    ///
+    /// A plugin is not run because its module happens to be in the folder: somebody has to say so.
+    /// The names are the ones the manifests use, and an entry that says nothing is a plugin that was
+    /// seen and not turned on.
+    pub plugins: Vec<PluginEntry>,
 
     /// The folder of tiles the operator has brought, when there is one.
     ///
@@ -292,6 +300,7 @@ mod tests {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
+                plugins: Vec::new(),
                 connection_profiles: profiles.clone(),
             })
             .expect("the settings should be written");
@@ -357,6 +366,7 @@ mod tests {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
+                plugins: Vec::new(),
                 connection_profiles: first.clone(),
             })
             .expect("the first write should succeed");
@@ -382,6 +392,35 @@ mod tests {
     }
 
     #[test]
+    fn a_plugin_that_was_chosen_stays_chosen_and_one_that_was_not_is_not_run() {
+        let directory = TempDir::new("plugins");
+        let store = SettingsStore::new(directory.path());
+
+        let plugins = vec![
+            PluginEntry::enabled("alarm"),
+            PluginEntry::new("battery_graph"),
+        ];
+
+        store
+            .save(&Settings {
+                favourite_parameters: Vec::new(),
+                signing_keys: Vec::new(),
+                map_injection_folder: None,
+                plugins: plugins.clone(),
+                connection_profiles: Vec::new(),
+            })
+            .expect("the settings should be written");
+
+        let settings = store.load().expect("the settings should be read");
+
+        assert_eq!(settings.plugins, plugins);
+        assert!(settings.plugins[0].enabled);
+        // The second one was remembered but never turned on, which is the state a plugin that came
+        // from somebody else has to be in before anybody runs it.
+        assert!(!settings.plugins[1].enabled);
+    }
+
+    #[test]
     fn the_file_can_be_read_by_hand() {
         let directory = TempDir::new("by-hand");
         let store = SettingsStore::new(directory.path());
@@ -391,6 +430,7 @@ mod tests {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
+                plugins: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::auto_connect(
                     "SITL",
                     "udp:127.0.0.1:14550",
@@ -416,6 +456,7 @@ mod tests {
                 favourite_parameters: Vec::new(),
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
+                plugins: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::new("SITL", "udp:127.0.0.1:14550")],
             })
             .expect("the settings should be written");

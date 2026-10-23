@@ -22,6 +22,10 @@
 //! [[connection_profiles]]
 //! name = "Flight controller"
 //! target = "serial:COM3:57600"
+//!
+//! [[plugins]]
+//! name = "alarm"
+//! enabled = true
 //! ```
 //!
 //! A key the application does not know is an error rather than something to ignore: the
@@ -51,10 +55,12 @@
 
 mod error;
 mod keys;
+mod plugins;
 mod profiles;
 mod store;
 
 pub use error::SettingsError;
 pub use keys::SigningKeyEntry;
+pub use plugins::PluginEntry;
 pub use profiles::ConnectionProfile;
 pub use store::{platform_config_dir, Settings, SettingsStore};

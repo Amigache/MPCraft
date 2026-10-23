@@ -1,0 +1,23 @@
+[package]
+name = "mpcraft-plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The plugin sandbox: a manifest, the capabilities a plugin is given, and the WASM runtime that holds them"
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+
+# This is the one runtime dependency the project allows, and it lives here and nowhere else. A
+# plugin is code from somebody else, so the thing that runs it has to be a sandbox with limits,
+# not an interpreter that trusts what it is handed.
+wasmtime = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+parking_lot = { workspace = true }
