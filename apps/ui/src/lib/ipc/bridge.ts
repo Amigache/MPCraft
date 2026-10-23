@@ -41,6 +41,7 @@ import type {
   PlanItem,
   PlanKind,
   PlanWarning,
+  PluginInfo,
   SerialPort,
   Telemetry,
   TerrainPathPoint,
@@ -210,6 +211,29 @@ export async function transponderStop(): Promise<void> {
 /** What the transponder is doing. */
 export async function transponderStatus(): Promise<TransponderStatus> {
   return call<TransponderStatus>("transponder_status");
+}
+
+/** The plugins the folder holds, with what the operator chose. */
+export async function listPlugins(): Promise<PluginInfo[]> {
+  return call<PluginInfo[]>("list_plugins");
+}
+
+/** Marks a plugin as run, or leaves it alone, and keeps the decision for the next run. */
+export async function setPluginEnabled(
+  name: string,
+  enabled: boolean,
+): Promise<void> {
+  await call<void>("set_plugin_enabled", { name, enabled });
+}
+
+/** What the plugins said, most recent last, which is what the message console reads. */
+export async function pluginNotes(): Promise<string[]> {
+  return call<string[]>("plugin_notes");
+}
+
+/** The folder the plugins are read from, which is where an operator puts one. */
+export async function pluginFolder(): Promise<string> {
+  return call<string>("plugin_folder");
 }
 
 /**

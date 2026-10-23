@@ -460,6 +460,12 @@ export interface UiStore {
   readonly showPictures: () => void;
   /** Closes the sheet of the pictures and where they were taken. */
   readonly hidePictures: () => void;
+  /** Whether the sheet of the plugins is open over the window. */
+  readonly pluginsOpen: boolean;
+  /** Opens the sheet of the plugins. */
+  readonly showPlugins: () => void;
+  /** Closes the sheet of the plugins. */
+  readonly hidePlugins: () => void;
   /** Puts the window on the screen of the parameters. */
   readonly showParameters: () => void;
   /**
@@ -518,6 +524,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   videoOpen: false,
   cameraOpen: false,
   picturesOpen: false,
+  pluginsOpen: false,
   parameterGroups: [],
 
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -634,6 +641,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   showVideo: () => set({ videoOpen: true }),
   showCamera: () => set({ cameraOpen: true }),
   showPictures: () => set({ picturesOpen: true }),
+  showPlugins: () => set({ pluginsOpen: true }),
 
   showLog: () => get().setScreen("logs"),
 
@@ -652,6 +660,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   hideVideo: () => set({ videoOpen: false }),
   hideCamera: () => set({ cameraOpen: false }),
   hidePictures: () => set({ picturesOpen: false }),
+  hidePlugins: () => set({ pluginsOpen: false }),
 
   loadParameterGroups: async () => {
     try {

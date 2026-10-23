@@ -100,6 +100,7 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Video streams…": "Los canales de vídeo…",
     "The camera and the gimbal…": "La cámara y la montura móvil…",
     "The pictures and where they were taken…": "Las fotos y dónde se hicieron…",
+    "The plugins…": "Los complementos…",
     Parameters: "Los parámetros",
     "Mission planner": "Planificador de misión",
     Firmware: "El firmware",
@@ -274,6 +275,31 @@ const bundles: Record<Locale, Record<string, string>> = {
       "{count} de {total} fotos cotejadas con una muestra del registro.",
     "{written} copies were written to {folder}/geotagged.":
       "{written} copias escritas en {folder}/geotagged.",
+
+    // The sheet of the plugins.
+    "The plugins": "Los complementos",
+    "A plugin is somebody else's code. It is not run because its file happens to be in the folder: the operator has to say so, and the decision is kept for the next run.":
+      "Un complemento es código de otra persona. No se ejecuta porque su archivo esté en la carpeta: el operador tiene que decirlo, y la decisión se guarda para la próxima ejecución.",
+    "The folder the plugins are read from":
+      "La carpeta donde se leen los complementos",
+    "The folder holds nothing.": "La carpeta no contiene nada.",
+    "Who wrote it": "Quién lo escribió",
+    "nothing said": "no dice quién",
+    "What it asks for": "Lo que pide",
+    nothing: "nada",
+    "How often it is called": "Cada cuánto se llama",
+    "Where it stands": "Dónde está",
+    "What went wrong": "Qué salió mal",
+    "What the plugins said": "Lo que dijeron los complementos",
+    "Nothing yet.": "Todavía nada.",
+    Run: "Ejecutar",
+    "Leave alone": "Dejar en paz",
+    "Not run": "No se ejecuta",
+    Read: "Leído",
+    "Being called": "Se está llamando",
+    "Could not be read": "No se pudo leer",
+    "{name} is being run.": "{name} se está ejecutando.",
+    "{name} has been left alone.": "{name} se ha dejado en paz.",
   },
 };
 

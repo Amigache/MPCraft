@@ -132,6 +132,7 @@ export function MenuBar() {
   const showVideo = useUiStore((state) => state.showVideo);
   const showCamera = useUiStore((state) => state.showCamera);
   const showPictures = useUiStore((state) => state.showPictures);
+  const showPlugins = useUiStore((state) => state.showPlugins);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -904,6 +905,21 @@ export function MenuBar() {
           },
           // The sheet reads files, so it is open without a vehicle on the wire: a folder of
           // pictures and a log of a flight that has already happened are enough.
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-plugins",
+          label: t("The plugins…"),
+          onSelect: () => {
+            close();
+            showPlugins();
+          },
+          // A plugin is somebody else's code, so the sheet that lists them and says what each one
+          // asks for is open without a vehicle on the wire: deciding what may run does not need a
+          // link, and a plugin that has nothing to do on a tick never asks for one.
           disabled: false,
           checked: undefined,
           separator: false,

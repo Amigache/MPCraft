@@ -17,6 +17,7 @@ mpcraft-link = { workspace = true }
 mpcraft-log = { workspace = true }
 mpcraft-mavlink = { workspace = true }
 mpcraft-mission = { workspace = true }
+num-traits = { workspace = true }
 mpcraft-params = { workspace = true }
 mpcraft-plugin = { workspace = true }
 mpcraft-settings = { workspace = true }

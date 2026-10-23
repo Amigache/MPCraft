@@ -2849,6 +2849,7 @@ dependencies = [
  "mpcraft-settings",
  "mpcraft-transport",
  "mpcraft-vehicle",
+ "num-traits",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

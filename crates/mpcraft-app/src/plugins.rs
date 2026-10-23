@@ -20,9 +20,11 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
 use mpcraft_link::SessionState;
+use mpcraft_mavlink::MavCmd;
 use mpcraft_plugin::{
     CommandIntent, HostApi, Limits, Plugin, PluginError, PluginManifest, Sandbox, Stage,
     TelemetryField,
@@ -31,6 +33,9 @@ use mpcraft_settings::Settings;
 use mpcraft_vehicle::Telemetry;
 
 use crate::error::{CommandError, CommandResult};
+
+/// How long a plugin waits for the vehicle to answer what it asked for.
+const PLUGIN_COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// How many lines of what the plugins said are kept.
 ///
@@ -179,6 +184,41 @@ impl PluginSurface {
             Err(_) => Vec::new(),
         }
     }
+
+    /// Something to show the operator, kept with the ceiling the console has.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the surface is locked.
+    pub fn say(&self, text: &str) -> Result<(), PluginError> {
+        let mut inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(_) => {
+                return Err(PluginError::Instantiate {
+                    plugin: String::new(),
+                    message: "the surface of the plugins is locked".to_string(),
+                })
+            }
+        };
+
+        while inner.console.len() >= MAX_NOTES {
+            inner.console.pop_front();
+        }
+
+        inner.console.push_back(text.to_string());
+
+        Ok(())
+    }
+
+    /// Whether a plugin has something waiting, which is what tells the application that the queue is
+    /// worth going through.
+    #[must_use]
+    pub fn has_pending(&self) -> bool {
+        match self.inner.lock() {
+            Ok(inner) => !inner.pending.is_empty(),
+            Err(_) => false,
+        }
+    }
 }
 
 impl HostApi for PluginSurface {
@@ -220,23 +260,7 @@ impl HostApi for PluginSurface {
     }
 
     fn note(&self, text: &str) -> Result<(), PluginError> {
-        let mut inner = match self.inner.lock() {
-            Ok(inner) => inner,
-            Err(_) => {
-                return Err(PluginError::Instantiate {
-                    plugin: String::new(),
-                    message: "the surface of the plugins is locked".to_string(),
-                })
-            }
-        };
-
-        while inner.console.len() >= MAX_NOTES {
-            inner.console.pop_front();
-        }
-
-        inner.console.push_back(text.to_string());
-
-        Ok(())
+        self.say(text)
     }
 }
 
@@ -317,6 +341,14 @@ impl PluginRuntime {
     /// went wrong.
     pub fn scan(&mut self, settings: &Settings) -> CommandResult<Vec<PluginInfo>> {
         self.entries.clear();
+
+        // A fresh installation has no folder of plugins, and that is not a failure: the folder is made
+        // when it is not there, so that the sheet can say what is in it — which at first is nothing.
+        if let Err(source) = std::fs::create_dir_all(&self.folder) {
+            return Err(CommandError::settings(format!(
+                "cannot make the folder of plugins: {source}"
+            )));
+        }
 
         let items = match std::fs::read_dir(&self.folder) {
             Ok(items) => items,
@@ -681,6 +713,96 @@ impl PluginRuntime {
     }
 }
 
+/// Runs what the plugins asked for, outside the sandbox.
+///
+/// A plugin cannot reach the wire, so what it asked for is carried here, by the link the application
+/// has open. The asking is taken from the queue once, and each one goes out as the vehicle answered
+/// it; a command the protocol does not carry is refused rather than guessed at.
+///
+/// # Errors
+///
+/// Returns an error when there is no open link or no vehicle on it.
+pub async fn run_pending(state: &crate::AppState) -> CommandResult<usize> {
+    let intents = match state.plugins.lock() {
+        Ok(runtime) => runtime.surface().take_pending(),
+        Err(_) => {
+            return Err(CommandError::internal(
+                "the driver of the plugins is locked",
+            ))
+        }
+    };
+
+    if intents.is_empty() {
+        return Ok(0);
+    }
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+    let snapshot = state.supervisor.state().ok_or_else(|| {
+        CommandError::no_vehicle("the link has no state to read the vehicle from")
+    })?;
+    let vehicle = snapshot
+        .vehicles
+        .first()
+        .ok_or_else(|| CommandError::no_vehicle("the link has no vehicle to answer"))?;
+
+    let mut sent = 0;
+
+    for intent in intents {
+        let Some(command) = MavCmd::from_u64(u64::from(intent.command)) else {
+            // A number the protocol does not carry is not a command, and the operator has to see that
+            // the plugin asked for one.
+            let _ = state.plugin_note(&format!(
+                "a plugin asked for command {}, which the protocol does not carry",
+                intent.command
+            ));
+            continue;
+        };
+
+        let outcome = if intent.x != 0 || intent.y != 0 {
+            session
+                .command_int(
+                    vehicle.id,
+                    command,
+                    [
+                        intent.params[0] as i32,
+                        intent.x,
+                        intent.y,
+                        intent.z as i32,
+                        0,
+                        0,
+                        0,
+                    ],
+                    PLUGIN_COMMAND_TIMEOUT,
+                )
+                .await
+        } else {
+            session
+                .command_long(
+                    vehicle.id,
+                    command,
+                    intent.params.map(|param| param as f32),
+                    PLUGIN_COMMAND_TIMEOUT,
+                )
+                .await
+        };
+
+        match outcome {
+            Ok(_) => sent += 1,
+            Err(error) => {
+                let _ = state.plugin_note(&format!(
+                    "a plugin asked for command {}: {error}",
+                    intent.command
+                ));
+            }
+        }
+    }
+
+    Ok(sent)
+}
+
 /// The module of a plugin, kept inside the folder it was read from.
 fn module_path(folder: &Path, module: &Path) -> CommandResult<PathBuf> {
     if module.is_absolute() || module.components().any(|part| part == Component::ParentDir) {
@@ -913,6 +1035,26 @@ mod tests {
 
         assert_eq!(runtime.surface().notes().len(), 2);
         assert_eq!(runtime.info()[0].state, PluginState::Running);
+    }
+
+    #[test]
+    fn a_folder_that_is_not_there_yet_is_made_rather_than_being_an_error() {
+        let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "mpcraft-plugins-fresh-{}-{unique}",
+            std::process::id()
+        ));
+
+        let mut runtime = PluginRuntime::new(&path);
+        let info = runtime.scan(&Settings::default()).unwrap();
+
+        assert!(info.is_empty(), "a folder that was made is empty");
+        assert!(
+            path.exists(),
+            "the folder of plugins is where the sheet says it is"
+        );
+
+        let _ = std::fs::remove_dir_all(&path);
     }
 
     #[test]

@@ -190,9 +190,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 9.1 | Plugin lifecycle (Init/Loaded/Loop/Exit) | `Plugin/Plugin.cs` | 🔽 | 6 |
-| 9.2 | Plugin host API surface | `Plugin/Plugin.cs` (PluginHost) | 🔽 | 6 |
-| 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | 🔽 | 6 |
+| 9.1 | Plugin lifecycle (Init/Loaded/Loop/Exit) | `Plugin/Plugin.cs` | ✅ | 6 |
+| 9.2 | Plugin host API surface | `Plugin/Plugin.cs` (PluginHost) | ✅ | 6 |
+| 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | ✅ | 6 |
 | 9.4 | Scripting host | `Script.cs` (IronPython) | 🔜 | 6 |
 | 9.5 | Swarm / formation control | `Swarm/` | 🔜 | 6 |
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
@@ -220,13 +220,13 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 139 |
+| ✅ Done | 142 |
 | 🔜 Planned | 9 |
 | ⬜ Dropped | 1 |
-| Partial (🟡 / 🔽) | 6 |
+| Partial (🟡 / 🔽) | 3 |
 
-The 138 rows marked done are the connection, transport, parameter, mission and command
-layers, and the flight data window that uses them. The transports, the heartbeat
+The 142 rows marked done are the connection, transport, parameter, mission, command and
+plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
 work and are covered by tests.
@@ -604,8 +604,14 @@ length the size of its memory would otherwise read the whole of it. The four sta
 upstream has — read, link open, tick, close — and only the first is required, because plenty of plugins
 have nothing to do every second. What the operator decided is kept in the settings file, apart from what
 the manifest asks for, so that a manifest cannot grant itself anything: a plugin nobody chose is not run,
-which is the state a fresh installation is in. The sheet that lists the plugins and the driver that calls
-their stages through a link are what is left of this row.
+which is the state a fresh installation is in. The sheet of the plugins, opened from Setup, lists what
+the folder holds — the name, the version, who wrote it, what it asks for, how often it is called, and
+where it stands — and the switch there is what decides whether one is run, which is the decision kept for
+the next run. A module that names a path climbing out of the folder is refused before anything is read,
+because `..` in a manifest is a plugin reaching past the folder somebody put it in. What a plugin asked
+for is kept with a ceiling and run afterwards, outside the sandbox, because a call inside the sandbox must
+never wait for the wire; what a plugin said is kept with the ceiling the console has, and the sheet shows
+both, the asking and the saying.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native

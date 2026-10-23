@@ -15,6 +15,7 @@ import { TransponderSheet } from "../../features/transponder/TransponderSheet";
 import { AdsbSheet } from "../../features/adsb/AdsbSheet";
 import { CameraSheet } from "../../features/camera/CameraSheet";
 import { PictureSheet } from "../../features/pictures/PictureSheet";
+import { PluginSheet } from "../../features/plugins/PluginSheet";
 import { VideoSheet } from "../../features/video/VideoSheet";
 import { PassthroughSheet } from "../../features/passthrough/PassthroughSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
@@ -62,7 +63,8 @@ export function AppShell() {
       state.adsbOpen ||
       state.videoOpen ||
       state.cameraOpen ||
-      state.picturesOpen,
+      state.picturesOpen ||
+      state.pluginsOpen,
   );
 
   return (
@@ -99,6 +101,7 @@ export function AppShell() {
       <VideoSheet />
       <CameraSheet />
       <PictureSheet />
+      <PluginSheet />
     </div>
   );
 }

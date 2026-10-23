@@ -343,9 +343,30 @@ impl AppState {
         self.graphs.record(&session.telemetry);
 
         // A plugin reads the same numbers the window shows, so the state the link publishes is what
-        // the surface of the plugins is fed from.
-        if let Ok(runtime) = self.plugins.lock() {
+        // the surface of the plugins is fed from, and the tick of each plugin whose own rate is due is
+        // called here.
+        let has_intents = {
+            let Ok(mut runtime) = self.plugins.lock() else {
+                return Ok(());
+            };
+
             runtime.surface().record(session);
+            runtime.tick(std::time::Instant::now());
+            runtime.surface().has_pending()
+        };
+
+        // What a plugin asked for is run outside the sandbox, because a call inside it must never wait
+        // for the wire. The asking was kept in the queue, and this is where it goes out.
+        if has_intents {
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let state = self.clone();
+
+                handle.spawn(async move {
+                    if let Err(error) = crate::plugins::run_pending(&state).await {
+                        tracing::warn!("cannot run what a plugin asked for: {error}");
+                    }
+                });
+            }
         }
 
         // The vehicle asks for the terrain of the ground it is over, and the answer is
@@ -753,6 +774,43 @@ impl AppState {
     pub fn plugin_link_opened(&self) {
         if let Ok(mut runtime) = self.plugins.lock() {
             runtime.link_opened();
+        }
+    }
+
+    /// The folder the plugins are read from, which is what the sheet says so that an operator knows
+    /// where to put one.
+    #[must_use]
+    pub fn plugin_folder(&self) -> String {
+        let Ok(runtime) = self.plugins.lock() else {
+            return String::new();
+        };
+
+        runtime.folder().to_string_lossy().to_string()
+    }
+
+    /// What a plugin said, which is what the message console reads.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the driver is locked.
+    pub fn plugin_note(&self, text: &str) -> CommandResult<()> {
+        let runtime = match self.plugins.lock() {
+            Ok(runtime) => runtime,
+            Err(_) => {
+                return Err(CommandError::internal(
+                    "the driver of the plugins is locked",
+                ));
+            }
+        };
+
+        runtime.surface().say(text).map_err(CommandError::from)
+    }
+
+    /// Tells every plugin that is running that the application is closing.
+    pub fn close_plugins(&self) -> Vec<crate::plugins::PluginInfo> {
+        match self.plugins.lock() {
+            Ok(mut runtime) => runtime.close(),
+            Err(_) => Vec::new(),
         }
     }
 

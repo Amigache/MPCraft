@@ -10,9 +10,9 @@
 #![warn(missing_docs)]
 
 use mpcraft_app::{
-    flight_modes, AppState, CommandError, CommandResult, ConnectRequest, ConnectResponse,
-    ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction, PlanInfo,
-    PlanKind, PresetInfo, SeriesData, SessionState,
+    flight_modes, plugins::PluginInfo, AppState, CommandError, CommandResult, ConnectRequest,
+    ConnectResponse, ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction,
+    PlanInfo, PlanKind, PresetInfo, SeriesData, SessionState,
 };
 use mpcraft_link::{Calibration, OsdSlot, OsdSlotConfig, VehicleId};
 use mpcraft_mission::{MissionType, Plan};
@@ -40,6 +40,9 @@ async fn connect(
 
     // The link is signed with the keys that are saved, when there are any.
     state.apply_signing();
+
+    // A plugin that has something to do when a link is opened is told here, once.
+    state.plugin_link_opened();
 
     state
         .supervisor
@@ -73,6 +76,10 @@ async fn connect(
 #[tauri::command]
 async fn disconnect(app: AppHandle, state: State<'_, AppState>) -> CommandResult<ConnectResponse> {
     let response = state.supervisor.disconnect().await?;
+
+    // A plugin that holds a file has to be told that the link is gone.
+    state.close_plugins();
+
     let _ = app.emit(STATE_EVENT, StateEvent::default());
     Ok(response)
 }
@@ -2868,6 +2875,54 @@ async fn set_favourite_parameter(
     state.set_favourite_parameter(&name, favourite)
 }
 
+/// The plugins the folder holds, with what the operator chose.
+///
+/// A plugin is somebody else's code, so the sheet shows what it asks for before anybody decides to run
+/// it, and what the driver says about it afterwards.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings or the folder cannot be read.
+#[tauri::command]
+async fn list_plugins(state: State<'_, AppState>) -> CommandResult<Vec<PluginInfo>> {
+    state.list_plugins()
+}
+
+/// Marks a plugin as run, or leaves it alone, and keeps the decision for the next run.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be written, when the plugin was
+/// not seen, or when the one that was chosen could not be read.
+#[tauri::command]
+async fn set_plugin_enabled(
+    state: State<'_, AppState>,
+    name: String,
+    enabled: bool,
+) -> CommandResult<()> {
+    state.set_plugin_enabled(&name, enabled)
+}
+
+/// What the plugins said, most recent last, which is what the message console reads.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn plugin_notes(state: State<'_, AppState>) -> CommandResult<Vec<String>> {
+    Ok(state.plugin_notes())
+}
+
+/// The folder the plugins are read from, which is where an operator puts one.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn plugin_folder(state: State<'_, AppState>) -> CommandResult<String> {
+    Ok(state.plugin_folder())
+}
+
 /// The pre-flight checklist, checked against the vehicle.
 ///
 /// The rules are the vehicle's: the interface only shows what they say.
@@ -4067,6 +4122,10 @@ fn main() {
             list_graphs,
             preflight_checklist,
             list_favourite_parameters,
+            list_plugins,
+            set_plugin_enabled,
+            plugin_notes,
+            plugin_folder,
             list_parameter_groups,
             export_parameters,
             import_parameters,

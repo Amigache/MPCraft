@@ -1,0 +1,172 @@
+/* The sheet of the plugins. */
+
+.backdrop {
+  align-items: flex-start;
+  background: var(--colour-overlay);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  /* The sheet starts under the bar of the menus, so that its own header does not
+     sit over the bar. */
+  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3)
+    var(--space-3);
+  position: fixed;
+  z-index: 60;
+}
+
+.panel {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px var(--colour-shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: auto;
+  width: min(720px, 100%);
+}
+
+.header {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  margin: 0;
+}
+
+.header button {
+  margin-left: auto;
+}
+
+.block {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.text {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.label {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.folder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.path {
+  color: var(--colour-text);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-xs);
+  /* A path is long, and a sheet that is read at 1024 pixels cannot let it push the
+     rest of the window out of the way. */
+  overflow-wrap: anywhere;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.headline {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.name {
+  color: var(--colour-text);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.version {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+}
+
+.headline button {
+  margin-left: auto;
+}
+
+.facts {
+  display: grid;
+  font-size: var(--font-xs);
+  gap: var(--space-1) var(--space-3);
+  grid-template-columns: auto 1fr;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--colour-text-faint);
+}
+
+.facts dd {
+  color: var(--colour-text);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.failure {
+  color: var(--colour-danger);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.note {
+  color: var(--colour-text);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  color: var(--colour-accent);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.error {
+  color: var(--colour-danger);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}

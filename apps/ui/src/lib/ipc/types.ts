@@ -84,6 +84,28 @@ export interface NtripStatus {
   readonly position: GeoPoint | null;
 }
 
+/** One plugin as the driver sees it, which is what the sheet lists. */
+export interface PluginInfo {
+  /** The name the manifest says. */
+  readonly name: string;
+  /** The version the plugin says it is. */
+  readonly version: string;
+  /** Who wrote it. */
+  readonly author: string;
+  /** What the manifest asks for, named the way a manifest writes it. */
+  readonly capabilities: readonly string[];
+  /** How often the plugin is called, once per tick. */
+  readonly loopHz: number;
+  /** Whether the operator chose to run it. */
+  readonly enabled: boolean;
+  /** Where the plugin stands. */
+  readonly state: string;
+  /** The code of the last failure, when there was one. */
+  readonly errorCode: string | null;
+  /** What the last failure said. */
+  readonly errorMessage: string | null;
+}
+
 /** What the transponder is doing. */
 export interface TransponderStatus {
   /** Whether the transponder is being told what to say. */
