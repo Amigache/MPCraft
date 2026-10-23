@@ -6,6 +6,7 @@ import {
   ntripStatus,
   ntripStop,
 } from "../../lib/ipc/bridge";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./NtripSheet.module.css";
@@ -34,6 +35,8 @@ const GPS_PORTS = [
 export function NtripSheet() {
   const open = useUiStore((state) => state.ntripOpen);
   const hide = useUiStore((state) => state.hideNtrip);
+
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
@@ -86,7 +89,7 @@ export function NtripSheet() {
 
     try {
       await ntripStart(url, gpsPort, version1);
-      setNotice("The corrections are being sent to the vehicle.");
+      setNotice(t("The corrections are being sent to the vehicle."));
       await read();
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -102,7 +105,7 @@ export function NtripSheet() {
 
     try {
       await ntripStop();
-      setNotice("The corrections have stopped.");
+      setNotice(t("The corrections have stopped."));
       await read();
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -117,35 +120,38 @@ export function NtripSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="The corrections of a base station"
+        aria-label={t("The corrections of a base station")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>The corrections of a base station</h2>
+          <h2 className={styles.title}>
+            {t("The corrections of a base station")}
+          </h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            A base station sends the corrections of the satellites it sees to a caster,
-            and the caster passes them to whoever asks. The corrections go to the
-            receiver of the vehicle, and the position of the vehicle travels with the
-            request.
+            {t(
+              "A base station sends the corrections of the satellites it sees to a caster, and the caster passes them to whoever asks. The corrections go to the receiver of the vehicle, and the position of the vehicle travels with the request.",
+            )}
           </p>
 
           <label className={styles.wide}>
-            <span className={styles.label}>The address of the caster</span>
+            <span className={styles.label}>
+              {t("The address of the caster")}
+            </span>
             <input
               className="input"
               type="text"
               value={url}
               spellCheck={false}
               placeholder="http://user:password@host:port/mount"
-              aria-label="The address of the caster"
+              aria-label={t("The address of the caster")}
               onChange={(event) => {
                 setUrl(event.target.value);
               }}
@@ -154,11 +160,13 @@ export function NtripSheet() {
 
           <div className={styles.fields}>
             <label className={styles.field}>
-              <span className={styles.label}>The port of the vehicle</span>
+              <span className={styles.label}>
+                {t("The port of the vehicle")}
+              </span>
               <select
                 className="select"
                 value={gpsPort}
-                aria-label="The port of the vehicle the corrections go to"
+                aria-label={t("The port of the vehicle the corrections go to")}
                 onChange={(event) => {
                   setGpsPort(Number(event.target.value));
                 }}
@@ -175,12 +183,14 @@ export function NtripSheet() {
               <input
                 type="checkbox"
                 checked={version1}
-                aria-label="Ask the caster the old way, with the headers of the first version"
+                aria-label={t(
+                  "Ask the caster the old way, with the headers of the first version",
+                )}
                 onChange={(event) => {
                   setVersion1(event.target.checked);
                 }}
               />
-              <span>The first version</span>
+              <span>{t("The first version")}</span>
             </label>
           </div>
 
@@ -193,7 +203,7 @@ export function NtripSheet() {
                 void start();
               }}
             >
-              Start
+              {t("Start")}
             </button>
 
             <button
@@ -204,20 +214,20 @@ export function NtripSheet() {
                 void stop();
               }}
             >
-              Stop
+              {t("Stop")}
             </button>
           </div>
 
           {!linked ? (
-            <p className={styles.text}>There is no link to a vehicle.</p>
+            <p className={styles.text}>{t("There is no link to a vehicle.")}</p>
           ) : null}
         </section>
 
         <section className={styles.block}>
           <dl className={styles.facts}>
-            <dt>What it is doing</dt>
-            <dd>{running ? "Sending the corrections" : "Not sending"}</dd>
-            <dt>How many bytes</dt>
+            <dt>{t("What it is doing")}</dt>
+            <dd>{running ? t("Sending the corrections") : t("Not sending")}</dd>
+            <dt>{t("How many bytes")}</dt>
             <dd>{bytes}</dd>
           </dl>
         </section>

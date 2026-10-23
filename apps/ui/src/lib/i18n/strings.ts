@@ -314,6 +314,24 @@ const bundles: Record<Locale, Record<string, string>> = {
       "El hueco {index} de la pantalla {screen} guarda {name}.",
     "The vehicle did not say what its slots hold. It may not know the questions.":
       "El vehículo no dijo qué guardan sus huecos. Puede que no conozca las preguntas.",
+
+    // The sheet of the corrections of a base station.
+    "The corrections of a base station": "Las correcciones de una base",
+    "A base station sends the corrections of the satellites it sees to a caster, and the caster passes them to whoever asks. The corrections go to the receiver of the vehicle, and the position of the vehicle travels with the request.":
+      "Una base manda las correcciones de los satélites que ve a una emisora, y la emisora las pasa a quien las pide. Las correcciones van al receptor del vehículo, y la posición del vehículo viaja con la petición.",
+    "The address of the caster": "La dirección de la emisora",
+    "The port of the vehicle": "El puerto del vehículo",
+    "The port of the vehicle the corrections go to":
+      "El puerto del vehículo donde llegan las correcciones",
+    "Ask the caster the old way, with the headers of the first version":
+      "Se pregunta a la emisora de la manera vieja, con las cabeceras de la primera versión",
+    "The first version": "La primera versión",
+    "Sending the corrections": "Manda las correcciones",
+    "Not sending": "No manda nada",
+    "How many bytes": "Cuántos bytes",
+    "The corrections are being sent to the vehicle.":
+      "Las correcciones se están mandando al vehículo.",
+    "The corrections have stopped.": "Las correcciones han parado.",
   },
 };
 
