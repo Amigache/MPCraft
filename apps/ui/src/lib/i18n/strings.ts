@@ -662,6 +662,23 @@ const bundles: Record<Locale, Record<string, string>> = {
       "La placa se escribió y se le dijo que volviera a empezar.",
     "The vehicle was told to restart into its bootloader. The link is closed when the board stops answering.":
       "Se pidió al vehículo que volviera a empezar en su cargador de arranque. El enlace se cierra cuando la placa deja de responder.",
+
+    // The sheet of the files of the vehicle.
+    "The files of the vehicle": "Los archivos del vehículo",
+    "The vehicle holds a filesystem of its own. The folders are listed the way the vehicle says them, and a file is brought to the disk of the computer.":
+      "El vehículo tiene un sistema de archivos propio. Las carpetas se listan como el vehículo las dice, y un archivo se trae al disco del ordenador.",
+    Up: "Subir",
+    "The folder that is listed": "La carpeta que se lista",
+    Refresh: "Actualizar",
+    "The vehicle is being asked.": "Se está preguntando al vehículo.",
+    "The folder is empty.": "La carpeta está vacía.",
+    Open: "Abrirla",
+    Download: "Traerlo",
+    Everything: "Todo",
+    "{count} byte of {name} was written to {path}.":
+      "Se escribió {count} byte de {name} en {path}.",
+    "{count} bytes of {name} were written to {path}.":
+      "Se escribieron {count} bytes de {name} en {path}.",
   },
 };
 

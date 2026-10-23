@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { pickSavePath } from "../../lib/ipc/dialog";
 import { ftpList, ftpRead, normaliseError } from "../../lib/ipc/bridge";
 import type { FtpEntry } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./FilesSheet.module.css";
@@ -53,6 +54,8 @@ function fileNameOf(path: string): string {
 export function FilesSheet() {
   const open = useUiStore((state) => state.filesOpen);
   const hide = useUiStore((state) => state.hideFiles);
+
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
@@ -110,7 +113,7 @@ export function FilesSheet() {
     try {
       const name = fileNameOf(entry.path);
       const picked = await pickSavePath(name, [
-        { name: "Everything", extensions: ["*"] },
+        { name: t("Everything"), extensions: ["*"] },
       ]);
 
       if (!picked.ok) {
@@ -121,9 +124,12 @@ export function FilesSheet() {
       const file = await ftpRead(entry.path, picked.path);
 
       setNotice(
-        `${file.size} byte${file.size === 1 ? "" : "s"} of ${name} were written to ${
-          picked.path
-        }.`,
+        t(
+          file.size === 1
+            ? "{count} byte of {name} was written to {path}."
+            : "{count} bytes of {name} were written to {path}.",
+          { count: file.size, name, path: picked.path },
+        ),
       );
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -138,22 +144,23 @@ export function FilesSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="The files of the vehicle"
+        aria-label={t("The files of the vehicle")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>The files of the vehicle</h2>
+          <h2 className={styles.title}>{t("The files of the vehicle")}</h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            The vehicle holds a filesystem of its own. The folders are listed the way
-            the vehicle says them, and a file is brought to the disk of the computer.
+            {t(
+              "The vehicle holds a filesystem of its own. The folders are listed the way the vehicle says them, and a file is brought to the disk of the computer.",
+            )}
           </p>
 
           <div className={styles.row}>
@@ -165,10 +172,13 @@ export function FilesSheet() {
                 goUp();
               }}
             >
-              Up
+              {t("Up")}
             </button>
 
-            <span className={styles.path} aria-label="The folder that is listed">
+            <span
+              className={styles.path}
+              aria-label={t("The folder that is listed")}
+            >
               {folder}
             </span>
 
@@ -180,19 +190,21 @@ export function FilesSheet() {
                 void list(folder);
               }}
             >
-              Refresh
+              {t("Refresh")}
             </button>
           </div>
 
           {!linked ? (
-            <p className={styles.text}>There is no link to a vehicle.</p>
+            <p className={styles.text}>{t("There is no link to a vehicle.")}</p>
           ) : null}
         </section>
 
         <section className={styles.block}>
           {entries.length === 0 ? (
             <p className={styles.text}>
-              {busy ? "The vehicle is being asked." : "The folder is empty."}
+              {busy
+                ? t("The vehicle is being asked.")
+                : t("The folder is empty.")}
             </p>
           ) : (
             <ul className={styles.list}>
@@ -213,7 +225,7 @@ export function FilesSheet() {
                         void list(entry.path);
                       }}
                     >
-                      Open
+                      {t("Open")}
                     </button>
                   ) : (
                     <button
@@ -224,7 +236,7 @@ export function FilesSheet() {
                         void download(entry);
                       }}
                     >
-                      Download
+                      {t("Download")}
                     </button>
                   )}
                 </li>
