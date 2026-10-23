@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import type { ParameterMetadata } from "../../lib/ipc/types";
 import { isOutOfRange } from "../../lib/params/metadataStore";
 import type { KnownParameter } from "../../lib/params/paramsStore";
@@ -54,6 +55,9 @@ export interface ParameterRowProps {
   readonly onToggleFavourite: () => void;
 }
 
+/** How a part of the interface says something in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 /**
  * What the row says about the parameter when the pointer rests on it.
  *
@@ -64,6 +68,7 @@ export interface ParameterRowProps {
 function describe(
   metadata: ParameterMetadata | undefined,
   parameter: KnownParameter,
+  t: Say,
 ): string {
   if (metadata === undefined) {
     return parameter.name;
@@ -76,19 +81,24 @@ function describe(
   }
 
   if (metadata.default !== "") {
-    parts.push(`Default: ${metadata.default}`);
+    parts.push(t("Default: {value}", { value: metadata.default }));
   }
 
   if (metadata.minimum !== "" || metadata.maximum !== "") {
-    parts.push(`Range: ${metadata.minimum} to ${metadata.maximum}`);
+    parts.push(
+      t("Range: {minimum} to {maximum}", {
+        minimum: metadata.minimum,
+        maximum: metadata.maximum,
+      }),
+    );
   }
 
   if (metadata.group !== "") {
-    parts.push(`Group: ${metadata.group}`);
+    parts.push(t("Group: {group}", { group: metadata.group }));
   }
 
   if (metadata.rebootRequired) {
-    parts.push("A change to it needs the vehicle to be restarted");
+    parts.push(t("A change to it needs the vehicle to be restarted"));
   }
 
   return parts.length > 0 ? parts.join(" · ") : parameter.name;
@@ -134,6 +144,8 @@ export function ParameterRow({
   onWrite,
   onToggleFavourite,
 }: ParameterRowProps) {
+  const t = useLocaleStore((state) => state.t);
+
   const [draft, setDraft] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [wasEditing, setWasEditing] = useState(editing);
@@ -209,13 +221,13 @@ export function ParameterRow({
         aria-pressed={favourite}
         aria-label={
           favourite
-            ? `Take ${parameter.name} out of the favourites`
-            : `Make ${parameter.name} a favourite`
+            ? t("Take {name} out of the favourites", { name: parameter.name })
+            : t("Make {name} a favourite", { name: parameter.name })
         }
         title={
           favourite
-            ? "Not a favourite any more"
-            : "A favourite — kept between two runs"
+            ? t("Not a favourite any more")
+            : t("A favourite — kept between two runs")
         }
         onClick={onToggleFavourite}
       >
@@ -224,7 +236,7 @@ export function ParameterRow({
         </svg>
       </button>
 
-      <span className={styles.name} title={describe(metadata, parameter)}>
+      <span className={styles.name} title={describe(metadata, parameter, t)}>
         {parameter.name}
       </span>
 
@@ -239,7 +251,10 @@ export function ParameterRow({
                       type="checkbox"
                       checked={((parameter.value ?? 0) & flag.mask) !== 0}
                       disabled={busy || locked}
-                      aria-label={`${flag.text} of ${parameter.name}`}
+                      aria-label={t("{flag} of {name}", {
+                        flag: flag.text,
+                        name: parameter.name,
+                      })}
                       onChange={(event) => {
                         const value = parameter.value ?? 0;
 
@@ -261,7 +276,7 @@ export function ParameterRow({
                 disabled={busy}
                 onClick={onCancel}
               >
-                Done
+                {t("Done")}
               </button>
             </>
           ) : (
@@ -274,7 +289,7 @@ export function ParameterRow({
                 spellCheck={false}
                 autoComplete="off"
                 inputMode={integral ? "numeric" : "decimal"}
-                aria-label={`The value of ${parameter.name}`}
+                aria-label={t("The value of {name}", { name: parameter.name })}
                 aria-invalid={problem !== null}
                 disabled={busy}
                 onChange={(event) => {
@@ -300,7 +315,7 @@ export function ParameterRow({
                 disabled={busy || locked}
                 onClick={submit}
               >
-                {busy ? "Writing…" : "Write"}
+                {busy ? t("Writing…") : t("Write")}
               </button>
               <button
                 type="button"
@@ -308,7 +323,7 @@ export function ParameterRow({
                 disabled={busy}
                 onClick={onCancel}
               >
-                Cancel
+                {t("Cancel")}
               </button>
             </>
           )}
@@ -322,10 +337,13 @@ export function ParameterRow({
               disabled={locked}
               title={
                 outOfRange
-                  ? "The value is outside the range the documentation gives"
-                  : "Choose one of the values it can be given"
+                  ? t("The value is outside the range the documentation gives")
+                  : t("Choose one of the values it can be given")
               }
-              aria-label={`${parameter.name}, ${shown}. Change the value`}
+              aria-label={t("{name}, {value}. Change the value", {
+                name: parameter.name,
+                value: shown,
+              })}
               onChange={(event) => {
                 onWrite(Number(event.target.value));
               }}
@@ -343,10 +361,13 @@ export function ParameterRow({
               disabled={locked}
               title={
                 outOfRange
-                  ? "The value is outside the range the documentation gives"
-                  : "Click to change the value"
+                  ? t("The value is outside the range the documentation gives")
+                  : t("Click to change the value")
               }
-              aria-label={`${parameter.name}, ${shown}. Change the value`}
+              aria-label={t("{name}, {value}. Change the value", {
+                name: parameter.name,
+                value: shown,
+              })}
               onClick={onEdit}
             >
               {shown}
@@ -365,9 +386,11 @@ export function ParameterRow({
         {metadata !== undefined && metadata.rebootRequired ? (
           <span
             className={styles.badge}
-            title="A change to this parameter needs the vehicle to be restarted to take effect"
+            title={t(
+              "A change to this parameter needs the vehicle to be restarted to take effect",
+            )}
           >
-            Reboot
+            {t("Reboot")}
           </span>
         ) : null}
       </span>

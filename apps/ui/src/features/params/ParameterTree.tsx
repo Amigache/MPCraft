@@ -6,6 +6,7 @@ import {
   openPath,
   type ParamTreeNode,
 } from "../../lib/params/paramTree";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import styles from "./ParameterTree.module.css";
 
 /**
@@ -32,7 +33,13 @@ export interface ParameterTreeProps {
   readonly onSelect: (prefix: string) => void;
 }
 
-export function ParameterTree({ tree, selected, onSelect }: ParameterTreeProps) {
+export function ParameterTree({
+  tree,
+  selected,
+  onSelect,
+}: ParameterTreeProps) {
+  const t = useLocaleStore((state) => state.t);
+
   /** The branches that are open. */
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   /** The node the keyboard is on. */
@@ -258,7 +265,11 @@ export function ParameterTree({ tree, selected, onSelect }: ParameterTreeProps) 
   };
 
   return (
-    <div className={styles.tree} role="tree" aria-label="The parameters by prefix">
+    <div
+      className={styles.tree}
+      role="tree"
+      aria-label={t("The parameters by prefix")}
+    >
       {draw(tree, 0)}
     </div>
   );

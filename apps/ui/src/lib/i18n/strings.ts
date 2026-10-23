@@ -815,6 +815,117 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Above the home": "Sobre casa",
     "Above the ground": "Sobre el suelo",
     "Frame {number}": "El marco {number}",
+    // The screen of the parameters.
+    "Parameter file": "Archivo de parámetros",
+    "All files": "Todos los archivos",
+    "The parameters were written to {path}.":
+      "Los parámetros se escribieron en {path}.",
+    "{code} — the file was not written.": "{code} — el archivo no se escribió.",
+    "{code} — the file was not read.": "{code} — el archivo no se leyó.",
+    "{count} parameter was read from {path}.":
+      "Se leyó {count} parámetro de {path}.",
+    "{count} parameters were read from {path}.":
+      "Se leyeron {count} parámetros de {path}.",
+    "The vehicle and the file agree.":
+      "El vehículo y el archivo están de acuerdo.",
+    "{name}: the vehicle has {vehicleValue}, the file has {fileValue}":
+      "{name}: el vehículo tiene {vehicleValue}, el archivo tiene {fileValue}",
+    "{count} parameter differs. {lines}":
+      "{count} parámetro se diferencia. {lines}",
+    "{count} parameters differ. {lines}":
+      "{count} parámetros se diferencian. {lines}",
+    "{count} parameter was written to the vehicle.":
+      "Se escribió {count} parámetro en el vehículo.",
+    "{count} parameters were written to the vehicle.":
+      "Se escribieron {count} parámetros en el vehículo.",
+    "There is nothing to put back: no parameter that was changed has a default in the documentation.":
+      "No hay nada que devolver: ningún parámetro cambiado tiene un valor de siempre en la documentación.",
+    "{count} parameter was put back as it was.":
+      "Se devolvió {count} parámetro como era antes.",
+    "{count} parameters were put back as they were.":
+      "Se devolvieron {count} parámetros como eran antes.",
+    "{code} — the parameters were not put back.":
+      "{code} — los parámetros no se devolvieron.",
+    "The vehicle has written its parameters to its own memory.":
+      "El vehículo ha escrito sus parámetros en su propia memoria.",
+    "{code} — the vehicle did not write them.":
+      "{code} — el vehículo no los escribió.",
+    "{count} parameter reported": "{count} parámetro reportado",
+    "{count} parameters reported": "{count} parámetros reportados",
+    "Reading…": "Se están leyendo…",
+    "Read all": "Leerlos todos",
+    "Read the parameters of a file and write them to the vehicle":
+      "Leer los parámetros de un archivo y escribirlos en el vehículo",
+    "Load…": "Cargar…",
+    "Write the parameters of the vehicle to a file":
+      "Escribir los parámetros del vehículo en un archivo",
+    "Save…": "Guardar…",
+    "Say how the parameters of the vehicle differ from the ones of a file":
+      "Decir en qué se diferencian los parámetros del vehículo de los de un archivo",
+    "Compare…": "Comparar…",
+    "Put back the parameters that were changed, as they were before":
+      "Devolver los parámetros que se cambiaron como eran antes",
+    "Restore the defaults": "Devolver los valores de siempre",
+    "Ask the vehicle to write its parameters to its own memory":
+      "Pedir al vehículo que escriba sus parámetros en su propia memoria",
+    "Write to flash": "Escribir en la memoria",
+    "the descriptions of the parameters are not shown.":
+      "las descripciones de los parámetros no se muestran.",
+    "Search the parameters by name": "Buscar los parámetros por su nombre",
+    "Show every parameter again": "Volver a mostrar todos los parámetros",
+    All: "Todos",
+    "The width of the tree of the parameters":
+      "El ancho del árbol de los parámetros",
+    "The parameters could not be read. The link may be down.":
+      "No se pudieron leer los parámetros. Puede que el enlace esté caído.",
+    "Reading the parameters…": "Se están leyendo los parámetros…",
+    "No parameter matches “{query}”.":
+      "Ningún parámetro coincide con «{query}».",
+    "Nothing under {label} matches the search.":
+      "Bajo {label} nada coincide con la búsqueda.",
+    "The vehicle has not reported a parameter yet.":
+      "El vehículo todavía no ha dicho ningún parámetro.",
+    Press: "Pulsa",
+    "to ask it for the whole list.": "para pedirle la lista entera.",
+    "No parameter has been written yet.":
+      "Todavía no se ha escrito ningún parámetro.",
+    "{name} written — the vehicle stored {value}":
+      "{name} se escribió — el vehículo guardó {value}",
+    Yes: "Sí",
+    No: "No",
+    "{count} parameter is waiting to be written to the vehicle.":
+      "{count} parámetro espera que se escriba en el vehículo.",
+    "{count} parameters are waiting to be written to the vehicle.":
+      "{count} parámetros esperan que se escriban en el vehículo.",
+    "the favourites have not been changed.":
+      "los favoritos no se han cambiado.",
+    "The parameters by prefix": "Los parámetros por prefijo",
+    "The parameters the vehicle has reported":
+      "Los parámetros que el vehículo ha dicho",
+    "Default: {value}": "Valor de siempre: {value}",
+    "Range: {minimum} to {maximum}": "Rango: {minimum} a {maximum}",
+    "Group: {group}": "Grupo: {group}",
+    "A change to it needs the vehicle to be restarted":
+      "Cambiarlo obliga a reiniciar el vehículo",
+    "Take {name} out of the favourites": "Quitar {name} de los favoritos",
+    "Make {name} a favourite": "Hacer {name} favorito",
+    "Not a favourite any more": "Ya no es favorito",
+    "A favourite — kept between two runs":
+      "Un favorito — se guarda entre dos ejecuciones",
+    "{flag} of {name}": "{flag} de {name}",
+    "The value of {name}": "El valor de {name}",
+    "Writing…": "Se escribe…",
+    Write: "Escribir",
+    Cancel: "Cancelar",
+    "The value is outside the range the documentation gives":
+      "El valor está fuera del rango que da la documentación",
+    "Choose one of the values it can be given":
+      "Elegir uno de los valores que puede tener",
+    "Click to change the value": "Pulsar para cambiar el valor",
+    "{name}, {value}. Change the value": "{name}, {value}. Cambiar el valor",
+    "A change to this parameter needs the vehicle to be restarted to take effect":
+      "Cambiar este parámetro obliga a reiniciar el vehículo para que haga efecto",
+    Reboot: "Reinicio",
   },
 };
 

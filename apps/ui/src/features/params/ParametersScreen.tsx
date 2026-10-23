@@ -10,6 +10,7 @@ import {
   writeParametersToFlash,
 } from "../../lib/ipc/bridge";
 import type { Parameter } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import {
   orderParameters,
@@ -56,11 +57,16 @@ const MIN_TREE_WIDTH = 140;
 /** The widest the tree may be dragged. */
 const MAX_TREE_WIDTH = 480;
 
+/** How a part of the interface says something in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 /** The kinds of file the parameter dialog offers. */
-const PARAMETER_FILTERS = [
-  { name: "Parameter file", extensions: ["param", "parm"] },
-  { name: "All files", extensions: ["*"] },
-];
+function parameterFilters(t: Say) {
+  return [
+    { name: t("Parameter file"), extensions: ["param", "parm"] },
+    { name: t("All files"), extensions: ["*"] },
+  ];
+}
 
 export function ParametersScreen() {
   // The screen is where this screen lives, so it renders exactly when the window is on
@@ -89,6 +95,8 @@ export function ParametersScreen() {
   const toggleFavourite = useFavouritesStore((state) => state.toggle);
 
   const status = useLinkStore((state) => state.status);
+
+  const t = useLocaleStore((state) => state.t);
 
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
@@ -270,7 +278,7 @@ export function ParametersScreen() {
    * a comma.
    */
   const saveFile = useCallback(async () => {
-    const picked = await pickSavePath("vehicle.param", PARAMETER_FILTERS);
+    const picked = await pickSavePath("vehicle.param", parameterFilters(t));
 
     if (!picked.ok) {
       return;
@@ -280,16 +288,20 @@ export function ParametersScreen() {
 
     try {
       await exportParameters(picked.path);
-      setFileNotice(`The parameters were written to ${picked.path}.`);
+      setFileNotice(
+        t("The parameters were written to {path}.", { path: picked.path }),
+      );
       setPendingLoad(null);
     } catch (cause) {
       setFileNotice(
-        `${normaliseError(cause).code} — the file was not written.`,
+        t("{code} — the file was not written.", {
+          code: normaliseError(cause).code,
+        }),
       );
     } finally {
       setFileBusy(false);
     }
-  }, []);
+  }, [t]);
 
   /**
    * Reads the parameters of a file.
@@ -298,7 +310,7 @@ export function ParametersScreen() {
    * writing a parameter is the vehicle's own memory changing.
    */
   const openFile = useCallback(async () => {
-    const picked = await pickOpenPath(PARAMETER_FILTERS);
+    const picked = await pickOpenPath(parameterFilters(t));
 
     if (!picked.ok) {
       return;
@@ -310,14 +322,23 @@ export function ParametersScreen() {
       const parameters = await importParameters(picked.path);
       setPendingLoad(parameters);
       setFileNotice(
-        `${parameters.length} parameters were read from ${picked.path}.`,
+        t(
+          parameters.length === 1
+            ? "{count} parameter was read from {path}."
+            : "{count} parameters were read from {path}.",
+          { count: parameters.length, path: picked.path },
+        ),
       );
     } catch (cause) {
-      setFileNotice(`${normaliseError(cause).code} — the file was not read.`);
+      setFileNotice(
+        t("{code} — the file was not read.", {
+          code: normaliseError(cause).code,
+        }),
+      );
     } finally {
       setFileBusy(false);
     }
-  }, []);
+  }, [t]);
 
   /**
    * Says how the parameters of the vehicle differ from the ones of a file.
@@ -327,7 +348,7 @@ export function ParametersScreen() {
    * the one that was asked for.
    */
   const compareFile = useCallback(async () => {
-    const picked = await pickOpenPath(PARAMETER_FILTERS);
+    const picked = await pickOpenPath(parameterFilters(t));
 
     if (!picked.ok) {
       return;
@@ -339,27 +360,40 @@ export function ParametersScreen() {
       const differences = await compareParameters(picked.path);
 
       if (differences.length === 0) {
-        setFileNotice("The vehicle and the file agree.");
+        setFileNotice(t("The vehicle and the file agree."));
       } else {
-        const lines = differences
-          .slice(0, 8)
-          .map(
-            (difference) =>
-              `${difference.name}: the vehicle has ${difference.current ?? "-"}, the file has ${difference.other ?? "-"}`,
-          );
+        const lines = differences.slice(0, 8).map((difference) =>
+          t(
+            "{name}: the vehicle has {vehicleValue}, the file has {fileValue}",
+            {
+              name: difference.name,
+              vehicleValue: difference.current ?? "-",
+              fileValue: difference.other ?? "-",
+            },
+          ),
+        );
 
         setFileNotice(
-          `${differences.length} parameters differ. ${lines.join(" · ")}`,
+          t(
+            differences.length === 1
+              ? "{count} parameter differs. {lines}"
+              : "{count} parameters differ. {lines}",
+            { count: differences.length, lines: lines.join(" · ") },
+          ),
         );
       }
 
       setPendingLoad(null);
     } catch (cause) {
-      setFileNotice(`${normaliseError(cause).code} — the file was not read.`);
+      setFileNotice(
+        t("{code} — the file was not read.", {
+          code: normaliseError(cause).code,
+        }),
+      );
     } finally {
       setFileBusy(false);
     }
-  }, []);
+  }, [t]);
 
   /**
    * Writes the parameters of a file to the vehicle.
@@ -388,9 +422,16 @@ export function ParametersScreen() {
 
     await writeBatch(changes);
 
-    setFileNotice(`${changes.length} parameters were written to the vehicle.`);
+    setFileNotice(
+      t(
+        changes.length === 1
+          ? "{count} parameter was written to the vehicle."
+          : "{count} parameters were written to the vehicle.",
+        { count: changes.length },
+      ),
+    );
     setFileBusy(false);
-  }, [pendingLoad, writeBatch]);
+  }, [pendingLoad, writeBatch, t]);
 
   /**
    * Puts back the parameters the operator changed, as they were before.
@@ -420,7 +461,9 @@ export function ParametersScreen() {
 
     if (changes.length === 0) {
       setFileNotice(
-        "There is nothing to put back: no parameter that was changed has a default in the documentation.",
+        t(
+          "There is nothing to put back: no parameter that was changed has a default in the documentation.",
+        ),
       );
       return;
     }
@@ -429,15 +472,24 @@ export function ParametersScreen() {
 
     try {
       await writeBatch(changes);
-      setFileNotice(`${changes.length} parameters were put back as they were.`);
+      setFileNotice(
+        t(
+          changes.length === 1
+            ? "{count} parameter was put back as it was."
+            : "{count} parameters were put back as they were.",
+          { count: changes.length },
+        ),
+      );
     } catch (cause) {
       setFileNotice(
-        `${normaliseError(cause).code} — the parameters were not put back.`,
+        t("{code} — the parameters were not put back.", {
+          code: normaliseError(cause).code,
+        }),
       );
     } finally {
       setFileBusy(false);
     }
-  }, [changed, metadata, writeBatch]);
+  }, [changed, metadata, writeBatch, t]);
 
   /** Asks the vehicle to write its parameters to its own memory. */
   const writeToFlash = useCallback(async () => {
@@ -446,16 +498,18 @@ export function ParametersScreen() {
     try {
       await writeParametersToFlash();
       setFileNotice(
-        "The vehicle has written its parameters to its own memory.",
+        t("The vehicle has written its parameters to its own memory."),
       );
     } catch (cause) {
       setFileNotice(
-        `${normaliseError(cause).code} — the vehicle did not write them.`,
+        t("{code} — the vehicle did not write them.", {
+          code: normaliseError(cause).code,
+        }),
       );
     } finally {
       setFileBusy(false);
     }
-  }, []);
+  }, [t]);
 
   const handleWrite = useCallback(
     (name: string, value: number) => {
@@ -476,83 +530,98 @@ export function ParametersScreen() {
     <div ref={panel} className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title} id="parameters-title">
-          Parameters
+          {t("Parameters")}
         </h1>
-        <span className={styles.count}>{parameters.length} reported</span>
+        <span className={styles.count}>
+          {t(
+            parameters.length === 1
+              ? "{count} parameter reported"
+              : "{count} parameters reported",
+            { count: parameters.length },
+          )}
+        </span>
         <div className={styles.headerActions}>
           <button
             type="button"
             className="button"
             disabled={reading || !linked}
-            title={linked ? undefined : "no link"}
+            title={linked ? undefined : t("no link")}
             onClick={() => {
               void readAll();
             }}
           >
-            {reading ? "Reading…" : "Read all"}
+            {reading ? t("Reading…") : t("Read all")}
           </button>
           <button
             type="button"
             className="button"
             disabled={fileBusy || !linked}
-            title="Read the parameters of a file and write them to the vehicle"
+            title={t(
+              "Read the parameters of a file and write them to the vehicle",
+            )}
             onClick={() => {
               void openFile();
             }}
           >
-            Load…
+            {t("Load…")}
           </button>
 
           <button
             type="button"
             className="button"
             disabled={fileBusy || !linked}
-            title="Write the parameters of the vehicle to a file"
+            title={t("Write the parameters of the vehicle to a file")}
             onClick={() => {
               void saveFile();
             }}
           >
-            Save…
+            {t("Save…")}
           </button>
 
           <button
             type="button"
             className="button"
             disabled={fileBusy || !linked}
-            title="Say how the parameters of the vehicle differ from the ones of a file"
+            title={t(
+              "Say how the parameters of the vehicle differ from the ones of a file",
+            )}
             onClick={() => {
               void compareFile();
             }}
           >
-            Compare…
+            {t("Compare…")}
           </button>
 
           <button
             type="button"
             className="button"
             disabled={fileBusy || !linked || changed.length === 0}
-            title="Put back the parameters that were changed, as they were before"
+            title={t(
+              "Put back the parameters that were changed, as they were before",
+            )}
             onClick={() => {
               void restoreDefaults();
             }}
           >
-            Restore the defaults
+            {t("Restore the defaults")}
           </button>
 
           <button
             type="button"
             className="button"
             disabled={fileBusy || !linked}
-            title="Ask the vehicle to write its parameters to its own memory"
+            title={t(
+              "Ask the vehicle to write its parameters to its own memory",
+            )}
             onClick={() => {
               void writeToFlash();
             }}
           >
-            Write to flash
+            {t("Write to flash")}
           </button>
 
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
       </header>
@@ -566,8 +635,8 @@ export function ParametersScreen() {
       {metadataError !== null ? (
         <p className={styles.errorBar} role="alert">
           <span className={styles.code}>{metadataError.code}</span>{" "}
-          {metadataError.message} — the descriptions of the parameters are not
-          shown.
+          {metadataError.message} —{" "}
+          {t("the descriptions of the parameters are not shown.")}
         </p>
       ) : null}
 
@@ -579,15 +648,18 @@ export function ParametersScreen() {
           value={query}
           spellCheck={false}
           autoComplete="off"
-          placeholder="Search the parameters by name"
-          aria-label="Search the parameters by name"
+          placeholder={t("Search the parameters by name")}
+          aria-label={t("Search the parameters by name")}
           onChange={(event) => {
             setQuery(event.target.value);
           }}
         />
         {query.trim().length > 0 ? (
           <span className={styles.filtered}>
-            {rows.length} of {parameters.length}
+            {t("{number} of {count}", {
+              number: rows.length,
+              count: parameters.length,
+            })}
           </span>
         ) : null}
 
@@ -597,12 +669,12 @@ export function ParametersScreen() {
             <button
               type="button"
               className="button"
-              title="Show every parameter again"
+              title={t("Show every parameter again")}
               onClick={() => {
                 showParameterGroup(null);
               }}
             >
-              All
+              {t("All")}
             </button>
           </span>
         ) : null}
@@ -621,7 +693,7 @@ export function ParametersScreen() {
 
         <Splitter
           orientation="vertical"
-          label="The width of the tree of the parameters"
+          label={t("The width of the tree of the parameters")}
           value={treeWidth}
           min={MIN_TREE_WIDTH}
           max={MAX_TREE_WIDTH}
@@ -649,26 +721,30 @@ export function ParametersScreen() {
             <div className={styles.empty}>
               {error !== null ? (
                 <p className={styles.hint}>
-                  The parameters could not be read. The link may be down.
+                  {t("The parameters could not be read. The link may be down.")}
                 </p>
               ) : reading ? (
-                <p className={styles.hint}>Reading the parameters…</p>
+                <p className={styles.hint}>{t("Reading the parameters…")}</p>
               ) : query.trim().length > 0 ? (
                 <p className={styles.hint}>
-                  No parameter matches “{query.trim()}”.
+                  {t("No parameter matches “{query}”.", {
+                    query: query.trim(),
+                  })}
                 </p>
               ) : node.prefix !== "" ? (
                 <p className={styles.hint}>
-                  Nothing under {node.label} matches the search.
+                  {t("Nothing under {label} matches the search.", {
+                    label: node.label,
+                  })}
                 </p>
               ) : (
                 <>
                   <p className={styles.hint}>
-                    The vehicle has not reported a parameter yet.
+                    {t("The vehicle has not reported a parameter yet.")}
                   </p>
                   <p className={styles.hint}>
-                    Press <strong>Read all</strong> to ask it for the whole
-                    list.
+                    {t("Press")} <strong>{t("Read all")}</strong>{" "}
+                    {t("to ask it for the whole list.")}
                   </p>
                 </>
               )}
@@ -680,15 +756,17 @@ export function ParametersScreen() {
       <footer className={styles.footer}>
         {lastWrite === null ? (
           <span className={styles.idle}>
-            No parameter has been written yet.
+            {t("No parameter has been written yet.")}
           </span>
         ) : lastWrite.kind === "written" ? (
           <span className={styles.written} role="status">
-            {lastWrite.parameter.name} written — the vehicle stored{" "}
-            {formatParameterValue(
-              lastWrite.parameter.value,
-              lastWrite.parameter.reportedType,
-            )}
+            {t("{name} written — the vehicle stored {value}", {
+              name: lastWrite.parameter.name,
+              value: formatParameterValue(
+                lastWrite.parameter.value,
+                lastWrite.parameter.reportedType,
+              ),
+            })}
           </span>
         ) : (
           <span className={styles.failed} role="alert">
@@ -705,8 +783,12 @@ export function ParametersScreen() {
 
         {pendingLoad !== null ? (
           <p className={styles.favouriteError} role="alert">
-            {pendingLoad.length} parameters are waiting to be written to the
-            vehicle.
+            {t(
+              pendingLoad.length === 1
+                ? "{count} parameter is waiting to be written to the vehicle."
+                : "{count} parameters are waiting to be written to the vehicle.",
+              { count: pendingLoad.length },
+            )}
             <button
               type="button"
               className="button"
@@ -714,7 +796,7 @@ export function ParametersScreen() {
                 setPendingLoad(null);
               }}
             >
-              No
+              {t("No")}
             </button>
             <button
               type="button"
@@ -723,7 +805,7 @@ export function ParametersScreen() {
                 void confirmLoad();
               }}
             >
-              Yes
+              {t("Yes")}
             </button>
           </p>
         ) : null}
@@ -731,7 +813,8 @@ export function ParametersScreen() {
         {favouriteError !== null ? (
           <p className={styles.favouriteError} role="alert">
             <span className={styles.code}>{favouriteError.code}</span>{" "}
-            {favouriteError.message} — the favourites have not been changed.
+            {favouriteError.message} —{" "}
+            {t("the favourites have not been changed.")}
           </p>
         ) : null}
       </footer>

@@ -1,6 +1,7 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useState } from "react";
 
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import type { MetadataIndex } from "../../lib/params/metadataStore";
 import type { KnownParameter } from "../../lib/params/paramsStore";
 import { ParameterRow } from "./ParameterRow";
@@ -52,6 +53,8 @@ export function ParameterList({
   onWrite,
   onToggleFavourite,
 }: ParameterListProps) {
+  const t = useLocaleStore((state) => state.t);
+
   // The element the list scrolls in is held in the state, so that the virtualiser is
   // told about it when it appears rather than a render later.
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
@@ -68,9 +71,12 @@ export function ParameterList({
       ref={setScroller}
       className={styles.list}
       role="list"
-      aria-label="The parameters the vehicle has reported"
+      aria-label={t("The parameters the vehicle has reported")}
     >
-      <div className={styles.canvas} style={{ height: virtualizer.getTotalSize() }}>
+      <div
+        className={styles.canvas}
+        style={{ height: virtualizer.getTotalSize() }}
+      >
         {virtualizer.getVirtualItems().map((item) => {
           const parameter = rows[item.index];
           if (parameter === undefined) {
