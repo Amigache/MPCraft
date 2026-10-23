@@ -146,6 +146,9 @@ const bundles: Record<Locale, Record<string, string>> = {
     // What a menu says when an entry cannot be used.
     "no link": "sin enlace",
 
+    // What a sheet says when nothing is on the wire.
+    "There is no vehicle on the link.": "No hay vehículo en el enlace.",
+
     // The sheet of the connection.
     Connection: "Conexión",
     Target: "Destino",
@@ -177,6 +180,36 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Use this link": "Usar este enlace",
     "Forget this link": "Quitar este enlace",
     "Forget {name}": "Quitar {name}",
+
+    // The sheet of the calibrations.
+    Calibration: "Calibración",
+    "Full calibration": "Calibración completa",
+    "Start the six positions": "Empezar las seis posiciones",
+    "Level calibration": "Calibración del nivel",
+    "Start the level calibration": "Empezar la calibración del nivel",
+    "Start the calibration": "Empezar la calibración",
+    "Start the compass calibration": "Empezar la calibración de la brújula",
+    "The compensation of the motors": "La compensación de los motores",
+    ESC: "ESC",
+    "Calibrate the ESC": "Calibrar el ESC",
+    "Start the calibration of the ESC": "Empezar la calibración del ESC",
+    "The pulse of the motors": "El pulso de los motores",
+    "The vehicle measures the accelerometer in six positions and works the offsets out. Put it on a level table, on its side, on its nose, on its back and on each of the other two corners, and tell it when it is in each one.":
+      "El vehículo mide el acelerómetro en seis posiciones y trabaja los desplazamientos. Ponlo sobre una mesa nivelada, sobre su lado, sobre su morro, sobre su espalda y sobre cada uno de los otros dos ángulos, y dile cuándo está en cada una.",
+    "The compass has to be away from the metal of the vehicle and of what is around it: take the motors off, or at least do not let them run, and keep the vehicle away from the bench and from the computer. Turn it slowly in every direction while the calibration runs.":
+      "La brújula tiene que estar lejos del metal del vehículo y de lo que lo rodea: quita los motores, o al menos no los dejes correr, y mantén el vehículo lejos de la mesa de trabajo y del ordenador. Gíralo despacio en todas las direcciones mientras la calibración corre.",
+    "The electronic speed controllers have a calibration of their own: the vehicle tells them to listen, they learn the position of the throttle and the timing of the signal, and then they are ready. The width of the pulse the vehicle sends them is a parameter of the vehicle.":
+      "Los controladores electrónicos de velocidad tienen una calibración propia: el vehículo les dice que escuchen, aprenden la posición del acelerador y el momento de la señal, y entonces están listos. El ancho del pulso que el vehículo les manda es un parámetro del vehículo.",
+    "The compensation of the motors is a parameter of the vehicle — the compass of a vehicle with motors is never quite right without it.":
+      "La compensación de los motores es un parámetro del vehículo — la brújula de un vehículo con motores nunca está del todo bien sin ella.",
+    "The vehicle was told to calibrate the accelerometer.":
+      "Se le dijo al vehículo que calibrara el acelerómetro.",
+    "The vehicle was told to calibrate the accelerometer level.":
+      "Se le dijo al vehículo que calibrara el nivel del acelerómetro.",
+    "The vehicle was told to calibrate the compass.":
+      "Se le dijo al vehículo que calibrara la brújula.",
+    "The vehicle was told to calibrate the electronic speed controllers.":
+      "Se le dijo al vehículo que calibrara los controladores electrónicos de velocidad.",
 
     // The sheet of the pictures.
     "The pictures and where they were taken": "Las fotos y dónde se hicieron",

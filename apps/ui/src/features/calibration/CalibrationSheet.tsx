@@ -1,7 +1,12 @@
 import { useState } from "react";
 
 import { ConfirmButton } from "../../components/ConfirmButton";
-import { calibrate, normaliseError, writeParameter } from "../../lib/ipc/bridge";
+import {
+  calibrate,
+  normaliseError,
+  writeParameter,
+} from "../../lib/ipc/bridge";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./CalibrationSheet.module.css";
@@ -25,6 +30,7 @@ export function CalibrationSheet() {
   const open = useUiStore((state) => state.calibrationOpen);
   const hide = useUiStore((state) => state.hideCalibration);
   const showParameterPrefix = useUiStore((state) => state.showParameterPrefix);
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
 
@@ -67,7 +73,9 @@ export function CalibrationSheet() {
     try {
       await writeParameter("ESC_CALIBRATION", 3);
       setNotice(
-        "The vehicle was told to calibrate the electronic speed controllers.",
+        t(
+          "The vehicle was told to calibrate the electronic speed controllers.",
+        ),
       );
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -95,7 +103,7 @@ export function CalibrationSheet() {
       >
         <header className={styles.header}>
           <h2 className={styles.title} id="calibration-title">
-            Calibration
+            {t("Calibration")}
           </h2>
           <div className={styles.headerActions}>
             <button
@@ -105,44 +113,45 @@ export function CalibrationSheet() {
                 hide();
               }}
             >
-              Close
+              {t("Close")}
             </button>
           </div>
         </header>
 
         <div className={styles.body}>
           <section className={styles.block}>
-            <h3 className={styles.heading}>Accelerometer</h3>
+            <h3 className={styles.heading}>{t("Accelerometer")}</h3>
 
             <p className={styles.text}>
-              The vehicle measures the accelerometer in six positions and works the
-              offsets out. Put it on a level table, on its side, on its nose, on its
-              back and on each of the other two corners, and tell it when it is in each
-              one.
+              {t(
+                "The vehicle measures the accelerometer in six positions and works the offsets out. Put it on a level table, on its side, on its nose, on its back and on each of the other two corners, and tell it when it is in each one.",
+              )}
             </p>
 
             <div className={styles.actions}>
               <ConfirmButton
-                label="Full calibration"
-                confirmLabel="Start the six positions"
+                label={t("Full calibration")}
+                confirmLabel={t("Start the six positions")}
                 variant="primary"
                 disabled={busy || !linked}
                 onConfirm={() => {
                   void run(
                     "accelerometer",
-                    "The vehicle was told to calibrate the accelerometer.",
+                    t("The vehicle was told to calibrate the accelerometer."),
                   );
                 }}
               />
 
               <ConfirmButton
-                label="Level calibration"
-                confirmLabel="Start the level calibration"
+                label={t("Level calibration")}
+                confirmLabel={t("Start the level calibration")}
                 disabled={busy || !linked}
                 onConfirm={() => {
                   void run(
                     "level",
-                    "The vehicle was told to calibrate the accelerometer level.",
+                    t(
+                      "The vehicle was told to calibrate the accelerometer level.",
+                    ),
                   );
                 }}
               />
@@ -150,25 +159,24 @@ export function CalibrationSheet() {
           </section>
 
           <section className={styles.block}>
-            <h3 className={styles.heading}>Compass</h3>
+            <h3 className={styles.heading}>{t("Compass")}</h3>
 
             <p className={styles.text}>
-              The compass has to be away from the metal of the vehicle and of what is
-              around it: take the motors off, or at least do not let them run, and keep
-              the vehicle away from the bench and from the computer. Turn it slowly in
-              every direction while the calibration runs.
+              {t(
+                "The compass has to be away from the metal of the vehicle and of what is around it: take the motors off, or at least do not let them run, and keep the vehicle away from the bench and from the computer. Turn it slowly in every direction while the calibration runs.",
+              )}
             </p>
 
             <div className={styles.actions}>
               <ConfirmButton
-                label="Start the calibration"
-                confirmLabel="Start the compass calibration"
+                label={t("Start the calibration")}
+                confirmLabel={t("Start the compass calibration")}
                 variant="primary"
                 disabled={busy || !linked}
                 onConfirm={() => {
                   void run(
                     "compass",
-                    "The vehicle was told to calibrate the compass.",
+                    t("The vehicle was told to calibrate the compass."),
                   );
                 }}
               />
@@ -181,30 +189,30 @@ export function CalibrationSheet() {
                   showParameterPrefix("COMPASS_MOT");
                 }}
               >
-                The compensation of the motors
+                {t("The compensation of the motors")}
               </button>
             </div>
 
             <p className={styles.note}>
-              The compensation of the motors is a parameter of the vehicle — the
-              compass of a vehicle with motors is never quite right without it.
+              {t(
+                "The compensation of the motors is a parameter of the vehicle — the compass of a vehicle with motors is never quite right without it.",
+              )}
             </p>
           </section>
 
           <section className={styles.block}>
-            <h3 className={styles.heading}>ESC</h3>
+            <h3 className={styles.heading}>{t("ESC")}</h3>
 
             <p className={styles.text}>
-              The electronic speed controllers have a calibration of their own: the
-              vehicle tells them to listen, they learn the position of the throttle and
-              the timing of the signal, and then they are ready. The width of the pulse
-              the vehicle sends them is a parameter of the vehicle.
+              {t(
+                "The electronic speed controllers have a calibration of their own: the vehicle tells them to listen, they learn the position of the throttle and the timing of the signal, and then they are ready. The width of the pulse the vehicle sends them is a parameter of the vehicle.",
+              )}
             </p>
 
             <div className={styles.actions}>
               <ConfirmButton
-                label="Calibrate the ESC"
-                confirmLabel="Start the calibration of the ESC"
+                label={t("Calibrate the ESC")}
+                confirmLabel={t("Start the calibration of the ESC")}
                 variant="primary"
                 disabled={busy || !linked}
                 onConfirm={() => {
@@ -220,7 +228,7 @@ export function CalibrationSheet() {
                   showParameterPrefix("MOT_PWM");
                 }}
               >
-                The pulse of the motors
+                {t("The pulse of the motors")}
               </button>
             </div>
           </section>
@@ -238,7 +246,9 @@ export function CalibrationSheet() {
           ) : null}
 
           {!linked ? (
-            <p className={styles.note}>There is no vehicle on the link.</p>
+            <p className={styles.note}>
+              {t("There is no vehicle on the link.")}
+            </p>
           ) : null}
         </div>
       </div>
