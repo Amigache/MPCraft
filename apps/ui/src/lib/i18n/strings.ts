@@ -146,6 +146,38 @@ const bundles: Record<Locale, Record<string, string>> = {
     // What a menu says when an entry cannot be used.
     "no link": "sin enlace",
 
+    // The sheet of the connection.
+    Connection: "Conexión",
+    Target: "Destino",
+    Port: "Puerto",
+    Baud: "Baudios",
+    "Connection target": "El destino de la conexión",
+    "Serial port": "Puerto serie",
+    "Baud rate": "Velocidad en baudios",
+    Automatic: "Automática",
+    "No serial ports": "Sin puertos serie",
+    "Not a serial port": "No es un puerto serie",
+    "Looking for the serial ports…": "Buscando los puertos serie…",
+    "This machine has no serial ports. Write the target by hand — a UDP or a TCP address works too.":
+      "Esta máquina no tiene puertos serie. Escribe el destino a mano — una dirección UDP o TCP también vale.",
+    connected: "conectado",
+    disconnected: "desconectado",
+    connecting: "conectando",
+    reconnecting: "reconectando",
+    failed: "fallido",
+    "Saved links": "Enlaces guardados",
+    Name: "Nombre",
+    Save: "Guardar",
+    "The name of the link": "El nombre del enlace",
+    "Save the target under this name": "Guardar el destino con este nombre",
+    "No link has been saved. The ones that are saved are here the next time, and the ones marked are opened when the application starts.":
+      "No se ha guardado ningún enlace. Los que se guardan están aquí la próxima vez, y los marcados se abren cuando la aplicación arranca.",
+    "Open {name} when the application starts":
+      "Abrir {name} cuando la aplicación arranca",
+    "Use this link": "Usar este enlace",
+    "Forget this link": "Quitar este enlace",
+    "Forget {name}": "Quitar {name}",
+
     // The sheet of the pictures.
     "The pictures and where they were taken": "Las fotos y dónde se hicieron",
     Close: "Cerrar",

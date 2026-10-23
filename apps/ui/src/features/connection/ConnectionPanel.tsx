@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listSerialPorts, useConnection } from "../../lib/ipc/bridge";
 import type { CommandError, SerialPort } from "../../lib/ipc/types";
 import { useProfilesStore } from "../../lib/connection/profilesStore";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import {
   AUTO_BAUD,
   BAUD_RATES,
@@ -37,6 +38,7 @@ type PortsState = "loading" | "ready" | "failed";
 
 export function ConnectionPanel() {
   const { status, error, connect, disconnect } = useConnection();
+  const t = useLocaleStore((state) => state.t);
   const [target, setTarget] = useState("udp:127.0.0.1:14550");
   const [baud, setBaud] = useState(DEFAULT_BAUD);
   const [ports, setPorts] = useState<readonly SerialPort[]>([]);
@@ -124,13 +126,13 @@ export function ConnectionPanel() {
   return (
     <div className={styles.panel}>
       <label className={styles.field}>
-        <span className={styles.label}>Target</span>
+        <span className={styles.label}>{t("Target")}</span>
         <input
           className="input"
           value={target}
           spellCheck={false}
           autoComplete="off"
-          aria-label="Connection target"
+          aria-label={t("Connection target")}
           onChange={(event) => setTarget(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && open) {
@@ -142,11 +144,11 @@ export function ConnectionPanel() {
 
       <div className={styles.pick}>
         <label className={styles.field}>
-          <span className={styles.label}>Port</span>
+          <span className={styles.label}>{t("Port")}</span>
           <select
             className="select"
             value={device}
-            aria-label="Serial port"
+            aria-label={t("Serial port")}
             disabled={devices.length === 0}
             onChange={(event) => {
               const chosen = event.target.value;
@@ -156,9 +158,9 @@ export function ConnectionPanel() {
             }}
           >
             {devices.length === 0 ? (
-              <option value="">No serial ports</option>
+              <option value="">{t("No serial ports")}</option>
             ) : device.length === 0 ? (
-              <option value="">Not a serial port</option>
+              <option value="">{t("Not a serial port")}</option>
             ) : null}
             {devices.map((name) => (
               <option key={name} value={name}>
@@ -169,11 +171,11 @@ export function ConnectionPanel() {
         </label>
 
         <label className={styles.field}>
-          <span className={styles.label}>Baud</span>
+          <span className={styles.label}>{t("Baud")}</span>
           <select
             className="select"
             value={autoBaud ? AUTO_BAUD : rate}
-            aria-label="Baud rate"
+            aria-label={t("Baud rate")}
             onChange={(event) => {
               const value = event.target.value;
 
@@ -189,7 +191,7 @@ export function ConnectionPanel() {
               }
             }}
           >
-            <option value={AUTO_BAUD}>Automatic</option>
+            <option value={AUTO_BAUD}>{t("Automatic")}</option>
             {BAUD_RATES.map((value) => (
               <option key={value} value={value}>
                 {value}
@@ -200,19 +202,21 @@ export function ConnectionPanel() {
       </div>
 
       {portsState === "loading" ? (
-        <p className={styles.note}>Looking for the serial ports…</p>
+        <p className={styles.note}>{t("Looking for the serial ports…")}</p>
       ) : null}
 
       {portsState === "ready" && ports.length === 0 ? (
         <p className={styles.note}>
-          This machine has no serial ports. Write the target by hand — a UDP or a TCP
-          address works too.
+          {t(
+            "This machine has no serial ports. Write the target by hand — a UDP or a TCP address works too.",
+          )}
         </p>
       ) : null}
 
       {portsError ? (
         <p className={styles.error} role="alert">
-          <span className={styles.code}>{portsError.code}</span> {portsError.message}
+          <span className={styles.code}>{portsError.code}</span>{" "}
+          {portsError.message}
         </p>
       ) : null}
 
@@ -223,7 +227,7 @@ export function ConnectionPanel() {
           disabled={busy || !open || target.trim().length === 0}
           onClick={() => void run(() => connect(target))}
         >
-          Connect
+          {t("Connect")}
         </button>
         <button
           type="button"
@@ -231,10 +235,10 @@ export function ConnectionPanel() {
           disabled={busy || open}
           onClick={() => void run(() => disconnect())}
         >
-          Disconnect
+          {t("Disconnect")}
         </button>
         <span className={`${styles.status} ${styles[status] ?? ""}`}>
-          {status}
+          {t(status)}
         </span>
       </div>
 
@@ -245,7 +249,7 @@ export function ConnectionPanel() {
       ) : null}
 
       <section className={styles.saved}>
-        <h3 className={styles.savedHeading}>Saved links</h3>
+        <h3 className={styles.savedHeading}>{t("Saved links")}</h3>
 
         <div className={styles.saveRow}>
           <input
@@ -253,8 +257,8 @@ export function ConnectionPanel() {
             value={name}
             spellCheck={false}
             autoComplete="off"
-            placeholder="Name"
-            aria-label="The name of the link"
+            placeholder={t("Name")}
+            aria-label={t("The name of the link")}
             onChange={(event) => {
               setName(event.target.value);
             }}
@@ -262,8 +266,10 @@ export function ConnectionPanel() {
           <button
             type="button"
             className="button"
-            disabled={busy || name.trim().length === 0 || target.trim().length === 0}
-            title="Save the target under this name"
+            disabled={
+              busy || name.trim().length === 0 || target.trim().length === 0
+            }
+            title={t("Save the target under this name")}
             onClick={() => {
               void run(async () => {
                 await saveProfile({
@@ -275,14 +281,15 @@ export function ConnectionPanel() {
               });
             }}
           >
-            Save
+            {t("Save")}
           </button>
         </div>
 
         {profiles.length === 0 ? (
           <p className={styles.note}>
-            No link has been saved. The ones that are saved are here the next time, and
-            the ones marked are opened when the application starts.
+            {t(
+              "No link has been saved. The ones that are saved are here the next time, and the ones marked are opened when the application starts.",
+            )}
           </p>
         ) : (
           <ul className={styles.savedList}>
@@ -291,8 +298,10 @@ export function ConnectionPanel() {
                 <input
                   type="checkbox"
                   checked={profile.autoConnect}
-                  aria-label={`Open ${profile.name} when the application starts`}
-                  title="Open this link when the application starts"
+                  aria-label={t("Open {name} when the application starts", {
+                    name: profile.name,
+                  })}
+                  title={t("Open this link when the application starts")}
                   disabled={busy}
                   onChange={(event) => {
                     void setAutoConnect(profile.name, event.target.checked);
@@ -301,7 +310,7 @@ export function ConnectionPanel() {
                 <button
                   type="button"
                   className={styles.savedName}
-                  title="Use this link"
+                  title={t("Use this link")}
                   onClick={() => {
                     setTarget(profile.target);
                     setName(profile.name);
@@ -313,8 +322,8 @@ export function ConnectionPanel() {
                 <button
                   type="button"
                   className={styles.savedDelete}
-                  aria-label={`Forget ${profile.name}`}
-                  title="Forget this link"
+                  aria-label={t("Forget {name}", { name: profile.name })}
+                  title={t("Forget this link")}
                   disabled={busy}
                   onClick={() => {
                     void run(() => removeProfile(profile.name));

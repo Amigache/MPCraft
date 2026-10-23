@@ -1169,18 +1169,18 @@ export function MenuBar() {
           <div
             className={styles.dialog}
             role="dialog"
+            aria-label={t("Connection")}
             aria-modal="true"
-            aria-label="Connection"
             onClick={(event) => event.stopPropagation()}
           >
             <div className={styles.dialogHead}>
-              <h2 className={styles.dialogTitle}>Connection</h2>
+              <h2 className={styles.dialogTitle}>{t("Connection")}</h2>
               <button
                 type="button"
                 className="button"
                 onClick={() => setConnecting(false)}
               >
-                Close
+                {t("Close")}
               </button>
             </div>
             <ConnectionPanel />
