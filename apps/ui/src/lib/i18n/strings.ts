@@ -621,6 +621,47 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Se recibió {count} byte del puerto {device}.",
     "{count} bytes came from the port {device}.":
       "Se recibieron {count} bytes del puerto {device}.",
+
+    // The sheet of the firmware.
+    "Firmware…": "El firmware…",
+    "The vehicle": "El vehículo",
+    Vehicle: "Vehículo",
+    "The vehicle the firmware is for": "El vehículo para el que es el firmware",
+    Version: "Versión",
+    "The version of the firmware": "La versión del firmware",
+    Board: "La placa",
+    "The board the firmware is for": "La placa para la que es el firmware",
+    "How big": "Lo grande que es",
+    "Its hash": "Su huella",
+    "Fetch the file": "Traer el archivo",
+    "The file is fetched to the disk. It can then be written to a board that is in its bootloader: the board answers the questions of the bootloader instead of the MAVLink of a flight, and the file is written to it block by block.":
+      "El archivo se trae al disco. Después se puede escribir en una placa que esté en su cargador de arranque: la placa responde a las preguntas del cargador en lugar del MAVLink de un vuelo, y el archivo se escribe en ella bloque a bloque.",
+    "Writing it to a board": "Escribirlo en una placa",
+    "Ask the vehicle to restart into its bootloader":
+      "Pedir al vehículo que vuelva a empezar en su cargador de arranque",
+    "Restart the vehicle into its bootloader":
+      "Reiniciar el vehículo en su cargador de arranque",
+    "The vehicle is asked to restart into its bootloader. It stops speaking MAVLink when it is there, and the port is then opened in the manner of the bootloader.":
+      "Se pide al vehículo que vuelva a empezar en su cargador de arranque. Deja de hablar MAVLink cuando está ahí, y el puerto se abre entonces como el cargador lo entiende.",
+    "The port the board is on": "El puerto donde está la placa",
+    "Write it to the board": "Escribirlo en la placa",
+    "Leave the board without a firmware": "Dejar la placa sin firmware",
+    "Erase the board": "Borrar la placa",
+    "The board has to be in its bootloader for this to work: the link has to be closed, the board has to be restarted into the bootloader, and the file is written over the port. The board is asked what it is before anything is erased, and the file is not written if it does not fit in the flash.":
+      "La placa tiene que estar en su cargador de arranque para que esto funcione: el enlace tiene que estar cerrado, la placa tiene que haber vuelto al cargador, y el archivo se escribe por el puerto. Se pregunta a la placa qué es antes de borrar nada, y el archivo no se escribe si no cabe en la memoria.",
+    "The board is the {board} (revision {revision}), with {kilobytes} kB of flash, speaking the protocol {protocol}.":
+      "La placa es la {board} (revisión {revision}), con {kilobytes} kB de memoria, que habla el protocolo {protocol}.",
+    "there is no file chosen.": "no hay archivo elegido.",
+    "The file of the firmware": "El archivo del firmware",
+    "The file was written to {path} ({size}).":
+      "El archivo se escribió en {path} ({size}).",
+    "The flash of the board was erased.":
+      "La memoria de la placa se ha borrado.",
+    "there is no file to write.": "no hay archivo que escribir.",
+    "The board was written and told to start again.":
+      "La placa se escribió y se le dijo que volviera a empezar.",
+    "The vehicle was told to restart into its bootloader. The link is closed when the board stops answering.":
+      "Se pidió al vehículo que volviera a empezar en su cargador de arranque. El enlace se cierra cuando la placa deja de responder.",
   },
 };
 
