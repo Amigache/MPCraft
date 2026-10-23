@@ -368,7 +368,9 @@ downsamples rather than replays raw samples.
 
 - MAVLink 2 signing is supported for both directions; keys stored encrypted in the OS keychain
   where available, otherwise obfuscated at rest.
-- The WASM plugin sandbox (phase 6) grants capabilities explicitly, never ambient authority.
+- The WASM plugin sandbox (phase 6) grants capabilities explicitly, never ambient authority. It is
+  the one place a runtime dependency is allowed, and the crate that holds it is the only one that
+  knows the runtime exists.
 - The app makes no unauthenticated network calls except tile/terrain fetches against configured
   providers, which the user can disable.
 - Arm/disarm, mission write, and firmware flash require explicit confirmation.

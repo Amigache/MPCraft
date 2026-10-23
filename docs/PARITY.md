@@ -532,9 +532,11 @@ The **language** the window is read in is chosen in the same menu and kept for t
 A string is looked up by what it says in English, because that is the language the code is
 written in, so a part that has not been translated yet still says what it said before rather
 than showing a blank, and a gap is a change that can be reviewed. Each language is named in its
-own words, so that the two can be told apart by somebody who cannot read either of them. The bar
-of the menus, the switcher of the screens and the tabs of the left column speak from the bundles;
-the sheets and the panels follow one by one, and a test says which names have no entry.
+own words, so that the two can be told apart by somebody who cannot read either of them. English is
+the language the code speaks, so it is what a run that has chosen nothing reads; another language is
+only what the next run remembers. The bar of the menus, the switcher of the screens and the tabs of
+the left column speak from the bundles; the sheets and the panels follow one by one, and a test says
+which names have no entry.
 
 The **identification of the vehicle** is in the tab of the state: what it is, its
 number, what kind of vehicle it is, where it says it is and what the operator says about

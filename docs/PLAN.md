@@ -235,6 +235,12 @@ map, and exported — matching upstream's `LogBrowse` capability.
 - [ ] Embedded scripting host (Rhai or Lua) for user automation
 - [ ] Headless swarm/formation control
 
+The sandbox needs a WASM runtime, which is the one dependency this phase is allowed to bring in:
+the rest of the workspace stays free of new crates. The runtime lives inside `mpcraft-plugin` and
+no other crate knows about it, so the layering rule is not broken by it. A plugin receives its
+capabilities as the host functions it is given, and a capability it was not given cannot be
+reached, which is what makes a plugin safe to load at all.
+
 ---
 
 ### Phase 7 — Polish & Release *(2 weeks)*
