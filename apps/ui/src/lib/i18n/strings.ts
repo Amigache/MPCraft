@@ -211,6 +211,33 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The vehicle was told to calibrate the electronic speed controllers.":
       "Se le dijo al vehículo que calibrara los controladores electrónicos de velocidad.",
 
+    // The sheet of the transponder.
+    "The transponder": "El transpondedor",
+    "The vehicle is told where it is and what to say, and it relays the message. The aircraft around it see it.":
+      "Se le dice al vehículo dónde está y qué decir, y él retransmite el mensaje. Las aeronaves de alrededor lo ven.",
+    "The address of the aircraft": "La dirección de la aeronave",
+    "The address of the aircraft, in hexadecimal":
+      "La dirección de la aeronave, en hexadecimal",
+    "The name of the flight": "El nombre del vuelo",
+    "The code": "El código",
+    "The code of the transponder, in octal":
+      "El código del transpondedor, en octal",
+    Start: "Empezar",
+    Stop: "Parar",
+    "There is no link to a vehicle.": "No hay enlace con el vehículo.",
+    "What it is doing": "Lo que está haciendo",
+    "Saying where the vehicle is": "Dice dónde está el vehículo",
+    "Not saying": "No dice nada",
+    "How many times": "Cuántas veces",
+    "The address of the aircraft is not one that can be used.":
+      "La dirección de la aeronave no es una que se pueda usar.",
+    "The code is not one that can be used.":
+      "El código no es uno que se pueda usar.",
+    "The vehicle is being told what its transponder is to say.":
+      "Se está diciendo al vehículo lo que su transpondedor ha de decir.",
+    "The transponder has been left alone.":
+      "Se ha dejado el transpondedor en paz.",
+
     // The sheet of the pictures.
     "The pictures and where they were taken": "Las fotos y dónde se hicieron",
     Close: "Cerrar",

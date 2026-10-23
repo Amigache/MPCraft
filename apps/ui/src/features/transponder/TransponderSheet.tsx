@@ -6,6 +6,7 @@ import {
   transponderStatus,
   transponderStop,
 } from "../../lib/ipc/bridge";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./TransponderSheet.module.css";
@@ -28,6 +29,7 @@ const DEFAULT_SQUAWK = 1200;
 export function TransponderSheet() {
   const open = useUiStore((state) => state.transponderOpen);
   const hide = useUiStore((state) => state.hideTransponder);
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
@@ -82,7 +84,7 @@ export function TransponderSheet() {
 
     if (!Number.isFinite(parsed) || parsed < 0 || parsed > 0x00ff_ffff) {
       setBusy(false);
-      setError("The address of the aircraft is not one that can be used.");
+      setError(t("The address of the aircraft is not one that can be used."));
       return;
     }
 
@@ -90,13 +92,13 @@ export function TransponderSheet() {
 
     if (!Number.isFinite(code) || code < 0 || code > 7777) {
       setBusy(false);
-      setError("The code is not one that can be used.");
+      setError(t("The code is not one that can be used."));
       return;
     }
 
     try {
       await transponderStart(parsed, flightId.trim().toUpperCase(), code);
-      setNotice("The vehicle is being told what its transponder is to say.");
+      setNotice(t("The vehicle is being told what its transponder is to say."));
       await read();
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -112,7 +114,7 @@ export function TransponderSheet() {
 
     try {
       await transponderStop();
-      setNotice("The transponder has been left alone.");
+      setNotice(t("The transponder has been left alone."));
       await read();
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -127,34 +129,37 @@ export function TransponderSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="The transponder"
+        aria-label={t("The transponder")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>The transponder</h2>
+          <h2 className={styles.title}>{t("The transponder")}</h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            The vehicle is told where it is and what to say, and it relays the
-            message. The aircraft around it see it.
+            {t(
+              "The vehicle is told where it is and what to say, and it relays the message. The aircraft around it see it.",
+            )}
           </p>
 
           <div className={styles.fields}>
             <label className={styles.field}>
-              <span className={styles.label}>The address of the aircraft</span>
+              <span className={styles.label}>
+                {t("The address of the aircraft")}
+              </span>
               <input
                 className="input"
                 type="text"
                 value={address}
                 spellCheck={false}
                 placeholder="ABC123"
-                aria-label="The address of the aircraft, in hexadecimal"
+                aria-label={t("The address of the aircraft, in hexadecimal")}
                 onChange={(event) => {
                   setAddress(event.target.value);
                 }}
@@ -162,7 +167,9 @@ export function TransponderSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>The name of the flight</span>
+              <span className={styles.label}>
+                {t("The name of the flight")}
+              </span>
               <input
                 className="input"
                 type="text"
@@ -170,7 +177,7 @@ export function TransponderSheet() {
                 spellCheck={false}
                 maxLength={9}
                 placeholder="MPCRAFT"
-                aria-label="The name of the flight"
+                aria-label={t("The name of the flight")}
                 onChange={(event) => {
                   setFlightId(event.target.value);
                 }}
@@ -178,14 +185,14 @@ export function TransponderSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>The code</span>
+              <span className={styles.label}>{t("The code")}</span>
               <input
                 className="input"
                 type="text"
                 value={squawk}
                 spellCheck={false}
                 placeholder="1200"
-                aria-label="The code of the transponder, in octal"
+                aria-label={t("The code of the transponder, in octal")}
                 onChange={(event) => {
                   setSquawk(event.target.value);
                 }}
@@ -202,7 +209,7 @@ export function TransponderSheet() {
                 void start();
               }}
             >
-              Start
+              {t("Start")}
             </button>
 
             <button
@@ -213,20 +220,22 @@ export function TransponderSheet() {
                 void stop();
               }}
             >
-              Stop
+              {t("Stop")}
             </button>
           </div>
 
           {!linked ? (
-            <p className={styles.text}>There is no link to a vehicle.</p>
+            <p className={styles.text}>{t("There is no link to a vehicle.")}</p>
           ) : null}
         </section>
 
         <section className={styles.block}>
           <dl className={styles.facts}>
-            <dt>What it is doing</dt>
-            <dd>{running ? "Saying where the vehicle is" : "Not saying"}</dd>
-            <dt>How many times</dt>
+            <dt>{t("What it is doing")}</dt>
+            <dd>
+              {running ? t("Saying where the vehicle is") : t("Not saying")}
+            </dd>
+            <dt>{t("How many times")}</dt>
             <dd>{sent}</dd>
           </dl>
         </section>
