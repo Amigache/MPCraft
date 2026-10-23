@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { normaliseError } from "../../lib/ipc/bridge";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLiveValue } from "../../lib/link/liveTelemetry";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { serialControl } from "../../lib/ipc/bridge";
@@ -31,6 +32,8 @@ export function PassthroughSheet() {
   const open = useUiStore((state) => state.passthroughOpen);
   const hide = useUiStore((state) => state.hidePassthrough);
 
+  const t = useLocaleStore((state) => state.t);
+
   const [port, setPort] = useState(0);
   const [text, setText] = useState("");
   const [baudrate, setBaudrate] = useState(0);
@@ -57,7 +60,12 @@ export function PassthroughSheet() {
     try {
       await serialControl(port, text, baudrate, timeout);
       setNotice(
-        `${text.length} byte${text.length === 1 ? "" : "s"} went to the port.`,
+        t(
+          text.length === 1
+            ? "{count} byte went to the port."
+            : "{count} bytes went to the port.",
+          { count: text.length },
+        ),
       );
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -72,52 +80,52 @@ export function PassthroughSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="Serial passthrough"
+        aria-label={t("Serial passthrough")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>Serial passthrough</h2>
+          <h2 className={styles.title}>{t("Serial passthrough")}</h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            The bytes travel inside a MAVLink message and the vehicle hands them
-            over to the port. The speed of the port is left alone when it is
-            zero.
+            {t(
+              "The bytes travel inside a MAVLink message and the vehicle hands them over to the port. The speed of the port is left alone when it is zero.",
+            )}
           </p>
 
           <div className={styles.fields}>
             <label className={styles.field}>
-              <span className={styles.label}>Port</span>
+              <span className={styles.label}>{t("Port")}</span>
               <select
                 className="select"
                 value={port}
-                aria-label="The port of the vehicle"
+                aria-label={t("The port of the vehicle")}
                 onChange={(event) => {
                   setPort(Number(event.target.value));
                 }}
               >
                 {PORTS.map((entry) => (
                   <option key={entry.id} value={entry.id}>
-                    {entry.label}
+                    {t(entry.label)}
                   </option>
                 ))}
               </select>
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>Speed</span>
+              <span className={styles.label}>{t("Speed")}</span>
               <input
                 className="input"
                 type="number"
                 min={0}
                 value={baudrate}
-                aria-label="The speed of the port"
+                aria-label={t("The speed of the port")}
                 onChange={(event) => {
                   setBaudrate(Number(event.target.value));
                 }}
@@ -125,13 +133,13 @@ export function PassthroughSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>Timeout ms</span>
+              <span className={styles.label}>{t("Timeout ms")}</span>
               <input
                 className="input"
                 type="number"
                 min={0}
                 value={timeout}
-                aria-label="How long the vehicle waits for the answer"
+                aria-label={t("How long the vehicle waits for the answer")}
                 onChange={(event) => {
                   setTimeout(Number(event.target.value));
                 }}
@@ -140,13 +148,13 @@ export function PassthroughSheet() {
           </div>
 
           <label className={styles.wide}>
-            <span className={styles.label}>What is sent</span>
+            <span className={styles.label}>{t("What is sent")}</span>
             <textarea
               className={styles.textarea}
               value={text}
               spellCheck={false}
               rows={6}
-              aria-label="The text that goes to the port"
+              aria-label={t("The text that goes to the port")}
               onChange={(event) => {
                 setText(event.target.value);
               }}
@@ -162,23 +170,26 @@ export function PassthroughSheet() {
                 void send();
               }}
             >
-              Send
+              {t("Send")}
             </button>
           </div>
         </section>
 
         {passthrough !== null ? (
           <section className={styles.block}>
-            <h3 className={styles.heading}>What came back</h3>
+            <h3 className={styles.heading}>{t("What came back")}</h3>
             <pre className={styles.answer}>
               {new TextDecoder()
                 .decode(new Uint8Array(passthrough.data))
                 .replace(/[\u0000-\u0008\u000e-\u001f]/g, ".")}
             </pre>
             <p className={styles.text}>
-              {passthrough.data.length} byte
-              {passthrough.data.length === 1 ? "" : "s"} from the port{" "}
-              {passthrough.device}.
+              {t(
+                passthrough.data.length === 1
+                  ? "{count} byte came from the port {device}."
+                  : "{count} bytes came from the port {device}.",
+                { count: passthrough.data.length, device: passthrough.device },
+              )}
             </p>
           </section>
         ) : null}

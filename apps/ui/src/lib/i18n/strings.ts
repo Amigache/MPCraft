@@ -597,6 +597,30 @@ const bundles: Record<Locale, Record<string, string>> = {
       "{count} archivos no se han podido leer.",
     "The survey has {count} point.": "El levantamiento tiene {count} punto.",
     "The survey has {count} points.": "El levantamiento tiene {count} puntos.",
+
+    // The sheet of the serial passthrough.
+    "Serial passthrough": "Puerto serie directo",
+    "The bytes travel inside a MAVLink message and the vehicle hands them over to the port. The speed of the port is left alone when it is zero.":
+      "Los bytes viajan dentro de un mensaje MAVLink y el vehículo los entrega al puerto. La velocidad del puerto se deja como está cuando es cero.",
+    "Telemetry 1": "Telemetría 1",
+    "Telemetry 2": "Telemetría 2",
+    "Telemetry 3": "Telemetría 3",
+    "GPS 1": "GPS 1",
+    "GPS 2": "GPS 2",
+    Speed: "Velocidad",
+    "Timeout ms": "Espera, ms",
+    "How long the vehicle waits for the answer":
+      "Cuánto espera el vehículo la respuesta",
+    "What is sent": "Lo que se manda",
+    "The text that goes to the port": "El texto que va al puerto",
+    Send: "Mandar",
+    "What came back": "Lo que volvió",
+    "{count} byte went to the port.": "Se mandó {count} byte al puerto.",
+    "{count} bytes went to the port.": "Se mandaron {count} bytes al puerto.",
+    "{count} byte came from the port {device}.":
+      "Se recibió {count} byte del puerto {device}.",
+    "{count} bytes came from the port {device}.":
+      "Se recibieron {count} bytes del puerto {device}.",
   },
 };
 
