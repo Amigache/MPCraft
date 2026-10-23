@@ -108,6 +108,12 @@ impl From<crate::adsb_relay::RelayError> for CommandError {
     }
 }
 
+impl From<mpcraft_plugin::PluginError> for CommandError {
+    fn from(error: mpcraft_plugin::PluginError) -> Self {
+        Self::new(error.code(), error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,5 +143,14 @@ mod tests {
             std::time::Duration::from_secs(1),
         ));
         assert_eq!(error.code, "link_timeout");
+    }
+
+    #[test]
+    fn a_plugin_failure_keeps_its_code() {
+        let error = CommandError::from(mpcraft_plugin::PluginError::UnknownCapability {
+            name: "write_parameters".to_string(),
+        });
+
+        assert_eq!(error.code, "plugin_capability");
     }
 }

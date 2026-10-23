@@ -41,7 +41,7 @@
 
 use mpcraft_geo::terrain_service::TerrainService;
 use mpcraft_geo::tiles::TileService;
-use mpcraft_settings::SettingsStore;
+use mpcraft_settings::{PluginEntry, SettingsStore};
 use serde::{Deserialize, Serialize};
 
 pub mod adsb_relay;
@@ -59,6 +59,7 @@ pub mod live_kml;
 pub mod logs;
 pub mod ntrip;
 pub mod operations;
+pub mod plugins;
 pub mod supervisor;
 pub mod terrain;
 pub mod transponder;
@@ -199,6 +200,15 @@ pub struct AppState {
     /// The aircraft the station read from a source of its own are not on the link, so the
     /// relay puts them there: the other stations listening to this link see them.
     pub adsb_relay: crate::adsb_relay::AdsbRelayService,
+
+    ///
+    /// The plugins the operator chose to run.
+    ///
+    /// The folder is read, and nothing runs until somebody says so in the settings: a program
+    /// that ran whatever it found in a folder would be running code nobody agreed to. What a
+    /// plugin asked for is queued here and run afterwards, because a call inside the sandbox
+    /// must never wait for the wire.
+    pub plugins: std::sync::Arc<std::sync::Mutex<crate::plugins::PluginRuntime>>,
 }
 
 impl Default for AppState {
@@ -229,8 +239,22 @@ impl Default for AppState {
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
             adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
+            plugins: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugins::PluginRuntime::new(plugin_folder()),
+            )),
         }
     }
+}
+
+/// The folder the plugins are read from.
+///
+/// A plugin is somebody else's code, so it lives in a folder of its own beside the settings, where an
+/// operator can see what is in it. A machine with no configuration directory has nowhere to keep a
+/// plugin between two runs, so the temporary directory is the best that can be done there.
+fn plugin_folder() -> std::path::PathBuf {
+    mpcraft_settings::platform_config_dir()
+        .map(|directory| directory.join("plugins"))
+        .unwrap_or_else(|| std::env::temp_dir().join("mpcraft-plugins"))
 }
 
 /// The directory the tiles of the terrain are kept in.
@@ -317,6 +341,12 @@ impl AppState {
     /// history of the graphs is never a failure: it is a memory.
     pub fn feed(&self, session: &SessionState) -> CommandResult<()> {
         self.graphs.record(&session.telemetry);
+
+        // A plugin reads the same numbers the window shows, so the state the link publishes is what
+        // the surface of the plugins is fed from.
+        if let Ok(runtime) = self.plugins.lock() {
+            runtime.surface().record(session);
+        }
 
         // The vehicle asks for the terrain of the ground it is over, and the answer is
         // read from the files of the terrain.
@@ -623,6 +653,109 @@ impl AppState {
         })
     }
 
+    /// The plugins the folder holds, with what the operator chose.
+    ///
+    /// The folder is read, the plugins that were chosen are run through their first stage, and what
+    /// the driver sees is returned. A plugin that could not be read stands failed with its own code,
+    /// which is what the sheet lists beside its name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the settings file cannot be read, or when the folder of plugins cannot be
+    /// read.
+    pub fn list_plugins(&self) -> CommandResult<Vec<crate::plugins::PluginInfo>> {
+        let store = self.store()?;
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        let Ok(mut runtime) = self.plugins.lock() else {
+            return Err(CommandError::internal(
+                "the driver of the plugins is locked",
+            ));
+        };
+
+        runtime.scan(&settings)?;
+        runtime.open()
+    }
+
+    /// Marks a plugin as run, or leaves it alone, and keeps the decision for the next run.
+    ///
+    /// The other settings are left alone: the file is read, the choice is written, and the file is
+    /// written back. The plugin that was chosen is run now, and the one that was left alone is told
+    /// that the application is closing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the settings file cannot be read or written, when the plugin was not
+    /// seen, or when the one that was chosen could not be read.
+    pub fn set_plugin_enabled(&self, name: &str, enabled: bool) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.plugins.retain(|entry| entry.name != name);
+        settings.plugins.push(PluginEntry {
+            name: name.to_owned(),
+            enabled,
+        });
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        let Ok(mut runtime) = self.plugins.lock() else {
+            return Err(CommandError::internal(
+                "the driver of the plugins is locked",
+            ));
+        };
+
+        runtime.set_enabled(name, enabled)
+    }
+
+    /// What the plugins said, most recent last, which is what the message console reads.
+    #[must_use]
+    pub fn plugin_notes(&self) -> Vec<String> {
+        let Ok(runtime) = self.plugins.lock() else {
+            return Vec::new();
+        };
+
+        runtime.surface().notes()
+    }
+
+    /// Calls the tick of each plugin whose own rate is due.
+    ///
+    /// The driver is called on the tick of the telemetry, and a plugin that asked for two times a
+    /// second is not called twenty times a second.
+    pub fn tick_plugins(&self, now: std::time::Instant) -> usize {
+        let Ok(mut runtime) = self.plugins.lock() else {
+            return 0;
+        };
+
+        runtime.tick(now)
+    }
+
+    /// What the plugins asked for, which is run outside the sandbox.
+    ///
+    /// A call inside the sandbox is never allowed to wait for the wire, so the asking is kept here and
+    /// carried by the link afterwards.
+    pub fn pending_plugin_commands(&self) -> Vec<mpcraft_plugin::CommandIntent> {
+        let Ok(runtime) = self.plugins.lock() else {
+            return Vec::new();
+        };
+
+        runtime.surface().take_pending()
+    }
+
+    /// Tells every plugin that is running that the link is open.
+    pub fn plugin_link_opened(&self) {
+        if let Ok(mut runtime) = self.plugins.lock() {
+            runtime.link_opened();
+        }
+    }
+
     /// The parameters the user has marked as favourites.
     ///
     /// # Errors
@@ -724,6 +857,15 @@ mod tests {
         }
     }
 
+    /// The driver lives in the state of the application, which is what the shell hands to a command
+    /// through a lock, so it has to be something one task can hand to another.
+    fn assert_send<T: Send>() {}
+
+    #[test]
+    fn the_driver_of_the_plugins_can_be_handed_between_tasks() {
+        assert_send::<crate::plugins::PluginRuntime>();
+    }
+
     #[test]
     fn the_error_codes_are_stable() {
         assert_eq!(CommandError::CODE_TIMEOUT, "link_timeout");
@@ -751,6 +893,9 @@ mod tests {
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
             adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
+            plugins: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugins::PluginRuntime::new(plugin_folder()),
+            )),
         };
 
         assert!(state
@@ -790,6 +935,9 @@ mod tests {
             ntrip: crate::ntrip::NtripService::default(),
             transponder: crate::transponder::TransponderService::default(),
             adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
+            plugins: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugins::PluginRuntime::new(plugin_folder()),
+            )),
         };
 
         let error = state
