@@ -926,6 +926,82 @@ const bundles: Record<Locale, Record<string, string>> = {
     "A change to this parameter needs the vehicle to be restarted to take effect":
       "Cambiar este parámetro obliga a reiniciar el vehículo para que haga efecto",
     Reboot: "Reinicio",
+    // The actions tab, its tests, and the attitude indicator.
+    "Attitude indicator": "El indicador de actitud",
+    "Attitude: roll {roll} degrees, pitch {pitch} degrees, heading {heading} degrees":
+      "Actitud: alabeo {roll} grados, inclinación {pitch} grados, rumbo {heading} grados",
+    ARMED: "ARMADO",
+    DISARMED: "DESARMADO",
+    "The height of the attitude indicator": "El alto del indicador de actitud",
+    "Flight mode": "El modo de vuelo",
+    "no modes": "sin modos",
+    "Set Mode": "Cambiar el modo",
+    "Confirm arm": "Confirmar el armado",
+    "Confirm disarm": "Confirmar el desarmado",
+    "Confirm reboot": "Confirmar el reinicio",
+    Mission: "La misión",
+    Fence: "El cercado",
+    Rally: "Los puntos de regreso",
+    Waypoint: "El punto del plan",
+    "no plan": "sin plan",
+    current: "el actual",
+    "Set Current": "Poner el actual",
+    Jump: "Saltar",
+    "Fly to": "Volar hasta",
+    "Tell the vehicle to fly to this waypoint":
+      "Decir al vehículo que vuele hasta este punto",
+    "Confirm clear": "Confirmar el quite",
+    "Confirm upload": "Confirmar el envío",
+    "Close editor": "Cerrar el editor",
+    "Edit plan": "Editar el plan",
+    "Edit the plan in a grid above the map":
+      "Editar el plan en una rejilla sobre el mapa",
+    "The plan above the map is being edited. Uploading sends the edited plan; setting the current item and jumping act on the plan the vehicle holds.":
+      "El plan sobre el mapa se está editando. Subirlo envía el plan editado; poner el elemento actual y saltar actúan sobre el plan que el vehículo tiene.",
+    Home: "La casa",
+    "Set the home here": "Poner la casa aquí",
+    "Confirm the home": "Confirmar la casa",
+    "Ask the vehicle where its home is":
+      "Preguntar al vehículo dónde está su casa",
+    "Ask the vehicle": "Preguntar al vehículo",
+    "The home is the place the vehicle measures the distance from. Moving it is what an operator does when the vehicle was armed in the wrong place.":
+      "La casa es el lugar desde el que el vehículo mide la distancia. Moverla es lo que hace el operador cuando el vehículo se armó en el sitio equivocado.",
+    "Motor test": "La prueba de motor",
+    "One motor at a time, and only for a moment. The props are taken off, so the vehicle must not be flying.":
+      "Un motor cada vez, y solo un momento. Las hélices están quitadas, así que el vehículo no tiene que estar volando.",
+    "The motor to test": "El motor que se prueba",
+    "Throttle %": "Gas %",
+    "How hard the motor is driven": "Lo fuerte que se lleva el motor",
+    Seconds: "Segundos",
+    "For how long the motor is driven": "Cuánto tiempo se lleva el motor",
+    "Test motor": "Probar el motor",
+    "motor {motor} was driven at {throttle}% for {seconds} s":
+      "el motor {motor} se llevó al {throttle}% durante {seconds} s",
+    "Radio override": "Poner un canal a mano",
+    "One channel at a time. The others are left to the radio, and the vehicle goes back to the radio when the channel is let go.":
+      "Un canal cada vez. Los demás se dejan a la radio, y el vehículo vuelve a la radio cuando el canal se suelta.",
+    Channel: "El canal",
+    "The channel to take over": "El canal que se toma",
+    "Value µs": "El valor, µs",
+    "The value of the channel": "El valor del canal",
+    Override: "Tomarlo",
+    Release: "Soltarlo",
+    "channel {channel} was taken over at {value} µs":
+      "el canal {channel} se tomó a {value} µs",
+    "the radio has the channels again": "la radio vuelve a tener los canales",
+    "Manual control": "El mando manual",
+    "The vehicle is flown with the sticks of this window. The vehicle has to be in the manual mode, and the sticks are sent again and again while they are held.":
+      "El vehículo se vuela con los mandos de esta ventana. El vehículo tiene que estar en el modo manual, y los mandos se envían una y otra vez mientras se mantienen.",
+    Roll: "Alabeo",
+    Pitch: "Inclinación",
+    Thrust: "Gas",
+    Yaw: "Guiñada",
+    "Hold to keep the sticks being sent":
+      "Mantener pulsado para que los mandos sigan enviándose",
+    "Sending…": "Se envían…",
+    "Hold to send": "Mantener para enviar",
+    "The width of the flight data column":
+      "El ancho de la columna de los datos del vuelo",
   },
 };
 

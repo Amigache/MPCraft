@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { Telemetry } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
 import styles from "./Hud.module.css";
 
@@ -132,6 +133,8 @@ function write(element: SVGTextElement | null, text: string): void {
 export function Hud() {
   const id = useId().replace(/:/g, "");
 
+  const t = useLocaleStore((state) => state.t);
+
   const box = useRef<HTMLDivElement | null>(null);
   const label = useRef<SVGSVGElement | null>(null);
   const attitude = useRef<SVGGElement | null>(null);
@@ -248,7 +251,14 @@ export function Hud() {
 
       label.current?.setAttribute(
         "aria-label",
-        `Attitude: roll ${roll.toFixed(0)} degrees, pitch ${pitch.toFixed(0)} degrees, heading ${yaw.toFixed(0)} degrees`,
+        t(
+          "Attitude: roll {roll} degrees, pitch {pitch} degrees, heading {heading} degrees",
+          {
+            roll: roll.toFixed(0),
+            pitch: pitch.toFixed(0),
+            heading: yaw.toFixed(0),
+          },
+        ),
       );
 
       const airReading = telemetry.airspeed?.airspeed ?? null;
@@ -297,7 +307,7 @@ export function Hud() {
 
       if (armedValue.current !== null) {
         armedValue.current.textContent =
-          armed === null ? "" : armed ? "ARMED" : "DISARMED";
+          armed === null ? "" : armed ? t("ARMED") : t("DISARMED");
         armedValue.current.style.fill = armed
           ? "var(--colour-accent)"
           : "var(--colour-danger)";
@@ -316,7 +326,7 @@ export function Hud() {
 
     draw(liveTelemetry.value);
     return liveTelemetry.subscribe(draw);
-  }, [L]);
+  }, [L, t]);
 
   const { width, height } = L;
   const id_ = (name: string) => `${id}-${name}`;
@@ -332,7 +342,7 @@ export function Hud() {
         className={styles.hud}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="Attitude indicator"
+        aria-label={t("Attitude indicator")}
         ref={label}
       >
         <defs>

@@ -6,6 +6,7 @@ import {
   rcOverride,
   rcOverrideRelease,
 } from "../../lib/ipc/bridge";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useActivityStore } from "../../lib/ui/activityStore";
 import styles from "./FlightTestPanel.module.css";
 
@@ -27,6 +28,8 @@ const CHANNELS = 8;
 
 export function FlightTestPanel() {
   const report = useActivityStore((state) => state.report);
+
+  const t = useLocaleStore((state) => state.t);
 
   const [motor, setMotor] = useState(1);
   const [throttle, setThrottle] = useState(50);
@@ -55,7 +58,13 @@ export function FlightTestPanel() {
 
     const timer = window.setInterval(() => {
       const current = sticks.current;
-      void manualControl(current.roll, current.pitch, current.thrust, current.yaw, 0);
+      void manualControl(
+        current.roll,
+        current.pitch,
+        current.thrust,
+        current.yaw,
+        0,
+      );
     }, MANUAL_INTERVAL);
 
     return () => {
@@ -78,54 +87,55 @@ export function FlightTestPanel() {
         );
       }
     },
-    [report],
+    [report, t],
   );
 
   return (
     <div className={styles.panel}>
       <section className={styles.block}>
-        <h3 className={styles.heading}>Motor test</h3>
+        <h3 className={styles.heading}>{t("Motor test")}</h3>
         <p className={styles.note}>
-          One motor at a time, and only for a moment. The props are taken off, so the
-          vehicle must not be flying.
+          {t(
+            "One motor at a time, and only for a moment. The props are taken off, so the vehicle must not be flying.",
+          )}
         </p>
 
         <div className={styles.row}>
           <label className={styles.field}>
-            <span className={styles.label}>Motor</span>
+            <span className={styles.label}>{t("Motor")}</span>
             <input
               className="input"
               type="number"
               min={1}
               max={8}
               value={motor}
-              aria-label="The motor to test"
+              aria-label={t("The motor to test")}
               onChange={(event) => setMotor(Number(event.target.value))}
             />
           </label>
 
           <label className={styles.field}>
-            <span className={styles.label}>Throttle %</span>
+            <span className={styles.label}>{t("Throttle %")}</span>
             <input
               className="input"
               type="number"
               min={-100}
               max={100}
               value={throttle}
-              aria-label="How hard the motor is driven"
+              aria-label={t("How hard the motor is driven")}
               onChange={(event) => setThrottle(Number(event.target.value))}
             />
           </label>
 
           <label className={styles.field}>
-            <span className={styles.label}>Seconds</span>
+            <span className={styles.label}>{t("Seconds")}</span>
             <input
               className="input"
               type="number"
               min={1}
               max={30}
               value={seconds}
-              aria-label="For how long the motor is driven"
+              aria-label={t("For how long the motor is driven")}
               onChange={(event) => setSeconds(Number(event.target.value))}
             />
           </label>
@@ -137,28 +147,33 @@ export function FlightTestPanel() {
           onClick={() => {
             void run(
               () => motorTest(motor, throttle / 100, seconds),
-              `motor ${motor} was driven at ${throttle}% for ${seconds} s`,
+              t("motor {motor} was driven at {throttle}% for {seconds} s", {
+                motor,
+                throttle,
+                seconds,
+              }),
             );
           }}
         >
-          Test motor
+          {t("Test motor")}
         </button>
       </section>
 
       <section className={styles.block}>
-        <h3 className={styles.heading}>Radio override</h3>
+        <h3 className={styles.heading}>{t("Radio override")}</h3>
         <p className={styles.note}>
-          One channel at a time. The others are left to the radio, and the vehicle goes
-          back to the radio when the channel is let go.
+          {t(
+            "One channel at a time. The others are left to the radio, and the vehicle goes back to the radio when the channel is let go.",
+          )}
         </p>
 
         <div className={styles.row}>
           <label className={styles.field}>
-            <span className={styles.label}>Channel</span>
+            <span className={styles.label}>{t("Channel")}</span>
             <select
               className="select"
               value={channel}
-              aria-label="The channel to take over"
+              aria-label={t("The channel to take over")}
               onChange={(event) => setChannel(Number(event.target.value))}
             >
               {Array.from({ length: CHANNELS }, (_, index) => (
@@ -170,14 +185,14 @@ export function FlightTestPanel() {
           </label>
 
           <label className={styles.field}>
-            <span className={styles.label}>Value µs</span>
+            <span className={styles.label}>{t("Value µs")}</span>
             <input
               className="input"
               type="number"
               min={800}
               max={2200}
               value={value}
-              aria-label="The value of the channel"
+              aria-label={t("The value of the channel")}
               onChange={(event) => setValue(Number(event.target.value))}
             />
           </label>
@@ -192,11 +207,14 @@ export function FlightTestPanel() {
               channels[channel - 1] = value;
               void run(
                 () => rcOverride(channels),
-                `channel ${channel} was taken over at ${value} µs`,
+                t("channel {channel} was taken over at {value} µs", {
+                  channel,
+                  value,
+                }),
               );
             }}
           >
-            Override
+            {t("Override")}
           </button>
 
           <button
@@ -205,20 +223,21 @@ export function FlightTestPanel() {
             onClick={() => {
               void run(
                 () => rcOverrideRelease(),
-                "the radio has the channels again",
+                t("the radio has the channels again"),
               );
             }}
           >
-            Release
+            {t("Release")}
           </button>
         </div>
       </section>
 
       <section className={styles.block}>
-        <h3 className={styles.heading}>Manual control</h3>
+        <h3 className={styles.heading}>{t("Manual control")}</h3>
         <p className={styles.note}>
-          The vehicle is flown with the sticks of this window. The vehicle has to be in
-          the manual mode, and the sticks are sent again and again while they are held.
+          {t(
+            "The vehicle is flown with the sticks of this window. The vehicle has to be in the manual mode, and the sticks are sent again and again while they are held.",
+          )}
         </p>
 
         <div className={styles.sticks}>
@@ -231,14 +250,14 @@ export function FlightTestPanel() {
             ] as const
           ).map(([name, value, setValue]) => (
             <label key={name} className={styles.stick}>
-              <span className={styles.label}>{name}</span>
+              <span className={styles.label}>{t(name)}</span>
               <input
                 type="range"
                 min={-1}
                 max={1}
                 step={0.05}
                 value={value}
-                aria-label={name}
+                aria-label={t(name)}
                 onChange={(event) => {
                   const next = Number(event.target.value);
                   setValue(next);
@@ -271,9 +290,9 @@ export function FlightTestPanel() {
           onPointerLeave={() => {
             setHolding(false);
           }}
-          title="Hold to keep the sticks being sent"
+          title={t("Hold to keep the sticks being sent")}
         >
-          {holding ? "Sending…" : "Hold to send"}
+          {holding ? t("Sending…") : t("Hold to send")}
         </button>
       </section>
     </div>

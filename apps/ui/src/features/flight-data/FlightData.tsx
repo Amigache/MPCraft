@@ -137,7 +137,7 @@ export function FlightData() {
           <aside
             className={styles.left}
             style={{ width: `${leftColumnWidth}px` }}
-            aria-label="Flight data"
+            aria-label={t("Flight data")}
           >
             <div className={styles.hud} style={{ height: `${hudHeight}px` }}>
               <Hud />
@@ -145,7 +145,7 @@ export function FlightData() {
 
             <Splitter
               orientation="horizontal"
-              label="The height of the attitude indicator"
+              label={t("The height of the attitude indicator")}
               value={hudHeight}
               min={MIN_HUD_HEIGHT}
               max={MAX_HUD_HEIGHT}
@@ -245,7 +245,7 @@ export function FlightData() {
 
           <Splitter
             orientation="vertical"
-            label="The width of the flight data column"
+            label={t("The width of the flight data column")}
             value={leftColumnWidth}
             min={MIN_LEFT_WIDTH}
             max={MAX_LEFT_WIDTH}

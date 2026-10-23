@@ -18,6 +18,7 @@ import type { PlanKind } from "../../lib/ipc/types";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { FlightTestPanel } from "./FlightTestPanel";
 import { usePlanStore } from "../../lib/plan/planStore";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useActivityStore } from "../../lib/ui/activityStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./ActionsPanel.module.css";
@@ -77,6 +78,8 @@ export function ActionsPanel() {
   const error = useActivityStore((state) => state.error);
   const notice = useActivityStore((state) => state.notice);
 
+  const t = useLocaleStore((state) => state.t);
+
   const [mode, setModeChoice] = useState<number | "">("");
   const [item, setItem] = useState<number | "">("");
 
@@ -113,7 +116,7 @@ export function ActionsPanel() {
       <section className={styles.block}>
         <div className={styles.row}>
           <label className={styles.field}>
-            <span className={styles.label}>Flight mode</span>
+            <span className={styles.label}>{t("Flight mode")}</span>
             <select
               className="select"
               value={mode}
@@ -121,7 +124,9 @@ export function ActionsPanel() {
                 setModeChoice(Number.parseInt(event.target.value, 10))
               }
             >
-              {modes.length === 0 ? <option value="">no modes</option> : null}
+              {modes.length === 0 ? (
+                <option value="">{t("no modes")}</option>
+              ) : null}
               {modes.map((entry) => (
                 <option key={entry.value} value={entry.value}>
                   {entry.name}
@@ -139,20 +144,20 @@ export function ActionsPanel() {
               }
             }}
           >
-            Set Mode
+            {t("Set Mode")}
           </button>
         </div>
 
         <div className={styles.row}>
           <ConfirmButton
-            label="Arm"
-            confirmLabel="Confirm arm"
+            label={t("Arm")}
+            confirmLabel={t("Confirm arm")}
             variant="primary"
             onConfirm={() => void armVehicle()}
           />
           <ConfirmButton
-            label="Disarm"
-            confirmLabel="Confirm disarm"
+            label={t("Disarm")}
+            confirmLabel={t("Confirm disarm")}
             variant="danger"
             onConfirm={() => void disarmVehicle()}
           />
@@ -193,13 +198,13 @@ export function ActionsPanel() {
                 setItem("");
               }}
             >
-              {entry.label}
+              {t(entry.label)}
             </button>
           ))}
         </div>
 
         <label className={styles.field}>
-          <span className={styles.label}>Waypoint</span>
+          <span className={styles.label}>{t("Waypoint")}</span>
           <select
             className="select"
             value={item}
@@ -208,11 +213,13 @@ export function ActionsPanel() {
               setItem(Number.parseInt(event.target.value, 10))
             }
           >
-            {items.length === 0 ? <option value="">no plan</option> : null}
+            {items.length === 0 ? (
+              <option value="">{t("no plan")}</option>
+            ) : null}
             {items.map((entry) => (
               <option key={entry.seq} value={entry.seq}>
                 {entry.seq + 1} · {entry.command}
-                {entry.current ? " · current" : ""}
+                {entry.current ? ` · ${t("current")}` : ""}
               </option>
             ))}
           </select>
@@ -229,7 +236,7 @@ export function ActionsPanel() {
               }
             }}
           >
-            Set Current
+            {t("Set Current")}
           </button>
           <button
             type="button"
@@ -241,24 +248,24 @@ export function ActionsPanel() {
               }
             }}
           >
-            Jump
+            {t("Jump")}
           </button>
           <button
             type="button"
             className="button"
             disabled={chosen === undefined}
-            title="Tell the vehicle to fly to this waypoint"
+            title={t("Tell the vehicle to fly to this waypoint")}
             onClick={() => {
               if (chosen !== undefined) {
                 void flyTo(chosen.x, chosen.y, chosen.z);
               }
             }}
           >
-            Fly to
+            {t("Fly to")}
           </button>
           <ConfirmButton
-            label="Clear plan"
-            confirmLabel="Confirm clear"
+            label={t("Clear plan")}
+            confirmLabel={t("Confirm clear")}
             variant="danger"
             disabled={busy}
             onConfirm={() => {
@@ -282,7 +289,7 @@ export function ActionsPanel() {
               void download(kind);
             }}
           >
-            Download plan
+            {t("Download plan")}
           </button>
           {editorOpen ? (
             <button
@@ -293,12 +300,12 @@ export function ActionsPanel() {
                 void askUpload();
               }}
             >
-              Upload plan
+              {t("Upload plan")}
             </button>
           ) : (
             <ConfirmButton
-              label="Upload plan"
-              confirmLabel="Confirm upload"
+              label={t("Upload plan")}
+              confirmLabel={t("Confirm upload")}
               variant="primary"
               disabled={busy || items.length === 0}
               onConfirm={() => {
@@ -311,17 +318,17 @@ export function ActionsPanel() {
             className={`button ${editorOpen ? styles.editing : ""}`}
             aria-pressed={editorOpen}
             onClick={() => (editorOpen ? closeEditor() : openEditor())}
-            title="Edit the plan in a grid above the map"
+            title={t("Edit the plan in a grid above the map")}
           >
-            {editorOpen ? "Close editor" : "Edit plan"}
+            {editorOpen ? t("Close editor") : t("Edit plan")}
           </button>
         </div>
 
         {editorOpen ? (
           <p className={styles.editingNote}>
-            The plan above the map is being edited. Uploading sends the edited
-            plan; setting the current item and jumping act on the plan the
-            vehicle holds.
+            {t(
+              "The plan above the map is being edited. Uploading sends the edited plan; setting the current item and jumping act on the plan the vehicle holds.",
+            )}
           </p>
         ) : null}
       </section>
@@ -329,8 +336,8 @@ export function ActionsPanel() {
       <section className={styles.block}>
         <div className={styles.row}>
           <ConfirmButton
-            label="Reboot"
-            confirmLabel="Confirm reboot"
+            label={t("Reboot")}
+            confirmLabel={t("Confirm reboot")}
             variant="danger"
             onConfirm={() => {
               void rebootVehicle();
@@ -340,11 +347,11 @@ export function ActionsPanel() {
       </section>
 
       <section className={styles.block}>
-        <h3 className={styles.heading}>Home</h3>
+        <h3 className={styles.heading}>{t("Home")}</h3>
         <div className={styles.row}>
           <ConfirmButton
-            label="Set the home here"
-            confirmLabel="Confirm the home"
+            label={t("Set the home here")}
+            confirmLabel={t("Confirm the home")}
             onConfirm={() => {
               if (position !== null) {
                 void moveHome(position.lat, position.lng, position.alt);
@@ -354,18 +361,18 @@ export function ActionsPanel() {
           <button
             type="button"
             className="button"
-            title="Ask the vehicle where its home is"
+            title={t("Ask the vehicle where its home is")}
             onClick={() => {
               void askHome();
             }}
           >
-            Ask the vehicle
+            {t("Ask the vehicle")}
           </button>
         </div>
         <p className={styles.hint}>
-          The home is the place the vehicle measures the distance from. Moving
-          it is what an operator does when the vehicle was armed in the wrong
-          place.
+          {t(
+            "The home is the place the vehicle measures the distance from. Moving it is what an operator does when the vehicle was armed in the wrong place.",
+          )}
         </p>
       </section>
 
