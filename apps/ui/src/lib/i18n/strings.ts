@@ -382,6 +382,146 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Stop the stream": "Parar el canal",
     "The stream {name} has stopped.": "El canal {name} se ha parado.",
     "The stream {name} has started.": "El canal {name} ha empezado.",
+
+    // The sheet of the camera and the gimbal.
+    "The camera and the gimbal": "La cámara y la montura móvil",
+    "What the camera says about itself is what can be asked of it. A camera that cannot record video in the mode it is in is refused before anything is sent.":
+      "Lo que la cámara dice de sí es lo que se le puede pedir. Una cámara que no puede grabar vídeo en el modo en que está, se rechaza antes de mandar nada.",
+    "The vehicle has not said what its camera can do.":
+      "El vehículo no ha dicho qué puede hacer su cámara.",
+    "Which camera it is": "Qué cámara es",
+    "not said": "no lo dijo",
+    "The mode it is in": "El modo en que está",
+    "The size of the picture": "El tamaño de la imagen",
+    "{width} by {height} pixels": "{width} por {height} píxeles",
+    "What it says about its pictures": "Lo que dice de sus fotos",
+    "What it says about its video": "Lo que dice de su vídeo",
+    "Take one picture": "Hacer una foto",
+    "The camera was asked for a picture.": "Se pidió a la cámara una foto.",
+    "Seconds between pictures": "Segundos entre fotos",
+    "The seconds between pictures": "Los segundos entre fotos",
+    "Take them at an interval": "Hacerlas a un intervalo",
+    "The camera was asked to take pictures at that interval.":
+      "Se pidió a la cámara que hiciera fotos a ese intervalo.",
+    "Stop the interval": "Quitar el intervalo",
+    "The interval was taken off.": "El intervalo se ha quitado.",
+    Record: "Grabar",
+    "The camera was asked to record.": "Se pidió a la cámara que grabara.",
+    "Stop recording": "Parar la grabación",
+    "The recording was stopped.": "La grabación se ha parado.",
+    "Zoom level": "El nivel de zoom",
+    "The zoom level": "El nivel de zoom",
+    "What the level means": "Qué significa el nivel",
+    "The kind of zoom": "La clase de zoom",
+    "Set the zoom": "Poner el zoom",
+    "The zoom was set.": "El zoom se ha puesto.",
+    "A place in the picture is read from `-1` to `1`: `-1` is the left or the top, `1` is the right or the bottom. Picking it from the picture itself waits on drawing the video.":
+      "Un lugar en la imagen se lee de `-1` a `1`: `-1` es la izquierda o arriba, `1` es la derecha o abajo. Elegirlo de la propia imagen espera a dibujar el vídeo.",
+    "Across the picture": "A lo ancho de la imagen",
+    "The place across the picture": "El lugar a lo ancho de la imagen",
+    "Down the picture": "Hacia abajo de la imagen",
+    "The place down the picture": "El lugar hacia abajo de la imagen",
+    "Follow that point": "Seguir ese punto",
+    "The camera was told what to follow.": "Se le dijo a la cámara qué seguir.",
+    "First corner, across": "Primer rincón, a lo ancho",
+    "The first corner of the area, across the picture":
+      "El primer rincón del área, a lo ancho de la imagen",
+    "First corner, down": "Primer rincón, hacia abajo",
+    "The first corner of the area, down the picture":
+      "El primer rincón del área, hacia abajo de la imagen",
+    "Second corner, across": "Segundo rincón, a lo ancho",
+    "The second corner of the area, across the picture":
+      "El segundo rincón del área, a lo ancho de la imagen",
+    "Second corner, down": "Segundo rincón, hacia abajo",
+    "The second corner of the area, down the picture":
+      "El segundo rincón del área, hacia abajo de la imagen",
+    "Follow that area": "Seguir esa área",
+    "The camera was told what area to follow.":
+      "Se le dijo a la cámara qué área seguir.",
+    "The gimbal is pointed at an angle, or at a rate. An angle the device cannot reach is refused before anything is sent, and the yaw is read in the frame the device says it uses.":
+      "La montura se apunta a un ángulo, o a una velocidad. Un ángulo que el aparato no puede alcanzar se rechaza antes de mandar nada, y la guiñada se lee en el marco que el aparato dice usar.",
+    "Which gimbal": "Qué montura",
+    "Which gimbal the command names": "Qué montura nombra la orden",
+    "All gimbals": "Todas las monturas",
+    "The gimbal {id}": "La montura {id}",
+    "The vehicle has not said what its gimbals can do.":
+      "El vehículo no ha dicho qué pueden hacer sus monturas.",
+    "Where it points": "Hacia dónde apunta",
+    "roll {roll}°, pitch {pitch}°, yaw {yaw}°":
+      "alabeo {roll}°, inclinación {pitch}°, guiñada {yaw}°",
+    "How far its axes go": "Hasta dónde llegan sus ejes",
+    "pitch {pitchMin}° to {pitchMax}°, yaw {yawMin}° to {yawMax}°":
+      "inclinación {pitchMin}° a {pitchMax}°, guiñada {yawMin}° a {yawMax}°",
+    "What it can do": "Qué puede hacer",
+    "Whether something is wrong with it": "Si algo va mal con ella",
+    "It says it is failing": "Dice que está fallando",
+    Nothing: "Nada",
+    "Pitch, in degrees": "Inclinación, en grados",
+    "The pitch angle of the gimbal, in degrees":
+      "El ángulo de inclinación de la montura, en grados",
+    "Yaw, in degrees": "Guiñada, en grados",
+    "The yaw angle of the gimbal, in degrees":
+      "El ángulo de guiñada de la montura, en grados",
+    "Point it there": "Apuntarla ahí",
+    "The gimbal was pointed at that angle.":
+      "La montura se apuntó a ese ángulo.",
+    "Hold the yaw": "Sujetar la guiñada",
+    "The yaw is held against the ground.":
+      "La guiñada se sujeta contra el suelo.",
+    "The yaw follows the vehicle.": "La guiñada sigue al vehículo.",
+    Retract: "Recogerla",
+    "The gimbal was put in its safe position.":
+      "La montura se puso en su posición segura.",
+    Neutral: "Neutra",
+    "The gimbal was put in its default position.":
+      "La montura se puso en su posición de siempre.",
+    "Pitch rate": "Velocidad de inclinación",
+    "The rate of the pitch, in degrees a second":
+      "La velocidad de la inclinación, en grados por segundo",
+    "Yaw rate": "Velocidad de guiñada",
+    "The rate of the yaw, in degrees a second":
+      "La velocidad de la guiñada, en grados por segundo",
+    "Move it at those rates": "Moverla a esas velocidades",
+    "The gimbal was told to move at those rates.":
+      "Se le dijo a la montura que se moviera a esas velocidades.",
+    "A gimbal can also be pointed at a place on the ground, or at another vehicle. The point of interest is held until it is taken off.":
+      "Una montura también se puede apuntar a un lugar del suelo, o a otro vehículo. El punto de interés se mantiene hasta que se quita.",
+    Latitude: "Latitud",
+    "The latitude of the point of interest": "La latitud del punto de interés",
+    Longitude: "Longitud",
+    "The longitude of the point of interest":
+      "La longitud del punto de interés",
+    "Height above the ground": "La altura sobre el suelo",
+    "The height of the point of interest above the ground, in metres":
+      "La altura del punto de interés sobre el suelo, en metros",
+    "System id of the other vehicle": "El número del otro vehículo",
+    "The system id of the vehicle to point at":
+      "El número del vehículo al que apuntar",
+    "Point it at that place": "Apuntarla a ese lugar",
+    "The gimbal was pointed at that place.":
+      "La montura se apuntó a ese lugar.",
+    "Take the point off": "Quitar el punto",
+    "The point of interest was taken off.":
+      "El punto de interés se ha quitado.",
+    "Point it at that vehicle": "Apuntarla a ese vehículo",
+    "The gimbal was pointed at that vehicle.":
+      "La montura se apuntó a ese vehículo.",
+    // What the two lines about a device say, piece by piece.
+    "a roll axis": "un eje de alabeo",
+    "a pitch axis": "un eje de inclinación",
+    "a yaw axis": "un eje de guiñada",
+    "holds its yaw against the ground": "sujeta su guiñada contra el suelo",
+    "follows the vehicle": "sigue al vehículo",
+    "can be retracted": "se puede recoger",
+    "can go to neutral": "puede ponerse en neutro",
+    "points at a place on the ground": "apunta a un lugar del suelo",
+    "nothing it has said": "nada que haya dicho",
+    retracted: "recogida",
+    "at neutral": "en neutro",
+    "yaw held against the ground": "guiñada sujetada contra el suelo",
+    "yaw read from the way the vehicle points":
+      "guiñada leída del modo en que apunta el vehículo",
+    "yaw read from the ground": "guiñada leída del suelo",
   },
 };
 
