@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SCREENS, TABS } from "../ui/uiStore";
-import { DEFAULT_LOCALE, entry, LOCALES, translate } from "./strings";
+import { DEFAULT_LOCALE, entry, LOCALES, tagFor, translate } from "./strings";
 
 /**
  * The store of the language, with a storage that holds what the last run left behind.
@@ -61,6 +61,12 @@ describe("the strings the interface says", () => {
     const names = [
       ...SCREENS.map((screen) => screen.label),
       ...TABS.map((tab) => tab.label),
+      // The names the bar of the state shows along the bottom.
+      "Mode",
+      "Armed",
+      "To home",
+      "Received",
+      "Lost",
     ];
 
     for (const name of names) {
@@ -73,6 +79,23 @@ describe("the strings the interface says", () => {
       "English",
       "Español",
     ]);
+  });
+
+  it("puts the values where the sentence has a gap", () => {
+    expect(
+      translate("es", "The folder holds {count} pictures", { count: 6 }),
+    ).toBe("The folder holds 6 pictures");
+
+    // A gap with no value is left as it was written, which is better than a missing word nobody
+    // can see.
+    expect(translate("es", "The folder holds {count} pictures", {})).toBe(
+      "The folder holds {count} pictures",
+    );
+  });
+
+  it("writes a number the way the language writes it", () => {
+    expect(tagFor("en")).toBe("en-US");
+    expect(tagFor("es")).toBe("es-ES");
   });
 });
 
@@ -87,6 +110,7 @@ describe("the language the interface is read in", () => {
     const { store } = await storeWithStoredLocale("es");
 
     expect(store.getState().locale).toBe("es");
+    expect(store.getState().tag).toBe("es-ES");
     expect(store.getState().t("Flight data")).toBe("Datos del vuelo");
   });
 

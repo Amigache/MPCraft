@@ -21,10 +21,19 @@ export const DEFAULT_LOCALE: Locale = "en";
 export const LOCALES: readonly {
   readonly id: Locale;
   readonly label: string;
+  /** How a number is written in that language, which is not the same in both. */
+  readonly tag: string;
 }[] = [
-  { id: "en", label: "English" },
-  { id: "es", label: "Español" },
+  { id: "en", label: "English", tag: "en-US" },
+  { id: "es", label: "Español", tag: "es-ES" },
 ];
+
+/** How a number is written in a language. */
+export function tagFor(locale: Locale): string {
+  const known = LOCALES.find((entry) => entry.id === locale);
+
+  return known ? known.tag : "en-US";
+}
 
 /**
  * What each string means in each language.
@@ -112,6 +121,28 @@ const bundles: Record<Locale, Record<string, string>> = {
     Servos: "Servos",
     Aux: "Auxiliares",
 
+    // The bar of the state, along the bottom.
+    Mode: "Modo",
+    Armed: "Armado",
+    "To home": "A casa",
+    Received: "Recibidos",
+    Lost: "Perdidos",
+    yes: "sí",
+    no: "no",
+
+    // The bar of the connection.
+    Serial: "Serie",
+    UDP: "UDP",
+    TCP: "TCP",
+    Connect: "Conectar",
+    "no ports": "sin puertos",
+    "The way of connecting": "La forma de conectar",
+    "The port the vehicle is on": "El puerto donde está el vehículo",
+    "The speed of the port": "La velocidad del puerto",
+    "The address of the vehicle": "La dirección del vehículo",
+    "Open the link": "Abrir el enlace",
+    "Close the link": "Cerrar el enlace",
+
     // What a menu says when an entry cannot be used.
     "no link": "sin enlace",
   },
@@ -123,11 +154,24 @@ export function entry(locale: Locale, source: string): string | undefined {
 }
 
 /**
- * What a string means in a language.
+ * What a string means in a language, with the values put where the sentence has a gap.
  *
- * A string with no entry is answered as it was written, so that a part of the interface that has
- * not been translated is still said, and said the way it was before.
+ * A sentence that says a number is kept with a gap — `{count}` — because another language puts the
+ * number somewhere else in the sentence and changes the words around it. A gap with no value is
+ * left as it was written, so that a mistake can be seen rather than becoming a missing word.
  */
-export function translate(locale: Locale, source: string): string {
-  return entry(locale, source) ?? source;
+export function translate(
+  locale: Locale,
+  source: string,
+  values?: Record<string, string | number>,
+): string {
+  const text = entry(locale, source) ?? source;
+
+  if (!values) {
+    return text;
+  }
+
+  return text.replace(/\{(\w+)\}/g, (gap: string, name: string) =>
+    values[name] === undefined ? gap : String(values[name]),
+  );
 }

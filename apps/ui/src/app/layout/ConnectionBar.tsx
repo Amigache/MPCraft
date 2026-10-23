@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { listSerialPorts, useConnection } from "../../lib/ipc/bridge";
 import type { SerialPort } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import styles from "./ConnectionBar.module.css";
 
 /**
@@ -79,6 +80,7 @@ export function ConnectionBar() {
   const [state, setState] = useState<Remembered>(remembered);
   const [ports, setPorts] = useState<readonly SerialPort[]>([]);
   const [busy, setBusy] = useState(false);
+  const t = useLocaleStore((state) => state.t);
 
   // The serial ports of the machine are read once: they do not change while the
   // application is open, and reading them opens the ports of the system.
@@ -145,7 +147,7 @@ export function ConnectionBar() {
       <select
         className={`select ${styles.method}`}
         value={state.method}
-        aria-label="The way of connecting"
+        aria-label={t("The way of connecting")}
         disabled={linked}
         onChange={(event) => {
           setState((before) => ({
@@ -156,7 +158,7 @@ export function ConnectionBar() {
       >
         {METHODS.map((method) => (
           <option key={method.id} value={method.id}>
-            {method.label}
+            {t(method.label)}
           </option>
         ))}
       </select>
@@ -166,13 +168,15 @@ export function ConnectionBar() {
           <select
             className={`select ${styles.port}`}
             value={state.port}
-            aria-label="The port the vehicle is on"
+            aria-label={t("The port the vehicle is on")}
             disabled={linked}
             onChange={(event) => {
               setState((before) => ({ ...before, port: event.target.value }));
             }}
           >
-            {ports.length === 0 ? <option value="">no ports</option> : null}
+            {ports.length === 0 ? (
+              <option value="">{t("no ports")}</option>
+            ) : null}
             {ports.map((port) => (
               <option key={port.device} value={port.device}>
                 {port.device}
@@ -186,7 +190,7 @@ export function ConnectionBar() {
             type="number"
             min={1}
             value={state.baud}
-            aria-label="The speed of the port"
+            aria-label={t("The speed of the port")}
             disabled={linked}
             onChange={(event) => {
               setState((before) => ({
@@ -202,7 +206,7 @@ export function ConnectionBar() {
           type="text"
           spellCheck={false}
           value={state.host}
-          aria-label="The address of the vehicle"
+          aria-label={t("The address of the vehicle")}
           disabled={linked}
           onChange={(event) => {
             setState((before) => ({ ...before, host: event.target.value }));
@@ -214,11 +218,11 @@ export function ConnectionBar() {
         type="button"
         className={`button ${linked ? styles.disconnect : styles.connect}`}
         disabled={busy || (!linked && target === "")}
-        aria-label={linked ? "Close the link" : "Open the link"}
-        title={linked ? "Close the link" : "Open the link"}
+        aria-label={linked ? t("Close the link") : t("Open the link")}
+        title={linked ? t("Close the link") : t("Open the link")}
         onClick={toggle}
       >
-        {linked ? "Disconnect" : "Connect"}
+        {linked ? t("Disconnect") : t("Connect")}
       </button>
     </div>
   );

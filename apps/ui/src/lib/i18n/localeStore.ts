@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { DEFAULT_LOCALE, translate, type Locale } from "./strings";
+import { DEFAULT_LOCALE, tagFor, translate, type Locale } from "./strings";
 
 /** The key the chosen language is kept under, which is what the next run reads. */
 const KEY = "mpcraft.locale";
@@ -48,19 +48,25 @@ function writeLocale(locale: Locale): void {
 export interface LocaleStore {
   /** The language the operator chose. */
   readonly locale: Locale;
+  /** How a number is written in that language. */
+  readonly tag: string;
   /** Chooses a language. */
   readonly setLocale: (locale: Locale) => void;
-  /** What a string means in the language that is read. */
-  readonly t: (source: string) => string;
+  /** What a string means in the language that is read, with the values put where it has a gap. */
+  readonly t: (
+    source: string,
+    values?: Record<string, string | number>,
+  ) => string;
 }
 
 export const useLocaleStore = create<LocaleStore>((set, get) => ({
   locale: readLocale(),
+  tag: tagFor(readLocale()),
 
   setLocale: (locale) => {
     writeLocale(locale);
-    set({ locale });
+    set({ locale, tag: tagFor(locale) });
   },
 
-  t: (source) => translate(get().locale, source),
+  t: (source, values) => translate(get().locale, source, values),
 }));
