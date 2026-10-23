@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { normaliseError, prefetchTiles } from "../../lib/ipc/bridge";
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
-import type { MapProvider, MavCommand, Plan, PlanItem, Telemetry } from "../../lib/ipc/types";
+import type {
+  GeoPoint,
+  MapProvider,
+  MavCommand,
+  Plan,
+  PlanItem,
+  Telemetry,
+} from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useCommandStore } from "../../lib/plan/commandStore";
 import { carriesPosition, commandOf } from "../../lib/plan/planItems";
@@ -15,16 +22,21 @@ import {
   ringOf,
 } from "../../lib/plan/fence";
 import { flyTo } from "../../lib/flight/flightActions";
-import { onPlanScreen, usePlanEditorStore } from "../../lib/plan/planEditorStore";
+import {
+  onPlanScreen,
+  usePlanEditorStore,
+} from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
+import { usePictureStore } from "../../lib/georef/pictureStore";
+import { DEFAULT_CENTRE, DEFAULT_ZOOM, TRACK_LIMIT } from "./mapStyle";
 import {
-  DEFAULT_CENTRE,
-  DEFAULT_ZOOM,
-  TRACK_LIMIT,
-} from "./mapStyle";
-import { knownProviders, loadProviders, providerOf, styleOf } from "./providers";
+  knownProviders,
+  loadProviders,
+  providerOf,
+  styleOf,
+} from "./providers";
 import { registerTileProtocol } from "./tiles";
 import styles from "./FlightMap.module.css";
 
@@ -62,6 +74,9 @@ const HOME_SOURCE = "home";
 /** The identifier of the source of the traffic of the air. */
 const ADSB_SOURCE = "adsb";
 
+/** The identifier of the source of the places the pictures say they were taken. */
+const PICTURES_SOURCE = "pictures";
+
 /** The smallest movement, in degrees, that is worth a point on the track. */
 const TRACK_STEP = 1e-5;
 
@@ -71,10 +86,12 @@ const TRACK_STEP = 1e-5;
  * The map library refuses a latitude outside the poles, and it refuses to be told
  * nothing at all. A position that cannot be drawn is skipped, not thrown.
  */
-function usable(position: {
-  readonly lat: number;
-  readonly lng: number;
-} | null): position is { readonly lat: number; readonly lng: number } {
+function usable(
+  position: {
+    readonly lat: number;
+    readonly lng: number;
+  } | null,
+): position is { readonly lat: number; readonly lng: number } {
   if (!position) {
     return false;
   }
@@ -167,10 +184,7 @@ const MAX_MARKERS = 150;
  * elements in the document: the map would crawl. Only the items that are in the view are
  * given a marker, and the rest are drawn when the map comes to them.
  */
-function inView(
-  bounds: maplibregl.LngLatBounds,
-  item: PlanItem,
-): boolean {
+function inView(bounds: maplibregl.LngLatBounds, item: PlanItem): boolean {
   const west = bounds.getWest();
   const east = bounds.getEast();
   const south = bounds.getSouth();
@@ -436,12 +450,25 @@ export function FlightMap() {
         },
       });
 
+      // The pictures: a point for every one that has a place to be drawn at.
+      instance.addSource(PICTURES_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        },
+      });
+
       instance.addLayer({
         id: "track-line",
         type: "line",
         source: TRACK_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#00c896", "line-width": 2, "line-opacity": 0.8 },
+        paint: {
+          "line-color": "#00c896",
+          "line-width": 2,
+          "line-opacity": 0.8,
+        },
       });
 
       instance.addLayer({
@@ -560,6 +587,36 @@ export function FlightMap() {
         },
       });
 
+      // The pictures. The place the file itself carries and the place the log says the
+      // vehicle was when the picture was made are drawn apart, because the ground station
+      // knows one from the file and worked the other out from the flight; a picture that
+      // the log does not hold has only the first of them.
+      instance.addLayer({
+        id: "pictures-file",
+        type: "circle",
+        source: PICTURES_SOURCE,
+        filter: ["==", ["get", "kind"], "file"],
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#58a6ff",
+          "circle-stroke-color": "#0d1117",
+          "circle-stroke-width": 1.5,
+        },
+      });
+
+      instance.addLayer({
+        id: "pictures-log",
+        type: "circle",
+        source: PICTURES_SOURCE,
+        filter: ["==", ["get", "kind"], "log"],
+        paint: {
+          "circle-radius": 4,
+          "circle-color": "#a371f7",
+          "circle-stroke-color": "#0d1117",
+          "circle-stroke-width": 1,
+        },
+      });
+
       setReady(true);
     };
 
@@ -571,7 +628,9 @@ export function FlightMap() {
 
     instance.on("error", (event) => {
       const message =
-        event.error instanceof Error ? event.error.message : String(event.error);
+        event.error instanceof Error
+          ? event.error.message
+          : String(event.error);
       setFailure(message);
     });
 
@@ -695,6 +754,43 @@ export function FlightMap() {
       }
     }
   }, [adsb, ready]);
+
+  // The pictures: the place the file itself carries and the place the log says the vehicle was
+  // when each picture was made, drawn apart because they are known in two different ways.
+  const pictures = usePictureStore((state) => state.pictures);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !ready) {
+      return;
+    }
+
+    const features = pictures.flatMap((picture) => {
+      const places: { kind: string; point: GeoPoint }[] = [];
+
+      if (picture.place !== null) {
+        places.push({ kind: "file", point: picture.place });
+      }
+
+      if (picture.matchedPlace !== null) {
+        places.push({ kind: "log", point: picture.matchedPlace });
+      }
+
+      return places.map(({ kind, point }) => ({
+        type: "Feature" as const,
+        properties: { name: picture.name, kind },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [point.lng, point.lat],
+        },
+      }));
+    });
+
+    setSourceData(instance, PICTURES_SOURCE, {
+      type: "FeatureCollection",
+      features,
+    });
+  }, [pictures, ready]);
 
   // The provider of the tiles. The style of the map is the provider's, and the sources
   // and the layers go with it: they are put back when the new style has loaded.
@@ -905,9 +1001,9 @@ export function FlightMap() {
         // A point that is excluded from the polygon of a fence is drawn in the
         // colour of the danger: it is the one the vehicle must keep out of.
         element.className =
-          (item.command === VERTEX_EXCLUSION
-            ? styles.excludedItem ?? ""
-            : styles.item ?? "");
+          item.command === VERTEX_EXCLUSION
+            ? (styles.excludedItem ?? "")
+            : (styles.item ?? "");
         // The marker is a graphic, not a control: the map library would otherwise make
         // it a button, and a plan of a thousand waypoints would be a thousand buttons
         // for the keyboard to walk through. The grid is the list of the items.
@@ -950,7 +1046,10 @@ export function FlightMap() {
       element.textContent = String(item.seq + 1);
       element.title = `Item ${item.seq + 1}`;
       if (styles.itemSelected) {
-        element.classList.toggle(styles.itemSelected, item.seq === editor.selected);
+        element.classList.toggle(
+          styles.itemSelected,
+          item.seq === editor.selected,
+        );
       }
       if (styles.itemCurrent) {
         element.classList.toggle(styles.itemCurrent, item.current);
@@ -1128,50 +1227,50 @@ export function FlightMap() {
       <div className={styles.messages}>
         {saving ? (
           <div className={styles.area} role="group" aria-label="Save the area">
-          <p className={styles.hint}>
-            The tiles of the area are fetched and kept, so that the map is drawn with
-            them when there is no signal.
-          </p>
+            <p className={styles.hint}>
+              The tiles of the area are fetched and kept, so that the map is
+              drawn with them when there is no signal.
+            </p>
 
-          <label className={styles.areaField}>
-            <span className={styles.hint}>Levels below</span>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={8}
-              value={levels}
-              aria-label="How many levels of zoom below the present one are fetched"
-              onChange={(event) => {
-                setLevels(Number(event.target.value));
-              }}
-            />
-          </label>
+            <label className={styles.areaField}>
+              <span className={styles.hint}>Levels below</span>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                max={8}
+                value={levels}
+                aria-label="How many levels of zoom below the present one are fetched"
+                onChange={(event) => {
+                  setLevels(Number(event.target.value));
+                }}
+              />
+            </label>
 
-          <div className={styles.areaActions}>
-            <button
-              type="button"
-              className="button button--primary"
-              disabled={busy}
-              onClick={() => {
-                void saveArea();
-              }}
-            >
-              {busy ? "Fetching…" : "Fetch the tiles"}
-            </button>
+            <div className={styles.areaActions}>
+              <button
+                type="button"
+                className="button button--primary"
+                disabled={busy}
+                onClick={() => {
+                  void saveArea();
+                }}
+              >
+                {busy ? "Fetching…" : "Fetch the tiles"}
+              </button>
 
-            <button
-              type="button"
-              className="button"
-              onClick={() => {
-                setSaving(false);
-              }}
-            >
-              Cancel
-            </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setSaving(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
         {notice !== null ? (
           <p className={styles.hint} role="status">

@@ -14,6 +14,7 @@ import { NtripSheet } from "../../features/ntrip/NtripSheet";
 import { TransponderSheet } from "../../features/transponder/TransponderSheet";
 import { AdsbSheet } from "../../features/adsb/AdsbSheet";
 import { CameraSheet } from "../../features/camera/CameraSheet";
+import { PictureSheet } from "../../features/pictures/PictureSheet";
 import { VideoSheet } from "../../features/video/VideoSheet";
 import { PassthroughSheet } from "../../features/passthrough/PassthroughSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
@@ -60,7 +61,8 @@ export function AppShell() {
       state.transponderOpen ||
       state.adsbOpen ||
       state.videoOpen ||
-      state.cameraOpen,
+      state.cameraOpen ||
+      state.picturesOpen,
   );
 
   return (
@@ -96,6 +98,7 @@ export function AppShell() {
       <AdsbSheet />
       <VideoSheet />
       <CameraSheet />
+      <PictureSheet />
     </div>
   );
 }

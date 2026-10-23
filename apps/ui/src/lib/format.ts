@@ -41,6 +41,22 @@ export function formatCount(value: number | null | undefined): string {
   return present(value) ? Math.round(value).toLocaleString("en-US") : DASH;
 }
 
+/**
+ * An instant, in the words an operator reads.
+ *
+ * The seconds since the epoch are shown as they are, and not as the clock of the room shows
+ * them: the instant a camera wrote came without a timezone, and showing it through the offset of
+ * the machine would move it by that offset, which is exactly what the ground station is trying
+ * to find out.
+ */
+export function formatInstant(seconds: number | null | undefined): string {
+  if (!present(seconds)) {
+    return DASH;
+  }
+
+  return new Date(seconds * 1000).toISOString().slice(0, 19).replace("T", " ");
+}
+
 /** The system of units the operator has chosen. */
 function units() {
   return useUiStore.getState().units;

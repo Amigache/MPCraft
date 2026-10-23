@@ -22,6 +22,7 @@ import type {
   GraphSeries,
   GeoPoint,
   GimbalDevice,
+  LogPlace,
   LogSummary,
   PlaybackInfo,
   LogTrackPoint,
@@ -35,6 +36,7 @@ import type {
   Parameter,
   ParameterDifference,
   ParameterMetadata,
+  PicturePlace,
   Plan,
   PlanItem,
   PlanKind,
@@ -853,6 +855,66 @@ export async function outputFunctions(): Promise<OutputFunction[]> {
  */
 export async function logSummary(path: string): Promise<LogSummary> {
   return call<LogSummary>("log_summary", { path });
+}
+
+/**
+ * The pictures of a folder, read one by one.
+ *
+ * A picture carries where it was taken inside itself, and the size it has, which is what makes
+ * a footprint on the map rather than a point.
+ */
+export async function readPictures(folder: string): Promise<PicturePlace[]> {
+  return call<PicturePlace[]>("read_pictures", { folder });
+}
+
+/**
+ * The places a log says the vehicle was, with the instants.
+ *
+ * Only the messages that carry a position are read, because those are the ones that say where
+ * the vehicle was.
+ */
+export async function logPlaces(path: string): Promise<LogPlace[]> {
+  return call<LogPlace[]>("log_places", { path });
+}
+
+/**
+ * The difference between the clock of a camera and the clock of the log, in seconds.
+ *
+ * `null` when the instants of the folder cannot be lined up with the log at all.
+ */
+export async function estimatePictureOffset(
+  folder: string,
+  path: string,
+): Promise<number | null> {
+  return call<number | null>("estimate_picture_offset", { folder, path });
+}
+
+/**
+ * The pictures, with the place the log says the vehicle was when each of them was made.
+ */
+export async function matchPictures(
+  folder: string,
+  path: string,
+  offset: number,
+  lag: number,
+): Promise<PicturePlace[]> {
+  return call<PicturePlace[]>("match_pictures", { folder, path, offset, lag });
+}
+
+/**
+ * Copies of the pictures with their places written into them.
+ *
+ * Answers how many copies were written. A picture whose instant is not in the log and that
+ * carries no place of its own is left where it is.
+ */
+export async function writeGeotagged(
+  folder: string,
+  output: string,
+  path: string,
+  offset: number,
+  lag: number,
+): Promise<number> {
+  return call<number>("write_geotagged", { folder, output, path, offset, lag });
 }
 
 /**

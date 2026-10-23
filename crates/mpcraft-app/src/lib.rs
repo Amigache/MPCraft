@@ -52,6 +52,7 @@ pub mod coordinates;
 pub mod diagnostics;
 pub mod error;
 pub mod firmware;
+pub mod georef;
 pub mod graphs;
 pub mod http;
 pub mod live_kml;

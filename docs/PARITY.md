@@ -170,7 +170,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.9 | DTED local elevation | `ExtLibs/Utilities/DTED.cs` | ✅ | 5 |
 | 7.10 | Terrain-follow route generation | `srtm.getIntersectionWithTerrain` | ✅ | 5 |
 | 7.11 | Terrain data protocol server | `ExtLibs/Utilities/TerrainFollow.cs` | ✅ | 5 |
-| 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | 🔜 | 5 |
+| 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | ✅ | 5 |
 | 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | ✅ | 5 |
 | 7.14 | ADS-B relay to other stations | `MainV2.ADSBRunner` | ✅ | 5 |
 
@@ -220,8 +220,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 138 |
-| 🔜 Planned | 14 |
+| ✅ Done | 139 |
+| 🔜 Planned | 13 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
@@ -492,6 +492,21 @@ The **video streams** of the camera are described in a sheet of their own: the c
 says the URI, the resolution and the frame rate of each stream, and the operator can
 start or stop it. The stream travels outside MAVLink, so the URI is what a separate video
 player connects to. Drawing that video inside MPCraft is not done yet.
+
+The **pictures** of a flight are read from a folder, from Setup: a picture carries the place it
+was taken inside itself, and the instant its own camera says it was made. The clock of a camera
+is not the clock of the ground station, and the difference between the two is worked out from the
+pictures at both ends of a folder — the first three and the last three, each comparison given half
+of what was worked out before it, which is what upstream does in `EstimateOffset`. A picture whose
+instant is found in the log, within the two seconds upstream allows, is given the place the log
+says the vehicle was at that instant; a picture that is not keeps only the place its own file
+carries, and the two are shown next to each other rather than merged, because the ground station
+knows one from the file and worked the other out from the flight. The places are drawn on the map
+the same way, in two colours, for the same reason. The copies are written into a folder of their
+own with the place they came from put into them, and a copy can be read back through the same
+sheet: what it then says about itself is the place the flight said. The sheet needs no link,
+because a folder of pictures and a log of a flight that has already happened are enough, so it is
+the entry of the Setup menu that stays open without a vehicle on the wire.
 
 The **camera and the gimbal** are a sheet of their own too, opened from Setup. What a
 device says about itself decides what can be asked of it: the capabilities come from the

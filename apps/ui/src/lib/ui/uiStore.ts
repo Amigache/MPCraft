@@ -454,6 +454,12 @@ export interface UiStore {
   readonly showCamera: () => void;
   /** Closes the sheet of the camera and the gimbal. */
   readonly hideCamera: () => void;
+  /** Whether the sheet of the pictures and where they were taken is open over the window. */
+  readonly picturesOpen: boolean;
+  /** Opens the sheet of the pictures and where they were taken. */
+  readonly showPictures: () => void;
+  /** Closes the sheet of the pictures and where they were taken. */
+  readonly hidePictures: () => void;
   /** Puts the window on the screen of the parameters. */
   readonly showParameters: () => void;
   /**
@@ -511,6 +517,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   adsbOpen: false,
   videoOpen: false,
   cameraOpen: false,
+  picturesOpen: false,
   parameterGroups: [],
 
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -626,6 +633,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   showAdsb: () => set({ adsbOpen: true }),
   showVideo: () => set({ videoOpen: true }),
   showCamera: () => set({ cameraOpen: true }),
+  showPictures: () => set({ picturesOpen: true }),
 
   showLog: () => get().setScreen("logs"),
 
@@ -643,6 +651,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   hideAdsb: () => set({ adsbOpen: false }),
   hideVideo: () => set({ videoOpen: false }),
   hideCamera: () => set({ cameraOpen: false }),
+  hidePictures: () => set({ picturesOpen: false }),
 
   loadParameterGroups: async () => {
     try {

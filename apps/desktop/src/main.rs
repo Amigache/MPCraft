@@ -1133,6 +1133,91 @@ async fn log_summary(path: String) -> CommandResult<mpcraft_app::logs::LogSummar
     mpcraft_app::logs::summarise(std::path::Path::new(&path))
 }
 
+/// The pictures of a folder, read one by one.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the folder cannot be read, or when a
+/// picture inside it is not one that can be read.
+#[tauri::command]
+async fn read_pictures(folder: String) -> CommandResult<Vec<mpcraft_app::georef::PicturePlace>> {
+    mpcraft_app::georef::read_pictures(std::path::Path::new(&folder))
+}
+
+/// The places a log says the vehicle was, with the instants.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the log cannot be read, or when it does not
+/// hold one.
+#[tauri::command]
+async fn log_places(path: String) -> CommandResult<Vec<mpcraft_app::georef::LogPlace>> {
+    mpcraft_app::georef::log_places(std::path::Path::new(&path))
+}
+
+/// The difference between the clock of a camera and the clock of the log, in seconds.
+///
+/// A folder whose instants cannot be lined up with a log answers `None`, which is what the
+/// interface shows as nothing rather than as a number that was guessed.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when either file cannot be read.
+#[tauri::command]
+async fn estimate_picture_offset(folder: String, path: String) -> CommandResult<Option<f64>> {
+    let pictures = mpcraft_app::georef::read_pictures(std::path::Path::new(&folder))?;
+    let places = mpcraft_app::georef::log_places(std::path::Path::new(&path))?;
+
+    Ok(mpcraft_app::georef::estimate_offset(&pictures, &places))
+}
+
+/// The pictures, with the place the log says the vehicle was when each of them was made.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when either file cannot be read.
+#[tauri::command]
+async fn match_pictures(
+    folder: String,
+    path: String,
+    offset: f64,
+    lag: f64,
+) -> CommandResult<Vec<mpcraft_app::georef::PicturePlace>> {
+    let pictures = mpcraft_app::georef::read_pictures(std::path::Path::new(&folder))?;
+    let places = mpcraft_app::georef::log_places(std::path::Path::new(&path))?;
+
+    Ok(mpcraft_app::georef::match_pictures(
+        &pictures, &places, offset, lag,
+    ))
+}
+
+/// Copies of the pictures, with their places written into them.
+///
+/// Answers how many copies were written. A picture whose instant is not in the log and that
+/// carries no place of its own is left where it is.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the files cannot be read or written.
+#[tauri::command]
+async fn write_geotagged(
+    folder: String,
+    output: String,
+    path: String,
+    offset: f64,
+    lag: f64,
+) -> CommandResult<usize> {
+    let pictures = mpcraft_app::georef::read_pictures(std::path::Path::new(&folder))?;
+    let places = mpcraft_app::georef::log_places(std::path::Path::new(&path))?;
+    let matched = mpcraft_app::georef::match_pictures(&pictures, &places, offset, lag);
+
+    mpcraft_app::georef::write_geotagged(
+        std::path::Path::new(&folder),
+        std::path::Path::new(&output),
+        &matched,
+    )
+}
+
 /// The values of a graph over a log.
 ///
 /// The graph is the same one the live view draws, read from the log instead of from the
@@ -4002,6 +4087,11 @@ fn main() {
             list_mav_commands,
             graph_series,
             log_summary,
+            read_pictures,
+            log_places,
+            estimate_picture_offset,
+            match_pictures,
+            write_geotagged,
             prefetch_tiles,
             list_map_providers,
             map_tile,

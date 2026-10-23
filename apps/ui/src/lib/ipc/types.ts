@@ -1052,6 +1052,39 @@ export interface ConnectResponse {
   readonly vehicle: VehicleKey | null;
 }
 
+/**
+ * A picture, with the place it says it was taken and the place the log says the vehicle was
+ * when it was made.
+ */
+export interface PicturePlace {
+  /** The name of the file, without the folder it is in. */
+  readonly name: string;
+  /** The width of the picture, in pixels. */
+  readonly width: number;
+  /** The height of the picture, in pixels. */
+  readonly height: number;
+  /** The way the picture is turned, as the camera wrote it. */
+  readonly orientation: string;
+  /** When the camera says the picture was made, in seconds since the epoch. */
+  readonly takenAt: number | null;
+  /** The place the file itself carries. */
+  readonly place: GeoPoint | null;
+  /** The instant of the sample of the log the picture was matched with. */
+  readonly matchedAt: number | null;
+  /** How far the picture's own instant was from that sample, in seconds. */
+  readonly awaySeconds: number | null;
+  /** The place the log says the vehicle was at that instant. */
+  readonly matchedPlace: GeoPoint | null;
+}
+
+/** One of the places a log says the vehicle was, with the instant it was there. */
+export interface LogPlace {
+  /** The instant, in seconds since the epoch. */
+  readonly at: number;
+  /** The place. */
+  readonly place: GeoPoint;
+}
+
 /** The shape of every command failure. */
 export interface CommandError {
   /**

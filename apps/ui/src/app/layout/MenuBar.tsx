@@ -119,6 +119,7 @@ export function MenuBar() {
   const showAdsb = useUiStore((state) => state.showAdsb);
   const showVideo = useUiStore((state) => state.showVideo);
   const showCamera = useUiStore((state) => state.showCamera);
+  const showPictures = useUiStore((state) => state.showPictures);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -849,6 +850,20 @@ export function MenuBar() {
           checked: undefined,
           separator: false,
           hint: linked ? "" : "no link",
+        },
+        {
+          id: "setup-pictures",
+          label: "The pictures and where they were taken…",
+          onSelect: () => {
+            close();
+            showPictures();
+          },
+          // The sheet reads files, so it is open without a vehicle on the wire: a folder of
+          // pictures and a log of a flight that has already happened are enough.
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
         },
         {
           id: "parameters",
