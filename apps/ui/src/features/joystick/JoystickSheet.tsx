@@ -5,6 +5,7 @@ import {
   rcOverride,
   rcOverrideRelease,
 } from "../../lib/ipc/bridge";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./JoystickSheet.module.css";
@@ -59,6 +60,8 @@ interface Binding {
 export function JoystickSheet() {
   const open = useUiStore((state) => state.joystickOpen);
   const hide = useUiStore((state) => state.hideJoystick);
+
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
 
@@ -169,31 +172,31 @@ export function JoystickSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="Joystick"
+        aria-label={t("Joystick")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>Joystick</h2>
+          <h2 className={styles.title}>{t("Joystick")}</h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         {gamepads.length === 0 ? (
           <p className={styles.text}>
-            No joystick has been seen. Plug one in and press a button on it: the
-            operating system only tells the application about a joystick that
-            has been touched.
+            {t(
+              "No joystick has been seen. Plug one in and press a button on it: the operating system only tells the application about a joystick that has been touched.",
+            )}
           </p>
         ) : (
           <label className={styles.block}>
-            <span className={styles.heading}>The joystick</span>
+            <span className={styles.heading}>{t("The joystick")}</span>
             <select
               className="select"
               value={chosen}
-              aria-label="The joystick that drives the vehicle"
+              aria-label={t("The joystick that drives the vehicle")}
               onChange={(event) => {
                 setChosen(Number(event.target.value));
               }}
@@ -212,15 +215,16 @@ export function JoystickSheet() {
             const binding = bindings[channel.index];
             const axis = binding?.axis ?? null;
             const value = axis === null ? undefined : axes[axis];
+            const name = t(channel.name);
 
             return (
               <li className={styles.channel} key={channel.index}>
-                <span className={styles.channelName}>{channel.name}</span>
+                <span className={styles.channelName}>{name}</span>
 
                 <select
                   className={`select ${styles.axisSelect}`}
                   value={axis === null ? "none" : String(axis)}
-                  aria-label={`The axis that drives ${channel.name}`}
+                  aria-label={t("The axis that drives {name}", { name })}
                   onChange={(event) => {
                     const chosenAxis = event.target.value;
                     bind(channel.index, {
@@ -229,10 +233,10 @@ export function JoystickSheet() {
                     });
                   }}
                 >
-                  <option value="none">Not driven</option>
+                  <option value="none">{t("Not driven")}</option>
                   {axes.map((_, index) => (
                     <option key={index} value={index}>
-                      Axis {index + 1}
+                      {t("Axis {number}", { number: index + 1 })}
                     </option>
                   ))}
                 </select>
@@ -241,7 +245,12 @@ export function JoystickSheet() {
                   <input
                     type="checkbox"
                     checked={binding?.inverted ?? false}
-                    aria-label={`Whether ${channel.name} is read the other way round`}
+                    aria-label={t(
+                      "Whether {name} is read the other way round",
+                      {
+                        name,
+                      },
+                    )}
                     onChange={(event) => {
                       bind(channel.index, {
                         axis: binding?.axis ?? null,
@@ -249,7 +258,7 @@ export function JoystickSheet() {
                       });
                     }}
                   />
-                  <span>Inverted</span>
+                  <span>{t("Inverted")}</span>
                 </label>
 
                 <span className={styles.bar} aria-hidden="true">
@@ -279,8 +288,8 @@ export function JoystickSheet() {
             aria-pressed={sending}
             title={
               linked
-                ? "Take the radio channels over"
-                : "there is no link to the vehicle"
+                ? t("Take the radio channels over")
+                : t("there is no link to the vehicle")
             }
             onClick={() => {
               setError(null);
@@ -288,7 +297,7 @@ export function JoystickSheet() {
               setSending(!sending);
             }}
           >
-            {sending ? "Stop sending" : "Send to the vehicle"}
+            {sending ? t("Stop sending") : t("Send to the vehicle")}
           </button>
 
           <button
@@ -296,9 +305,9 @@ export function JoystickSheet() {
             className="button"
             disabled={!linked}
             onClick={stop}
-            title="Let the radio channels go back to the radio"
+            title={t("Let the radio channels go back to the radio")}
           >
-            Release the channels
+            {t("Release the channels")}
           </button>
         </div>
 

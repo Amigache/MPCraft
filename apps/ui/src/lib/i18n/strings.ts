@@ -522,6 +522,31 @@ const bundles: Record<Locale, Record<string, string>> = {
     "yaw read from the way the vehicle points":
       "guiñada leída del modo en que apunta el vehículo",
     "yaw read from the ground": "guiñada leída del suelo",
+
+    // The sheet of the joystick.
+    "Joystick…": "El joystick…",
+    Joystick: "El joystick",
+    "No joystick has been seen. Plug one in and press a button on it: the operating system only tells the application about a joystick that has been touched.":
+      "No se ha visto ningún joystick. Enchúfalo y pulsa un botón de él: el sistema operativo solo avisa de un joystick que se ha tocado.",
+    "The joystick": "El joystick",
+    "The joystick that drives the vehicle":
+      "El joystick que maneja el vehículo",
+    "Channel 1 — roll": "Canal 1 — alabeo",
+    "Channel 2 — pitch": "Canal 2 — inclinación",
+    "Channel 3 — throttle": "Canal 3 — gas",
+    "Channel 4 — yaw": "Canal 4 — guiñada",
+    "The axis that drives {name}": "El eje que maneja {name}",
+    "Not driven": "No se maneja",
+    "Axis {number}": "Eje {number}",
+    "Whether {name} is read the other way round": "Si {name} se lee al revés",
+    Inverted: "Al revés",
+    "Take the radio channels over": "Tomar los canales de la radio",
+    "there is no link to the vehicle": "no hay enlace con el vehículo",
+    "Send to the vehicle": "Mandar al vehículo",
+    "Stop sending": "Dejar de mandar",
+    "Let the radio channels go back to the radio":
+      "Devolver los canales de la radio a la radio",
+    "Release the channels": "Soltar los canales",
   },
 };
 
