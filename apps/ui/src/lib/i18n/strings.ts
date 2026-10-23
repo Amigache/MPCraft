@@ -130,6 +130,10 @@ const bundles: Record<Locale, Record<string, string>> = {
     Lost: "Perdidos",
     yes: "sí",
     no: "no",
+    "no vehicle": "sin vehículo",
+    "The state of the link": "El estado del enlace",
+    "The link the application is opened on":
+      "El enlace en el que la aplicación está abierta",
 
     // The bar of the connection.
     Serial: "Serie",
@@ -332,6 +336,30 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The corrections are being sent to the vehicle.":
       "Las correcciones se están mandando al vehículo.",
     "The corrections have stopped.": "Las correcciones han parado.",
+
+    // The sheet of the traffic of the air.
+    "The traffic of the air": "El tráfico del aire",
+    "The aircraft the vehicle sent are already on the link. What the station reads from a source of its own is added to it, one each second, from the ten closest to the vehicle, so that the other stations listening here see them too.":
+      "Las aeronaves que mandó el vehículo ya están en el enlace. Lo que la estación lee de una fuente suya se añade, una cada segundo, de las diez más cercanas al vehículo, para que las otras estaciones que escuchan aquí también las vean.",
+    "The address of the source": "La dirección de la fuente",
+    "The address of the source of the traffic":
+      "La dirección de la fuente del tráfico",
+    "How far round the vehicle": "Cuánto alrededor del vehículo",
+    "How far round the vehicle the list is asked for, in nautical miles":
+      "Cuánto alrededor del vehículo se pide la lista, en millas náuticas",
+    "Sending one aircraft each second": "Manda una aeronave cada segundo",
+    "How many aircraft the station reads": "Cuántas aeronaves lee la estación",
+    "How many have been sent": "Cuántas se han mandado",
+    "Which place of the list comes next": "Qué lugar de la lista sigue",
+    "Where the vehicle is": "Dónde está el vehículo",
+    "the vehicle has not said": "el vehículo no lo ha dicho",
+    "The aircraft the station reads are being sent onto the link.":
+      "Las aeronaves que lee la estación se están mandando al enlace.",
+    "The relay has been stopped.": "El rele se ha parado.",
+    "The address of the source is not one that can be used. MPCraft reads the traffic from an HTTP address; a receiver that speaks over a plain connection is not read.":
+      "La dirección de la fuente no es una que se pueda usar. MPCraft lee el tráfico de una dirección HTTP; un receptor que habla por una conexión simple no se lee.",
+    "The distance round the vehicle is not one that can be used.":
+      "La distancia alrededor del vehículo no es una que se pueda usar.",
   },
 };
 

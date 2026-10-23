@@ -67,6 +67,15 @@ describe("the strings the interface says", () => {
       "To home",
       "Received",
       "Lost",
+      // What the bar says about the link: the vehicle it is on, and the state the link is in.
+      "no vehicle",
+      "The state of the link",
+      "The link the application is opened on",
+      "connected",
+      "connecting",
+      "reconnecting",
+      "disconnected",
+      "failed",
     ];
 
     for (const name of names) {

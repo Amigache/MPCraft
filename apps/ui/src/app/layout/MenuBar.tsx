@@ -1162,17 +1162,17 @@ export function MenuBar() {
         ) : null}
         <span
           className={styles.target}
-          title="The link the application is opened on"
+          title={t("The link the application is opened on")}
         >
           {vehicles.length > 0
             ? `${vehicles[0]?.systemId ?? "?"}/${vehicles[0]?.componentId ?? "?"}`
-            : "no vehicle"}
+            : t("no vehicle")}
         </span>
         <span
           className={`${styles.state} ${styles[status] ?? ""}`}
-          title="The state of the link"
+          title={t("The state of the link")}
         >
-          {status}
+          {t(status)}
         </span>
       </div>
 

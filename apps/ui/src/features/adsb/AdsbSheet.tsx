@@ -7,6 +7,7 @@ import {
   normaliseError,
 } from "../../lib/ipc/bridge";
 import type { GeoPoint } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./AdsbSheet.module.css";
@@ -37,6 +38,8 @@ const DEFAULT_RADIUS_NM = 100;
 export function AdsbSheet() {
   const open = useUiStore((state) => state.adsbOpen);
   const hide = useUiStore((state) => state.hideAdsb);
+
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
@@ -100,7 +103,9 @@ export function AdsbSheet() {
     ) {
       setBusy(false);
       setError(
-        "The address of the source is not one that can be used. MPCraft reads the traffic from an HTTP address; a receiver that speaks over a plain connection is not read.",
+        t(
+          "The address of the source is not one that can be used. MPCraft reads the traffic from an HTTP address; a receiver that speaks over a plain connection is not read.",
+        ),
       );
       return;
     }
@@ -109,13 +114,17 @@ export function AdsbSheet() {
 
     if (!Number.isFinite(distance) || distance < 1) {
       setBusy(false);
-      setError("The distance round the vehicle is not one that can be used.");
+      setError(
+        t("The distance round the vehicle is not one that can be used."),
+      );
       return;
     }
 
     try {
       await adsbRelayStart(address, distance);
-      setNotice("The aircraft the station reads are being sent onto the link.");
+      setNotice(
+        t("The aircraft the station reads are being sent onto the link."),
+      );
       await read();
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -131,7 +140,7 @@ export function AdsbSheet() {
 
     try {
       await adsbRelayStop();
-      setNotice("The relay has been stopped.");
+      setNotice(t("The relay has been stopped."));
       await read();
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -146,36 +155,37 @@ export function AdsbSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="The traffic of the air"
+        aria-label={t("The traffic of the air")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>The traffic of the air</h2>
+          <h2 className={styles.title}>{t("The traffic of the air")}</h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            The aircraft the vehicle sent are already on the link. What the
-            station reads from a source of its own is added to it, one each
-            second, from the ten closest to the vehicle, so that the other
-            stations listening here see them too.
+            {t(
+              "The aircraft the vehicle sent are already on the link. What the station reads from a source of its own is added to it, one each second, from the ten closest to the vehicle, so that the other stations listening here see them too.",
+            )}
           </p>
 
           <div className={styles.fields}>
             <label className={styles.field}>
-              <span className={styles.label}>The address of the source</span>
+              <span className={styles.label}>
+                {t("The address of the source")}
+              </span>
               <input
                 className="input"
                 type="text"
                 value={server}
                 spellCheck={false}
                 placeholder="https://api.adsb.lol"
-                aria-label="The address of the source of the traffic"
+                aria-label={t("The address of the source of the traffic")}
                 onChange={(event) => {
                   setServer(event.target.value);
                 }}
@@ -183,14 +193,18 @@ export function AdsbSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>How far round the vehicle</span>
+              <span className={styles.label}>
+                {t("How far round the vehicle")}
+              </span>
               <input
                 className="input"
                 type="number"
                 min={1}
                 max={250}
                 value={radius}
-                aria-label="How far round the vehicle the list is asked for, in nautical miles"
+                aria-label={t(
+                  "How far round the vehicle the list is asked for, in nautical miles",
+                )}
                 onChange={(event) => {
                   setRadius(event.target.value);
                 }}
@@ -207,7 +221,7 @@ export function AdsbSheet() {
                 void start();
               }}
             >
-              Start
+              {t("Start")}
             </button>
 
             <button
@@ -218,32 +232,34 @@ export function AdsbSheet() {
                 void stop();
               }}
             >
-              Stop
+              {t("Stop")}
             </button>
           </div>
 
           {!linked ? (
-            <p className={styles.text}>There is no link to a vehicle.</p>
+            <p className={styles.text}>{t("There is no link to a vehicle.")}</p>
           ) : null}
         </section>
 
         <section className={styles.block}>
           <dl className={styles.facts}>
-            <dt>What it is doing</dt>
+            <dt>{t("What it is doing")}</dt>
             <dd>
-              {running ? "Sending one aircraft each second" : "Not sending"}
+              {running
+                ? t("Sending one aircraft each second")
+                : t("Not sending")}
             </dd>
-            <dt>How many aircraft the station reads</dt>
+            <dt>{t("How many aircraft the station reads")}</dt>
             <dd>{aircraft}</dd>
-            <dt>How many have been sent</dt>
+            <dt>{t("How many have been sent")}</dt>
             <dd>{sent}</dd>
-            <dt>Which place of the list comes next</dt>
+            <dt>{t("Which place of the list comes next")}</dt>
             <dd>{index}</dd>
-            <dt>Where the vehicle is</dt>
+            <dt>{t("Where the vehicle is")}</dt>
             <dd>
               {position !== null
                 ? `${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}`
-                : "the vehicle has not said"}
+                : t("the vehicle has not said")}
             </dd>
           </dl>
         </section>
