@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { normaliseError, osdSlotConfig, osdSlots } from "../../lib/ipc/bridge";
 import type { OsdSlot } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useMetadata } from "../../lib/params/metadataStore";
 import { useParamsStore } from "../../lib/params/paramsStore";
@@ -48,6 +49,8 @@ function rangeOf(
 export function OsdSheet() {
   const open = useUiStore((state) => state.osdOpen);
   const hide = useUiStore((state) => state.hideOsd);
+
+  const t = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
@@ -120,7 +123,13 @@ export function OsdSheet() {
         ),
       );
 
-      setNotice(`The slot ${slot.index} of the screen ${slot.screen} holds ${name}.`);
+      setNotice(
+        t("The slot {index} of the screen {screen} holds {name}.", {
+          index: slot.index,
+          screen: slot.screen,
+          name,
+        }),
+      );
     } catch (cause) {
       setError(normaliseError(cause).message);
     } finally {
@@ -134,23 +143,23 @@ export function OsdSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="The on-screen display"
+        aria-label={t("The on-screen display")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>The on-screen display</h2>
+          <h2 className={styles.title}>{t("The on-screen display")}</h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            The vehicle draws the display over the picture of the camera. Each slot
-            holds one thing, and the screens five and six are the ones that are
-            configured here.
+            {t(
+              "The vehicle draws the display over the picture of the camera. Each slot holds one thing, and the screens five and six are the ones that are configured here.",
+            )}
           </p>
 
           <div className={styles.row}>
@@ -162,36 +171,49 @@ export function OsdSheet() {
                 void read();
               }}
             >
-              Read the slots
+              {t("Read the slots")}
             </button>
 
             {!linked ? (
-              <span className={styles.text}>There is no link to a vehicle.</span>
+              <span className={styles.text}>
+                {t("There is no link to a vehicle.")}
+              </span>
             ) : null}
           </div>
         </section>
 
         {SCREENS.map((screen) => (
           <section key={screen} className={styles.block}>
-            <h3 className={styles.heading}>Screen {screen}</h3>
+            <h3 className={styles.heading}>
+              {t("Screen {screen}", { screen })}
+            </h3>
 
             <ul className={styles.list}>
               {slots
                 .filter((slot) => slot.screen === screen)
                 .map((slot) => (
-                  <li key={`${slot.screen}-${slot.index}`} className={styles.item}>
+                  <li
+                    key={`${slot.screen}-${slot.index}`}
+                    className={styles.item}
+                  >
                     <span className={styles.number}>{slot.index}</span>
 
                     <select
                       className="select"
                       value={slot.name ?? ""}
-                      aria-label={`What the slot ${slot.index} of the screen ${screen} holds`}
+                      aria-label={t(
+                        "What the slot {index} of the screen {screen} holds",
+                        {
+                          index: slot.index,
+                          screen,
+                        },
+                      )}
                       disabled={busy}
                       onChange={(event) => {
                         void assign(slot, event.target.value);
                       }}
                     >
-                      <option value="">— nothing —</option>
+                      <option value="">{t("— nothing —")}</option>
                       {slot.name !== null &&
                       !parameters.some(
                         (parameter) => parameter.name === slot.name,
@@ -210,8 +232,9 @@ export function OsdSheet() {
 
             {slots.length === 0 && !busy ? (
               <p className={styles.text}>
-                The vehicle did not say what its slots hold. It may not know the
-                questions.
+                {t(
+                  "The vehicle did not say what its slots hold. It may not know the questions.",
+                )}
               </p>
             ) : null}
           </section>

@@ -91,6 +91,19 @@ describe("the strings the interface says", () => {
     expect(translate("es", "The folder holds {count} pictures", {})).toBe(
       "The folder holds {count} pictures",
     );
+
+    // A sheet says what one of its parts holds, and another language puts the number and the
+    // name somewhere else in the words.
+    expect(translate("es", "Screen {screen}", { screen: 5 })).toBe(
+      "Pantalla 5",
+    );
+    expect(
+      translate("es", "The slot {index} of the screen {screen} holds {name}.", {
+        index: 3,
+        screen: 6,
+        name: "XK_ATTITUDE",
+      }),
+    ).toBe("El hueco 3 de la pantalla 6 guarda XK_ATTITUDE.");
   });
 
   it("writes a number the way the language writes it", () => {

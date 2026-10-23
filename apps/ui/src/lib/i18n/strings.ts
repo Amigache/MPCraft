@@ -300,6 +300,20 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Could not be read": "No se pudo leer",
     "{name} is being run.": "{name} se está ejecutando.",
     "{name} has been left alone.": "{name} se ha dejado en paz.",
+
+    // The sheet of the on-screen display.
+    "The on-screen display": "La pantalla escrita",
+    "The vehicle draws the display over the picture of the camera. Each slot holds one thing, and the screens five and six are the ones that are configured here.":
+      "El vehículo dibuja la pantalla sobre la imagen de la cámara. Cada hueco guarda una cosa, y las pantallas cinco y seis son las que se configuran aquí.",
+    "Read the slots": "Leer los huecos",
+    "Screen {screen}": "Pantalla {screen}",
+    "What the slot {index} of the screen {screen} holds":
+      "Lo que guarda el hueco {index} de la pantalla {screen}",
+    "— nothing —": "— nada —",
+    "The slot {index} of the screen {screen} holds {name}.":
+      "El hueco {index} de la pantalla {screen} guarda {name}.",
+    "The vehicle did not say what its slots hold. It may not know the questions.":
+      "El vehículo no dijo qué guardan sus huecos. Puede que no conozca las preguntas.",
   },
 };
 
