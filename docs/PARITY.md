@@ -190,9 +190,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | # | Feature | Upstream location | Status | Phase |
 | --- | --- | --- | --- | --- |
-| 9.1 | Plugin lifecycle (Init/Loaded/Loop/Exit) | `Plugin/Plugin.cs` | 🔜 | 6 |
-| 9.2 | Plugin host API surface | `Plugin/Plugin.cs` (PluginHost) | 🔜 | 6 |
-| 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | 🔜 | 6 |
+| 9.1 | Plugin lifecycle (Init/Loaded/Loop/Exit) | `Plugin/Plugin.cs` | 🔽 | 6 |
+| 9.2 | Plugin host API surface | `Plugin/Plugin.cs` (PluginHost) | 🔽 | 6 |
+| 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | 🔽 | 6 |
 | 9.4 | Scripting host | `Script.cs` (IronPython) | 🔜 | 6 |
 | 9.5 | Swarm / formation control | `Swarm/` | 🔜 | 6 |
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 139 |
-| 🔜 Planned | 12 |
+| 🔜 Planned | 9 |
 | ⬜ Dropped | 1 |
-| Partial (🟡 / 🔽) | 3 |
+| Partial (🟡 / 🔽) | 6 |
 
 The 138 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
@@ -591,6 +591,21 @@ be put back as they were: the catalogue knows the value every parameter had befo
 anybody changed it, and only the ones that were changed are written, in the order the
 vehicle needs them - the ones that turn something on go first, the way upstream writes
 them.
+
+The **plugins** run inside a sandbox. A plugin is a WebAssembly module with a manifest a person can
+read: the name, the module, what it wants to be allowed to do, and how often it wants to be called,
+with the rate capped at the telemetry tick. A capability is not checked when the plugin calls — it is
+what the module can *import*, so a plugin that was not given commands has no function for commands,
+and a module that asks for one is never built. That is stronger than a check somebody could forget.
+A plugin also gets a number of steps per call, which is how a loop that never ends is stopped without
+stopping the application, a ceiling on the memory it may hold, a ceiling on the stack its calls go
+through, and a ceiling on how much of its memory one string is read from, because a plugin that names a
+length the size of its memory would otherwise read the whole of it. The four stages are the ones
+upstream has — read, link open, tick, close — and only the first is required, because plenty of plugins
+have nothing to do every second. What the operator decided is kept in the settings file, apart from what
+the manifest asks for, so that a manifest cannot grant itself anything: a plugin nobody chose is not run,
+which is the state a fresh installation is in. The sheet that lists the plugins and the driver that calls
+their stages through a link are what is left of this row.
 
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native
