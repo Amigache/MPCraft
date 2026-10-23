@@ -74,7 +74,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 3.10 | Reboot autopilot | `doReboot` | ✅ | 5 |
 | 3.11 | RC override | `SendRCOverride` | ✅ | 3 |
 | 3.12 | Manual control | `SendManualControl` | ✅ | 3 |
-| 3.13 | Camera / gimbal control | `CameraProtocol`, `GimbalManagerProtocol` | 🔜 | 5 |
+| 3.13 | Camera / gimbal control | `CameraProtocol`, `GimbalManagerProtocol` | ✅ | 5 |
 | 3.14 | Serial port pass-through | `SendSerialControl` | ✅ | 5 |
 | 3.15 | Flight-mode presets & custom modes | `ConfigFlightModes.cs` | ✅ | 3 |
 
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 137 |
-| 🔜 Planned | 15 |
+| ✅ Done | 138 |
+| 🔜 Planned | 14 |
 | ⬜ Dropped | 1 |
 | 🟡 Partial | 2 |
 
-The 137 rows marked done are the connection, transport, parameter, mission and command
+The 138 rows marked done are the connection, transport, parameter, mission and command
 layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -492,6 +492,22 @@ The **video streams** of the camera are described in a sheet of their own: the c
 says the URI, the resolution and the frame rate of each stream, and the operator can
 start or stop it. The stream travels outside MAVLink, so the URI is what a separate video
 player connects to. Drawing that video inside MPCraft is not done yet.
+
+The **camera and the gimbal** are a sheet of their own too, opened from Setup. What a
+device says about itself decides what can be asked of it: the capabilities come from the
+vehicle, and an angle the device cannot reach is refused before anything is sent, rather
+than sending it and waiting for the vehicle to say it cannot — a gimbal with no pitch axis
+cannot be pitched, and a camera that cannot be zoomed cannot be zoomed. What a camera can
+capture is the capability and the mode together, which is why the mode is asked for as well
+as the flags: a camera that can do both cannot take a picture while it is recording, unless
+it says it can. The gimbal is pointed at an angle, at a rate, at a place on the ground, or
+at another vehicle; the yaw is read in the frame the device says it uses, and the point of
+interest is held until it is taken off. A camera answers on its own component, so a command
+for a camera goes to that component rather than to the autopilot. Both devices keep saying
+what they are doing once a second, so the sheet shows what the vehicle says rather than what
+was last asked for. Picking a place to follow from the picture itself waits on drawing the
+video, so the place is typed: that is the one thing upstream's sheet does which this one
+cannot do yet.
 
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of

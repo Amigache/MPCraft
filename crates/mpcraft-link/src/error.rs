@@ -32,6 +32,14 @@ pub enum LinkError {
     #[error("the vehicle rejected the request: {0}")]
     Rejected(String),
 
+    /// The vehicle cannot do what was asked, rather than refusing it at this moment.
+    ///
+    /// A capability the device does not have is a permanent refusal, and it is worth
+    /// telling apart from a command the vehicle would have taken at another time: upstream
+    /// checks the capability flags before a gimbal or camera command is sent at all.
+    #[error("the vehicle cannot do this: {0}")]
+    Unsupported(String),
+
     /// The vehicle refused a command.
     ///
     /// The command error carries the result the vehicle reported, so the caller can tell
@@ -68,6 +76,9 @@ impl LinkError {
             // A refused command is a refusal: the frontend already knows how to present
             // one, and the message says which command it was.
             Self::Rejected(_) | Self::Command(_) => "rejected_by_vehicle",
+            // A capability the device does not have is not a refusal at this moment: it is
+            // something the vehicle can never do.
+            Self::Unsupported(_) => "unsupported_by_vehicle",
             Self::SessionClosed => "not_connected",
         }
     }
@@ -97,5 +108,9 @@ mod tests {
         );
         assert_eq!(LinkError::NoVehicle.code(), "no_vehicle");
         assert_eq!(LinkError::SessionClosed.code(), "not_connected");
+        assert_eq!(
+            LinkError::Unsupported("no pitch axis".to_owned()).code(),
+            "unsupported_by_vehicle"
+        );
     }
 }

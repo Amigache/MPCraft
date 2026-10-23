@@ -118,6 +118,7 @@ export function MenuBar() {
   const showTransponder = useUiStore((state) => state.showTransponder);
   const showAdsb = useUiStore((state) => state.showAdsb);
   const showVideo = useUiStore((state) => state.showVideo);
+  const showCamera = useUiStore((state) => state.showCamera);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -831,6 +832,18 @@ export function MenuBar() {
           onSelect: () => {
             close();
             showVideo();
+          },
+          disabled: !linked,
+          checked: undefined,
+          separator: false,
+          hint: linked ? "" : "no link",
+        },
+        {
+          id: "setup-camera",
+          label: "The camera and the gimbal…",
+          onSelect: () => {
+            close();
+            showCamera();
           },
           disabled: !linked,
           checked: undefined,

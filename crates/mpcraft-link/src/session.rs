@@ -249,6 +249,10 @@ pub struct SessionState {
     pub messages: Vec<mpcraft_vehicle::VehicleMessage>,
     /// The traffic that the vehicle has heard.
     pub adsb: Vec<crate::adsb::AdsbVehicle>,
+    /// The gimbals the vehicle has reported.
+    pub gimbals: Vec<crate::gimbal::GimbalDevice>,
+    /// The cameras the vehicle has reported.
+    pub cameras: Vec<crate::camera::CameraDevice>,
     /// The request of the terrain the vehicle has made, when it has made one.
     pub terrain_request: Option<crate::terrain::TerrainRequest>,
     /// Whether the board's output looks like a DroneCAN bus.
@@ -283,6 +287,10 @@ struct SessionContext {
     plaintext: PlaintextSniffer,
     /// The traffic that the vehicle has heard.
     adsb: crate::adsb::AdsbRegistry,
+    /// The gimbals the vehicle has reported.
+    gimbals: crate::gimbal::GimbalRegistry,
+    /// The cameras the vehicle has reported.
+    cameras: crate::camera::CameraRegistry,
     /// The request of the terrain the vehicle has made.
     terrain_request: Option<crate::terrain::TerrainRequest>,
     accountants: HashMap<VehicleId, LossAccountant>,
@@ -403,6 +411,38 @@ impl SessionContext {
             }
         }
 
+        // The gimbals and the cameras are kept because the operator controls them: what a
+        // device can do decides whether a control is offered, and where it points or what it
+        // is capturing is what the sheet shows.
+        match &message {
+            MavMessage::GIMBAL_MANAGER_INFORMATION(information) => {
+                self.gimbals
+                    .observe_information(frame.component_id, information);
+            }
+            MavMessage::GIMBAL_MANAGER_STATUS(status) => {
+                self.gimbals.observe_status(status);
+            }
+            MavMessage::GIMBAL_DEVICE_ATTITUDE_STATUS(attitude) => {
+                self.gimbals.observe_attitude(attitude);
+            }
+            MavMessage::CAMERA_INFORMATION(information) => {
+                self.cameras
+                    .observe_information(frame.component_id, information);
+            }
+            // The number of pictures a camera has taken is a MAVLink v2 extension field, and
+            // the bindings this project compiles do not carry it, so only the mode and the
+            // state of the captures are kept — both read from the component that sent them,
+            // because these messages name no target.
+            MavMessage::CAMERA_SETTINGS(settings) => {
+                self.cameras.observe_settings(frame.component_id, settings);
+            }
+            MavMessage::CAMERA_CAPTURE_STATUS(status) => {
+                self.cameras
+                    .observe_capture_status(frame.component_id, status);
+            }
+            _ => {}
+        }
+
         // The vehicle asks for the terrain of the ground it is over.
         if let MavMessage::TERRAIN_REQUEST(request) = &message {
             self.terrain_request = Some(crate::terrain::TerrainRequest {
@@ -470,6 +510,8 @@ impl SessionContext {
             plaintext: self.plaintext.lines(),
             messages: self.messages.iter().cloned().collect(),
             adsb: self.adsb.vehicles(),
+            gimbals: self.gimbals.devices(),
+            cameras: self.cameras.cameras(),
             terrain_request: self.terrain_request,
             looks_like_can_bus: self.plaintext.looks_like_can_bus(),
             connected,
@@ -490,6 +532,8 @@ impl SessionState {
             plaintext: Vec::new(),
             messages: Vec::new(),
             adsb: Vec::new(),
+            gimbals: Vec::new(),
+            cameras: Vec::new(),
             terrain_request: None,
             looks_like_can_bus: false,
             connected: false,

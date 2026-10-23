@@ -3,7 +3,10 @@ import { create } from "zustand";
 import { listen } from "../ipc/bridge";
 import type {
   AdsbVehicle,
+  CameraDevice,
   ConnectionStatus,
+  GimbalAttitude,
+  GimbalDevice,
   LossStats,
   Telemetry,
   VehicleEvent,
@@ -30,6 +33,8 @@ interface LinkStatePayload {
   readonly messages: readonly VehicleMessage[];
   readonly board?: string | null;
   readonly adsb?: readonly AdsbVehicle[];
+  readonly gimbals?: readonly GimbalDevice[];
+  readonly cameras?: readonly CameraDevice[];
 }
 
 /** The payload of the `playback-state` event. */
@@ -63,6 +68,20 @@ export interface LinkStore {
    * map draws it.
    */
   readonly adsb: readonly AdsbVehicle[];
+  /**
+   * The gimbals the vehicle has reported.
+   *
+   * What a gimbal says about itself is what the sheet of the camera shows: the capabilities
+   * decide which controls are offered, and the attitude is where it points.
+   */
+  readonly gimbals: readonly GimbalDevice[];
+  /**
+   * The cameras the vehicle has reported.
+   *
+   * The mode and the state of the captures come from the camera itself, so the sheet shows
+   * what the camera says rather than what was asked for.
+   */
+  readonly cameras: readonly CameraDevice[];
   /** The most recent telemetry snapshot. */
   readonly telemetry: Telemetry;
   /**
@@ -89,6 +108,8 @@ const INITIAL: LinkStore = {
   messages: [],
   board: null,
   adsb: [],
+  gimbals: [],
+  cameras: [],
   telemetry: EMPTY_TELEMETRY,
   playback: false,
   playbackPosition: 0,
@@ -188,6 +209,70 @@ function sameAdsb(
   });
 }
 
+/** Whether two lists of gimbals say the same thing.
+ *
+ * The attitude of a gimbal changes as the vehicle moves, so the sheet is only re-rendered
+ * when something it shows has actually changed.
+ */
+function sameGimbals(
+  left: readonly GimbalDevice[],
+  right: readonly GimbalDevice[],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((gimbal, index) => {
+    const other = right[index];
+    return (
+      other !== undefined &&
+      gimbal.deviceId === other.deviceId &&
+      gimbal.failed === other.failed &&
+      gimbal.flags.yawLock === other.flags.yawLock &&
+      sameAttitude(gimbal.attitude, other.attitude)
+    );
+  });
+}
+
+/** Whether two attitudes of a gimbal are the same. */
+function sameAttitude(
+  left: GimbalAttitude | null,
+  right: GimbalAttitude | null,
+): boolean {
+  return (
+    left?.roll === right?.roll &&
+    left?.pitch === right?.pitch &&
+    left?.yaw === right?.yaw
+  );
+}
+
+/** Whether two lists of cameras say the same thing. */
+function sameCameras(
+  left: readonly CameraDevice[],
+  right: readonly CameraDevice[],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((camera, index) => {
+    const other = right[index];
+    return (
+      other !== undefined &&
+      camera.componentId === other.componentId &&
+      camera.mode === other.mode &&
+      camera.imageStatus === other.imageStatus &&
+      camera.videoStatus === other.videoStatus &&
+      camera.takesPictureNow === other.takesPictureNow &&
+      camera.recordsVideoNow === other.recordsVideoNow
+    );
+  });
+}
+
 /** Whether two sets of loss statistics are the same. */function sameLoss(left: LossStats, right: LossStats): boolean {
   return left.received === right.received && left.lost === right.lost;
 }
@@ -263,6 +348,12 @@ export function startLinkBridge(): void {
         adsb: sameAdsb(state.adsb, payload.adsb ?? [])
           ? state.adsb
           : (payload.adsb ?? []),
+        gimbals: sameGimbals(state.gimbals, payload.gimbals ?? [])
+          ? state.gimbals
+          : (payload.gimbals ?? []),
+        cameras: sameCameras(state.cameras, payload.cameras ?? [])
+          ? state.cameras
+          : (payload.cameras ?? []),
         telemetry,
       };
     });

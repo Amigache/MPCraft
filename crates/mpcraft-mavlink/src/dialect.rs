@@ -28,6 +28,14 @@ pub use mavlink::dialects::ardupilotmega::{AdsbAltitudeType, AdsbEmitterType, Ad
 // The flags that say whether a video stream is running.
 pub use mavlink::dialects::ardupilotmega::VideoStreamStatusFlags;
 
+// The flags and enumerations of the gimbal manager protocol.
+pub use mavlink::dialects::ardupilotmega::{
+    GimbalDeviceErrorFlags, GimbalDeviceFlags, GimbalManagerCapFlags, GimbalManagerFlags,
+};
+
+// The flags and enumerations of the camera protocol.
+pub use mavlink::dialects::ardupilotmega::{CameraCapFlags, CameraMode, CameraZoomType};
+
 /// The type of the GPS fix.
 ///
 /// The enumeration is called `GPS_FIX_TYPE` in the dialect, and the generator prefixes

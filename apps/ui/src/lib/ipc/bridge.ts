@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   AdsbRelayStatus,
   BoardInfo,
+  CameraDevice,
   ChecklistEntry,
   CommandError,
   ConnectRequest,
@@ -20,6 +21,7 @@ import type {
   GraphPreset,
   GraphSeries,
   GeoPoint,
+  GimbalDevice,
   LogSummary,
   PlaybackInfo,
   LogTrackPoint,
@@ -49,6 +51,7 @@ import type {
   VehicleMessage,
   VehicleRequest,
   VideoStream,
+  ZoomOption,
 } from "./types";
 
 export { listen };
@@ -250,6 +253,262 @@ export async function videoStreamStop(
   streamId: number,
 ): Promise<void> {
   await call<void>("video_stream_stop", { req: {}, componentId, streamId });
+}
+
+/**
+ * What the gimbals of the vehicle can do.
+ *
+ * What a gimbal says about itself decides which controls the sheet offers: the program that
+ * knows the protocol refuses an angle before anything is sent, so the interface only has to
+ * show what the vehicle answered.
+ */
+export async function gimbalDevices(
+  vehicle?: VehicleKey,
+): Promise<GimbalDevice[]> {
+  return call<GimbalDevice[]>("gimbal_devices", vehicleRequest(vehicle));
+}
+
+/** Points a gimbal at an angle, in degrees. */
+export async function setGimbalAngles(
+  deviceId: number,
+  pitch: number,
+  yaw: number,
+  yawLock: boolean,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_gimbal_angles", {
+    ...vehicleRequest(vehicle),
+    deviceId,
+    pitch,
+    yaw,
+    yawLock,
+  });
+}
+
+/** Moves a gimbal at a rate, without waiting for the vehicle to say it took it. */
+export async function slewGimbal(
+  deviceId: number,
+  pitch: number,
+  yaw: number,
+  pitchRate: number,
+  yawRate: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("slew_gimbal", {
+    ...vehicleRequest(vehicle),
+    deviceId,
+    pitch,
+    yaw,
+    pitchRate,
+    yawRate,
+  });
+}
+
+/** Puts a gimbal in its safe position. */
+export async function retractGimbal(
+  deviceId: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("retract_gimbal", { ...vehicleRequest(vehicle), deviceId });
+}
+
+/** Puts a gimbal in its default position. */
+export async function neutralGimbal(
+  deviceId: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("neutral_gimbal", { ...vehicleRequest(vehicle), deviceId });
+}
+
+/** Says whether the yaw of a gimbal is held against the ground or follows the vehicle. */
+export async function setGimbalYawLock(
+  deviceId: number,
+  yawLock: boolean,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_gimbal_yaw_lock", {
+    ...vehicleRequest(vehicle),
+    deviceId,
+    yawLock,
+  });
+}
+
+/** Points a gimbal at a place on the ground. */
+export async function pointGimbalAtLocation(
+  deviceId: number,
+  latitude: number,
+  longitude: number,
+  altitude: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("point_gimbal_at_location", {
+    ...vehicleRequest(vehicle),
+    deviceId,
+    latitude,
+    longitude,
+    altitude,
+  });
+}
+
+/** Takes the point of interest away from a gimbal. */
+export async function clearGimbalRoi(
+  deviceId: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("clear_gimbal_roi", {
+    ...vehicleRequest(vehicle),
+    deviceId,
+  });
+}
+
+/** Points a gimbal at another vehicle. */
+export async function pointGimbalAtVehicle(
+  deviceId: number,
+  systemId: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("point_gimbal_at_vehicle", {
+    ...vehicleRequest(vehicle),
+    deviceId,
+    systemId,
+  });
+}
+
+/** Asks the vehicle what its cameras can do, and asks them to keep saying what they are doing. */
+export async function readCamera(
+  vehicle?: VehicleKey,
+): Promise<CameraDevice[]> {
+  return call<CameraDevice[]>("read_camera", vehicleRequest(vehicle));
+}
+
+/** The kinds of zoom a camera can be asked for, as the backend lists them. */
+export async function cameraZoomOptions(): Promise<ZoomOption[]> {
+  return call<ZoomOption[]>("camera_zoom_options");
+}
+
+/**
+ * Asks a camera to take one picture.
+ *
+ * A camera answers on its own component, so the command names the component that reported it.
+ */
+export async function capturePhoto(
+  cameraComponentId: number,
+  cameraIndex: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("capture_photo", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    cameraIndex,
+  });
+}
+
+/** Asks a camera to take pictures at an interval, in seconds. */
+export async function startIntervalCapture(
+  cameraComponentId: number,
+  cameraIndex: number,
+  intervalSeconds: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("start_interval_capture", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    cameraIndex,
+    intervalSeconds,
+  });
+}
+
+/** Stops the pictures a camera was taking at an interval. */
+export async function stopIntervalCapture(
+  cameraComponentId: number,
+  cameraIndex: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("stop_interval_capture", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    cameraIndex,
+  });
+}
+
+/** Asks a camera to start recording video. */
+export async function startRecording(
+  cameraComponentId: number,
+  streamId: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("start_recording", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    streamId,
+  });
+}
+
+/** Stops the video a camera was recording. */
+export async function stopRecording(
+  cameraComponentId: number,
+  streamId: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("stop_recording", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    streamId,
+  });
+}
+
+/** Sets the zoom of a camera, with one of the kinds of zoom the backend listed. */
+export async function setCameraZoom(
+  cameraComponentId: number,
+  level: number,
+  zoomType: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_camera_zoom", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    level,
+    zoomType,
+  });
+}
+
+/**
+ * Asks a camera to follow a point in its picture.
+ *
+ * The place is given from `-1` to `1`. Picking it from the picture itself waits on the video
+ * player, so the numbers are typed here.
+ */
+export async function trackPoint(
+  cameraComponentId: number,
+  x: number,
+  y: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("track_point", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    x,
+    y,
+  });
+}
+
+/** Asks a camera to follow an area of its picture. */
+export async function trackRectangle(
+  cameraComponentId: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("track_rectangle", {
+    ...vehicleRequest(vehicle),
+    cameraComponentId,
+    x1,
+    y1,
+    x2,
+    y2,
+  });
 }
 
 /**

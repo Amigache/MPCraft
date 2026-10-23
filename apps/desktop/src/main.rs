@@ -1786,6 +1786,401 @@ async fn video_stream_stop(
         .await
 }
 
+/// Asks the vehicle what its gimbals can do.
+///
+/// What a gimbal says about itself decides which controls the sheet offers: MPCraft refuses
+/// an angle before anything is sent, rather than sending it and waiting for the vehicle to
+/// say it cannot.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle
+/// does not answer.
+#[tauri::command]
+async fn gimbal_devices(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<Vec<mpcraft_link::GimbalDevice>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.gimbal_devices(vehicle).await
+}
+
+/// Points a gimbal at an angle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the angle is not
+/// one the command can carry, when the gimbal cannot do this, when the vehicle refuses the
+/// command, or when it does not answer.
+#[tauri::command]
+async fn set_gimbal_angles(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+    pitch: f64,
+    yaw: f64,
+    yaw_lock: bool,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .set_gimbal_angles(vehicle, device_id, pitch, yaw, yaw_lock)
+        .await
+}
+
+/// Moves a gimbal at a rate, without waiting for the vehicle to say it took it.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when a number is not
+/// one the command can carry, or when the gimbal cannot do this.
+#[tauri::command]
+async fn slew_gimbal(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+    pitch: f64,
+    yaw: f64,
+    pitch_rate: f64,
+    yaw_rate: f64,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .slew_gimbal(vehicle, device_id, pitch, yaw, pitch_rate, yaw_rate)
+        .await
+}
+
+/// Puts a gimbal in its safe position.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the gimbal cannot
+/// be retracted, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn retract_gimbal(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.retract_gimbal(vehicle, device_id).await
+}
+
+/// Puts a gimbal in its default position.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the gimbal cannot
+/// go to neutral, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn neutral_gimbal(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.neutral_gimbal(vehicle, device_id).await
+}
+
+/// Says whether the yaw of a gimbal is held against the ground or follows the vehicle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the gimbal cannot
+/// do this, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn set_gimbal_yaw_lock(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+    yaw_lock: bool,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .set_gimbal_yaw_lock(vehicle, device_id, yaw_lock)
+        .await
+}
+
+/// Points a gimbal at a place on the ground.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the place is not a
+/// place, when the gimbal cannot point at one, when the vehicle refuses the command, or when
+/// it does not answer.
+#[tauri::command]
+async fn point_gimbal_at_location(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+    latitude: f64,
+    longitude: f64,
+    altitude: f64,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .point_gimbal_at_location(vehicle, device_id, latitude, longitude, altitude)
+        .await
+}
+
+/// Takes the point of interest away from a gimbal.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle refuses
+/// the command, or when it does not answer.
+#[tauri::command]
+async fn clear_gimbal_roi(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.clear_gimbal_roi(vehicle, device_id).await
+}
+
+/// Points a gimbal at another vehicle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the system id is
+/// larger than the command can carry exactly, when the gimbal cannot point at a place, when
+/// the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn point_gimbal_at_vehicle(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    device_id: u8,
+    system_id: u32,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .point_gimbal_at_vehicle(vehicle, device_id, system_id)
+        .await
+}
+
+/// Asks the vehicle what its cameras can do, and asks them to keep saying what they are doing.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the camera does not
+/// answer, or when the vehicle refuses one of the commands.
+#[tauri::command]
+async fn read_camera(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<Vec<mpcraft_link::CameraDevice>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.read_camera(vehicle).await
+}
+
+/// The kinds of zoom a camera can be asked for.
+///
+/// The interface does not know the numbers the protocol uses: it asks for this list and sends
+/// back one of the values it was given.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn camera_zoom_options(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<mpcraft_link::ZoomOption>> {
+    Ok(state.supervisor.zoom_options())
+}
+
+/// Asks a camera to take one picture.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the camera cannot
+/// take pictures, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn capture_photo(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    camera_index: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .capture_photo(vehicle, camera_component, camera_index)
+        .await
+}
+
+/// Asks a camera to take pictures at an interval.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the interval is not
+/// a positive number of seconds, when the camera cannot take pictures, when the vehicle refuses
+/// the command, or when it does not answer.
+#[tauri::command]
+async fn start_interval_capture(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    camera_index: u8,
+    interval_seconds: f64,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .start_interval_capture(vehicle, camera_component, camera_index, interval_seconds)
+        .await
+}
+
+/// Stops the pictures a camera was taking at an interval.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the camera cannot
+/// take pictures, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn stop_interval_capture(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    camera_index: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .stop_interval_capture(vehicle, camera_component, camera_index)
+        .await
+}
+
+/// Asks a camera to start recording video.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the camera cannot
+/// record video, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn start_recording(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    stream_id: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .start_recording(vehicle, camera_component, stream_id)
+        .await
+}
+
+/// Stops the video a camera was recording.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the camera cannot
+/// record video, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn stop_recording(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    stream_id: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .stop_recording(vehicle, camera_component, stream_id)
+        .await
+}
+
+/// Sets the zoom of a camera.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the level is not a
+/// number, when the kind of zoom is one the protocol does not know, when the camera cannot be
+/// zoomed, when the vehicle refuses the command, or when it does not answer.
+#[tauri::command]
+async fn set_camera_zoom(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    level: f64,
+    zoom_type: u32,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .set_camera_zoom(vehicle, camera_component, level, zoom_type)
+        .await
+}
+
+/// Asks a camera to follow a point in its picture.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the place is outside
+/// the picture, when the camera cannot follow a point, when the vehicle refuses the command, or
+/// when it does not answer.
+#[tauri::command]
+async fn track_point(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    x: f64,
+    y: f64,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .track_point(vehicle, camera_component, x, y)
+        .await
+}
+
+/// Asks a camera to follow an area of its picture.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when a corner is outside
+/// the picture, when the camera cannot follow an area, when the vehicle refuses the command, or
+/// when it does not answer.
+#[tauri::command]
+async fn track_rectangle(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    camera_component: u8,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state
+        .supervisor
+        .track_rectangle(vehicle, camera_component, x1, y1, x2, y2)
+        .await
+}
+
 /// The slots of the on-screen display, and what each of them holds.
 ///
 /// The screens five and six are the ones the operator chooses. The answer is the name
@@ -2848,6 +3243,13 @@ struct StateEvent {
     board: Option<String>,
     /// The traffic that the vehicle has heard.
     adsb: Vec<AdsbEvent>,
+    /// The gimbals the vehicle has reported.
+    ///
+    /// The types of the link layer are used here as they are: they already carry the shape
+    /// the interface reads, and the shell does not know what a gimbal is.
+    gimbals: Vec<mpcraft_link::GimbalDevice>,
+    /// The cameras the vehicle has reported.
+    cameras: Vec<mpcraft_link::CameraDevice>,
 }
 
 /// One aircraft of the traffic that the vehicle has heard.
@@ -3306,6 +3708,10 @@ impl From<&LinkSnapshot> for StateEvent {
             adsb: state
                 .map(|state| state.adsb.iter().map(adsb_event_of).collect())
                 .unwrap_or_default(),
+            // The gimbals and the cameras are passed through as the link reported them: the
+            // shell does not know what a gimbal can do, and it should not have to.
+            gimbals: state.map(|state| state.gimbals.clone()).unwrap_or_default(),
+            cameras: state.map(|state| state.cameras.clone()).unwrap_or_default(),
         }
     }
 }
@@ -3639,6 +4045,25 @@ fn main() {
             video_streams,
             video_stream_start,
             video_stream_stop,
+            gimbal_devices,
+            set_gimbal_angles,
+            slew_gimbal,
+            retract_gimbal,
+            neutral_gimbal,
+            set_gimbal_yaw_lock,
+            point_gimbal_at_location,
+            clear_gimbal_roi,
+            point_gimbal_at_vehicle,
+            read_camera,
+            camera_zoom_options,
+            capture_photo,
+            start_interval_capture,
+            stop_interval_capture,
+            start_recording,
+            stop_recording,
+            set_camera_zoom,
+            track_point,
+            track_rectangle,
             http_server_start,
             http_server_stop,
             list_signing_keys,

@@ -61,6 +61,7 @@ pub mod camera;
 pub mod commands;
 pub mod error;
 pub mod ftp;
+pub mod gimbal;
 pub mod heartbeat;
 pub mod home;
 pub mod logs;
@@ -77,10 +78,19 @@ pub mod transponder;
 pub mod vehicle;
 
 pub use adsb::{AdsbRegistry, AdsbSource, AdsbVehicle};
-pub use camera::{VideoStream, VIDEO_STREAM_INFORMATION_ID};
+pub use camera::{
+    zoom_options, zoom_type_of, CameraCapabilities, CameraDevice, CameraRegistry, VideoStream,
+    ZoomOption, CAMERA_CAPTURE_STATUS_ID, CAMERA_INFORMATION_ID, CAMERA_SETTINGS_ID,
+    VIDEO_STREAM_INFORMATION_ID,
+};
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
 pub use ftp::{FtpClient, FtpEntry, FtpError, Opcode as FtpOpcode};
+pub use gimbal::{
+    euler_of, wrap_180, GimbalAttitude, GimbalCapabilities, GimbalDevice, GimbalFlags,
+    GimbalLimits, GimbalRegistry, DEFAULT_GIMBAL_TIMEOUT, GIMBAL_DEVICE_ATTITUDE_STATUS_ID,
+    GIMBAL_MANAGER_INFORMATION_ID, GIMBAL_MANAGER_SET_PITCHYAW_ID, GIMBAL_MANAGER_STATUS_ID,
+};
 pub use heartbeat::{Heartbeat, HeartbeatCollector, HeartbeatRejection};
 pub use home::{
     HomeError, HomeRequest, DEFAULT_HOME_RETRIES, DEFAULT_HOME_TIMEOUT, HOME_POSITION_ID,

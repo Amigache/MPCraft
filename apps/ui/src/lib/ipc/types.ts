@@ -122,6 +122,148 @@ export interface VideoStream {
   readonly running: boolean;
 }
 
+/** What a gimbal can do, as its manager says. */
+export interface GimbalCapabilities {
+  /** Whether the gimbal can be put in its safe position. */
+  readonly hasRetract: boolean;
+  /** Whether the gimbal can be put in its default position. */
+  readonly hasNeutral: boolean;
+  /** Whether the gimbal has a roll axis. */
+  readonly hasRollAxis: boolean;
+  /** Whether the gimbal has a pitch axis. */
+  readonly hasPitchAxis: boolean;
+  /** Whether the gimbal has a yaw axis. */
+  readonly hasYawAxis: boolean;
+  /** Whether the yaw can be held against the ground. */
+  readonly hasYawLock: boolean;
+  /** Whether the yaw can follow the vehicle. */
+  readonly hasYawFollow: boolean;
+  /** Whether the gimbal can be pointed at an angle. */
+  readonly canPointLocal: boolean;
+  /** Whether the gimbal can be pointed at a place on the ground. */
+  readonly canPointGlobal: boolean;
+}
+
+/** How far the axes of a gimbal go, in degrees. */
+export interface GimbalLimits {
+  /** The lowest roll angle. */
+  readonly rollMin: number;
+  /** The highest roll angle. */
+  readonly rollMax: number;
+  /** The lowest pitch angle. */
+  readonly pitchMin: number;
+  /** The highest pitch angle. */
+  readonly pitchMax: number;
+  /** The lowest yaw angle. */
+  readonly yawMin: number;
+  /** The highest yaw angle. */
+  readonly yawMax: number;
+}
+
+/** The flags a gimbal is running with. */
+export interface GimbalFlags {
+  /** Whether the gimbal is in its safe position. */
+  readonly retracted: boolean;
+  /** Whether the gimbal is in its default position. */
+  readonly neutral: boolean;
+  /** Whether the roll is held against the horizon. */
+  readonly rollLock: boolean;
+  /** Whether the pitch is held against the horizon. */
+  readonly pitchLock: boolean;
+  /** Whether the yaw is held against the ground. */
+  readonly yawLock: boolean;
+  /** Whether the yaw is measured from the way the vehicle is pointing. */
+  readonly yawInVehicleFrame: boolean;
+  /** Whether the yaw is measured from the ground. */
+  readonly yawInEarthFrame: boolean;
+}
+
+/** Where a gimbal points, in degrees. */
+export interface GimbalAttitude {
+  /** The roll angle. */
+  readonly roll: number;
+  /** The pitch angle. */
+  readonly pitch: number;
+  /** The yaw angle, always read against the ground. */
+  readonly yaw: number;
+}
+
+/** One gimbal the vehicle has reported. */
+export interface GimbalDevice {
+  /** The component that reports this gimbal. */
+  readonly componentId: number;
+  /** The device id the commands name. */
+  readonly deviceId: number;
+  /** What the gimbal can do. */
+  readonly capabilities: GimbalCapabilities;
+  /** How far its axes go. */
+  readonly limits: GimbalLimits;
+  /** The flags it is running with. */
+  readonly flags: GimbalFlags;
+  /** Where it points, when the vehicle has said. */
+  readonly attitude: GimbalAttitude | null;
+  /** Whether the gimbal says something is wrong with it. */
+  readonly failed: boolean;
+  /** The component that holds the control of the gimbal, `0` when nobody does. */
+  readonly controllerComponentId: number;
+}
+
+/** What a camera can do, as it says. */
+export interface CameraCapabilities {
+  /** Whether the camera records video. */
+  readonly recordsVideo: boolean;
+  /** Whether the camera takes pictures. */
+  readonly takesPictures: boolean;
+  /** Whether the camera has separate image and video modes. */
+  readonly hasModes: boolean;
+  /** Whether a picture can be taken while the camera is recording. */
+  readonly canTakePictureWhileRecording: boolean;
+  /** Whether video can be recorded while the camera is taking pictures. */
+  readonly canRecordWhileImaging: boolean;
+  /** Whether the camera can be zoomed. */
+  readonly hasZoom: boolean;
+  /** Whether the camera can follow a point in its picture. */
+  readonly canTrackPoint: boolean;
+  /** Whether the camera can follow an area of its picture. */
+  readonly canTrackRectangle: boolean;
+}
+
+/** One camera the vehicle has reported. */
+export interface CameraDevice {
+  /** The component that reports this camera. */
+  readonly componentId: number;
+  /** Who made the camera. */
+  readonly vendor: string;
+  /** Which camera it is. */
+  readonly model: string;
+  /** The width of the picture, in pixels. */
+  readonly width: number;
+  /** The height of the picture, in pixels. */
+  readonly height: number;
+  /** Where the camera says its definition is, when it says one. */
+  readonly definitionUri: string;
+  /** What the camera can do. */
+  readonly capabilities: CameraCapabilities;
+  /** The mode the camera is in, as a word the interface shows. */
+  readonly mode: string;
+  /** Whether a picture can be taken in the mode it is in. */
+  readonly takesPictureNow: boolean;
+  /** Whether video can be recorded in the mode it is in. */
+  readonly recordsVideoNow: boolean;
+  /** What the camera says about its pictures, as a word. */
+  readonly imageStatus: string;
+  /** What the camera says about its video, as a word. */
+  readonly videoStatus: string;
+}
+
+/** A kind of zoom, as the program that knows the protocol lists it. */
+export interface ZoomOption {
+  /** The value the command carries. */
+  readonly value: number;
+  /** The word the interface shows. */
+  readonly name: string;
+}
+
 /** One aircraft of the traffic, from the vehicle or from a source of the station. */
 export interface AdsbVehicle {
   /** The address the aircraft has. */

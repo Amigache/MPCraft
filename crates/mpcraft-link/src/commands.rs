@@ -692,6 +692,34 @@ impl Session {
         params: [i32; 7],
         timeout: Duration,
     ) -> Result<MavResult, LinkError> {
+        self.command_int_in_frame(
+            vehicle,
+            command,
+            params,
+            MavFrame::MAV_FRAME_GLOBAL,
+            timeout,
+        )
+        .await
+    }
+
+    /// Sends an integer command in the frame the command needs.
+    ///
+    /// The frame is part of what the command means: a height above the ground and a height
+    /// above the sea are different numbers, and a point of interest for a gimbal is asked
+    /// for in the frame of the ground.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command, or when it does not answer
+    /// in time.
+    pub(crate) async fn command_int_in_frame(
+        &self,
+        vehicle: VehicleId,
+        command: MavCmd,
+        params: [i32; 7],
+        frame: MavFrame,
+        timeout: Duration,
+    ) -> Result<MavResult, LinkError> {
         self.execute_command(vehicle, command, timeout, |_confirmation| {
             MavMessage::COMMAND_INT(COMMAND_INT_DATA {
                 param1: params[0] as f32,
@@ -704,7 +732,7 @@ impl Session {
                 command,
                 target_system: vehicle.system_id,
                 target_component: vehicle.component_id,
-                frame: MavFrame::MAV_FRAME_GLOBAL,
+                frame,
                 current: 0,
                 autocontinue: 0,
             })

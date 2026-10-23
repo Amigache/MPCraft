@@ -8,8 +8,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mpcraft_link::{
-    Calibration, FtpClient, FtpEntry, HomeRequest, OsdSlot, OsdSlotConfig, PartialUpdate,
-    PartialUpdatePolicy, Session, VehicleId, VideoStream,
+    zoom_options, zoom_type_of, Calibration, CameraDevice, FtpClient, FtpEntry, GimbalDevice,
+    HomeRequest, OsdSlot, OsdSlotConfig, PartialUpdate, PartialUpdatePolicy, Session, VehicleId,
+    VideoStream, ZoomOption,
 };
 use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionItem, MissionType, Plan};
@@ -49,6 +50,45 @@ const OSD_SLOTS: u8 = 9;
 
 /// How long to wait for the vehicle to answer a question about a slot.
 const OSD_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// How often a camera says what it is doing.
+///
+/// The reports are asked for so that the sheet shows the mode the camera is in without the
+/// operator asking again; one a second is enough for a mode and a capture state.
+const CAMERA_REPORT_RATE: u32 = 1;
+
+/// The reason an angle is not one the command can carry, or nothing when it is.
+fn check_degrees(value: f64, what: &str) -> CommandResult<()> {
+    if !value.is_finite() || value < -180.0 || value > 180.0 {
+        return Err(CommandError::invalid_request(format!(
+            "{what} is not an angle between -180 and 180 degrees"
+        )));
+    }
+
+    Ok(())
+}
+
+/// The reason a place is outside the picture, or nothing when it is not.
+///
+/// The camera a command is addressed to.
+///
+/// A camera answers on its own component, and the registry keeps it under that component, so
+/// a command for a camera goes to the component that reported it rather than to the autopilot.
+fn camera_of(vehicle: VehicleId, camera_component: u8) -> VehicleId {
+    VehicleId::new(vehicle.system_id, camera_component)
+}
+
+/// The picture is read from `-1` to `1`: `-1` is the left or the top, `1` is the right or
+/// the bottom. A number outside that range is not a place in the picture.
+fn check_picture_place(value: f64, what: &str) -> CommandResult<()> {
+    if !value.is_finite() || value < -1.0 || value > 1.0 {
+        return Err(CommandError::invalid_request(format!(
+            "{what} is outside the picture, which reads from -1 to 1"
+        )));
+    }
+
+    Ok(())
+}
 
 impl SessionSupervisor {
     /// The session that is open, if there is one.
@@ -537,6 +577,493 @@ impl SessionSupervisor {
 
         session
             .stop_video_stream(vehicle, component_id, stream_id, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle what its gimbals can do.
+    ///
+    /// What the gimbal says about itself decides which controls the sheet offers: an angle
+    /// is refused before anything is sent, because a device without a pitch axis cannot be
+    /// pitched.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle does not answer, or
+    /// when the link cannot carry the request.
+    pub async fn gimbal_devices(&self, vehicle: VehicleId) -> CommandResult<Vec<GimbalDevice>> {
+        let session = self.open_session()?;
+
+        Ok(session.request_gimbal_information(vehicle).await?)
+    }
+
+    /// Points a gimbal at an angle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the angle is not a number the
+    /// command can carry, when the gimbal cannot do this, when the vehicle refuses the
+    /// command, or when it does not answer.
+    pub async fn set_gimbal_angles(
+        &self,
+        vehicle: VehicleId,
+        device_id: u8,
+        pitch: f64,
+        yaw: f64,
+        yaw_lock: bool,
+    ) -> CommandResult<()> {
+        check_degrees(pitch, "the pitch")?;
+        check_degrees(yaw, "the yaw")?;
+
+        let session = self.open_session()?;
+
+        session
+            .set_gimbal_angles(vehicle, device_id, pitch, yaw, yaw_lock, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Moves a gimbal at a rate, without waiting for the vehicle to say it took it.
+    ///
+    /// This is the path a joystick drives: the message goes out at the rate the stick moves,
+    /// and the vehicle does not answer it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when a number is not one the command can
+    /// carry, or when the gimbal cannot do this.
+    pub async fn slew_gimbal(
+        &self,
+        vehicle: VehicleId,
+        device_id: u8,
+        pitch: f64,
+        yaw: f64,
+        pitch_rate: f64,
+        yaw_rate: f64,
+    ) -> CommandResult<()> {
+        check_degrees(pitch, "the pitch")?;
+        check_degrees(yaw, "the yaw")?;
+
+        if !pitch_rate.is_finite() || !yaw_rate.is_finite() {
+            return Err(CommandError::invalid_request(
+                "the rates of the gimbal are not numbers",
+            ));
+        }
+
+        let session = self.open_session()?;
+
+        session
+            .set_gimbal_angles_now(vehicle, device_id, pitch, yaw, pitch_rate, yaw_rate)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Puts a gimbal in its safe position.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the gimbal cannot be retracted,
+    /// when the vehicle refuses the command, or when it does not answer.
+    pub async fn retract_gimbal(&self, vehicle: VehicleId, device_id: u8) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .retract_gimbal(vehicle, device_id, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Puts a gimbal in its default position.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the gimbal cannot go to neutral,
+    /// when the vehicle refuses the command, or when it does not answer.
+    pub async fn neutral_gimbal(&self, vehicle: VehicleId, device_id: u8) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .neutral_gimbal(vehicle, device_id, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Says whether the yaw of a gimbal is held against the ground or follows the vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the gimbal cannot do this, when the
+    /// vehicle refuses the command, or when it does not answer.
+    pub async fn set_gimbal_yaw_lock(
+        &self,
+        vehicle: VehicleId,
+        device_id: u8,
+        yaw_lock: bool,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .set_gimbal_yaw_lock(vehicle, device_id, yaw_lock, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Points a gimbal at a place on the ground.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the place is not a place, when the
+    /// gimbal cannot point at one, when the vehicle refuses the command, or when it does not
+    /// answer.
+    pub async fn point_gimbal_at_location(
+        &self,
+        vehicle: VehicleId,
+        device_id: u8,
+        latitude: f64,
+        longitude: f64,
+        altitude: f64,
+    ) -> CommandResult<()> {
+        if !latitude.is_finite() || !longitude.is_finite() || !altitude.is_finite() {
+            return Err(CommandError::invalid_request(
+                "the point of interest is not a place",
+            ));
+        }
+
+        let session = self.open_session()?;
+
+        session
+            .set_gimbal_roi_location(
+                vehicle,
+                device_id,
+                latitude,
+                longitude,
+                altitude,
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Takes the point of interest away from a gimbal.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the command, or
+    /// when it does not answer.
+    pub async fn clear_gimbal_roi(&self, vehicle: VehicleId, device_id: u8) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .clear_gimbal_roi(vehicle, device_id, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Points a gimbal at another vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the system id is larger than the
+    /// command can carry exactly, when the gimbal cannot point at a place, when the vehicle
+    /// refuses the command, or when it does not answer.
+    pub async fn point_gimbal_at_vehicle(
+        &self,
+        vehicle: VehicleId,
+        device_id: u8,
+        system_id: u32,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .set_gimbal_roi_sysid(vehicle, device_id, system_id, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle what its cameras can do, and asks them to say what they are doing.
+    ///
+    /// The camera answers with who made it, which camera it is, and what it can be asked to
+    /// do. The reports are then kept coming, so that the sheet shows the mode the camera is
+    /// in without the operator asking again.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the camera does not answer, or when
+    /// the vehicle refuses one of the commands.
+    pub async fn read_camera(&self, vehicle: VehicleId) -> CommandResult<Vec<CameraDevice>> {
+        let session = self.open_session()?;
+
+        let cameras = session.request_camera_information(vehicle).await?;
+
+        for camera in &cameras {
+            session
+                .watch_camera(
+                    camera_of(vehicle, camera.component_id),
+                    camera,
+                    CAMERA_REPORT_RATE,
+                    COMMAND_TIMEOUT,
+                )
+                .await?;
+        }
+
+        Ok(cameras)
+    }
+
+    /// The kinds of zoom a camera can be asked for.
+    ///
+    /// The interface does not know the numbers the protocol uses: it asks for the list, and
+    /// sends back one of the values it was given.
+    #[must_use]
+    pub fn zoom_options(&self) -> Vec<ZoomOption> {
+        zoom_options()
+    }
+
+    /// Asks a camera to take one picture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the camera cannot take pictures,
+    /// when the vehicle refuses the command, or when it does not answer.
+    pub async fn capture_photo(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        camera_index: u8,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .capture_photo(
+                camera_of(vehicle, camera_component),
+                camera_index,
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks a camera to take pictures at an interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the interval is not a positive
+    /// number of seconds, when the camera cannot take pictures, when the vehicle refuses the
+    /// command, or when it does not answer.
+    pub async fn start_interval_capture(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        camera_index: u8,
+        interval_seconds: f64,
+    ) -> CommandResult<()> {
+        if !interval_seconds.is_finite() || interval_seconds <= 0.0 {
+            return Err(CommandError::invalid_request(
+                "the interval between pictures is not a number of seconds",
+            ));
+        }
+
+        let session = self.open_session()?;
+
+        session
+            .start_interval_capture(
+                camera_of(vehicle, camera_component),
+                camera_index,
+                interval_seconds,
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Stops the pictures a camera was taking at an interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the camera cannot take pictures,
+    /// when the vehicle refuses the command, or when it does not answer.
+    pub async fn stop_interval_capture(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        camera_index: u8,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .stop_interval_capture(
+                camera_of(vehicle, camera_component),
+                camera_index,
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks a camera to start recording video.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the camera cannot record video, when
+    /// the vehicle refuses the command, or when it does not answer.
+    pub async fn start_recording(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        stream_id: u8,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .start_recording(
+                camera_of(vehicle, camera_component),
+                stream_id,
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Stops the video a camera was recording.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the camera cannot record video, when
+    /// the vehicle refuses the command, or when it does not answer.
+    pub async fn stop_recording(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        stream_id: u8,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .stop_recording(
+                camera_of(vehicle, camera_component),
+                stream_id,
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Sets the zoom of a camera.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the level is not a number, when the
+    /// kind of zoom is one the protocol does not know, when the camera cannot be zoomed, when
+    /// the vehicle refuses the command, or when it does not answer.
+    pub async fn set_camera_zoom(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        level: f64,
+        zoom_type: u32,
+    ) -> CommandResult<()> {
+        if !level.is_finite() {
+            return Err(CommandError::invalid_request(
+                "the zoom level is not a number",
+            ));
+        }
+
+        let kind = zoom_type_of(zoom_type).ok_or_else(|| {
+            CommandError::invalid_request("the kind of zoom is not one the protocol knows")
+        })?;
+
+        let session = self.open_session()?;
+
+        session
+            .set_camera_zoom(
+                camera_of(vehicle, camera_component),
+                level,
+                kind,
+                COMMAND_TIMEOUT,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks a camera to follow a point in its picture.
+    ///
+    /// The place is given from `-1` to `1`, which is how the interface shows it. Drawing the
+    /// picture so that the operator can pick a place from it waits on the video player.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the place is outside the picture,
+    /// when the camera cannot follow a point, when the vehicle refuses the command, or when
+    /// it does not answer.
+    pub async fn track_point(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        x: f64,
+        y: f64,
+    ) -> CommandResult<()> {
+        check_picture_place(x, "the horizontal position")?;
+        check_picture_place(y, "the vertical position")?;
+
+        let session = self.open_session()?;
+
+        session
+            .track_point(camera_of(vehicle, camera_component), x, y, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks a camera to follow an area of its picture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when a corner is outside the picture,
+    /// when the camera cannot follow an area, when the vehicle refuses the command, or when
+    /// it does not answer.
+    pub async fn track_rectangle(
+        &self,
+        vehicle: VehicleId,
+        camera_component: u8,
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+    ) -> CommandResult<()> {
+        for (value, what) in [
+            (x1, "the first corner"),
+            (y1, "the first corner"),
+            (x2, "the second corner"),
+            (y2, "the second corner"),
+        ] {
+            check_picture_place(value, what)?;
+        }
+
+        let session = self.open_session()?;
+
+        session
+            .track_rectangle(
+                camera_of(vehicle, camera_component),
+                x1,
+                y1,
+                x2,
+                y2,
+                COMMAND_TIMEOUT,
+            )
             .await?;
 
         Ok(())
