@@ -1002,6 +1002,45 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Hold to send": "Mantener para enviar",
     "The width of the flight data column":
       "El ancho de la columna de los datos del vuelo",
+    // The map: the tiles, the traffic, and going to a place.
+    "The aircraft the vehicle has heard":
+      "Las aeronaves que el vehículo ha oído",
+    "{count} in the air": "{count} en el aire",
+    "The provider of the tiles": "El proveedor de las fichas",
+    Follow: "Seguir",
+    Following: "Siguiendo",
+    "Click the map to tell the vehicle to go there":
+      "Pulsa el mapa para decir al vehículo que vaya ahí",
+    "Click the map": "Pulsa el mapa",
+    "Go here": "Ir aquí",
+    "Fetch the tiles of this area and keep them, for a flight without a signal":
+      "Pedir las fichas de esta zona y guardarlas, para un vuelo sin señal",
+    "Save the area": "Guardar la zona",
+    "Hide controls": "Quitar los controles",
+    "Show controls": "Mostrar los controles",
+    "The tiles of the area are fetched and kept, so that the map is drawn with them when there is no signal.":
+      "Las fichas de la zona se piden y se guardan, para que el mapa se dibuje con ellas cuando no hay señal.",
+    "Levels below": "Niveles debajo",
+    "How many levels of zoom below the present one are fetched":
+      "Cuántos niveles de zoom debajo del presente se piden",
+    "Fetching…": "Se piden…",
+    "Fetch the tiles": "Pedir las fichas",
+    "Click the map to add a waypoint":
+      "Pulsa el mapa para añadir un punto del plan",
+    "The map could not be drawn: {failure}":
+      "El mapa no se pudo dibujar: {failure}",
+    "The sources of tiles could not be read.":
+      "Las fuentes de fichas no se pudieron leer.",
+    "{count} tile was fetched and kept.": "{count} ficha se pidió y se guardó.",
+    "{count} tiles were fetched and kept.":
+      "{count} fichas se pidieron y se guardaron.",
+    "{code} — the tiles could not be fetched.":
+      "{code} — las fichas no se pudieron pedir.",
+    "The tiles of the area were already on the disk.":
+      "Las fichas de la zona ya estaban en el disco.",
+    "{count} vehicle on the link": "{count} vehículo en el enlace",
+    "{count} vehicles on the link": "{count} vehículos en el enlace",
+    "No vehicle on the link": "Ningún vehículo en el enlace",
   },
 };
 

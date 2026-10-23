@@ -2,6 +2,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { normaliseError, prefetchTiles } from "../../lib/ipc/bridge";
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
 import type {
@@ -222,6 +223,8 @@ export function FlightMap() {
   } | null>(null);
 
   const [failure, setFailure] = useState<string | null>(null);
+
+  const t = useLocaleStore((state) => state.t);
   /**
    * Fetches the tiles of the area that is on the map and keeps them.
    *
@@ -263,13 +266,20 @@ export function FlightMap() {
 
       setNotice(
         fetched === 0
-          ? "The tiles of the area were already on the disk."
-          : `${fetched} tiles were fetched and kept.`,
+          ? t("The tiles of the area were already on the disk.")
+          : t(
+              fetched === 1
+                ? "{count} tile was fetched and kept."
+                : "{count} tiles were fetched and kept.",
+              { count: fetched },
+            ),
       );
       setSaving(false);
     } catch (cause) {
       setNotice(
-        `${normaliseError(cause).code} — the tiles could not be fetched.`,
+        t("{code} — the tiles could not be fetched.", {
+          code: normaliseError(cause).code,
+        }),
       );
     } finally {
       setBusy(false);
@@ -337,7 +347,7 @@ export function FlightMap() {
         // The map is drawn with what it has: a source that cannot be read is a map
         // without tiles, and the map says so.
         if (!cancelled) {
-          setFailure("The sources of tiles could not be read.");
+          setFailure(t("The sources of tiles could not be read."));
         }
       });
 
@@ -1155,9 +1165,9 @@ export function FlightMap() {
         {showControls && adsb.length > 0 ? (
           <span
             className={styles.traffic}
-            title="The aircraft the vehicle has heard"
+            title={t("The aircraft the vehicle has heard")}
           >
-            {adsb.length} aircraft
+            {t("{count} in the air", { count: adsb.length })}
           </span>
         ) : null}
 
@@ -1165,8 +1175,8 @@ export function FlightMap() {
           <select
             className={styles.provider}
             value={mapProvider}
-            aria-label="The provider of the tiles"
-            title="The provider of the tiles"
+            aria-label={t("The provider of the tiles")}
+            title={t("The provider of the tiles")}
             onChange={(event) => {
               setMapProvider(event.target.value);
             }}
@@ -1186,7 +1196,7 @@ export function FlightMap() {
             aria-pressed={follow}
             onClick={() => setFollow(!follow)}
           >
-            {follow ? "Following" : "Follow"}
+            {follow ? t("Following") : t("Follow")}
           </button>
         ) : null}
 
@@ -1195,10 +1205,10 @@ export function FlightMap() {
             type="button"
             className={`${styles.follow} ${mapGoing ? styles.followOn : ""}`}
             aria-pressed={mapGoing}
-            title="Click the map to tell the vehicle to go there"
+            title={t("Click the map to tell the vehicle to go there")}
             onClick={() => setMapGoing(!mapGoing)}
           >
-            {mapGoing ? "Click the map" : "Go here"}
+            {mapGoing ? t("Click the map") : t("Go here")}
           </button>
         ) : null}
         {providerOf(mapProvider)?.tiles !== null &&
@@ -1206,12 +1216,14 @@ export function FlightMap() {
           <button
             type="button"
             className={styles.control}
-            title="Fetch the tiles of this area and keep them, for a flight without a signal"
+            title={t(
+              "Fetch the tiles of this area and keep them, for a flight without a signal",
+            )}
             onClick={() => {
               setSaving(true);
             }}
           >
-            Save the area
+            {t("Save the area")}
           </button>
         ) : null}
         <button
@@ -1220,27 +1232,34 @@ export function FlightMap() {
           aria-pressed={showControls}
           onClick={toggleControls}
         >
-          {showControls ? "Hide controls" : "Show controls"}
+          {showControls ? t("Hide controls") : t("Show controls")}
         </button>
       </div>
 
       <div className={styles.messages}>
         {saving ? (
-          <div className={styles.area} role="group" aria-label="Save the area">
+          <div
+            className={styles.area}
+            role="group"
+            aria-label={t("Save the area")}
+          >
             <p className={styles.hint}>
-              The tiles of the area are fetched and kept, so that the map is
-              drawn with them when there is no signal.
+              {t(
+                "The tiles of the area are fetched and kept, so that the map is drawn with them when there is no signal.",
+              )}
             </p>
 
             <label className={styles.areaField}>
-              <span className={styles.hint}>Levels below</span>
+              <span className={styles.hint}>{t("Levels below")}</span>
               <input
                 className="input"
                 type="number"
                 min={0}
                 max={8}
                 value={levels}
-                aria-label="How many levels of zoom below the present one are fetched"
+                aria-label={t(
+                  "How many levels of zoom below the present one are fetched",
+                )}
                 onChange={(event) => {
                   setLevels(Number(event.target.value));
                 }}
@@ -1256,7 +1275,7 @@ export function FlightMap() {
                   void saveArea();
                 }}
               >
-                {busy ? "Fetching…" : "Fetch the tiles"}
+                {busy ? t("Fetching…") : t("Fetch the tiles")}
               </button>
 
               <button
@@ -1266,7 +1285,7 @@ export function FlightMap() {
                   setSaving(false);
                 }}
               >
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
           </div>
@@ -1280,21 +1299,26 @@ export function FlightMap() {
 
         {adding ? (
           <p className={styles.hint} role="status">
-            Click the map to add a waypoint
+            {t("Click the map to add a waypoint")}
           </p>
         ) : null}
 
         {failure ? (
           <p className={styles.failure} role="alert">
-            The map could not be drawn: {failure}
+            {t("The map could not be drawn: {failure}", { failure })}
           </p>
         ) : null}
       </div>
 
       <p className={styles.caption}>
         {vehicles.length > 0
-          ? `${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"} on the link`
-          : "No vehicle on the link"}
+          ? t(
+              vehicles.length === 1
+                ? "{count} vehicle on the link"
+                : "{count} vehicles on the link",
+              { count: vehicles.length },
+            )
+          : t("No vehicle on the link")}
       </p>
     </div>
   );
