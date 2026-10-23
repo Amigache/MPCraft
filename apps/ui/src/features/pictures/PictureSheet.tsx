@@ -8,6 +8,7 @@ import {
   writeGeotagged,
 } from "../../lib/ipc/bridge";
 import { pickFolder, pickOpenPath } from "../../lib/ipc/dialog";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import {
   DASH,
   formatCoordinate,
@@ -37,6 +38,7 @@ import styles from "./PictureSheet.module.css";
 export function PictureSheet() {
   const open = useUiStore((state) => state.picturesOpen);
   const hide = useUiStore((state) => state.hidePictures);
+  const t = useLocaleStore((state) => state.t);
 
   const folder = usePictureStore((state) => state.folder);
   const log = usePictureStore((state) => state.log);
@@ -91,7 +93,9 @@ export function PictureSheet() {
       const found = await readPictures(folder);
       setPictures(found);
 
-      return `The folder holds ${found.length} picture${found.length === 1 ? "" : "s"}.`;
+      return found.length === 1
+        ? t("The folder holds {count} picture.", { count: found.length })
+        : t("The folder holds {count} pictures.", { count: found.length });
     });
 
   const workTheClockOut = () =>
@@ -99,12 +103,19 @@ export function PictureSheet() {
       const difference = await estimatePictureOffset(folder, log);
 
       if (difference === null) {
-        return "The instants of the folder cannot be lined up with the log, so nothing was worked out.";
+        return t(
+          "The instants of the folder cannot be lined up with the log, so nothing was worked out.",
+        );
       }
 
       setOffset(difference);
 
-      return `The clock of the camera is ${formatNumber(difference, 1)} seconds from the clock of the log.`;
+      return t(
+        "The clock of the camera is {seconds} seconds from the clock of the log.",
+        {
+          seconds: formatNumber(difference, 1),
+        },
+      );
     });
 
   const matchWithTheLog = () =>
@@ -116,7 +127,10 @@ export function PictureSheet() {
         (picture) => picture.matchedPlace !== null,
       ).length;
 
-      return `${matchedCount} of ${matched.length} pictures were matched with a sample of the log.`;
+      return t(
+        "{count} of {total} pictures were matched with a sample of the log.",
+        { count: matchedCount, total: matched.length },
+      );
     });
 
   const writeTheCopies = () =>
@@ -129,7 +143,10 @@ export function PictureSheet() {
         lag,
       );
 
-      return `${written} copies were written to ${folder}/geotagged.`;
+      return t("{written} copies were written to {folder}/geotagged.", {
+        written,
+        folder,
+      });
     });
 
   // The sheet is only drawn when it is the sheet that is open, but what it read is kept in the
@@ -145,66 +162,68 @@ export function PictureSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="The pictures and where they were taken"
+        aria-label={t("The pictures and where they were taken")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
           <h2 className={styles.title}>
-            The pictures and where they were taken
+            {t("The pictures and where they were taken")}
           </h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
           <p className={styles.text}>
-            The place a picture says is what its own file carries. The place the
-            log says is where the vehicle was at the instant the camera made it,
-            once the difference between the two clocks is worked out from the
-            pictures at both ends of the folder. A picture that is more than two
-            seconds from any sample of the log keeps only its own place.
+            {t(
+              "The place a picture says is what its own file carries. The place the log says is where the vehicle was at the instant the camera made it, once the difference between the two clocks is worked out from the pictures at both ends of the folder. A picture that is more than two seconds from any sample of the log keeps only its own place.",
+            )}
           </p>
 
           <div className={styles.fields}>
             <label className={styles.field}>
-              <span className={styles.label}>The folder of the pictures</span>
+              <span className={styles.label}>
+                {t("The folder of the pictures")}
+              </span>
               <input
                 className="input"
                 type="text"
                 value={folder}
                 onChange={(event) => setFolder(event.target.value)}
-                placeholder="the folder the pictures are in"
+                placeholder={t("the folder the pictures are in")}
               />
             </label>
 
             <button type="button" className="button" onClick={chooseFolder}>
-              Choose the folder
+              {t("Choose the folder")}
             </button>
           </div>
 
           <div className={styles.fields}>
             <label className={styles.field}>
-              <span className={styles.label}>The log of the flight</span>
+              <span className={styles.label}>{t("The log of the flight")}</span>
               <input
                 className="input"
                 type="text"
                 value={log}
                 onChange={(event) => setLog(event.target.value)}
-                placeholder="the telemetry log to match with"
+                placeholder={t("the telemetry log to match with")}
               />
             </label>
 
             <button type="button" className="button" onClick={chooseLog}>
-              Choose the log
+              {t("Choose the log")}
             </button>
           </div>
 
           <div className={styles.fields}>
             <label className={`${styles.field} ${styles.seconds}`}>
-              <span className={styles.label}>The two clocks, in seconds</span>
+              <span className={styles.label}>
+                {t("The two clocks, in seconds")}
+              </span>
               <input
                 className="input"
                 type="number"
@@ -218,7 +237,7 @@ export function PictureSheet() {
 
             <label className={`${styles.field} ${styles.seconds}`}>
               <span className={styles.label}>
-                What the shutter took, in seconds
+                {t("What the shutter took, in seconds")}
               </span>
               <input
                 className="input"
@@ -239,7 +258,7 @@ export function PictureSheet() {
               onClick={readThePictures}
               disabled={busy || folder === ""}
             >
-              Read the pictures
+              {t("Read the pictures")}
             </button>
             <button
               type="button"
@@ -247,7 +266,7 @@ export function PictureSheet() {
               onClick={workTheClockOut}
               disabled={busy || folder === "" || log === ""}
             >
-              Work the clock out
+              {t("Work the clock out")}
             </button>
             <button
               type="button"
@@ -255,7 +274,7 @@ export function PictureSheet() {
               onClick={matchWithTheLog}
               disabled={busy || folder === "" || log === ""}
             >
-              Match them with the log
+              {t("Match them with the log")}
             </button>
             <button
               type="button"
@@ -263,7 +282,7 @@ export function PictureSheet() {
               onClick={writeTheCopies}
               disabled={busy || folder === "" || log === ""}
             >
-              Write the copies
+              {t("Write the copies")}
             </button>
           </div>
         </section>
@@ -271,19 +290,19 @@ export function PictureSheet() {
         <section className={styles.block}>
           {pictures.length === 0 ? (
             <p className={styles.text}>
-              Nothing is read yet. A folder that holds no picture with a block
-              inside it says nothing, and a picture whose instant the log does
-              not hold has no second place.
+              {t(
+                "Nothing is read yet. A folder that holds no picture with a block inside it says nothing, and a picture whose instant the log does not hold has no second place.",
+              )}
             </p>
           ) : (
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>The file</th>
-                  <th>When the camera says it was made</th>
-                  <th>The place the file says</th>
-                  <th>The place the log says</th>
-                  <th>Seconds apart</th>
+                  <th>{t("The file")}</th>
+                  <th>{t("When the camera says it was made")}</th>
+                  <th>{t("The place the file says")}</th>
+                  <th>{t("The place the log says")}</th>
+                  <th>{t("Seconds apart")}</th>
                 </tr>
               </thead>
               <tbody>

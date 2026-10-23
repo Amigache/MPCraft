@@ -145,6 +145,43 @@ const bundles: Record<Locale, Record<string, string>> = {
 
     // What a menu says when an entry cannot be used.
     "no link": "sin enlace",
+
+    // The sheet of the pictures.
+    "The pictures and where they were taken": "Las fotos y dónde se hicieron",
+    Close: "Cerrar",
+    "The place a picture says is what its own file carries. The place the log says is where the vehicle was at the instant the camera made it, once the difference between the two clocks is worked out from the pictures at both ends of the folder. A picture that is more than two seconds from any sample of the log keeps only its own place.":
+      "El lugar que una foto dice es el que lleva su propio archivo. El lugar que dice el registro es donde estaba el vehículo en el instante en que la cámara la hizo, una vez trabajada la diferencia entre los dos relojes desde las fotos de los dos extremos de la carpeta. Una foto que está a más de dos segundos de cualquier muestra del registro se queda solo con su lugar.",
+    "Nothing is read yet. A folder that holds no picture with a block inside it says nothing, and a picture whose instant the log does not hold has no second place.":
+      "Todavía no se ha leído nada. Una carpeta que no tiene ninguna foto con un bloque dentro no dice nada, y una foto cuyo instante el registro no tiene no tiene segundo lugar.",
+    "The folder of the pictures": "La carpeta de las fotos",
+    "the folder the pictures are in": "la carpeta donde están las fotos",
+    "Choose the folder": "Elegir la carpeta",
+    "The log of the flight": "El registro del vuelo",
+    "the telemetry log to match with":
+      "el registro de telemetría con el que cotejar",
+    "Choose the log": "Elegir el registro",
+    "The two clocks, in seconds": "Los dos relojes, en segundos",
+    "What the shutter took, in seconds":
+      "Lo que tardó el obturador, en segundos",
+    "Read the pictures": "Leer las fotos",
+    "Work the clock out": "Trabajar el reloj",
+    "Match them with the log": "Cotejarlas con el registro",
+    "Write the copies": "Escribir las copias",
+    "The file": "El archivo",
+    "When the camera says it was made": "Cuándo dice la cámara que se hizo",
+    "The place the file says": "El lugar que dice el archivo",
+    "The place the log says": "El lugar que dice el registro",
+    "Seconds apart": "Segundos de diferencia",
+    "The instants of the folder cannot be lined up with the log, so nothing was worked out.":
+      "Los instantes de la carpeta no se pueden alinear con el registro, así que no se trabajó nada.",
+    "The clock of the camera is {seconds} seconds from the clock of the log.":
+      "El reloj de la cámara está a {seconds} segundos del reloj del registro.",
+    "The folder holds {count} picture.": "La carpeta contiene {count} foto.",
+    "The folder holds {count} pictures.": "La carpeta contiene {count} fotos.",
+    "{count} of {total} pictures were matched with a sample of the log.":
+      "{count} de {total} fotos cotejadas con una muestra del registro.",
+    "{written} copies were written to {folder}/geotagged.":
+      "{written} copias escritas en {folder}/geotagged.",
   },
 };
 
