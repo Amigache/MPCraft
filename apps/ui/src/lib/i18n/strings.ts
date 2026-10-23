@@ -547,6 +547,56 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Let the radio channels go back to the radio":
       "Devolver los canales de la radio a la radio",
     "Release the channels": "Soltar los canales",
+
+    // The sheet of the terrain.
+    "Terrain…": "El terreno…",
+    "The cells of the ground": "Las celdas del suelo",
+    "Open a folder of cells…": "Abrir una carpeta de celdas…",
+    "The height under the vehicle": "La altura bajo el vehículo",
+    "The ground under the vehicle is at {metres} metres over the sea.":
+      "El suelo bajo el vehículo está a {metres} metros sobre el mar.",
+    Level: "Nivel",
+    "South-west corner": "Rincón suroeste",
+    Posts: "Postes",
+    "No folder of cells has been opened. The heights of the service are used until one is.":
+      "No se ha abierto ninguna carpeta de celdas. Se usan las alturas del servicio hasta que se abra una.",
+    "A survey that follows the ground": "Un levantamiento que sigue el suelo",
+    "The strips run across the line that joins the two places, one after the other, and the vehicle flies at the same height over the ground everywhere.":
+      "Las franjas cruzan la línea que une los dos lugares, una tras otra, y el vehículo vuela a la misma altura sobre el suelo en todas partes.",
+    "From latitude": "Latitud de inicio",
+    "The latitude the survey starts at":
+      "La latitud donde empieza el levantamiento",
+    "From longitude": "Longitud de inicio",
+    "The longitude the survey starts at":
+      "La longitud donde empieza el levantamiento",
+    "To latitude": "Latitud de fin",
+    "The latitude the survey ends at":
+      "La latitud donde termina el levantamiento",
+    "To longitude": "Longitud de fin",
+    "The longitude the survey ends at":
+      "La longitud donde termina el levantamiento",
+    "Strip m": "Franja, m",
+    "How long the strips are": "Lo largas que son las franjas",
+    "Apart m": "Separadas, m",
+    "How far apart the strips are": "Lo separadas que están las franjas",
+    "Over the ground m": "Sobre el suelo, m",
+    "How high over the ground the vehicle flies":
+      "La altura sobre el suelo a la que vuela el vehículo",
+    "Work out the survey": "Calcular el levantamiento",
+    "Add it to the plan": "Añadirlo al plan",
+    "The survey was added to the plan.": "El levantamiento se añadió al plan.",
+    "the vehicle has not said where it is.":
+      "el vehículo no ha dicho dónde está.",
+    "the two places of the survey have to be told.":
+      "hay que decir los dos lugares del levantamiento.",
+    // What the sheet says about how many things there are, one and more than one.
+    "{count} cell was read.": "Se ha leído {count} celda.",
+    "{count} cells were read.": "Se han leído {count} celdas.",
+    "{count} file could not be read.": "{count} archivo no se ha podido leer.",
+    "{count} files could not be read.":
+      "{count} archivos no se han podido leer.",
+    "The survey has {count} point.": "El levantamiento tiene {count} punto.",
+    "The survey has {count} points.": "El levantamiento tiene {count} puntos.",
   },
 };
 

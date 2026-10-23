@@ -8,6 +8,7 @@ import {
 } from "../../lib/ipc/bridge";
 import { pickFolder } from "../../lib/ipc/dialog";
 import type { DtedLibraryInfo, TerrainPathPoint } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLiveValue } from "../../lib/link/liveTelemetry";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -42,6 +43,8 @@ const DEFAULT_SAMPLE_STEP = 50;
 export function TerrainSheet() {
   const open = useUiStore((state) => state.terrainOpen);
   const hide = useUiStore((state) => state.hideTerrain);
+
+  const t = useLocaleStore((state) => state.t);
 
   const addPath = usePlanEditorStore((state) => state.addPath);
 
@@ -99,9 +102,20 @@ export function TerrainSheet() {
       const info = await openDtedFolder(picked.path);
       setLibrary(info);
       setNotice(
-        `${info.cells.length} cell${info.cells.length === 1 ? "" : "s"} were read.` +
+        t(
+          info.cells.length === 1
+            ? "{count} cell was read."
+            : "{count} cells were read.",
+          { count: info.cells.length },
+        ) +
           (info.failures > 0
-            ? ` ${info.failures} file${info.failures === 1 ? "" : "s"} could not be read.`
+            ? " " +
+              t(
+                info.failures === 1
+                  ? "{count} file could not be read."
+                  : "{count} files could not be read.",
+                { count: info.failures },
+              )
             : ""),
       );
     } catch (cause) {
@@ -113,7 +127,7 @@ export function TerrainSheet() {
 
   const readHeight = async () => {
     if (position === null) {
-      setError("the vehicle has not said where it is.");
+      setError(t("the vehicle has not said where it is."));
       return;
     }
 
@@ -140,7 +154,7 @@ export function TerrainSheet() {
       !Number.isFinite(to.lat) ||
       !Number.isFinite(to.lng)
     ) {
-      setError("the two places of the survey have to be told.");
+      setError(t("the two places of the survey have to be told."));
       return;
     }
 
@@ -160,7 +174,12 @@ export function TerrainSheet() {
 
       setPath(points);
       setNotice(
-        `The survey has ${points.length} point${points.length === 1 ? "" : "s"}.`,
+        t(
+          points.length === 1
+            ? "The survey has {count} point."
+            : "The survey has {count} points.",
+          { count: points.length },
+        ),
       );
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -175,20 +194,20 @@ export function TerrainSheet() {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label="Terrain"
+        aria-label={t("Terrain")}
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>Terrain</h2>
+          <h2 className={styles.title}>{t("Terrain")}</h2>
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
 
         <section className={styles.block}>
-          <h3 className={styles.heading}>The cells of the ground</h3>
+          <h3 className={styles.heading}>{t("The cells of the ground")}</h3>
           <div className={styles.row}>
             <button
               type="button"
@@ -198,7 +217,7 @@ export function TerrainSheet() {
                 void openFolder();
               }}
             >
-              Open a folder of cells…
+              {t("Open a folder of cells…")}
             </button>
             <button
               type="button"
@@ -208,14 +227,18 @@ export function TerrainSheet() {
                 void readHeight();
               }}
             >
-              The height under the vehicle
+              {t("The height under the vehicle")}
             </button>
           </div>
 
           {height !== null ? (
             <p className={styles.text}>
-              The ground under the vehicle is at {Math.round(height)} metres
-              over the sea.
+              {t(
+                "The ground under the vehicle is at {metres} metres over the sea.",
+                {
+                  metres: Math.round(height),
+                },
+              )}
             </p>
           ) : null}
 
@@ -223,10 +246,10 @@ export function TerrainSheet() {
             <table className={styles.cells}>
               <thead>
                 <tr>
-                  <th>File</th>
-                  <th>Level</th>
-                  <th>South-west corner</th>
-                  <th>Posts</th>
+                  <th>{t("File")}</th>
+                  <th>{t("Level")}</th>
+                  <th>{t("South-west corner")}</th>
+                  <th>{t("Posts")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -246,30 +269,33 @@ export function TerrainSheet() {
             </table>
           ) : (
             <p className={styles.text}>
-              No folder of cells has been opened. The heights of the service are
-              used until one is.
+              {t(
+                "No folder of cells has been opened. The heights of the service are used until one is.",
+              )}
             </p>
           )}
         </section>
 
         <section className={styles.block}>
-          <h3 className={styles.heading}>A survey that follows the ground</h3>
+          <h3 className={styles.heading}>
+            {t("A survey that follows the ground")}
+          </h3>
           <p className={styles.text}>
-            The strips run across the line that joins the two places, one after
-            the other, and the vehicle flies at the same height over the ground
-            everywhere.
+            {t(
+              "The strips run across the line that joins the two places, one after the other, and the vehicle flies at the same height over the ground everywhere.",
+            )}
           </p>
 
           <div className={styles.fields}>
             <label className={styles.field}>
-              <span className={styles.label}>From latitude</span>
+              <span className={styles.label}>{t("From latitude")}</span>
               <input
                 className="input"
                 type="number"
                 step="0.000001"
                 value={fromLat}
                 placeholder={position ? position.lat.toFixed(6) : ""}
-                aria-label="The latitude the survey starts at"
+                aria-label={t("The latitude the survey starts at")}
                 onChange={(event) => {
                   setFromLat(event.target.value);
                 }}
@@ -277,14 +303,14 @@ export function TerrainSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>From longitude</span>
+              <span className={styles.label}>{t("From longitude")}</span>
               <input
                 className="input"
                 type="number"
                 step="0.000001"
                 value={fromLng}
                 placeholder={position ? position.lng.toFixed(6) : ""}
-                aria-label="The longitude the survey starts at"
+                aria-label={t("The longitude the survey starts at")}
                 onChange={(event) => {
                   setFromLng(event.target.value);
                 }}
@@ -292,13 +318,13 @@ export function TerrainSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>To latitude</span>
+              <span className={styles.label}>{t("To latitude")}</span>
               <input
                 className="input"
                 type="number"
                 step="0.000001"
                 value={toLat}
-                aria-label="The latitude the survey ends at"
+                aria-label={t("The latitude the survey ends at")}
                 onChange={(event) => {
                   setToLat(event.target.value);
                 }}
@@ -306,13 +332,13 @@ export function TerrainSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>To longitude</span>
+              <span className={styles.label}>{t("To longitude")}</span>
               <input
                 className="input"
                 type="number"
                 step="0.000001"
                 value={toLng}
-                aria-label="The longitude the survey ends at"
+                aria-label={t("The longitude the survey ends at")}
                 onChange={(event) => {
                   setToLng(event.target.value);
                 }}
@@ -320,13 +346,13 @@ export function TerrainSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>Strip m</span>
+              <span className={styles.label}>{t("Strip m")}</span>
               <input
                 className="input"
                 type="number"
                 min={1}
                 value={stripLength}
-                aria-label="How long the strips are"
+                aria-label={t("How long the strips are")}
                 onChange={(event) => {
                   setStripLength(Number(event.target.value));
                 }}
@@ -334,13 +360,13 @@ export function TerrainSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>Apart m</span>
+              <span className={styles.label}>{t("Apart m")}</span>
               <input
                 className="input"
                 type="number"
                 min={1}
                 value={stripSpacing}
-                aria-label="How far apart the strips are"
+                aria-label={t("How far apart the strips are")}
                 onChange={(event) => {
                   setStripSpacing(Number(event.target.value));
                 }}
@@ -348,13 +374,13 @@ export function TerrainSheet() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.label}>Over the ground m</span>
+              <span className={styles.label}>{t("Over the ground m")}</span>
               <input
                 className="input"
                 type="number"
                 min={0}
                 value={clearance}
-                aria-label="How high over the ground the vehicle flies"
+                aria-label={t("How high over the ground the vehicle flies")}
                 onChange={(event) => {
                   setClearance(Number(event.target.value));
                 }}
@@ -371,7 +397,7 @@ export function TerrainSheet() {
                 void workOutPath();
               }}
             >
-              Work out the survey
+              {t("Work out the survey")}
             </button>
 
             <button
@@ -387,10 +413,10 @@ export function TerrainSheet() {
                   })),
                 );
                 setPath([]);
-                setNotice("The survey was added to the plan.");
+                setNotice(t("The survey was added to the plan."));
               }}
             >
-              Add it to the plan
+              {t("Add it to the plan")}
             </button>
           </div>
         </section>
