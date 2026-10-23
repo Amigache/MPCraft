@@ -35,6 +35,7 @@ import styles from "./PictureSheet.module.css";
  * The sheet needs no link: it reads files, so it is open whether or not a vehicle is on the wire.
  */
 export function PictureSheet() {
+  const open = useUiStore((state) => state.picturesOpen);
   const hide = useUiStore((state) => state.hidePictures);
 
   const folder = usePictureStore((state) => state.folder);
@@ -130,6 +131,13 @@ export function PictureSheet() {
 
       return `${written} copies were written to ${folder}/geotagged.`;
     });
+
+  // The sheet is only drawn when it is the sheet that is open, but what it read is kept in the
+  // store, so the map still draws the places of a folder that was read before the sheet was
+  // closed.
+  if (!open) {
+    return null;
+  }
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={hide}>
