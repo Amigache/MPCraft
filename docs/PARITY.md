@@ -238,6 +238,11 @@ auxiliary functions - the map filling everything else, and a status strip. The l
 the attitude indicator, the map with the vehicle and the track, the plan drawn on it, the
 dials, the tiles and the vehicle's own messages are all on screen.
 
+The window is read at 1024x640 and at 1920x1080, and the boxes are measured rather than looked
+at: nothing is drawn over anything else and nothing is cut off. A tile of the quick view keeps
+the line its number is written on even when the name above it wraps in another language, because
+the number is what the operator reads first — the tile grows before the number is cut.
+
 The **screens** are what upstream's main switcher is: the flight data, the plan, the
 configuration and the logs. The window is on one of them at a time, and the switcher above
 the body chooses which; the arrow keys move between them, and the body is the panel labelled

@@ -4,9 +4,9 @@
  * These run under Playwright, not under Vitest: the two runners cannot share a file, so
  * `vite.config.ts` keeps this folder out of the unit test run.
  *
- * Playwright is **not** a dependency yet — installing it needs a browser download that
- * does not belong in a build script — so these specs are the place to start from rather
- * than something the test run exercises today.
+ * Playwright drives the real bundle served by Vite, so what it sees is what a person sees. What
+ * it cannot see is the Rust side: the IPC bridge has no backend here, so these specs check the
+ * shell and its layout, not what a vehicle answers.
  */
 import { expect, test } from "@playwright/test";
 

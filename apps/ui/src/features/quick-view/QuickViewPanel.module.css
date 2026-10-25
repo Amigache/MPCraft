@@ -82,6 +82,10 @@
   font-family: var(--font-mono);
   font-size: var(--font-md);
   font-variant-numeric: tabular-nums;
+  /* A flex item whose own overflow is hidden can be squeezed to nothing, which is what a long
+     label in Spanish does to it: the number is what the operator reads first, so the line it is
+     written on keeps its height and the tile grows instead. */
+  flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
