@@ -96,23 +96,24 @@ const GATES = [
     probe: ["playwright", "--version"],
     args: ["playwright", "test"],
     cwd: UI,
-    /** What it covers that the unit tests do not: the flows a person actually goes through. */
-    control: null,
+    /** What it covers that the unit tests do not: the flows, and the boxes at the two sizes in the language chosen. */
+    control:
+      "the known-bad pair inside e2e/layout.spec.ts, and scripts/check-overlaps-controls.js for the checker itself",
     proof: (text) => lineMatching(text, /\d+ passed/),
   },
   {
-    name: "layout at the two sizes",
-    layer: "frontend",
+    name: "integration against SITL",
+    layer: "any",
     /**
-     * What stands in for a visual gate here: the boxes are read from the running application
-     * through its debugger, at 1024x640 and 1920x1080, in the language chosen. It sees boxes, so
-     * a control drawn under a picture, or an overlap that only appears once a font loads, is
-     * outside of what it measures.
+     * A simulated vehicle written from the specification, independently of the Rust code, stands in
+     * for a live simulator on this machine, where the simulator image cannot be fetched. It covers
+     * the protocols; it does not cover timing, a radio, or a board, so what stands in is narrower
+     * than what it replaces.
      */
     substitute:
-      "scripts/check-overlaps.js, driven from the debugger at both sizes",
+      "scripts/simulated-vehicle.py, which answers the parameter, mission and command protocols",
     control:
-      "scripts/check-overlaps-controls.js (known-bad fails, known-good passes)",
+      "the golden-file stream, which is a second implementation rather than a mirror of the parser",
   },
   {
     name: "rust formatting",

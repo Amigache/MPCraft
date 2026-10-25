@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * The controls of the gate runner: the four things it claims, each shown doing what it claims.
+ * The controls of the gate runner: what it claims about itself, each shown doing what it claims.
  *
  *     it can fail          a word through the catalogue with no entry, and a known-bad scratch
  *                          file that writes that word, is put through it
  *     it can pass          the same run without the scratch file
- *     it names what did not run, and does not read it as green   a layer that was not touched,
- *                          and a tool that is not there
+ *     it names what did not run, and does not read it as green   a layer that was not touched, a
+ *                          tool that is not there, and a gate something else stands in for
  *
  * What these prove, and what they do not: they prove the states are reachable and that the exit
  * code follows them. They do not prove that a gate that runs is strong — a gate whose green rests
- * on a count it cannot fail on is outside of what these two cases buy, and BLOQUEADO is not
- * exercised here because it needs an artifact genuinely locked by the running application.
+ * on a count it cannot fail on is outside of what these cases buy, and BLOQUEADO is not exercised
+ * here because it needs an artifact genuinely locked by the running application.
  */
 
 import { execFileSync } from "node:child_process";
@@ -99,7 +99,7 @@ checks.push({
   },
 });
 
-// What did not run, in its two kinds.
+// What did not run, in its three kinds: not applicable, tool missing, and stood in for.
 const notApplicable = run(["docs/PLAN.md"], ["frontend tests"]);
 
 checks.push({
@@ -108,6 +108,21 @@ checks.push({
   saw: {
     verdict: notApplicable.verdict,
     gate: stateOf(notApplicable, "frontend tests"),
+  },
+});
+
+const substituted = run(["docs/PLAN.md"], ["integration against SITL"]);
+
+checks.push({
+  claim: "what stands in for a gate is named, and is not read as a pass",
+  ok:
+    stateOf(substituted, "integration against SITL") === "SUSTITUIDA" &&
+    substituted.gates?.[0]?.why !== undefined &&
+    substituted.verdict === "PASS",
+  saw: {
+    verdict: substituted.verdict,
+    gate: stateOf(substituted, "integration against SITL"),
+    why: substituted.gates?.[0]?.why,
   },
 });
 
