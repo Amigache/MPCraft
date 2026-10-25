@@ -80,38 +80,50 @@ export function checkOverlaps() {
    * The same is true of a marker of the map: the map clips what is outside of it,
    * and a marker that is outside of the map is not on the screen.
    */
-  const cutAway = (element) => {
-    const rect = element.getBoundingClientRect();
+  const cutAway = (element) => visibleBox(element).area <= 1;
+
+  /**
+   * The part of an element that is actually drawn.
+   *
+   * The box the browser reports is the whole box, and a control that a clipping
+   * container cuts in two is only drawn on the part that is left. Comparing whole
+   * boxes reports a clash between something the operator sees and something the
+   * operator does not see, which is not a layout fault. So every box here is the box
+   * after the clipping ancestors have taken their share away.
+   */
+  const visibleBox = (element) => {
+    let box = element.getBoundingClientRect();
 
     let parent = element.parentElement;
 
     while (parent !== null) {
       const style = getComputedStyle(parent);
 
-      if (
-        style.overflowY === "auto" ||
-        style.overflowY === "scroll" ||
-        style.overflowY === "hidden" ||
-        style.overflowX === "auto" ||
-        style.overflowX === "scroll" ||
-        style.overflowX === "hidden"
-      ) {
-        const box = parent.getBoundingClientRect();
+      const clips = ["auto", "scroll", "hidden", "clip"].some(
+        (value) => style.overflowX === value || style.overflowY === value,
+      );
 
-        if (
-          rect.bottom < box.top ||
-          rect.top > box.bottom ||
-          rect.right < box.left ||
-          rect.left > box.right
-        ) {
-          return true;
-        }
+      if (clips) {
+        const outer = parent.getBoundingClientRect();
+
+        box = {
+          left: Math.max(box.left, outer.left),
+          right: Math.min(box.right, outer.right),
+          top: Math.max(box.top, outer.top),
+          bottom: Math.min(box.bottom, outer.bottom),
+        };
       }
 
       parent = parent.parentElement;
     }
 
-    return false;
+    return {
+      left: box.left,
+      right: box.right,
+      top: box.top,
+      bottom: box.bottom,
+      area: Math.max(0, box.right - box.left) * Math.max(0, box.bottom - box.top),
+    };
   };
 
   const visible = (element) => {
@@ -154,8 +166,8 @@ export function checkOverlaps() {
 
   for (let i = 0; i < controls.length; i += 1) {
     for (let j = i + 1; j < controls.length; j += 1) {
-      const a = controls[i].getBoundingClientRect();
-      const b = controls[j].getBoundingClientRect();
+      const a = visibleBox(controls[i]);
+      const b = visibleBox(controls[j]);
 
       // A control inside another one is not a clash: it is a label in a field.
       if (controls[i].contains(controls[j]) || controls[j].contains(controls[i])) {
