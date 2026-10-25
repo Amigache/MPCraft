@@ -122,6 +122,24 @@ export interface TransponderStatus {
   };
 }
 
+/** One key of the signed link, as the operator wrote it. */
+export interface SigningKeyEntry {
+  /** The name the key is listed under. */
+  readonly name: string;
+  /** The secret, in hexadecimal. */
+  readonly secret: string;
+}
+
+/** What the keyring says about what the operator wrote. */
+export interface SigningStatus {
+  /** The keys, in the order the file wrote them. */
+  readonly keys: readonly SigningKeyEntry[];
+  /** The names of the secrets that could not be read as thirty-two bytes. */
+  readonly refused: readonly string[];
+  /** The name of the key the frames are signed with, when there is one. */
+  readonly signedWith: string | null;
+}
+
 /** One vehicle's place in the formation, as the file writes it. */
 export interface FormationSlot {
   /** The vehicle the slot belongs to, named the way the file names it: `system:component`. */

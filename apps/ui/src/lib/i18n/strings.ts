@@ -340,6 +340,27 @@ const bundles: Record<Locale, Record<string, string>> = {
     none: "ninguno",
     "The last failure": "El último fallo",
 
+    // The sheet of the keys of the signed link.
+    "The keys of the signed link": "Las claves del enlace firmado",
+    "The keys of the signed link…": "Las claves del enlace firmado…",
+    "A key is thirty-two bytes, written as sixty-four hexadecimal characters. A secret that cannot be read as bytes is kept as it was written and said, and the first secret that can be read is the one the frames are signed with.":
+      "Una clave son treinta y dos bytes, escritos como sesenta y cuatro caracteres hexadecimales. Un secreto que no se puede leer como bytes se guarda como se escribió y se dice, y el primer secreto que se puede leer es el que firma los cuadros.",
+    "The name": "El nombre",
+    "The name of the key": "El nombre de la clave",
+    "The secret": "El secreto",
+    "The secret, in hexadecimal": "El secreto, en hexadecimal",
+    "What the keyring makes of it": "Lo que el llavero dice de ella",
+    "cannot be read": "no se puede leer",
+    signs: "firma",
+    "checked against": "se comprueba con ella",
+    "Add a key": "Añadir una clave",
+    "The keys were saved.": "Las claves se han guardado.",
+    "The link that is opened next": "El enlace que se abre a continuación",
+    "is not signed, because nothing can be read":
+      "no está firmado, porque nada se puede leer",
+    "The secrets that could not be read":
+      "Los secretos que no se pudieron leer",
+
     // The sheet of the on-screen display.
     "The on-screen display": "La pantalla escrita",
     "The vehicle draws the display over the picture of the camera. Each slot holds one thing, and the screens five and six are the ones that are configured here.":

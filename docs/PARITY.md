@@ -369,7 +369,11 @@ The **keys** of a signed link are kept in the settings file, next to the connect
 profiles, and the file is meant to be edited by hand: every key has a name and its
 secret in hexadecimal. The link is signed with the first key that can be read, and a
 key whose secret is not hexadecimal is left out and said so, because a link signed with
-the wrong key does not work at all.
+the wrong key does not work at all. The sheet that shows them is opened from Setup, and it
+says which names the keyring could not read and which one signs; the reading of a secret is
+done once, by the keyring, so the interface cannot disagree with the link about which key is
+the key — a sheet that decided for itself would show a link signed with a key it is not
+signed with.
 
 The **link** can be signed, with the keys of MAVLink 2: every frame that goes out is
 signed, and every frame that comes in is verified against the keys that are known. A
@@ -580,9 +584,9 @@ is facing the wrong way round the target, and the quaternion the plane's answer 
 through the 3-1-2 matrix as upstream builds it, with the mask `0xff` less its three terms. The
 answer also **reaches the wire**: the fixture carries a `SET_ATTITUDE_TARGET` frame with the
 quaternion the hand works out for a right angle of roll, the two implementations write the same
-bytes for it, and the session sends what the decision produced to a simulated vehicle. What is not
-there yet is the dispatch: the sending of that decision to each vehicle ten times a second, which
-needs a live fleet, so the row stays partial.
+bytes for it, and the session sends what the decision produced to a simulated vehicle. What was not
+there at that point is the loop described below: what still cannot be proved here is that the vehicles
+fly into their slots, so the row stays partial.
 
 The decision needs the state **of each vehicle**, and the aggregator did not hold it: it held one
 snapshot, so a second board's position read as the primary's. It now keeps one state per sender,

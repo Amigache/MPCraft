@@ -28,6 +28,16 @@ const SIZES = [
 
 const SCREENS = ["flightdata", "plan", "setup", "logs"];
 
+/** The sheets that lie over a screen, named by what the Setup menu says in Spanish. */
+const SHEETS = [
+  { name: "formation", entry: "La formación…", title: "La formación" },
+  {
+    name: "keys",
+    entry: "Las claves del enlace firmado…",
+    title: "Las claves del enlace firmado",
+  },
+];
+
 /** The language is chosen before the page reads it, so the first paint is already in it. */
 async function openInSpanish(page, screen) {
   await page.addInitScript(
@@ -76,38 +86,40 @@ for (const [width, height] of SIZES) {
 }
 
 for (const [width, height] of SIZES) {
-  test(`the formation sheet at ${width}x${height} in Spanish`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height });
-    await openInSpanish(page, "setup");
+  for (const sheet of SHEETS) {
+    test(`the ${sheet.name} sheet at ${width}x${height} in Spanish`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await openInSpanish(page, "setup");
 
-    // The sheet is opened the way an operator opens it, through the Setup menu, so that what is
-    // measured is the sheet as it stands over the window rather than a box put there for the test.
-    await page.locator('button[data-menu="setup"]').click();
-    await page.getByRole("menuitem", { name: "La formación…" }).click();
+      // The sheet is opened the way an operator opens it, through the Setup menu, so that what is
+      // measured is the sheet as it stands over the window rather than a box put there for the test.
+      await page.locator('button[data-menu="setup"]').click();
+      await page.getByRole("menuitem", { name: sheet.entry }).click();
 
-    await expect(
-      page.getByRole("dialog", { name: "La formación" }),
-    ).toBeVisible();
+      await expect(
+        page.getByRole("dialog", { name: sheet.title }),
+      ).toBeVisible();
 
-    const result = await found(page);
+      const result = await found(page);
 
-    expect(
-      {
+      expect(
+        {
+          size: `${width}x${height}`,
+          screen: "setup",
+          ...result,
+        },
+        "nothing is drawn on top of something else and nothing is cut off",
+      ).toEqual({
         size: `${width}x${height}`,
         screen: "setup",
-        ...result,
-      },
-      "nothing is drawn on top of something else and nothing is cut off",
-    ).toEqual({
-      size: `${width}x${height}`,
-      screen: "setup",
-      clashes: [],
-      clipped: [],
-      overflowing: [],
+        clashes: [],
+        clipped: [],
+        overflowing: [],
+      });
     });
-  });
+  }
 }
 
 test("the checker still fails on something that is genuinely wrong", async ({

@@ -134,6 +134,7 @@ export function MenuBar() {
   const showPictures = useUiStore((state) => state.showPictures);
   const showPlugins = useUiStore((state) => state.showPlugins);
   const showFormation = useUiStore((state) => state.showFormation);
+  const showSigning = useUiStore((state) => state.showSigning);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -936,6 +937,21 @@ export function MenuBar() {
           // The places an operator wrote are read from the file, so the sheet opens without a
           // vehicle on the wire: a fleet is often set up before any board is on the link. What
           // needs a link is the loop, and the sheet says so rather than pretending to send orders.
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-keys",
+          label: t("The keys of the signed link…"),
+          onSelect: () => {
+            close();
+            showSigning();
+          },
+          // The keys are read from the file, so the sheet opens without a vehicle on the wire: what
+          // a person needs when a key was written wrong is to see which line they wrote wrong, and
+          // that does not need a link.
           disabled: false,
           checked: undefined,
           separator: false,

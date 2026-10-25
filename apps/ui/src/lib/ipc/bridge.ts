@@ -45,6 +45,8 @@ import type {
   PlanWarning,
   PluginInfo,
   SerialPort,
+  SigningKeyEntry,
+  SigningStatus,
   Telemetry,
   TerrainPathPoint,
   TerrainPoint,
@@ -213,6 +215,28 @@ export async function transponderStop(): Promise<void> {
 /** What the transponder is doing. */
 export async function transponderStatus(): Promise<TransponderStatus> {
   return call<TransponderStatus>("transponder_status");
+}
+
+/**
+ * What the keyring says about the keys the operator wrote.
+ *
+ * The answer keeps every line that was written and names the secrets that could not be read as
+ * thirty-two bytes, so a key written wrong is seen as what was written rather than as an empty list.
+ */
+export async function signingStatus(): Promise<SigningStatus> {
+  return call<SigningStatus>("signing_status");
+}
+
+/**
+ * Saves the keys of the signed link and says what the keyring makes of them.
+ *
+ * The list that is sent is the list that is kept, in the order it was sent, and the link that is
+ * opened next is signed with the first secret in it that can be read.
+ */
+export async function setSigningKeys(
+  keys: readonly SigningKeyEntry[],
+): Promise<SigningStatus> {
+  return call<SigningStatus>("set_signing_keys", { keys });
 }
 
 /**

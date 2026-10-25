@@ -60,6 +60,7 @@ pub mod logs;
 pub mod ntrip;
 pub mod operations;
 pub mod plugins;
+pub mod signing;
 pub mod supervisor;
 pub mod swarm;
 pub mod terrain;
@@ -290,22 +291,6 @@ fn tile_cache_dir() -> std::path::PathBuf {
     mpcraft_settings::platform_config_dir()
         .map(|directory| directory.join("tiles"))
         .unwrap_or_else(|| std::env::temp_dir().join("mpcraft-tiles"))
-}
-
-/// The bytes of a hexadecimal text, when it is hexadecimal.
-fn hex_to_bytes(text: &str) -> Option<[u8; 32]> {
-    let text = text.trim();
-    if text.len() != 64 {
-        return None;
-    }
-
-    let mut bytes = [0_u8; 32];
-    for (index, byte) in bytes.iter_mut().enumerate() {
-        let pair = text.get(index * 2..index * 2 + 2)?;
-        *byte = u8::from_str_radix(pair, 16).ok()?;
-    }
-
-    Some(bytes)
 }
 
 fn terrain_cache_dir() -> std::path::PathBuf {
@@ -570,19 +555,20 @@ impl AppState {
         });
     }
 
-    /// The keys of the signed link.
+    /// What the keyring says about what the operator wrote.
+    ///
+    /// The decision about a secret — whether it can be read as thirty-two bytes — is made by the
+    /// keyring, so this is where the interface is told which name was left out rather than being
+    /// shown a list that quietly dropped it.
     ///
     /// # Errors
     ///
-    /// Returns an error when the platform has no configuration directory, or when the
-    /// settings file cannot be read.
-    pub fn signing_keys(&self) -> CommandResult<Vec<mpcraft_settings::SigningKeyEntry>> {
-        let store = self.store()?;
-        let settings = store
-            .load()
-            .map_err(|error| CommandError::settings(error.to_string()))?;
+    /// Returns an error when this machine has no configuration directory, or when the settings file
+    /// cannot be read.
+    pub fn signing_status(&self) -> CommandResult<crate::signing::SigningStatus> {
+        let settings = self.load_settings()?;
 
-        Ok(settings.signing_keys)
+        Ok(crate::signing::read(&settings).status())
     }
 
     /// Saves the keys of the signed link.
@@ -590,11 +576,13 @@ impl AppState {
     /// # Errors
     ///
     /// Returns an error when the platform has no configuration directory, when the
-    /// settings file cannot be read, or when it cannot be written.
+    /// settings file cannot be read, or when it cannot be written, and answers with what
+    /// the keyring makes of the list that was sent: which secrets could not be read, and
+    /// which one the frames are signed with.
     pub fn set_signing_keys(
         &self,
         keys: &[mpcraft_settings::SigningKeyEntry],
-    ) -> CommandResult<()> {
+    ) -> CommandResult<crate::signing::SigningStatus> {
         let store = self.store()?;
 
         let mut settings = store
@@ -605,7 +593,9 @@ impl AppState {
 
         store
             .save(&settings)
-            .map_err(|error| CommandError::settings(error.to_string()))
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(crate::signing::read(&settings).status())
     }
 
     /// The folder of tiles the operator has brought, when there is one.
@@ -724,34 +714,18 @@ impl AppState {
     ///
     /// A key whose secret is not hexadecimal is left out: a link that is signed with a
     /// key that is not the one the vehicle has is a link that does not work at all, and
-    /// the operator has to be told which key is wrong.
+    /// the operator has to be told which key is wrong. The reading of a secret is done by
+    /// the keyring, once, so that this and the answer the interface gets cannot disagree
+    /// about which key is the one that signs.
     pub fn apply_signing(&self) {
-        let keys = self.signing_keys().unwrap_or_default();
+        let settings = self.load_settings().unwrap_or_default();
+        let keyring = crate::signing::read(&settings);
 
-        let mut keyring = mpcraft_link::SigningKeyring::new();
-        let mut signing_key = None;
-
-        for entry in &keys {
-            let Some(bytes) = hex_to_bytes(&entry.secret) else {
-                tracing::warn!("the key {} is not hexadecimal and is not used", entry.name);
-                continue;
-            };
-
-            let key = mpcraft_link::SigningKey::from_bytes(bytes);
-            keyring.insert(entry.name.clone(), key.clone());
-
-            // The first key that can be read is the one the frames are signed with.
-            if signing_key.is_none() {
-                signing_key = Some(key);
-            }
+        for name in &keyring.refused {
+            tracing::warn!("the key {name} is not hexadecimal and is not used");
         }
 
-        self.supervisor
-            .set_signing(Some(mpcraft_link::SigningSetup {
-                key: signing_key,
-                keyring,
-                link_id: 1,
-            }));
+        self.supervisor.set_signing(Some(keyring.setup()));
     }
 
     /// The settings store, when there is one.
@@ -761,6 +735,13 @@ impl AppState {
                 "this machine has no configuration directory to keep the settings in",
             )
         })
+    }
+
+    /// The settings as the file holds them.
+    fn load_settings(&self) -> CommandResult<mpcraft_settings::Settings> {
+        self.store()?
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))
     }
 
     /// The plugins the folder holds, with what the operator chose.
@@ -1064,6 +1045,93 @@ mod tests {
                 .connection_profiles()
                 .expect("the profiles should be readable"),
             profiles
+        );
+    }
+
+    #[test]
+    fn the_keyring_says_which_secret_it_could_not_read_and_which_one_signs() {
+        let directory = TempDir::new("keyring");
+        let store = SettingsStore::new(directory.path());
+
+        let state = AppState {
+            supervisor: SessionSupervisor::new(),
+            settings: Some(store),
+            graphs: GraphHistory::new(),
+            terrain: TerrainService::new(terrain_cache_dir()),
+            tiles: TileService::new(tile_cache_dir()),
+            playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
+            live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            answered_terrain: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            http: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            ntrip: crate::ntrip::NtripService::default(),
+            transponder: crate::transponder::TransponderService::default(),
+            adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
+            plugins: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugins::PluginRuntime::new(plugin_folder()),
+            )),
+            swarm: crate::swarm::SwarmService::new(),
+        };
+
+        // The hand: sixty-four characters are thirty-two bytes, and `zz` is not a pair of the
+        // hexadecimal numbers, so the second line is not a key. Both stay in the answer because the
+        // file is read by hand, and the answer names which one was left out.
+        let readable = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+        assert_eq!(
+            readable.len(),
+            64,
+            "sixty-four characters are thirty-two bytes"
+        );
+
+        let status = state
+            .set_signing_keys(&[
+                mpcraft_settings::SigningKeyEntry::new("station", readable),
+                mpcraft_settings::SigningKeyEntry::new("typo", "zz"),
+            ])
+            .expect("the keys should be saved");
+
+        assert_eq!(
+            status.keys.len(),
+            2,
+            "both lines are kept as they were written"
+        );
+        assert_eq!(status.refused, vec!["typo".to_owned()]);
+        assert_eq!(status.signed_with.as_deref(), Some("station"));
+
+        // What the keyring says is what the link is opened with: the key that could be read signs,
+        // and the one that could not is not in the ring the incoming frames are checked against.
+        state.apply_signing();
+
+        let setup = state
+            .supervisor
+            .signing()
+            .expect("the keyring reaches the link");
+
+        assert!(
+            setup.key.is_some(),
+            "the readable key is the one that signs"
+        );
+        assert!(
+            !setup.keyring.is_empty(),
+            "the ring holds what could be read"
+        );
+
+        // A file whose only secret cannot be read is a link that is not signed — not a link signed
+        // with a key nobody wrote.
+        state
+            .set_signing_keys(&[mpcraft_settings::SigningKeyEntry::new("typo", "zz")])
+            .expect("the keys should be saved");
+        state.apply_signing();
+
+        let alone = state
+            .supervisor
+            .signing()
+            .expect("the keyring reaches the link");
+
+        assert!(alone.key.is_none());
+        assert!(
+            alone.keyring.is_empty(),
+            "nothing was read, so nothing is verified against"
         );
     }
 

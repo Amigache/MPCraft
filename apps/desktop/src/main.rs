@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+use mpcraft_app::signing::SigningStatus;
 use mpcraft_app::swarm::{SwarmRequest, SwarmStatus};
 use mpcraft_app::{
     flight_modes, plugins::PluginInfo, AppState, CommandError, CommandResult, ConnectRequest,
@@ -2400,29 +2401,24 @@ struct FtpFileEvent {
     content: Vec<u8>,
 }
 
-/// The keys of the signed link.
+/// What the keyring says about the keys the operator wrote.
 ///
-/// The answer is the list of the keys that are saved, with their names and their
-/// secrets.
+/// The answer is the list as the file holds it, with the names whose secrets could not be read as
+/// thirty-two bytes and the name of the key the frames are signed with: a secret that is written
+/// wrong has to be seen as what was written, not as an empty list.
 ///
 /// # Errors
 ///
 /// Returns a `CommandError` with a stable code when the settings cannot be read.
 #[tauri::command]
-async fn list_signing_keys(state: State<'_, AppState>) -> CommandResult<Vec<SigningKeyEvent>> {
-    Ok(state
-        .signing_keys()?
-        .into_iter()
-        .map(|key| SigningKeyEvent {
-            name: key.name,
-            secret: key.secret,
-        })
-        .collect())
+async fn signing_status(state: State<'_, AppState>) -> CommandResult<SigningStatus> {
+    state.signing_status()
 }
 
 /// Saves the keys of the signed link.
 ///
-/// The keys are replaced: the list that is sent is the list that is kept.
+/// The keys are replaced: the list that is sent is the list that is kept, and the link that is
+/// opened next is signed with the first secret in it that can be read.
 ///
 /// # Errors
 ///
@@ -2431,16 +2427,17 @@ async fn list_signing_keys(state: State<'_, AppState>) -> CommandResult<Vec<Sign
 async fn set_signing_keys(
     state: State<'_, AppState>,
     keys: Vec<SigningKeyEvent>,
-) -> CommandResult<()> {
+) -> CommandResult<SigningStatus> {
     let keys: Vec<mpcraft_settings::SigningKeyEntry> = keys
         .into_iter()
         .map(|key| mpcraft_settings::SigningKeyEntry::new(key.name, key.secret))
         .collect();
 
-    state.set_signing_keys(&keys)?;
+    let status = state.set_signing_keys(&keys)?;
+
     state.apply_signing();
 
-    Ok(())
+    Ok(status)
 }
 
 /// What the formation is doing: the places as they were written, the decision, and what the last
@@ -4248,7 +4245,7 @@ fn main() {
             track_rectangle,
             http_server_start,
             http_server_stop,
-            list_signing_keys,
+            signing_status,
             set_signing_keys,
             swarm_status,
             set_swarm_settings,
