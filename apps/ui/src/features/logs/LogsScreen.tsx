@@ -24,6 +24,7 @@ import type {
   VehicleLog,
 } from "../../lib/ipc/types";
 import { alignSeries, planChart } from "../../lib/graphs/plan";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { GraphChart } from "../graphs/GraphChart";
 import styles from "./LogsScreen.module.css";
@@ -41,12 +42,17 @@ import styles from "./LogsScreen.module.css";
  * and the interface receives numbers with names and never sees a MAVLink field.
  */
 
+/** How a part of the interface says something in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 /** The kinds of file the dialog offers. */
-const LOG_FILTERS = [
-  { name: "Telemetry log", extensions: ["tlog"] },
-  { name: "Log of PX4", extensions: ["ulg"] },
-  { name: "All files", extensions: ["*"] },
-];
+function logFilters(t: Say) {
+  return [
+    { name: t("Telemetry log"), extensions: ["tlog"] },
+    { name: t("Log of PX4"), extensions: ["ulg"] },
+    { name: t("All files"), extensions: ["*"] },
+  ];
+}
 
 /** How far the play-back moves at a time, in seconds. */
 const PLAYBACK_STEP = 0.1;
@@ -58,7 +64,7 @@ const PLAYBACK_STEP = 0.1;
  * written out in full is a wall of digits that says nothing. The operator reads the
  * value, not its representation.
  */
-function showValue(value: SampleValue): string {
+function showValue(value: SampleValue, t: Say): string {
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
       return "";
@@ -68,7 +74,7 @@ function showValue(value: SampleValue): string {
   }
 
   if (typeof value === "boolean") {
-    return value ? "yes" : "no";
+    return value ? t("yes") : t("no");
   }
 
   return value ?? "";
@@ -81,6 +87,8 @@ export function LogsScreen() {
   // back to it.
   const open = useUiStore((state) => state.screen === "logs");
   const hide = useUiStore((state) => state.hideLog);
+
+  const t = useLocaleStore((state) => state.t);
 
   const [typed, setTyped] = useState<string>("");
   const [path, setPath] = useState<string | null>(null);
@@ -290,7 +298,7 @@ export function LogsScreen() {
   }
 
   const openFile = async () => {
-    const picked = await pickOpenPath(LOG_FILTERS);
+    const picked = await pickOpenPath(logFilters(t));
 
     if (!picked.ok) {
       return;
@@ -323,7 +331,7 @@ export function LogsScreen() {
 
   const fetchLog = async (log: VehicleLog) => {
     const picked = await pickSavePath(`log-${log.id}.log`, [
-      { name: "Log of the vehicle", extensions: ["log", "bin"] },
+      { name: t("Log of the vehicle"), extensions: ["log", "bin"] },
     ]);
 
     if (!picked.ok) {
@@ -334,7 +342,7 @@ export function LogsScreen() {
 
     try {
       await downloadLog(log.id, log.size, picked.path);
-      setNotice(`The log was written to ${picked.path}.`);
+      setNotice(t("The log was written to {path}.", { path: picked.path }));
       setError(null);
     } catch (cause) {
       setError(normaliseError(cause));
@@ -364,7 +372,7 @@ export function LogsScreen() {
     }
 
     const picked = await pickSavePath("flight.kml", [
-      { name: "KML document", extensions: ["kml"] },
+      { name: t("KML document"), extensions: ["kml"] },
     ]);
 
     if (!picked.ok) {
@@ -375,7 +383,7 @@ export function LogsScreen() {
 
     try {
       await logExportKml(path, picked.path);
-      setNotice(`The track was written to ${picked.path}.`);
+      setNotice(t("The track was written to {path}.", { path: picked.path }));
       setError(null);
     } catch (cause) {
       setError(normaliseError(cause));
@@ -390,7 +398,7 @@ export function LogsScreen() {
     }
 
     const picked = await pickSavePath("samples.csv", [
-      { name: "CSV document", extensions: ["csv"] },
+      { name: t("CSV document"), extensions: ["csv"] },
     ]);
 
     if (!picked.ok) {
@@ -401,7 +409,9 @@ export function LogsScreen() {
 
     try {
       await logExportCsv(path, preset, picked.path);
-      setNotice(`The samples were written to ${picked.path}.`);
+      setNotice(
+        t("The samples were written to {path}.", { path: picked.path }),
+      );
       setError(null);
     } catch (cause) {
       setError(normaliseError(cause));
@@ -414,7 +424,7 @@ export function LogsScreen() {
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title} id="log-title">
-          Logs
+          {t("Logs")}
         </h1>
 
         <div className={styles.headerActions}>
@@ -426,11 +436,11 @@ export function LogsScreen() {
               void openFile();
             }}
           >
-            Open a log…
+            {t("Open a log…")}
           </button>
 
           <button type="button" className="button" onClick={hide}>
-            Close
+            {t("Close")}
           </button>
         </div>
       </header>
@@ -443,8 +453,8 @@ export function LogsScreen() {
             spellCheck={false}
             autoComplete="off"
             value={typed}
-            placeholder="the name of the log"
-            aria-label="The name of the log"
+            placeholder={t("the name of the log")}
+            aria-label={t("The name of the log")}
             onChange={(event) => {
               setTyped(event.target.value);
             }}
@@ -461,15 +471,15 @@ export function LogsScreen() {
               setRevision((count) => count + 1);
             }}
           >
-            Read
+            {t("Read the log")}
           </button>
         </div>
 
         {path === null ? (
           <p className={styles.note}>
-            No log is open. A log is what a flight is remembered by: it is the
-            stream of the frames that crossed the link, each of them with the
-            instant it was seen.
+            {t(
+              "No log is open. A log is what a flight is remembered by: it is the stream of the frames that crossed the link, each of them with the instant it was seen.",
+            )}
           </p>
         ) : null}
 
@@ -479,12 +489,12 @@ export function LogsScreen() {
               type="button"
               className="button"
               disabled={busy}
-              title={playing ? "Pause the flight" : "Play the flight"}
+              title={playing ? t("Pause the flight") : t("Play the flight")}
               onClick={() => {
                 setPlaying(!playing);
               }}
             >
-              {playing ? "Pause" : "Play"}
+              {playing ? t("Pause") : t("Play")}
             </button>
 
             <input
@@ -494,7 +504,7 @@ export function LogsScreen() {
               max={flight}
               step={PLAYBACK_STEP}
               value={Math.min(position, flight)}
-              aria-label="Where the flight is"
+              aria-label={t("Where the flight is")}
               onChange={(event) => {
                 const value = Number(event.target.value);
                 setPosition(value);
@@ -503,7 +513,10 @@ export function LogsScreen() {
             />
 
             <span className={styles.scrubTime}>
-              {position.toFixed(1)} s of {flight.toFixed(1)} s
+              {t("{elapsed} s of {total} s", {
+                elapsed: position.toFixed(1),
+                total: flight.toFixed(1),
+              })}
             </span>
           </div>
         ) : null}
@@ -511,8 +524,23 @@ export function LogsScreen() {
         {summary !== null ? (
           <>
             <p className={styles.note}>
-              {summary.records} records, {duration.toFixed(1)} seconds,{" "}
-              {summary.messages.length} kinds of message.
+              {[
+                t(
+                  summary.records === 1
+                    ? "{records} record"
+                    : "{records} records",
+                  { records: summary.records },
+                ),
+                t(duration === 1 ? "{seconds} second" : "{seconds} seconds", {
+                  seconds: duration.toFixed(1),
+                }),
+                t(
+                  summary.messages.length === 1
+                    ? "{kinds} kind of message"
+                    : "{kinds} kinds of message",
+                  { kinds: summary.messages.length },
+                ),
+              ].join(", ")}
             </p>
 
             <div className={styles.messages}>
@@ -531,12 +559,12 @@ export function LogsScreen() {
             type="button"
             className="button"
             disabled={busy}
-            title="Ask the vehicle for the logs it holds in its own memory"
+            title={t("Ask the vehicle for the logs it holds in its own memory")}
             onClick={() => {
               void readVehicleLogs();
             }}
           >
-            The logs of the vehicle
+            {t("The logs of the vehicle")}
           </button>
         </div>
 
@@ -545,7 +573,10 @@ export function LogsScreen() {
             {logs.map((log) => (
               <span key={log.id} className={styles.message}>
                 <span className={styles.messageName}>
-                  {`Log ${log.id} · ${(log.size / 1024).toFixed(1)} kB`}
+                  {t("Log {number} · {size} kB", {
+                    number: log.id,
+                    size: (log.size / 1024).toFixed(1),
+                  })}
                 </span>
                 <button
                   type="button"
@@ -555,7 +586,7 @@ export function LogsScreen() {
                     void fetchLog(log);
                   }}
                 >
-                  Download
+                  {t("Download")}
                 </button>
               </span>
             ))}
@@ -565,17 +596,17 @@ export function LogsScreen() {
         {summary !== null && summary.messages.length > 0 ? (
           <>
             <label className={styles.field}>
-              <span className={styles.label}>The samples of</span>
+              <span className={styles.label}>{t("The samples of")}</span>
               <select
                 className="select"
                 value={chosen}
-                aria-label="The message the samples are of"
+                aria-label={t("The message the samples are of")}
                 onChange={(event) => {
                   setChosen(event.target.value);
                   void readSamples(event.target.value);
                 }}
               >
-                <option value="">Choose a message</option>
+                <option value="">{t("Choose a message")}</option>
                 {summary.messages.map((message) => (
                   <option key={message.name} value={message.name}>
                     {`${message.name} (${message.count})`}
@@ -589,7 +620,7 @@ export function LogsScreen() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th scope="col">Seconds</th>
+                      <th scope="col">{t("Seconds")}</th>
                       {samples.fields.map((field) => (
                         <th key={field} scope="col">
                           {field}
@@ -620,7 +651,7 @@ export function LogsScreen() {
                           {(samples.instants[index] ?? 0).toFixed(2)}
                         </td>
                         {row.map((value, column) => (
-                          <td key={column}>{showValue(value)}</td>
+                          <td key={column}>{showValue(value, t)}</td>
                         ))}
                       </tr>
                     ))}
@@ -628,8 +659,12 @@ export function LogsScreen() {
                 </table>
 
                 <p className={styles.note}>
-                  {samples.rows.length} of {samples.total} samples. Click a row
-                  and the flight is moved to that moment.
+                  {t(
+                    samples.rows.length === 1
+                      ? "{shown} of {total} sample. Click a row and the flight is moved to that moment."
+                      : "{shown} of {total} samples. Click a row and the flight is moved to that moment.",
+                    { shown: samples.rows.length, total: samples.total },
+                  )}
                 </p>
               </div>
             ) : null}
@@ -638,11 +673,11 @@ export function LogsScreen() {
 
         {presets.length > 0 ? (
           <label className={styles.field}>
-            <span className={styles.label}>Graph</span>
+            <span className={styles.label}>{t("Graph")}</span>
             <select
               className="select"
               value={preset}
-              aria-label="The graph drawn over the log"
+              aria-label={t("The graph drawn over the log")}
               onChange={(event) => {
                 setPreset(event.target.value);
               }}
@@ -668,24 +703,24 @@ export function LogsScreen() {
               type="button"
               className="button"
               disabled={busy}
-              title="Write the track of the log as a KML document"
+              title={t("Write the track of the log as a KML document")}
               onClick={() => {
                 void exportKml();
               }}
             >
-              Export the track (KML)
+              {t("Write the track (KML)")}
             </button>
 
             <button
               type="button"
               className="button"
               disabled={busy || preset === ""}
-              title="Write the samples of the graph as a CSV document"
+              title={t("Write the samples of the graph as a CSV document")}
               onClick={() => {
                 void exportCsv();
               }}
             >
-              Export the samples (CSV)
+              {t("Write the samples (CSV)")}
             </button>
           </div>
         ) : null}

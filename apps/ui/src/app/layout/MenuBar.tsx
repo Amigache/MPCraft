@@ -1219,25 +1219,29 @@ export function MenuBar() {
             className={styles.dialog}
             role="dialog"
             aria-modal="true"
-            aria-label="About MPCraft"
+            aria-label={t("About MPCraft")}
             onClick={(event) => event.stopPropagation()}
           >
             <div className={styles.dialogHead}>
-              <h2 className={styles.dialogTitle}>About MPCraft</h2>
+              <h2 className={styles.dialogTitle}>{t("About MPCraft")}</h2>
               <button
                 type="button"
                 className="button"
                 onClick={() => setAbout(false)}
               >
-                Close
+                {t("Close")}
               </button>
             </div>
             <p className={styles.about}>
-              MPCraft {VERSION} — a ground station for ArduPilot and PX4,
-              written in Rust and React.
+              {t(
+                "MPCraft {version} — a ground station for ArduPilot and PX4, written in Rust and React.",
+                { version: VERSION },
+              )}
             </p>
             <p className={styles.about}>
-              The map uses the demo tiles of MapLibre and needs no account.
+              {t(
+                "The map uses the demo tiles of MapLibre and needs no account.",
+              )}
             </p>
           </div>
         </div>

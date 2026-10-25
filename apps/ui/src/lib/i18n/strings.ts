@@ -91,7 +91,7 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Fail safe": "Seguridad",
     Mount: "Montura",
     DroneCAN: "DroneCAN",
-    "The folder of tiles…": "La carpeta de las teselas…",
+    "The folder of tiles…": "La carpeta de las fichas…",
     Terrain: "El terreno",
     "On-screen display…": "La pantalla escrita…",
     "The corrections of a base station…": "Las correcciones de una base…",
@@ -1168,6 +1168,61 @@ const bundles: Record<Locale, Record<string, string>> = {
     KML: "El archivo KML",
     "KML (Google Earth)": "El archivo KML (Google Earth)",
     "The kind of plan": "El tipo de plan",
+    // The screen of the logs.
+    "Telemetry log": "El registro de telemetría",
+    "Log of PX4": "El registro de PX4",
+    "Log of the vehicle": "El registro del vehículo",
+    "KML document": "El documento KML",
+    "CSV document": "El documento CSV",
+    "Open a log…": "Abrir un registro…",
+    "Read the log": "Leer el registro",
+    "the name of the log": "el nombre del registro",
+    "The name of the log": "El nombre del registro",
+    "No log is open. A log is what a flight is remembered by: it is the stream of the frames that crossed the link, each of them with the instant it was seen.":
+      "Ningún registro está abierto. Un registro es lo que guarda la memoria de un vuelo: es la corriente de los cuadros que cruzaron el enlace, cada uno con el instante en que se vio.",
+    "Pause the flight": "Parar el vuelo",
+    "Play the flight": "Reproducir el vuelo",
+    Pause: "Parar",
+    Play: "Reproducir",
+    "Where the flight is": "Dónde va el vuelo",
+    "{elapsed} s of {total} s": "{elapsed} s de {total} s",
+    "{records} record": "{records} registro",
+    "{records} records": "{records} registros",
+    "{seconds} second": "{seconds} segundo",
+    "{seconds} seconds": "{seconds} segundos",
+    "{kinds} kind of message": "{kinds} tipo de mensaje",
+    "{kinds} kinds of message": "{kinds} tipos de mensaje",
+    "The logs of the vehicle": "Los registros del vehículo",
+    "Ask the vehicle for the logs it holds in its own memory":
+      "Pedir al vehículo los registros que tiene en su propia memoria",
+    "Log {number} · {size} kB": "Registro {number} · {size} kB",
+    "The samples of": "Las muestras de",
+    "The message the samples are of": "El mensaje del que son las muestras",
+    "Choose a message": "Elegir un mensaje",
+    Graph: "El gráfico",
+    "The graph drawn over the log": "El gráfico dibujado sobre el registro",
+    "{shown} of {total} sample. Click a row and the flight is moved to that moment.":
+      "{shown} de {total} muestra. Al pulsar una fila, el vuelo se mueve a ese momento.",
+    "{shown} of {total} samples. Click a row and the flight is moved to that moment.":
+      "{shown} de {total} muestras. Al pulsar una fila, el vuelo se mueve a ese momento.",
+    "Write the track of the log as a KML document":
+      "Escribir el camino del registro como documento KML",
+    "Write the track (KML)": "Escribir el camino (KML)",
+    "Write the samples of the graph as a CSV document":
+      "Escribir las muestras del gráfico como documento CSV",
+    "Write the samples (CSV)": "Escribir las muestras (CSV)",
+    "The log was written to {path}.": "El registro se ha escrito en {path}.",
+    "The track was written to {path}.": "El camino se ha escrito en {path}.",
+    "The samples were written to {path}.":
+      "Las muestras se han escrito en {path}.",
+    "MPCraft {version} — a ground station for ArduPilot and PX4, written in Rust and React.":
+      "MPCraft {version} — una estación de tierra para ArduPilot y PX4, escrita en Rust y React.",
+    "The map uses the demo tiles of MapLibre and needs no account.":
+      "El mapa usa las fichas de demostración de MapLibre y no necesita cuenta.",
+    "Parameters…": "Los parámetros…",
+    Motor: "Motor",
+    "Open this link when the application starts":
+      "Abrir este enlace cuando la aplicación arranca",
   },
 };
 
