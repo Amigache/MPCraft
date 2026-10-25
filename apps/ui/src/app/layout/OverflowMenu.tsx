@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import styles from "./OverflowMenu.module.css";
 
 /**
@@ -39,6 +40,9 @@ export function OverflowMenu({ label = "More", items }: OverflowMenuProps) {
   const [align, setAlign] = useState<"start" | "end">("start");
   const root = useRef<HTMLDivElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
+
+  const t = useLocaleStore((state) => state.t);
+  const name = t(label);
 
   // The menu opens towards the side that has room: a menu that hangs out of the
   // window is a menu whose last item cannot be reached.
@@ -101,7 +105,7 @@ export function OverflowMenu({ label = "More", items }: OverflowMenuProps) {
           }
         }}
       >
-        {label} ▾
+        {name} ▾
       </button>
 
       {open ? (
@@ -109,7 +113,7 @@ export function OverflowMenu({ label = "More", items }: OverflowMenuProps) {
           className={`${styles.menu} ${align === "end" ? styles.menuEnd : ""}`}
           role="menu"
           id={id}
-          aria-label={label}
+          aria-label={name}
           onKeyDown={(event) => {
             const entries = Array.from(
               event.currentTarget.querySelectorAll<HTMLButtonElement>(

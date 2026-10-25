@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { planTerrainProfile } from "../../lib/ipc/bridge";
 import type { CommandError, PlanItem, PlanKind } from "../../lib/ipc/types";
+import { useLocaleStore } from "../../lib/i18n/localeStore";
 import styles from "./PlanEditor.module.css";
 
 /**
@@ -47,6 +48,8 @@ export function TerrainProfile({ kind, items, onClose }: TerrainProfileProps) {
   const [error, setError] = useState<CommandError | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const t = useLocaleStore((state) => state.t);
+
   const ask = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -72,17 +75,22 @@ export function TerrainProfile({ kind, items, onClose }: TerrainProfileProps) {
   const shape = shapeOf(points);
 
   return (
-    <section className={styles.profile} aria-label="The profile of the terrain">
+    <section
+      className={styles.profile}
+      aria-label={t("The profile of the terrain")}
+    >
       <header className={styles.profileHead}>
-        <h3 className={styles.profileTitle}>Profile of the terrain</h3>
+        <h3 className={styles.profileTitle}>{t("Profile of the terrain")}</h3>
         {busy ? (
-          <span className={styles.profileNote}>Looking for the ground…</span>
+          <span className={styles.profileNote}>
+            {t("Looking for the ground…")}
+          </span>
         ) : null}
         {onClose !== undefined ? (
           <button
             type="button"
             className="button"
-            aria-label="Put the profile away"
+            aria-label={t("Put the profile away")}
             onClick={onClose}
           >
             ×
@@ -92,14 +100,16 @@ export function TerrainProfile({ kind, items, onClose }: TerrainProfileProps) {
 
       {error !== null ? (
         <p className={styles.error} role="alert">
-          <span className={styles.code}>{error.code}</span> {error.message} — the ground
-          could not be looked up.
+          <span className={styles.code}>{error.code}</span> {error.message} —{" "}
+          {t("the ground could not be looked up.")}
         </p>
       ) : null}
 
       {!busy && error === null && points.length === 0 ? (
         <p className={styles.profileNote}>
-          The plan has no places to look at, or the ground under them is not known.
+          {t(
+            "The plan has no places to look at, or the ground under them is not known.",
+          )}
         </p>
       ) : null}
 
@@ -109,7 +119,7 @@ export function TerrainProfile({ kind, items, onClose }: TerrainProfileProps) {
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           preserveAspectRatio="none"
           role="img"
-          aria-label="The elevation of the terrain along the plan"
+          aria-label={t("The elevation of the terrain along the plan")}
         >
           <polyline
             className={styles.profileGround}
@@ -170,14 +180,20 @@ function shapeOf(points: readonly TerrainPoint[]): {
       : HEIGHT - MARGIN - ((elevation - low) / height) * (HEIGHT - 2 * MARGIN);
 
   const ground = points
-    .map((point) => `${x(point.distance).toFixed(1)},${y(point.elevation).toFixed(1)}`)
+    .map(
+      (point) =>
+        `${x(point.distance).toFixed(1)},${y(point.elevation).toFixed(1)}`,
+    )
     .join(" ");
 
   // The path of the plan, which is only known where the height of the plan is: the
   // profile says so by leaving the rest out.
   const plan = points
     .filter((point) => point.height !== null)
-    .map((point) => `${x(point.distance).toFixed(1)},${y(point.height as number).toFixed(1)}`)
+    .map(
+      (point) =>
+        `${x(point.distance).toFixed(1)},${y(point.height as number).toFixed(1)}`,
+    )
     .join(" ");
 
   const places = points

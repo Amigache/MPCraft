@@ -1041,6 +1041,133 @@ const bundles: Record<Locale, Record<string, string>> = {
     "{count} vehicle on the link": "{count} vehículo en el enlace",
     "{count} vehicles on the link": "{count} vehículos en el enlace",
     "No vehicle on the link": "Ningún vehículo en el enlace",
+    // The editor of the plan, and the profile of the ground.
+    "QGC waypoints": "El archivo de QGC",
+    "ESRI shapefile": "El archivo de forma de ESRI",
+    "DXF drawing": "El dibujo DXF",
+    "ESRI shapefile (the places of the drawing)":
+      "El archivo de forma de ESRI (los lugares del dibujo)",
+    "DXF drawing (the places of the drawing)":
+      "El dibujo DXF (los lugares del dibujo)",
+    "the altitude is zero — the vehicle would fly down to the ground.":
+      "la altitud es cero — el vehículo bajaría hasta el suelo.",
+    "the fence has fewer than three vertices — a polygon needs three.":
+      "el cercado tiene menos de tres vértices — un polígono necesita tres.",
+    "Mission plan": "El plan de la misión",
+    "Rally points": "Los puntos de regreso",
+    waypoint: "punto del plan",
+    vertex: "vértice",
+    "excluded vertex": "vértice excluido",
+    "rally point": "punto de regreso",
+    "Add a {name} on the map": "Añadir {name} en el mapa",
+    "Click the map to add a {name}": "Pulsa el mapa para añadir {name}",
+    "Adding a {name}": "Se añade {name}",
+    "Add a {name}": "Añadir {name}",
+    "Add an excluded vertex on the map":
+      "Añadir un vértice excluido en el mapa",
+    "Click the map to add a point that is excluded from the polygon":
+      "Pulsa el mapa para añadir un punto que está fuera del polígono",
+    "Add exclusion": "Añadir la exclusión",
+    "Take the last change back": "Devolver el último cambio",
+    "Take the last change back (Ctrl+Z)": "Devolver el último cambio (Ctrl+Z)",
+    "Do again the change that was taken back":
+      "Repetir el cambio que se devolvió",
+    "Do again the change that was taken back (Ctrl+Shift+Z)":
+      "Repetir el cambio que se devolvió (Ctrl+Shift+Z)",
+    Undo: "Devolver",
+    Redo: "Repetir",
+    "Draw the path of the plan as a smooth curve":
+      "Dibujar el camino del plan como una curva suave",
+    Spline: "Curva suave",
+    "Carry the plan in the file the vehicle keeps it in":
+      "Llevar el plan en el archivo que el vehículo guarda",
+    "Put the graphs back and close the editor":
+      "Volver a poner los gráficos y cerrar el editor",
+    "Write the plan to": "Escribir el plan en",
+    "Read the plan from": "Leer el plan de",
+    "The name of the file": "El nombre del archivo",
+    "The name must end in .waypoints, .kml, .shp or .dxf":
+      "El nombre tiene que terminar en .waypoints, .kml, .shp o .dxf",
+    "Browse…": "Buscar…",
+    "Write the plan": "Escribir el plan",
+    "Read the plan": "Leer el plan",
+    Confirm: "La confirmación",
+    "The plan has {count} warning.": "El plan tiene {count} aviso.",
+    "The plan has {count} warnings.": "El plan tiene {count} avisos.",
+    "Item {number}: {warning}": "El elemento {number}: {warning}",
+    "Write {count} item to the vehicle?":
+      "¿Escribir {count} elemento en el vehículo?",
+    "Write {count} items to the vehicle?":
+      "¿Escribir {count} elementos en el vehículo?",
+    "Read the plan from the vehicle again?":
+      "¿Volver a leer el plan del vehículo?",
+    "Read the plan from the vehicle again? The edits that have not been sent will be lost.":
+      "¿Volver a leer el plan del vehículo? Los cambios que no se han enviado se perderán.",
+    "Read the plan from {path}?": "¿Leer el plan de {path}?",
+    "Read the plan from {path}? The edits that have not been sent will be lost.":
+      "¿Leer el plan de {path}? Los cambios que no se han enviado se perderán.",
+    Upload: "Escribir",
+    "Go on": "Seguir",
+    Strips: "Las franjas",
+    Angle: "El ángulo",
+    "How many strips the survey has": "Cuántas franjas tiene el levantamiento",
+    "The angle of the survey": "El ángulo del levantamiento",
+    "Add the reticle": "Añadir la retícula",
+    "Radius m": "Radio, m",
+    Points: "Los puntos",
+    Direction: "El sentido",
+    Anticlockwise: "Antihorario",
+    Clockwise: "Horario",
+    "The radius of the circle": "El radio del círculo",
+    "How many points the circle has": "Cuántos puntos tiene el círculo",
+    "The direction of the circle": "El sentido del círculo",
+    "Add the circle": "Añadir el círculo",
+    "The circle is centred on the waypoint that is selected, and it is added to the plan without throwing anything away.":
+      "El círculo se centra en el punto del plan que está elegido, y se añade al plan sin tirar nada.",
+    "Put the failure away": "Quitar el fallo",
+    "{count} item": "{count} elemento",
+    "{count} items": "{count} elementos",
+    "The edits are not on the vehicle yet":
+      "Los cambios todavía no están en el vehículo",
+    "unsent changes": "los cambios sin enviar",
+    "the same as the vehicle": "igual que en el vehículo",
+    "Click the map to add a waypoint — Escape stops it.":
+      "Pulsa el mapa para añadir un punto del plan — Escape lo para.",
+    "The map marks {marked} of {places} items — zoom in for the rest.":
+      "El mapa marca {marked} de {places} elementos — acerca el zoom para ver el resto.",
+    "No file was chosen.": "No se eligió ningún archivo.",
+    "This build has no file dialog — type the name of the file.":
+      "Esta versión no tiene diálogo de archivos — escribe el nombre del archivo.",
+    "A drawing can be read, not written — name a .waypoints or .kml file.":
+      "Un dibujo se lee, no se escribe — nombra un archivo .waypoints o .kml.",
+    "Add a survey": "Añadir un levantamiento",
+    "Add the reticle of a survey to the plan":
+      "Añadir la retícula de un levantamiento al plan",
+    "Add a circle": "Añadir un círculo",
+    "Add a circle of points to the plan": "Añadir un círculo de puntos al plan",
+    "Profile of the ground": "El perfil del suelo",
+    "Show the shape of the ground the plan flies over":
+      "Mostrar la forma del suelo sobre el que el plan vuela",
+    "Write the plan from the item that is selected":
+      "Escribir el plan desde el elemento que está elegido",
+    "The items before it are left on the vehicle as they are":
+      "Los elementos antes de él se dejan en el vehículo como están",
+    "Save to a file": "Guardar en un archivo",
+    "Load from a file": "Leer de un archivo",
+    "The profile of the terrain": "El perfil del terreno",
+    "Profile of the terrain": "El perfil del terreno",
+    "Looking for the ground…": "Se busca el suelo…",
+    "Put the profile away": "Quitar el perfil",
+    "the ground could not be looked up.": "el suelo no se pudo consultar.",
+    "The plan has no places to look at, or the ground under them is not known.":
+      "El plan no tiene lugares que mirar, o el suelo bajo ellos no se conoce.",
+    "The elevation of the terrain along the plan":
+      "La altura del terreno a lo largo del plan",
+    More: "Más",
+    "The plan editor": "El editor del plan",
+    KML: "El archivo KML",
+    "KML (Google Earth)": "El archivo KML (Google Earth)",
+    "The kind of plan": "El tipo de plan",
   },
 };
 

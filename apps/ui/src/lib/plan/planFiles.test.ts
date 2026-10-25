@@ -57,9 +57,12 @@ describe("the way a format travels", () => {
 
 describe("the label a format is given", () => {
   it("says what the file is", () => {
-    expect(labelOfFormat("kml")).toContain("KML");
-    expect(labelOfFormat("waypoints")).toContain("waypoints");
-    expect(labelOfFormat("shp")).toContain("shapefile");
-    expect(labelOfFormat("dxf")).toContain("DXF");
+    // The bundles are not there in a unit test, so the words come from the code.
+    const say = (source: string) => source;
+
+    expect(labelOfFormat("kml", say)).toContain("KML");
+    expect(labelOfFormat("waypoints", say)).toContain("waypoints");
+    expect(labelOfFormat("shp", say)).toContain("shapefile");
+    expect(labelOfFormat("dxf", say)).toContain("DXF");
   });
 });

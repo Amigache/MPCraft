@@ -61,16 +61,19 @@ export function fileNameOf(format: PlanFileFormat): string {
   return format === "kml" ? "plan.kml" : "plan.waypoints";
 }
 
+/** How a part of the interface says something in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 /** The label the format is given in the interface. */
-export function labelOfFormat(format: PlanLoadFormat): string {
+export function labelOfFormat(format: PlanLoadFormat, t: Say): string {
   switch (format) {
     case "kml":
-      return "KML (Google Earth)";
+      return t("KML (Google Earth)");
     case "shp":
-      return "ESRI shapefile (the places of the drawing)";
+      return t("ESRI shapefile (the places of the drawing)");
     case "dxf":
-      return "DXF drawing (the places of the drawing)";
+      return t("DXF drawing (the places of the drawing)");
     default:
-      return "QGC waypoints";
+      return t("QGC waypoints");
   }
 }
