@@ -234,6 +234,18 @@ pub struct SessionState {
     pub vehicles: Vec<crate::vehicle::Vehicle>,
     /// The telemetry of the primary vehicle.
     pub telemetry: mpcraft_vehicle::Telemetry,
+    /// The telemetry of each vehicle seen on the link, keyed by the pair that identifies it.
+    ///
+    /// `telemetry` is the primary vehicle's snapshot; this holds every vehicle's own state,
+    /// so a formation or a companion computer can be read without mixing it into the
+    /// primary's.
+    pub telemetries: HashMap<VehicleId, mpcraft_vehicle::Telemetry>,
+    /// The vehicle the telemetry above belongs to, once the link has selected one.
+    ///
+    /// Before a selection the snapshot is the mixed view of whatever arrived; after it, the
+    /// snapshot is this vehicle's own state. The interface needs to know which of the two it
+    /// is reading.
+    pub selected: Option<VehicleId>,
     /// The loss statistics of the primary vehicle.
     pub loss: LossStats,
     /// The protocol capabilities the vehicle advertised.
@@ -342,7 +354,6 @@ impl SessionContext {
     /// Handles one frame: updates the vehicle state and the telemetry.
     fn handle_frame(&mut self, frame: &Frame, now: Instant) {
         let id = VehicleId::new(frame.system_id, frame.component_id);
-        let vehicle = self.registry.observe(id);
 
         // The loss accounting is per vehicle, and follows the sequence number.
         let since_previous = self
@@ -373,6 +384,16 @@ impl SessionContext {
                 mav_type,
             });
 
+            // The selection is made **once**. A second vehicle can satisfy the rule as well as
+            // the first — an autopilot seen twice on component one — but the link keeps the
+            // vehicle it chose, which is what upstream does with `MAVList.GetID`: the choice
+            // does not move because another board happened to talk more. Before the selection
+            // every packet reads into the mixed view; from here on the view belongs to the
+            // primary vehicle alone, and what another board sends stays in its own slot.
+            let chosen = self.registry.primary().map(|primary| primary.id);
+
+            let vehicle = self.registry.observe(id);
+
             if let MavMessage::HEARTBEAT(heartbeat) = &message {
                 vehicle.mav_type = Some(heartbeat.mavtype);
                 vehicle.autopilot = Some(heartbeat.autopilot);
@@ -381,6 +402,18 @@ impl SessionContext {
                     heartbeat.mavtype,
                 ));
                 vehicle.custom_mode = Some(heartbeat.custom_mode);
+            }
+
+            if chosen.is_none_or(|primary| primary == id) && !vehicle.primary {
+                let selected = self
+                    .heartbeats
+                    .select()
+                    .map(|heartbeat| VehicleId::new(heartbeat.system_id, heartbeat.component_id));
+
+                if selected == Some(id) {
+                    vehicle.primary = true;
+                    self.aggregator.set_primary(id);
+                }
             }
         }
 
@@ -477,7 +510,7 @@ impl SessionContext {
             }
         }
 
-        self.aggregator.apply(&message);
+        self.aggregator.apply(&message, id);
 
         // The messages the vehicle sends are what it says about itself: a pre-arm
         // failure, a mode it refused, a waypoint it reached. They are the first thing an
@@ -504,6 +537,8 @@ impl SessionContext {
         SessionState {
             vehicles: self.registry.vehicles().into_iter().cloned().collect(),
             telemetry: self.aggregator.telemetry().clone(),
+            telemetries: self.aggregator.telemetries(),
+            selected: self.aggregator.selected(),
             loss: self.loss,
             capabilities: self.capabilities,
             parameters: self.parameters.clone(),
@@ -526,6 +561,8 @@ impl SessionState {
         Self {
             vehicles: Vec::new(),
             telemetry: mpcraft_vehicle::Telemetry::default(),
+            telemetries: HashMap::new(),
+            selected: None,
             loss: LossStats::default(),
             capabilities: None,
             parameters: mpcraft_params::ParameterStore::new(),

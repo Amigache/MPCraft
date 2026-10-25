@@ -2946,6 +2946,7 @@ dependencies = [
  "csv",
  "flate2",
  "mpcraft-mavlink",
+ "mpcraft-vehicle",
  "quick-xml 0.37.5",
  "serde",
  "thiserror 2.0.21",

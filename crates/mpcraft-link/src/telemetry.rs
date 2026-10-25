@@ -11,6 +11,14 @@
 //! MPCraft decodes each packet once, here, and publishes the result. Reading telemetry is
 //! then an atomic load rather than a re-derivation, and the derived values — ground speed,
 //! distance to home — are computed at decode time rather than on every access.
+//!
+//! The state is kept **per vehicle**: a link that carries two boards must not read one
+//! board's position as the other's. See [`TelemetryAggregator`] for how the view and the
+//! per-vehicle slots relate.
+
+use std::collections::HashMap;
+
+use crate::vehicle::VehicleId;
 
 use mpcraft_vehicle::{
     Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, DroneId,
@@ -80,10 +88,28 @@ fn text_of<const N: usize>(text: &CharArray<N>) -> String {
         .to_owned()
 }
 
-/// Decodes messages into a telemetry snapshot.
+/// Decodes messages into the telemetry snapshots.
+///
+/// # One state per vehicle
+///
+/// A link can carry several vehicles, and each one reports its own attitude, position and
+/// battery. Decoding them into a single snapshot would mix them: a second board's position
+/// would appear as the vehicle's. The aggregator keeps one state per sender, keyed by the
+/// pair `(system_id, component_id)`.
+///
+/// Before a vehicle is selected there is nothing to tell the reports apart by, so the packets
+/// are read into a single mixed view — which is what a link with one vehicle shows. Once the
+/// selection names a primary vehicle, that vehicle's slot *is* the view and the others stay
+/// in their own.
 #[derive(Debug, Default)]
 pub struct TelemetryAggregator {
-    telemetry: Telemetry,
+    /// The snapshot the session reads: the primary vehicle's state, or the mixed view while
+    /// no vehicle has been selected.
+    view: Telemetry,
+    /// The state of each vehicle seen on the link.
+    per_vehicle: HashMap<VehicleId, Telemetry>,
+    /// The vehicle the view belongs to, once one has been selected.
+    selected: Option<VehicleId>,
 }
 
 impl TelemetryAggregator {
@@ -96,124 +122,207 @@ impl TelemetryAggregator {
     /// The current snapshot.
     #[must_use]
     pub fn telemetry(&self) -> &Telemetry {
-        &self.telemetry
+        &self.view
     }
 
-    /// Applies a decoded message to the snapshot.
+    /// The state of one vehicle, as the aggregator holds it.
+    #[must_use]
+    pub fn telemetry_of(&self, vehicle: VehicleId) -> Option<&Telemetry> {
+        self.per_vehicle.get(&vehicle)
+    }
+
+    /// The state of every vehicle seen, keyed by the pair that identifies it.
+    #[must_use]
+    pub fn telemetries(&self) -> HashMap<VehicleId, Telemetry> {
+        self.per_vehicle.clone()
+    }
+
+    /// The vehicle the view belongs to, once one has been selected.
+    #[must_use]
+    pub fn selected(&self) -> Option<VehicleId> {
+        self.selected
+    }
+
+    /// Names the vehicle the view belongs to.
+    ///
+    /// When the selection happens after packets have already arrived, the state read before
+    /// the selection is not thrown away: the mixed view becomes the primary's starting point,
+    /// which is what a single-vehicle link would have shown.
+    pub fn set_primary(&mut self, vehicle: VehicleId) {
+        if self.selected == Some(vehicle) {
+            return;
+        }
+
+        self.selected = Some(vehicle);
+
+        let slot = self.per_vehicle.entry(vehicle).or_default();
+
+        if slot == &self.view {
+            return;
+        }
+
+        if slot.is_empty() {
+            slot.clone_from(&self.view);
+        } else {
+            self.view.clone_from(slot);
+        }
+    }
+
+    /// Applies a decoded message to the state of the vehicle that sent it.
+    ///
+    /// Before a vehicle is selected the message also reads into the mixed view, which is what
+    /// a single-vehicle link shows. After the selection only the primary vehicle's packets
+    /// reach the view.
     ///
     /// Messages that carry no telemetry are ignored.
-    pub fn apply(&mut self, message: &MavMessage) {
-        match message {
-            MavMessage::ATTITUDE(attitude) => {
-                self.telemetry.attitude = Some(Attitude {
-                    roll: f64::from(attitude.roll),
-                    pitch: f64::from(attitude.pitch),
-                    yaw: f64::from(attitude.yaw),
-                });
+    pub fn apply(&mut self, message: &MavMessage, sender: VehicleId) {
+        let slot = self.per_vehicle.entry(sender).or_default();
+
+        apply_to(slot, message);
+
+        if self.selected.is_none_or(|primary| primary == sender) {
+            apply_to(&mut self.view, message);
+        }
+    }
+}
+
+/// Applies one decoded message to one vehicle's state.
+fn apply_to(telemetry: &mut Telemetry, message: &MavMessage) {
+    match message {
+        MavMessage::ATTITUDE(attitude) => {
+            telemetry.attitude = Some(Attitude {
+                roll: f64::from(attitude.roll),
+                pitch: f64::from(attitude.pitch),
+                yaw: f64::from(attitude.yaw),
+            });
+        }
+
+        MavMessage::GLOBAL_POSITION_INT(position) => {
+            // The integer encoding scales latitude and longitude by 1e7, and the
+            // altitudes by 1e3 to give millimetres.
+            telemetry.position = Some(GeoPoint {
+                lat: f64::from(position.lat) / 1e7,
+                lng: f64::from(position.lon) / 1e7,
+                alt: f64::from(position.alt) / 1e3,
+            });
+
+            // The velocity is in centimetres per second, in the north-east-down frame.
+            let north = f64::from(position.vx) / 100.0;
+            let east = f64::from(position.vy) / 100.0;
+            let down = f64::from(position.vz) / 100.0;
+
+            telemetry.velocity = Some(Velocity {
+                north,
+                east,
+                down,
+                ground_speed: (north * north + east * east).sqrt(),
+            });
+        }
+
+        MavMessage::VFR_HUD(hud) => {
+            // The HUD carries a friendlier velocity than the position message, but it
+            // has no vertical rate in the same frame, so the position message wins for
+            // the vector and the HUD fills in the airspeed.
+            let velocity = telemetry.velocity.get_or_insert(Velocity {
+                north: 0.0,
+                east: 0.0,
+                down: 0.0,
+                ground_speed: 0.0,
+            });
+            if velocity.ground_speed == 0.0 {
+                velocity.ground_speed = f64::from(hud.groundspeed);
             }
 
-            MavMessage::GLOBAL_POSITION_INT(position) => {
-                // The integer encoding scales latitude and longitude by 1e7, and the
-                // altitudes by 1e3 to give millimetres.
-                self.telemetry.position = Some(GeoPoint {
-                    lat: f64::from(position.lat) / 1e7,
-                    lng: f64::from(position.lon) / 1e7,
-                    alt: f64::from(position.alt) / 1e3,
-                });
+            // The HUD is also what tells the vehicle's speed through the air, its rate
+            // of climb and its throttle. A vehicle with no airspeed sensor reports
+            // zero, which is not the same as not having said: the vehicle that has no
+            // sensor does not send the message at all.
+            let airspeed = telemetry.airspeed.get_or_insert(Airspeed {
+                airspeed: None,
+                ground_speed: 0.0,
+                climb: 0.0,
+                throttle: 0.0,
+            });
 
-                // The velocity is in centimetres per second, in the north-east-down frame.
-                let north = f64::from(position.vx) / 100.0;
-                let east = f64::from(position.vy) / 100.0;
-                let down = f64::from(position.vz) / 100.0;
+            airspeed.ground_speed = f64::from(hud.groundspeed);
+            airspeed.climb = f64::from(hud.climb);
+            airspeed.throttle = f64::from(hud.throttle);
 
-                self.telemetry.velocity = Some(Velocity {
-                    north,
-                    east,
-                    down,
-                    ground_speed: (north * north + east * east).sqrt(),
-                });
+            if hud.airspeed > 0.0 {
+                airspeed.airspeed = Some(f64::from(hud.airspeed));
             }
+        }
 
-            MavMessage::VFR_HUD(hud) => {
-                // The HUD carries a friendlier velocity than the position message, but it
-                // has no vertical rate in the same frame, so the position message wins for
-                // the vector and the HUD fills in the airspeed.
-                let velocity = self.telemetry.velocity.get_or_insert(Velocity {
-                    north: 0.0,
-                    east: 0.0,
-                    down: 0.0,
-                    ground_speed: 0.0,
-                });
-                if velocity.ground_speed == 0.0 {
-                    velocity.ground_speed = f64::from(hud.groundspeed);
-                }
+        MavMessage::SYS_STATUS(status) => {
+            telemetry.battery = Some(Battery {
+                voltage: f64::from(status.voltage_battery) / 1000.0,
+                current: f64::from(status.current_battery) / 100.0,
+                remaining: f64::from(status.battery_remaining),
+            });
+        }
 
-                // The HUD is also what tells the vehicle's speed through the air, its rate
-                // of climb and its throttle. A vehicle with no airspeed sensor reports
-                // zero, which is not the same as not having said: the vehicle that has no
-                // sensor does not send the message at all.
-                let airspeed = self.telemetry.airspeed.get_or_insert(Airspeed {
-                    airspeed: None,
-                    ground_speed: 0.0,
-                    climb: 0.0,
-                    throttle: 0.0,
-                });
+        MavMessage::HOME_POSITION(home) => {
+            telemetry.home = Some(GeoPoint {
+                lat: f64::from(home.latitude) / 1e7,
+                lng: f64::from(home.longitude) / 1e7,
+                alt: f64::from(home.altitude) / 1e3,
+            });
+        }
 
-                airspeed.ground_speed = f64::from(hud.groundspeed);
-                airspeed.climb = f64::from(hud.climb);
-                airspeed.throttle = f64::from(hud.throttle);
+        MavMessage::HEARTBEAT(heartbeat) => {
+            telemetry.armed = Some(
+                heartbeat
+                    .base_mode
+                    .contains(MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED),
+            );
 
-                if hud.airspeed > 0.0 {
-                    airspeed.airspeed = Some(f64::from(hud.airspeed));
-                }
-            }
+            // The mode name comes from the vehicle's FLTMODE1 parameter, which is read
+            // with the parameter metadata. Until then the numeric custom mode is kept.
+            telemetry.mode = Some(FlightMode {
+                custom_mode: heartbeat.custom_mode,
+                name: None,
+            });
+        }
 
-            MavMessage::SYS_STATUS(status) => {
-                self.telemetry.battery = Some(Battery {
-                    voltage: f64::from(status.voltage_battery) / 1000.0,
-                    current: f64::from(status.current_battery) / 100.0,
-                    remaining: f64::from(status.battery_remaining),
-                });
-            }
+        MavMessage::GPS_RAW_INT(raw) => {
+            telemetry.gps = Some(GpsStatus {
+                fix_type: raw.fix_type,
+                satellites: raw.satellites_visible,
+                // The vehicle reports the dilution in hundredths.
+                hdop: f64::from(raw.eph) / 100.0,
+            });
+        }
 
-            MavMessage::HOME_POSITION(home) => {
-                self.telemetry.home = Some(GeoPoint {
-                    lat: f64::from(home.latitude) / 1e7,
-                    lng: f64::from(home.longitude) / 1e7,
-                    alt: f64::from(home.altitude) / 1e3,
-                });
-            }
+        MavMessage::RAW_IMU(imu) => {
+            // The accelerometers are in thousandths of g, the gyroscopes in thousandths
+            // of a radian per second, and the magnetometers in thousandths of a gauss.
+            // The conversions happen once, here, so that everything downstream reads
+            // the units an operator expects.
+            telemetry.imu = Some(Imu {
+                acceleration: [
+                    f64::from(imu.xacc) * 9.81 * 0.001,
+                    f64::from(imu.yacc) * 9.81 * 0.001,
+                    f64::from(imu.zacc) * 9.81 * 0.001,
+                ],
+                angular_rate: [
+                    f64::from(imu.xgyro) * 0.001,
+                    f64::from(imu.ygyro) * 0.001,
+                    f64::from(imu.zgyro) * 0.001,
+                ],
+                magnetic_field: [
+                    f64::from(imu.xmag) * 0.001,
+                    f64::from(imu.ymag) * 0.001,
+                    f64::from(imu.zmag) * 0.001,
+                ],
+                temperature: f64::from(imu.temperature) * 0.01,
+            });
+        }
 
-            MavMessage::HEARTBEAT(heartbeat) => {
-                self.telemetry.armed = Some(
-                    heartbeat
-                        .base_mode
-                        .contains(MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED),
-                );
-
-                // The mode name comes from the vehicle's FLTMODE1 parameter, which is read
-                // with the parameter metadata. Until then the numeric custom mode is kept.
-                self.telemetry.mode = Some(FlightMode {
-                    custom_mode: heartbeat.custom_mode,
-                    name: None,
-                });
-            }
-
-            MavMessage::GPS_RAW_INT(raw) => {
-                self.telemetry.gps = Some(GpsStatus {
-                    fix_type: raw.fix_type,
-                    satellites: raw.satellites_visible,
-                    // The vehicle reports the dilution in hundredths.
-                    hdop: f64::from(raw.eph) / 100.0,
-                });
-            }
-
-            MavMessage::RAW_IMU(imu) => {
-                // The accelerometers are in thousandths of g, the gyroscopes in thousandths
-                // of a radian per second, and the magnetometers in thousandths of a gauss.
-                // The conversions happen once, here, so that everything downstream reads
-                // the units an operator expects.
-                self.telemetry.imu = Some(Imu {
+        MavMessage::SCALED_IMU(imu) => {
+            // The scaled variant carries the same sensors, already scaled by the
+            // vehicle itself. It only reaches the model when the raw one has not.
+            if telemetry.imu.is_none() {
+                telemetry.imu = Some(Imu {
                     acceleration: [
                         f64::from(imu.xacc) * 9.81 * 0.001,
                         f64::from(imu.yacc) * 9.81 * 0.001,
@@ -232,309 +341,284 @@ impl TelemetryAggregator {
                     temperature: f64::from(imu.temperature) * 0.01,
                 });
             }
-
-            MavMessage::SCALED_IMU(imu) => {
-                // The scaled variant carries the same sensors, already scaled by the
-                // vehicle itself. It only reaches the model when the raw one has not.
-                if self.telemetry.imu.is_none() {
-                    self.telemetry.imu = Some(Imu {
-                        acceleration: [
-                            f64::from(imu.xacc) * 9.81 * 0.001,
-                            f64::from(imu.yacc) * 9.81 * 0.001,
-                            f64::from(imu.zacc) * 9.81 * 0.001,
-                        ],
-                        angular_rate: [
-                            f64::from(imu.xgyro) * 0.001,
-                            f64::from(imu.ygyro) * 0.001,
-                            f64::from(imu.zgyro) * 0.001,
-                        ],
-                        magnetic_field: [
-                            f64::from(imu.xmag) * 0.001,
-                            f64::from(imu.ymag) * 0.001,
-                            f64::from(imu.zmag) * 0.001,
-                        ],
-                        temperature: f64::from(imu.temperature) * 0.01,
-                    });
-                }
-            }
-
-            MavMessage::SCALED_PRESSURE(pressure) => {
-                // The pressures are in hectopascals and the temperature in hundredths of a
-                // degree.
-                self.telemetry.barometer = Some(Barometer {
-                    absolute_pressure: f64::from(pressure.press_abs),
-                    differential_pressure: f64::from(pressure.press_diff),
-                    temperature: f64::from(pressure.temperature) * 0.01,
-                });
-            }
-
-            MavMessage::SERVO_OUTPUT_RAW(servos) => {
-                // The pulse width of each output, in microseconds. The vehicle may report
-                // fewer than eight outputs, and the ones it does not report stay unknown
-                // rather than becoming zero: a servo at zero microseconds is a fault, not
-                // the absence of a report.
-                let mut controls = self.telemetry.controls.unwrap_or(Controls {
-                    outputs: [None; 8],
-                    inputs: [None; 8],
-                    signal: None,
-                });
-
-                let outputs = [
-                    servos.servo1_raw,
-                    servos.servo2_raw,
-                    servos.servo3_raw,
-                    servos.servo4_raw,
-                    servos.servo5_raw,
-                    servos.servo6_raw,
-                    servos.servo7_raw,
-                    servos.servo8_raw,
-                ];
-
-                for (slot, value) in controls.outputs.iter_mut().zip(outputs) {
-                    *slot = Some(f64::from(value));
-                }
-
-                self.telemetry.controls = Some(controls);
-            }
-
-            MavMessage::RC_CHANNELS(channels) => {
-                // The value of each radio channel, in microseconds. The vehicle says how
-                // many channels it has, and the ones beyond that count are not reported.
-                let mut controls = self.telemetry.controls.unwrap_or(Controls {
-                    outputs: [None; 8],
-                    inputs: [None; 8],
-                    signal: None,
-                });
-
-                let values = [
-                    channels.chan1_raw,
-                    channels.chan2_raw,
-                    channels.chan3_raw,
-                    channels.chan4_raw,
-                    channels.chan5_raw,
-                    channels.chan6_raw,
-                    channels.chan7_raw,
-                    channels.chan8_raw,
-                ];
-
-                for (index, value) in values.iter().enumerate() {
-                    controls.inputs[index] = if (index as u8) < channels.chancount {
-                        Some(f64::from(*value))
-                    } else {
-                        None
-                    };
-                }
-
-                controls.signal = Some(f64::from(channels.rssi));
-
-                self.telemetry.controls = Some(controls);
-            }
-
-            MavMessage::BATTERY_STATUS(status) => {
-                // The vehicle reports each bank on its own, and says which bank it is.
-                // The voltages of the cells are in millivolts, and the ones the bank does
-                // not have are not reported: a bank of six cells has six entries.
-                let cells: Vec<f64> = status
-                    .voltages
-                    .iter()
-                    .take_while(|voltage| **voltage > 0)
-                    .map(|voltage| f64::from(*voltage) / 1000.0)
-                    .collect();
-
-                let bank = BatteryBank {
-                    id: status.id,
-                    cells,
-                    current: f64::from(status.current_battery) / 100.0,
-                    remaining: f64::from(status.battery_remaining.max(0)),
-                    temperature: f64::from(status.temperature) * 0.01,
-                };
-
-                // The banks are kept in the order the vehicle names them, and a bank that
-                // is reported again replaces the one that was there.
-                let mut batteries = std::mem::take(&mut self.telemetry.batteries);
-                batteries.retain(|known| known.id != bank.id);
-                batteries.push(bank);
-                batteries.sort_by_key(|known| known.id);
-
-                self.telemetry.batteries = batteries;
-            }
-
-            MavMessage::VIBRATION(vibration) => {
-                self.telemetry.vibration = Some(Vibration {
-                    x: f64::from(vibration.vibration_x),
-                    y: f64::from(vibration.vibration_y),
-                    z: f64::from(vibration.vibration_z),
-                });
-            }
-
-            MavMessage::EKF_STATUS_REPORT(report) => {
-                self.telemetry.ekf = Some(Ekf {
-                    velocity_variance: f64::from(report.velocity_variance),
-                    horizontal_variance: f64::from(report.pos_horiz_variance),
-                    vertical_variance: f64::from(report.pos_vert_variance),
-                    compass_variance: f64::from(report.compass_variance),
-                    terrain_variance: f64::from(report.terrain_alt_variance),
-                    airspeed_variance: f64::from(report.airspeed_variance),
-                });
-            }
-
-            MavMessage::AHRS2(ahrs) => {
-                // The second estimator, which is the one the vehicle compares the first
-                // with.
-                self.telemetry.ahrs2 = Some(Attitude {
-                    roll: f64::from(ahrs.roll),
-                    pitch: f64::from(ahrs.pitch),
-                    yaw: f64::from(ahrs.yaw),
-                });
-            }
-
-            MavMessage::NAV_CONTROLLER_OUTPUT(output) => {
-                // What the controller wants, against what the vehicle does.
-                self.telemetry.controller = Some(Controller {
-                    roll: f64::from(output.nav_roll),
-                    pitch: f64::from(output.nav_pitch),
-                    altitude_error: f64::from(output.alt_error),
-                    airspeed_error: f64::from(output.aspd_error),
-                    cross_track_error: f64::from(output.xtrack_error),
-                    waypoint_distance: f64::from(output.wp_dist),
-                });
-            }
-
-            MavMessage::OPEN_DRONE_ID_BASIC_ID(basic) => {
-                // The identification the vehicle broadcasts. The parts arrive in
-                // different messages, and each one keeps what the others said.
-                let mut drone_id = self.telemetry.drone_id.clone().unwrap_or(DroneId {
-                    kind: None,
-                    id: None,
-                    kind_of_vehicle: None,
-                    location: None,
-                    description: None,
-                });
-
-                drone_id.kind = Some(id_kind(basic.id_type));
-                drone_id.id = Some(hex_of(&basic.id_or_mac));
-                drone_id.kind_of_vehicle = Some(ua_kind(basic.ua_type));
-
-                self.telemetry.drone_id = Some(drone_id);
-            }
-
-            MavMessage::OPEN_DRONE_ID_LOCATION(location) => {
-                let mut drone_id = self.telemetry.drone_id.clone().unwrap_or(DroneId {
-                    kind: None,
-                    id: None,
-                    kind_of_vehicle: None,
-                    location: None,
-                    description: None,
-                });
-
-                drone_id.location = Some(DroneIdLocation {
-                    latitude: f64::from(location.latitude) / 1e7,
-                    longitude: f64::from(location.longitude) / 1e7,
-                    altitude: f64::from(location.altitude_barometric),
-                    height: f64::from(location.height),
-                    speed: f64::from(location.speed_horizontal) / 100.0,
-                    vertical_speed: f64::from(location.speed_vertical) / 100.0,
-                    direction: f64::from(location.direction) / 100.0,
-                });
-
-                self.telemetry.drone_id = Some(drone_id);
-            }
-
-            MavMessage::OPEN_DRONE_ID_SELF_ID(self_id) => {
-                let mut drone_id = self.telemetry.drone_id.clone().unwrap_or(DroneId {
-                    kind: None,
-                    id: None,
-                    kind_of_vehicle: None,
-                    location: None,
-                    description: None,
-                });
-
-                drone_id.description = Some(text_of(&self_id.description));
-
-                self.telemetry.drone_id = Some(drone_id);
-            }
-
-            MavMessage::EFI_STATUS(efi) => {
-                // The state of the engine. Only the vehicles that have one say anything
-                // about it.
-                self.telemetry.efi = Some(Efi {
-                    rpm: f64::from(efi.rpm),
-                    fuel_consumed: f64::from(efi.fuel_consumed),
-                    fuel_flow: f64::from(efi.fuel_flow),
-                    engine_load: f64::from(efi.engine_load),
-                    barometric_pressure: f64::from(efi.barometric_pressure),
-                    fuel_pressure: f64::from(efi.fuel_pressure),
-                    intake_temperature: f64::from(efi.intake_manifold_temperature),
-                    head_temperature: f64::from(efi.cylinder_head_temperature),
-                    exhaust_temperature: f64::from(efi.exhaust_gas_temperature),
-                });
-            }
-
-            MavMessage::WIND(wind) => {
-                // The wind where the vehicle is. The direction is the one the wind
-                // comes from.
-                self.telemetry.wind = Some(Wind {
-                    direction: f64::from(wind.direction),
-                    speed: f64::from(wind.speed),
-                    vertical_speed: f64::from(wind.speed_z),
-                });
-            }
-
-            MavMessage::SERIAL_CONTROL(control) => {
-                // The answer of the vehicle to a passthrough: the bytes its port had.
-                let count = (control.count as usize).min(control.data.len());
-                self.telemetry.passthrough = Some(PassthroughData {
-                    device: control.device as u8,
-                    data: control.data[..count].to_vec(),
-                });
-            }
-
-            MavMessage::GPS2_RAW(raw) => {
-                // The second receiver, for a vehicle that has one. It reports the same
-                // thing as the first, and it may be looking at a different constellation.
-                self.telemetry.gps2 = Some(GpsStatus {
-                    fix_type: raw.fix_type,
-                    satellites: raw.satellites_visible,
-                    // The vehicle reports the dilution in hundredths.
-                    hdop: f64::from(raw.eph) / 100.0,
-                });
-            }
-
-            MavMessage::MISSION_CURRENT(current) => {
-                // The vehicle streams this whenever the plan changes, so it is the state
-                // of the plan rather than a momentary report.
-                self.telemetry.mission = Some(MissionProgress {
-                    seq: current.seq,
-                    total: current.total,
-                    state: plan_state_of(current.mission_state),
-                    // The mode is a number: 0 unknown, 1 the vehicle can execute the plan,
-                    // 2 the vehicle is suspended and cannot.
-                    in_mission_mode: current.mission_mode == 1,
-                    mission_id: current.mission_id,
-                    fence_id: current.fence_id,
-                    rally_id: current.rally_points_id,
-                });
-            }
-
-            _ => {}
         }
 
-        // The derived values are recomputed here, not on access.
-        self.recompute_derived();
+        MavMessage::SCALED_PRESSURE(pressure) => {
+            // The pressures are in hectopascals and the temperature in hundredths of a
+            // degree.
+            telemetry.barometer = Some(Barometer {
+                absolute_pressure: f64::from(pressure.press_abs),
+                differential_pressure: f64::from(pressure.press_diff),
+                temperature: f64::from(pressure.temperature) * 0.01,
+            });
+        }
+
+        MavMessage::SERVO_OUTPUT_RAW(servos) => {
+            // The pulse width of each output, in microseconds. The vehicle may report
+            // fewer than eight outputs, and the ones it does not report stay unknown
+            // rather than becoming zero: a servo at zero microseconds is a fault, not
+            // the absence of a report.
+            let mut controls = telemetry.controls.unwrap_or(Controls {
+                outputs: [None; 8],
+                inputs: [None; 8],
+                signal: None,
+            });
+
+            let outputs = [
+                servos.servo1_raw,
+                servos.servo2_raw,
+                servos.servo3_raw,
+                servos.servo4_raw,
+                servos.servo5_raw,
+                servos.servo6_raw,
+                servos.servo7_raw,
+                servos.servo8_raw,
+            ];
+
+            for (slot, value) in controls.outputs.iter_mut().zip(outputs) {
+                *slot = Some(f64::from(value));
+            }
+
+            telemetry.controls = Some(controls);
+        }
+
+        MavMessage::RC_CHANNELS(channels) => {
+            // The value of each radio channel, in microseconds. The vehicle says how
+            // many channels it has, and the ones beyond that count are not reported.
+            let mut controls = telemetry.controls.unwrap_or(Controls {
+                outputs: [None; 8],
+                inputs: [None; 8],
+                signal: None,
+            });
+
+            let values = [
+                channels.chan1_raw,
+                channels.chan2_raw,
+                channels.chan3_raw,
+                channels.chan4_raw,
+                channels.chan5_raw,
+                channels.chan6_raw,
+                channels.chan7_raw,
+                channels.chan8_raw,
+            ];
+
+            for (index, value) in values.iter().enumerate() {
+                controls.inputs[index] = if (index as u8) < channels.chancount {
+                    Some(f64::from(*value))
+                } else {
+                    None
+                };
+            }
+
+            controls.signal = Some(f64::from(channels.rssi));
+
+            telemetry.controls = Some(controls);
+        }
+
+        MavMessage::BATTERY_STATUS(status) => {
+            // The vehicle reports each bank on its own, and says which bank it is.
+            // The voltages of the cells are in millivolts, and the ones the bank does
+            // not have are not reported: a bank of six cells has six entries.
+            let cells: Vec<f64> = status
+                .voltages
+                .iter()
+                .take_while(|voltage| **voltage > 0)
+                .map(|voltage| f64::from(*voltage) / 1000.0)
+                .collect();
+
+            let bank = BatteryBank {
+                id: status.id,
+                cells,
+                current: f64::from(status.current_battery) / 100.0,
+                remaining: f64::from(status.battery_remaining.max(0)),
+                temperature: f64::from(status.temperature) * 0.01,
+            };
+
+            // The banks are kept in the order the vehicle names them, and a bank that
+            // is reported again replaces the one that was there.
+            let mut batteries = std::mem::take(&mut telemetry.batteries);
+            batteries.retain(|known| known.id != bank.id);
+            batteries.push(bank);
+            batteries.sort_by_key(|known| known.id);
+
+            telemetry.batteries = batteries;
+        }
+
+        MavMessage::VIBRATION(vibration) => {
+            telemetry.vibration = Some(Vibration {
+                x: f64::from(vibration.vibration_x),
+                y: f64::from(vibration.vibration_y),
+                z: f64::from(vibration.vibration_z),
+            });
+        }
+
+        MavMessage::EKF_STATUS_REPORT(report) => {
+            telemetry.ekf = Some(Ekf {
+                velocity_variance: f64::from(report.velocity_variance),
+                horizontal_variance: f64::from(report.pos_horiz_variance),
+                vertical_variance: f64::from(report.pos_vert_variance),
+                compass_variance: f64::from(report.compass_variance),
+                terrain_variance: f64::from(report.terrain_alt_variance),
+                airspeed_variance: f64::from(report.airspeed_variance),
+            });
+        }
+
+        MavMessage::AHRS2(ahrs) => {
+            // The second estimator, which is the one the vehicle compares the first
+            // with.
+            telemetry.ahrs2 = Some(Attitude {
+                roll: f64::from(ahrs.roll),
+                pitch: f64::from(ahrs.pitch),
+                yaw: f64::from(ahrs.yaw),
+            });
+        }
+
+        MavMessage::NAV_CONTROLLER_OUTPUT(output) => {
+            // What the controller wants, against what the vehicle does.
+            telemetry.controller = Some(Controller {
+                roll: f64::from(output.nav_roll),
+                pitch: f64::from(output.nav_pitch),
+                altitude_error: f64::from(output.alt_error),
+                airspeed_error: f64::from(output.aspd_error),
+                cross_track_error: f64::from(output.xtrack_error),
+                waypoint_distance: f64::from(output.wp_dist),
+            });
+        }
+
+        MavMessage::OPEN_DRONE_ID_BASIC_ID(basic) => {
+            // The identification the vehicle broadcasts. The parts arrive in
+            // different messages, and each one keeps what the others said.
+            let mut drone_id = telemetry.drone_id.clone().unwrap_or(DroneId {
+                kind: None,
+                id: None,
+                kind_of_vehicle: None,
+                location: None,
+                description: None,
+            });
+
+            drone_id.kind = Some(id_kind(basic.id_type));
+            drone_id.id = Some(hex_of(&basic.id_or_mac));
+            drone_id.kind_of_vehicle = Some(ua_kind(basic.ua_type));
+
+            telemetry.drone_id = Some(drone_id);
+        }
+
+        MavMessage::OPEN_DRONE_ID_LOCATION(location) => {
+            let mut drone_id = telemetry.drone_id.clone().unwrap_or(DroneId {
+                kind: None,
+                id: None,
+                kind_of_vehicle: None,
+                location: None,
+                description: None,
+            });
+
+            drone_id.location = Some(DroneIdLocation {
+                latitude: f64::from(location.latitude) / 1e7,
+                longitude: f64::from(location.longitude) / 1e7,
+                altitude: f64::from(location.altitude_barometric),
+                height: f64::from(location.height),
+                speed: f64::from(location.speed_horizontal) / 100.0,
+                vertical_speed: f64::from(location.speed_vertical) / 100.0,
+                direction: f64::from(location.direction) / 100.0,
+            });
+
+            telemetry.drone_id = Some(drone_id);
+        }
+
+        MavMessage::OPEN_DRONE_ID_SELF_ID(self_id) => {
+            let mut drone_id = telemetry.drone_id.clone().unwrap_or(DroneId {
+                kind: None,
+                id: None,
+                kind_of_vehicle: None,
+                location: None,
+                description: None,
+            });
+
+            drone_id.description = Some(text_of(&self_id.description));
+
+            telemetry.drone_id = Some(drone_id);
+        }
+
+        MavMessage::EFI_STATUS(efi) => {
+            // The state of the engine. Only the vehicles that have one say anything
+            // about it.
+            telemetry.efi = Some(Efi {
+                rpm: f64::from(efi.rpm),
+                fuel_consumed: f64::from(efi.fuel_consumed),
+                fuel_flow: f64::from(efi.fuel_flow),
+                engine_load: f64::from(efi.engine_load),
+                barometric_pressure: f64::from(efi.barometric_pressure),
+                fuel_pressure: f64::from(efi.fuel_pressure),
+                intake_temperature: f64::from(efi.intake_manifold_temperature),
+                head_temperature: f64::from(efi.cylinder_head_temperature),
+                exhaust_temperature: f64::from(efi.exhaust_gas_temperature),
+            });
+        }
+
+        MavMessage::WIND(wind) => {
+            // The wind where the vehicle is. The direction is the one the wind
+            // comes from.
+            telemetry.wind = Some(Wind {
+                direction: f64::from(wind.direction),
+                speed: f64::from(wind.speed),
+                vertical_speed: f64::from(wind.speed_z),
+            });
+        }
+
+        MavMessage::SERIAL_CONTROL(control) => {
+            // The answer of the vehicle to a passthrough: the bytes its port had.
+            let count = (control.count as usize).min(control.data.len());
+            telemetry.passthrough = Some(PassthroughData {
+                device: control.device as u8,
+                data: control.data[..count].to_vec(),
+            });
+        }
+
+        MavMessage::GPS2_RAW(raw) => {
+            // The second receiver, for a vehicle that has one. It reports the same
+            // thing as the first, and it may be looking at a different constellation.
+            telemetry.gps2 = Some(GpsStatus {
+                fix_type: raw.fix_type,
+                satellites: raw.satellites_visible,
+                // The vehicle reports the dilution in hundredths.
+                hdop: f64::from(raw.eph) / 100.0,
+            });
+        }
+
+        MavMessage::MISSION_CURRENT(current) => {
+            // The vehicle streams this whenever the plan changes, so it is the state
+            // of the plan rather than a momentary report.
+            telemetry.mission = Some(MissionProgress {
+                seq: current.seq,
+                total: current.total,
+                state: plan_state_of(current.mission_state),
+                // The mode is a number: 0 unknown, 1 the vehicle can execute the plan,
+                // 2 the vehicle is suspended and cannot.
+                in_mission_mode: current.mission_mode == 1,
+                mission_id: current.mission_id,
+                fence_id: current.fence_id,
+                rally_id: current.rally_points_id,
+            });
+        }
+
+        _ => {}
     }
 
-    /// Recomputes the values that depend on more than one field.
-    fn recompute_derived(&mut self) {
-        let (Some(position), Some(home)) = (self.telemetry.position, self.telemetry.home) else {
-            self.telemetry.distance_to_home = None;
-            self.telemetry.bearing_to_home = None;
-            return;
-        };
+    // The derived values are recomputed here, not on access.
+    recompute_derived(telemetry);
+}
 
-        let (distance, bearing) = mpcraft_vehicle::great_circle(position, home);
-        self.telemetry.distance_to_home = Some(distance);
-        self.telemetry.bearing_to_home = Some(bearing);
-    }
+/// Recomputes the values that depend on more than one field.
+fn recompute_derived(telemetry: &mut Telemetry) {
+    let (Some(position), Some(home)) = (telemetry.position, telemetry.home) else {
+        telemetry.distance_to_home = None;
+        telemetry.bearing_to_home = None;
+        return;
+    };
+
+    let (distance, bearing) = mpcraft_vehicle::great_circle(position, home);
+    telemetry.distance_to_home = Some(distance);
+    telemetry.bearing_to_home = Some(bearing);
 }
 
 /// The state of the plan, as the vehicle reports it.
@@ -576,7 +660,7 @@ mod tests {
             hdg: 0,
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let telemetry = aggregator.telemetry();
         let position = telemetry.position.expect("a position");
@@ -590,6 +674,68 @@ mod tests {
     }
 
     #[test]
+    fn a_second_vehicle_does_not_mix_into_the_primary_one() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let first = MavMessage::GLOBAL_POSITION_INT(GLOBAL_POSITION_INT_DATA {
+            lat: (35.2809 * 1e7) as i32,
+            lon: (149.1300 * 1e7) as i32,
+            alt: 584_000,
+            ..Default::default()
+        });
+
+        let second = MavMessage::GLOBAL_POSITION_INT(GLOBAL_POSITION_INT_DATA {
+            lat: (-33.8688 * 1e7) as i32,
+            lon: (151.2093 * 1e7) as i32,
+            alt: 120_000,
+            ..Default::default()
+        });
+
+        // Before the selection there is nothing to tell the two apart by, so both read into
+        // the view — which is what a link with one vehicle shows.
+        aggregator.apply(&first, VehicleId::new(1, 1));
+        assert!(aggregator.telemetry().position.is_some());
+
+        aggregator.set_primary(VehicleId::new(1, 1));
+
+        // From here the view belongs to vehicle 1 alone. Vehicle 2 keeps its own state, and
+        // its position does not appear as the primary's.
+        aggregator.apply(&second, VehicleId::new(2, 1));
+
+        let view = aggregator
+            .telemetry()
+            .position
+            .expect("the view keeps a position");
+        assert!(
+            (view.lat - 35.2809).abs() < 1e-4,
+            "the view was taken for vehicle 2"
+        );
+
+        let other = aggregator
+            .telemetry_of(VehicleId::new(2, 1))
+            .expect("vehicle 2 has its own state");
+        let other_position = other.position.expect("the second vehicle keeps a position");
+        assert!((other_position.lat - -33.8688).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_state_read_before_the_selection_is_not_thrown_away() {
+        let mut aggregator = TelemetryAggregator::new();
+
+        let message = MavMessage::SYS_STATUS(SYS_STATUS_DATA {
+            voltage_battery: 12_340,
+            ..Default::default()
+        });
+
+        // The battery arrived before the vehicle was selected; the selection seeds the
+        // primary's state with what had already been read, rather than starting it empty.
+        aggregator.apply(&message, VehicleId::new(1, 1));
+        aggregator.set_primary(VehicleId::new(1, 1));
+
+        assert!(aggregator.telemetry().battery.is_some());
+    }
+
+    #[test]
     fn a_sys_status_updates_the_battery() {
         let mut aggregator = TelemetryAggregator::new();
 
@@ -600,7 +746,7 @@ mod tests {
             ..Default::default()
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let battery = aggregator.telemetry().battery.expect("a battery");
         assert!((battery.voltage - 12.34).abs() < 1e-6);
@@ -618,7 +764,7 @@ mod tests {
             altitude: 584_000,
             ..Default::default()
         });
-        aggregator.apply(&home);
+        aggregator.apply(&home, VehicleId::new(1, 1));
 
         let position = MavMessage::GLOBAL_POSITION_INT(GLOBAL_POSITION_INT_DATA {
             lat: (35.2819 * 1e7) as i32,
@@ -626,7 +772,7 @@ mod tests {
             alt: 584_000,
             ..Default::default()
         });
-        aggregator.apply(&position);
+        aggregator.apply(&position, VehicleId::new(1, 1));
 
         let telemetry = aggregator.telemetry();
         let distance = telemetry.distance_to_home.expect("a distance to home");
@@ -647,7 +793,7 @@ mod tests {
             alt: 584_000,
             ..Default::default()
         });
-        aggregator.apply(&position);
+        aggregator.apply(&position, VehicleId::new(1, 1));
 
         assert!(aggregator.telemetry().distance_to_home.is_none());
     }
@@ -662,7 +808,7 @@ mod tests {
             base_mode: MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED,
             ..Default::default()
         });
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         assert_eq!(aggregator.telemetry().armed, Some(true));
         assert_eq!(
@@ -679,7 +825,7 @@ mod tests {
             base_mode: MavModeFlag::empty(),
             ..Default::default()
         });
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         assert_eq!(aggregator.telemetry().armed, Some(false));
     }
@@ -698,7 +844,7 @@ mod tests {
             rally_points_id: 0x9abc,
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let progress = aggregator
             .telemetry()
@@ -727,7 +873,7 @@ mod tests {
             ..Default::default()
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let progress = aggregator
             .telemetry()
@@ -756,7 +902,7 @@ mod tests {
             ..Default::default()
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let gps = aggregator
             .telemetry()
@@ -774,11 +920,14 @@ mod tests {
         let before = aggregator.telemetry().clone();
 
         // TIMESYNC is not a telemetry message.
-        aggregator.apply(&MavMessage::TIMESYNC(TIMESYNC_DATA {
-            tc1: 1,
-            ts1: 2,
-            ..Default::default()
-        }));
+        aggregator.apply(
+            &MavMessage::TIMESYNC(TIMESYNC_DATA {
+                tc1: 1,
+                ts1: 2,
+                ..Default::default()
+            }),
+            VehicleId::new(1, 1),
+        );
 
         assert_eq!(aggregator.telemetry().position, before.position);
         assert_eq!(aggregator.telemetry().battery, before.battery);
@@ -807,7 +956,7 @@ mod tests {
             temperature: 2000,
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let imu = aggregator
             .telemetry()
@@ -834,7 +983,7 @@ mod tests {
             temperature_press_diff: 0,
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let barometer = aggregator.telemetry().barometer.expect("the barometer");
 
@@ -861,7 +1010,7 @@ mod tests {
             ..Default::default()
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let controls = aggregator.telemetry().controls.expect("the controls");
 
@@ -885,7 +1034,7 @@ mod tests {
             ..Default::default()
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let controls = aggregator.telemetry().controls.expect("the controls");
 
@@ -910,7 +1059,7 @@ mod tests {
             throttle: 45,
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let airspeed = aggregator.telemetry().airspeed.expect("the air data");
 
@@ -933,7 +1082,7 @@ mod tests {
             ..Default::default()
         });
 
-        aggregator.apply(&message);
+        aggregator.apply(&message, VehicleId::new(1, 1));
 
         let banks = &aggregator.telemetry().batteries;
         assert_eq!(banks.len(), 1);
@@ -954,12 +1103,15 @@ mod tests {
         let mut aggregator = TelemetryAggregator::new();
 
         for remaining in [90_i8, 80] {
-            aggregator.apply(&MavMessage::BATTERY_STATUS(BATTERY_STATUS_DATA {
-                id: 0,
-                battery_remaining: remaining,
-                voltages: [16_800, 16_900, 0, 0, 0, 0, 0, 0, 0, 0],
-                ..Default::default()
-            }));
+            aggregator.apply(
+                &MavMessage::BATTERY_STATUS(BATTERY_STATUS_DATA {
+                    id: 0,
+                    battery_remaining: remaining,
+                    voltages: [16_800, 16_900, 0, 0, 0, 0, 0, 0, 0, 0],
+                    ..Default::default()
+                }),
+                VehicleId::new(1, 1),
+            );
         }
 
         let banks = &aggregator.telemetry().batteries;
@@ -971,22 +1123,28 @@ mod tests {
     fn the_vibration_and_the_estimator_are_reported() {
         let mut aggregator = TelemetryAggregator::new();
 
-        aggregator.apply(&MavMessage::VIBRATION(VIBRATION_DATA {
-            vibration_x: 1.5,
-            vibration_y: 2.5,
-            vibration_z: 3.5,
-            ..Default::default()
-        }));
+        aggregator.apply(
+            &MavMessage::VIBRATION(VIBRATION_DATA {
+                vibration_x: 1.5,
+                vibration_y: 2.5,
+                vibration_z: 3.5,
+                ..Default::default()
+            }),
+            VehicleId::new(1, 1),
+        );
 
-        aggregator.apply(&MavMessage::EKF_STATUS_REPORT(EKF_STATUS_REPORT_DATA {
-            velocity_variance: 0.25,
-            pos_horiz_variance: 1.5,
-            pos_vert_variance: 2.5,
-            compass_variance: 0.5,
-            terrain_alt_variance: 3.5,
-            airspeed_variance: 4.5,
-            ..Default::default()
-        }));
+        aggregator.apply(
+            &MavMessage::EKF_STATUS_REPORT(EKF_STATUS_REPORT_DATA {
+                velocity_variance: 0.25,
+                pos_horiz_variance: 1.5,
+                pos_vert_variance: 2.5,
+                compass_variance: 0.5,
+                terrain_alt_variance: 3.5,
+                airspeed_variance: 4.5,
+                ..Default::default()
+            }),
+            VehicleId::new(1, 1),
+        );
 
         let vibration = aggregator.telemetry().vibration.expect("the vibration");
         assert!((vibration.x - 1.5).abs() < 1e-6);
@@ -1002,15 +1160,18 @@ mod tests {
     fn the_second_estimator_and_the_wish_of_the_controller_are_reported() {
         let mut aggregator = TelemetryAggregator::new();
 
-        aggregator.apply(&MavMessage::AHRS2(AHRS2_DATA {
-            roll: 0.1,
-            pitch: -0.2,
-            yaw: 1.0,
-            ..Default::default()
-        }));
+        aggregator.apply(
+            &MavMessage::AHRS2(AHRS2_DATA {
+                roll: 0.1,
+                pitch: -0.2,
+                yaw: 1.0,
+                ..Default::default()
+            }),
+            VehicleId::new(1, 1),
+        );
 
-        aggregator.apply(&MavMessage::NAV_CONTROLLER_OUTPUT(
-            NAV_CONTROLLER_OUTPUT_DATA {
+        aggregator.apply(
+            &MavMessage::NAV_CONTROLLER_OUTPUT(NAV_CONTROLLER_OUTPUT_DATA {
                 nav_roll: 0.05,
                 nav_pitch: 0.02,
                 alt_error: -3.0,
@@ -1018,8 +1179,9 @@ mod tests {
                 xtrack_error: 12.0,
                 wp_dist: 250,
                 ..Default::default()
-            },
-        ));
+            }),
+            VehicleId::new(1, 1),
+        );
 
         let ahrs2 = aggregator.telemetry().ahrs2.expect("the second estimator");
         assert!((ahrs2.roll - 0.1).abs() < 1e-6);
@@ -1044,16 +1206,17 @@ mod tests {
 
         let mut aggregator = TelemetryAggregator::new();
 
-        aggregator.apply(&MavMessage::OPEN_DRONE_ID_BASIC_ID(
-            OPEN_DRONE_ID_BASIC_ID_DATA {
+        aggregator.apply(
+            &MavMessage::OPEN_DRONE_ID_BASIC_ID(OPEN_DRONE_ID_BASIC_ID_DATA {
                 target_system: 1,
                 target_component: 1,
                 id_or_mac: [0; 20],
                 id_type: MavOdidIdType::MAV_ODID_ID_TYPE_CAA_REGISTRATION_ID,
                 ua_type: MavOdidUaType::MAV_ODID_UA_TYPE_HELICOPTER_OR_MULTIROTOR,
                 uas_id: [0; 20],
-            },
-        ));
+            }),
+            VehicleId::new(1, 1),
+        );
 
         aggregator.apply(&MavMessage::OPEN_DRONE_ID_LOCATION(
             OPEN_DRONE_ID_LOCATION_DATA {
@@ -1083,10 +1246,10 @@ mod tests {
                 timestamp_accuracy:
                     mpcraft_mavlink::dialect::messages::MavOdidTimeAcc::MAV_ODID_TIME_ACC_UNKNOWN,
             },
-        ));
+        ), VehicleId::new(1, 1));
 
-        aggregator.apply(&MavMessage::OPEN_DRONE_ID_SELF_ID(
-            OPEN_DRONE_ID_SELF_ID_DATA {
+        aggregator.apply(
+            &MavMessage::OPEN_DRONE_ID_SELF_ID(OPEN_DRONE_ID_SELF_ID_DATA {
                 target_system: 1,
                 target_component: 1,
                 id_or_mac: [0; 20],
@@ -1097,8 +1260,9 @@ mod tests {
                     data[..14].copy_from_slice(b"over the field");
                     data
                 }),
-            },
-        ));
+            }),
+            VehicleId::new(1, 1),
+        );
 
         let drone_id = aggregator
             .telemetry()

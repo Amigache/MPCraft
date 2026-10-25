@@ -72,13 +72,19 @@ pub enum LogError {
     Unsupported(String),
 }
 
-/// A record of a log: a frame and the instant it was seen.
+/// A record of a log: a frame, the instant it was seen, and the vehicle that sent it.
 #[derive(Debug, Clone)]
 pub struct Record {
     /// When the frame was seen, in microseconds since the epoch.
     pub timestamp: u64,
     /// The message the frame carries.
     pub message: MavMessage,
+    /// The pair that identifies the sender, read from the header of the frame.
+    ///
+    /// A log of a link that carried several vehicles keeps the frames of all of them, and
+    /// the header is the only place that says which board a frame came from. Without it the
+    /// reader would mix two flights into one state.
+    pub sender: mpcraft_vehicle::VehicleId,
 }
 
 /// A reader of telemetry logs.
@@ -127,6 +133,7 @@ impl<R: Read> TlogReader<R> {
                 return Ok(Some(Record {
                     timestamp: self.timestamp,
                     message,
+                    sender: mpcraft_vehicle::VehicleId::new(frame.system_id, frame.component_id),
                 }));
             }
 

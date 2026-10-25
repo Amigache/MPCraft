@@ -584,6 +584,21 @@ bytes for it, and the session sends what the decision produced to a simulated ve
 there yet is the dispatch: the sending of that decision to each vehicle ten times a second, which
 needs a live fleet, so the row stays partial.
 
+The decision needs the state **of each vehicle**, and the aggregator did not hold it: it held one
+snapshot, so a second board's position read as the primary's. It now keeps one state per sender,
+keyed by the pair that identifies it, and the snapshot the interface reads is the primary vehicle's.
+Before a vehicle has been selected there is nothing to tell the reports apart by, so the packets read
+into a mixed view — which is what a link with one vehicle shows, and what the tests kept showing;
+after the selection the view belongs to the primary alone. The selection is made **once**: a second
+vehicle can satisfy the rule as well as the first, and upstream does not let the choice move
+(`MAVList.GetID`), which is why the first vehicle that qualifies keeps it. Before this change the
+choice could move on a later heartbeat, and the view switched to the vehicle that talked more — the
+two-vehicle test over a real socket is what caught it.
+
+A telemetry log carries the frames of every vehicle that crossed the link, and the header is the only
+place that says which board a frame came from, so a record now carries its sender as well as its
+message and its instant. A log of a flight with two boards reads as two flights rather than one.
+
 Five differences are recorded. MPCraft refuses a vehicle that is in the formation without having
 been given a place in it, rather than inventing an offset from how many vehicles were missing at
 that moment, which is what upstream's fallback does. It projects through the zone its own

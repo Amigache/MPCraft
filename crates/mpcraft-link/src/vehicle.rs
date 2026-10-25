@@ -92,30 +92,11 @@ impl VehicleKind {
 }
 
 /// The identity of a vehicle on a link.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct VehicleId {
-    /// The system id of the vehicle.
-    pub system_id: u8,
-    /// The component id of the vehicle.
-    pub component_id: u8,
-}
-
-impl VehicleId {
-    /// Creates a vehicle id.
-    #[must_use]
-    pub const fn new(system_id: u8, component_id: u8) -> Self {
-        Self {
-            system_id,
-            component_id,
-        }
-    }
-}
-
-impl std::fmt::Display for VehicleId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.system_id, self.component_id)
-    }
-}
+///
+/// The type belongs to the vehicle model rather than to the link: the same pair identifies a
+/// vehicle in the registry, in the telemetry, and in the log of a flight that has already
+/// happened. Keeping one definition stops the two from disagreeing about what an id is.
+pub use mpcraft_vehicle::VehicleId;
 
 /// The state of one vehicle on the link.
 #[derive(Debug, Clone)]

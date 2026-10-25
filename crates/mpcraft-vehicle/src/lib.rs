@@ -486,6 +486,36 @@ pub struct Telemetry {
 }
 
 impl Telemetry {
+    /// Whether nothing has been decoded into this snapshot yet.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.attitude.is_none()
+            && self.position.is_none()
+            && self.velocity.is_none()
+            && self.battery.is_none()
+            && self.mode.is_none()
+            && self.armed.is_none()
+            && self.home.is_none()
+            && self.distance_to_home.is_none()
+            && self.bearing_to_home.is_none()
+            && self.mission.is_none()
+            && self.gps.is_none()
+            && self.gps2.is_none()
+            && self.wind.is_none()
+            && self.passthrough.is_none()
+            && self.efi.is_none()
+            && self.drone_id.is_none()
+            && self.imu.is_none()
+            && self.barometer.is_none()
+            && self.controls.is_none()
+            && self.airspeed.is_none()
+            && self.ekf.is_none()
+            && self.vibration.is_none()
+            && self.batteries.is_empty()
+            && self.ahrs2.is_none()
+            && self.controller.is_none()
+    }
+
     /// Merges an update into the snapshot, recomputing derived values.
     ///
     /// Derived values are recomputed here rather than on access, so a reader of the snapshot

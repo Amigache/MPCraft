@@ -352,7 +352,7 @@ pub fn track(path: &Path) -> CommandResult<Vec<TrackPoint>> {
         .next_record()
         .map_err(|error| CommandError::invalid_request(error.to_string()))?
     {
-        aggregator.apply(&record.message);
+        aggregator.apply(&record.message, record.sender);
 
         let Some(position) = aggregator.telemetry().position else {
             continue;
@@ -761,7 +761,7 @@ impl Playback {
             .next_record()
             .map_err(|error| CommandError::invalid_request(error.to_string()))?
         {
-            aggregator.apply(&record.message);
+            aggregator.apply(&record.message, record.sender);
 
             if first {
                 start = record.timestamp;
@@ -872,7 +872,7 @@ fn read_history(path: &Path) -> CommandResult<History> {
         .next_record()
         .map_err(|error| CommandError::invalid_request(error.to_string()))?
     {
-        aggregator.apply(&record.message);
+        aggregator.apply(&record.message, record.sender);
 
         if first {
             start = record.timestamp;
