@@ -24,6 +24,13 @@ pub enum LinkError {
     #[error("no vehicle is present on the link")]
     NoVehicle,
 
+    /// A vehicle was named that the link has never seen.
+    ///
+    /// The choice of a vehicle is made from the boards that answered, so a pair that has never
+    /// spoken cannot be chosen: there is no state behind it to read.
+    #[error("the vehicle {0} was not seen on the link")]
+    UnknownVehicle(mpcraft_vehicle::VehicleId),
+
     /// A frame was malformed.
     #[error("protocol: {0}")]
     Protocol(#[from] ProtocolError),
@@ -79,6 +86,9 @@ impl LinkError {
             // A capability the device does not have is not a refusal at this moment: it is
             // something the vehicle can never do.
             Self::Unsupported(_) => "unsupported_by_vehicle",
+            // A board that never spoke is not a vehicle to speak to: the request named something
+            // that is not on the link, which is the frontend's mistake rather than the vehicle's.
+            Self::UnknownVehicle(_) => "invalid_request",
             Self::SessionClosed => "not_connected",
         }
     }
@@ -102,6 +112,8 @@ mod tests {
 
     #[test]
     fn every_error_has_a_stable_code() {
+        use mpcraft_vehicle::VehicleId;
+
         assert_eq!(
             LinkError::Timeout(Duration::from_secs(1)).code(),
             "link_timeout"
@@ -111,6 +123,12 @@ mod tests {
         assert_eq!(
             LinkError::Unsupported("no pitch axis".to_owned()).code(),
             "unsupported_by_vehicle"
+        );
+        // A pair somebody typed is the caller's mistake, not the vehicle's, so it is the code the
+        // frontend already branches on for a malformed request.
+        assert_eq!(
+            LinkError::UnknownVehicle(VehicleId::new(9, 1)).code(),
+            "invalid_request"
         );
     }
 }

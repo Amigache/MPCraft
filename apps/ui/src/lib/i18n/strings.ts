@@ -152,6 +152,9 @@ const bundles: Record<Locale, Record<string, string>> = {
     yes: "sí",
     no: "no",
     "no vehicle": "sin vehículo",
+    // The bar names the vehicle the link says it is reading. When nothing has been chosen yet the
+    // bar says that, rather than naming the first board it saw.
+    "none chosen yet": "ninguno elegido todavía",
     "The state of the link": "El estado del enlace",
     "The link the application is opened on":
       "El enlace en el que la aplicación está abierta",
@@ -211,6 +214,17 @@ const bundles: Record<Locale, Record<string, string>> = {
     connecting: "conectando",
     reconnecting: "reconectando",
     failed: "fallido",
+
+    // The boards the link has heard. The choice is the link's, so the words here say what the
+    // panel shows about it rather than what it decided.
+    "The boards on the link": "Las placas del enlace",
+    "The station speaks to one board at a time. The one it speaks to is marked, and choosing another moves the reading to that one.":
+      "La estación habla con una placa a la vez. La que se escucha está marcada, y elegir otra mueve la lectura a esa placa.",
+    "Nothing has been heard yet. The boards that answer are listed here.":
+      "Todavía no se ha oído nada. Las placas que responden se listan aquí.",
+    "Speak to {name}": "Hablar con {name}",
+    "the one the station speaks to": "la que la estación escucha",
+
     "Saved links": "Enlaces guardados",
     Name: "Nombre",
     Save: "Guardar",

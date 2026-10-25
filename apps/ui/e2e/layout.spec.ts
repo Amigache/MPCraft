@@ -122,6 +122,39 @@ for (const [width, height] of SIZES) {
   }
 }
 
+for (const [width, height] of SIZES) {
+  test(`the connection sheet at ${width}x${height} in Spanish`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await openInSpanish(page, "flightdata");
+
+    // The sheet is opened the way an operator opens it, through the File menu, so that what is
+    // measured is the sheet as it stands over the window rather than a box put there for the test.
+    await page.locator('button[data-menu="file"]').click();
+    await page.getByRole("menuitem", { name: "Conectar…" }).click();
+
+    await expect(page.getByRole("dialog", { name: "Conexión" })).toBeVisible();
+
+    const result = await found(page);
+
+    expect(
+      {
+        size: `${width}x${height}`,
+        screen: "flightdata",
+        ...result,
+      },
+      "nothing is drawn on top of something else and nothing is cut off",
+    ).toEqual({
+      size: `${width}x${height}`,
+      screen: "flightdata",
+      clashes: [],
+      clipped: [],
+      overflowing: [],
+    });
+  });
+}
+
 test("the checker still fails on something that is genuinely wrong", async ({
   page,
 }) => {

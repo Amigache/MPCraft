@@ -152,6 +152,18 @@ mod tests {
     }
 
     #[test]
+    fn a_vehicle_that_was_never_heard_keeps_the_code_of_a_bad_request() {
+        // The frontend branches on the code, so the code the link gives for a pair somebody
+        // typed has to survive the trip through this layer. A board that never spoke is not a
+        // vehicle to speak to, and it is not the vehicle refusing anything either.
+        let error = CommandError::from(mpcraft_link::LinkError::UnknownVehicle(
+            mpcraft_vehicle::VehicleId::new(9, 1),
+        ));
+
+        assert_eq!(error.code, "invalid_request");
+    }
+
+    #[test]
     fn a_plugin_failure_keeps_its_code() {
         let error = CommandError::from(mpcraft_plugin::PluginError::UnknownCapability {
             name: "write_parameters".to_string(),

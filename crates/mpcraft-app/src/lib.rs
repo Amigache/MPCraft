@@ -555,6 +555,35 @@ impl AppState {
         });
     }
 
+    /// Chooses which vehicle the station speaks to.
+    ///
+    /// The choice is recorded by the link, because the link is what knows which boards answered:
+    /// the interface cannot disagree with it about which vehicle is the one it is reading, in the
+    /// same way it cannot disagree with the keyring about which key signs. What is decided here is
+    /// only that there has to be a link to make a choice on.
+    ///
+    /// A board that was never seen is refused, and the choice that stands is left where it was —
+    /// an address somebody typed is not a vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns `not_connected` when there is no open link, and `invalid_request` for a board that
+    /// the link has never heard.
+    pub async fn choose_vehicle(&self, key: VehicleKey) -> CommandResult<VehicleKey> {
+        let Some(link) = self.supervisor.session() else {
+            return Err(CommandError::not_connected());
+        };
+
+        link.select_vehicle(mpcraft_link::VehicleId::new(
+            key.system_id,
+            key.component_id,
+        ))
+        .await
+        .map_err(|error| CommandError::new(error.code(), error.to_string()))?;
+
+        Ok(key)
+    }
+
     /// What the keyring says about what the operator wrote.
     ///
     /// The decision about a secret — whether it can be read as thirty-two bytes — is made by the

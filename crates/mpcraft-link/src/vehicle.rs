@@ -15,6 +15,12 @@ use std::collections::HashMap;
 
 use mpcraft_mavlink::{MavAutopilot, MavType};
 
+/// The component an autopilot reports on.
+///
+/// Every other board on the link — a gimbal, a camera, a companion computer — reports on its own
+/// component, and the pair is the only thing known about it before it speaks.
+const AUTOPILOT_COMPONENT: u8 = 1;
+
 /// The family of autopilot a vehicle belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VehicleKind {
@@ -128,6 +134,21 @@ impl Vehicle {
             primary: false,
         }
     }
+
+    /// The name this vehicle is listed under.
+    ///
+    /// An autopilot is named by the family it belongs to, because that says more to an operator
+    /// than a pair of numbers does: "ArduCopter" is a vehicle, "1/1" is an address. A board that
+    /// is not the autopilot keeps the pair, which is all that is known about it, and a family that
+    /// has not been reported yet cannot be a name — a list that showed an empty name for a board
+    /// before its first heartbeat would say nothing where the pair says something.
+    #[must_use]
+    pub fn display_name(&self) -> String {
+        match self.kind {
+            Some(kind) if self.id.component_id == AUTOPILOT_COMPONENT => kind.as_str().to_owned(),
+            _ => self.id.to_string(),
+        }
+    }
 }
 
 /// The vehicles seen on a link.
@@ -183,6 +204,33 @@ impl VehicleRegistry {
     #[must_use]
     pub fn primary(&self) -> Option<&Vehicle> {
         self.vehicles.values().find(|v| v.primary)
+    }
+
+    /// Marks one vehicle as the one the station speaks to.
+    ///
+    /// Returns false when the vehicle is not one the link has seen: the choice is made from the
+    /// boards that answered, not from a pair somebody typed, and a board that has never spoken has
+    /// no state to read.
+    ///
+    /// The choice clears the one the rule had made. From here the rule cannot move it back, because
+    /// the reader compares what it sees against `primary()`, and `primary()` now names the vehicle
+    /// the operator chose — which is the same reason the automatic choice does not move when a
+    /// second board qualifies as well.
+    #[must_use]
+    pub fn choose(&mut self, id: VehicleId) -> bool {
+        if !self.vehicles.contains_key(&id) {
+            return false;
+        }
+
+        for vehicle in self.vehicles.values_mut() {
+            vehicle.primary = false;
+        }
+
+        if let Some(vehicle) = self.vehicles.get_mut(&id) {
+            vehicle.primary = true;
+        }
+
+        true
     }
 }
 
@@ -277,5 +325,43 @@ mod tests {
     #[test]
     fn vehicle_ids_display_as_system_and_component() {
         assert_eq!(VehicleId::new(1, 1).to_string(), "1/1");
+    }
+
+    #[test]
+    fn an_autopilot_is_named_by_its_family_and_another_board_by_its_pair() {
+        // The names were written down before the function was called. A copter on the autopilot's
+        // component is "ArduCopter"; a companion computer that reports the same family is still an
+        // address, because the family says what kind of thing it is and not which one it is; and a
+        // board whose heartbeat has not arrived has no family to be named by, so it keeps the pair.
+        let mut copter = Vehicle::new(VehicleId::new(1, 1));
+        copter.kind = Some(VehicleKind::ArduCopter);
+        assert_eq!(copter.display_name(), "ArduCopter");
+
+        let mut companion = Vehicle::new(VehicleId::new(2, 62));
+        companion.kind = Some(VehicleKind::ArduCopter);
+        assert_eq!(companion.display_name(), "2/62");
+
+        assert_eq!(Vehicle::new(VehicleId::new(3, 1)).display_name(), "3/1");
+    }
+
+    #[test]
+    fn a_choice_clears_the_one_the_rule_had_made_and_refuses_a_board_that_never_spoke() {
+        let mut registry = VehicleRegistry::new();
+        registry.observe(VehicleId::new(1, 1)).primary = true;
+        registry.observe(VehicleId::new(2, 1));
+
+        assert!(registry.choose(VehicleId::new(2, 1)));
+        assert_eq!(
+            registry.primary().map(|vehicle| vehicle.id),
+            Some(VehicleId::new(2, 1))
+        );
+
+        // A board that never spoke has no state to read, so choosing it is not a choice of a
+        // vehicle: it is a pair somebody typed. The choice that was already made stands.
+        assert!(!registry.choose(VehicleId::new(9, 1)));
+        assert_eq!(
+            registry.primary().map(|vehicle| vehicle.id),
+            Some(VehicleId::new(2, 1))
+        );
     }
 }

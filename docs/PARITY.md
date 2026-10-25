@@ -595,6 +595,21 @@ number, what kind of vehicle it is, where it says it is and what the operator sa
 it. The parts arrive in three different messages, and each one keeps what the others
 said.
 
+The **vehicle the station speaks to** is chosen by the link rather than by the interface,
+because the boards that answered are what the link knows. The connection sheet lists them and
+marks the one the station speaks to, and the mark is what the event says rather than what was
+last clicked: a rule that picked the first row would show a vehicle as the one being read while
+the telemetry in the same store came from another board. An autopilot is named by the family it
+belongs to, because that says more than an address does; another board keeps the pair, which is
+all that is known about it before it speaks. A pair that has never spoken is refused rather than
+chosen — there is no state behind a number somebody typed — and the choice that stands is left
+where it was. The choice stands for the current link: a new link runs the rule again, which is
+what upstream does, and within a link the rule runs once, so the choice does not move because a
+second board happened to talk more. What cannot be measured at the two sizes is a row of the list
+with a board on it, because the browser run has no backend to hear a vehicle; the sheet was
+measured with an empty list, and the rule the store reads is tested against names written down
+before the function was called.
+
 The transponder, the generator telemetry and the folder of the operator's own map are
 available elsewhere in the application: in Setup, the vehicle state and the tile
 settings respectively. The video sheet describes and controls the stream, but does not

@@ -1116,6 +1116,27 @@ export interface VehicleEvent {
   readonly componentId: number;
   /** The vehicle family, when it is known. */
   readonly kind: string | null;
+  /**
+   * The name the interface lists this vehicle under.
+   *
+   * The name is decided by the link, which is what knows which board is the autopilot and
+   * which is another board on the same link.
+   */
+  readonly name: string;
+  /** Whether this is the vehicle the station speaks to. */
+  readonly chosen: boolean;
+}
+
+/** The answer of the command that chooses a vehicle. */
+export interface SelectedVehicle {
+  /** The system id. */
+  readonly systemId: number;
+  /** The component id. */
+  readonly componentId: number;
+  /** The name the interface lists this vehicle under. */
+  readonly name: string;
+  /** Whether this is the vehicle the station speaks to. */
+  readonly chosen: boolean;
 }
 
 /** The loss statistics of the link. */

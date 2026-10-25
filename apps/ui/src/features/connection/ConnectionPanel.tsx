@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { listSerialPorts, useConnection } from "../../lib/ipc/bridge";
-import type { CommandError, SerialPort } from "../../lib/ipc/types";
+import {
+  listSerialPorts,
+  selectVehicle,
+  useConnection,
+} from "../../lib/ipc/bridge";
+import type {
+  CommandError,
+  SerialPort,
+  VehicleEvent,
+} from "../../lib/ipc/types";
+import { useLinkStore } from "../../lib/link/linkStore";
 import { useProfilesStore } from "../../lib/connection/profilesStore";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import {
@@ -31,6 +40,11 @@ import styles from "./ConnectionPanel.module.css";
  * The **links the operator has named** are below: the vehicle on the bench, the
  * simulator, the drone in the field. They are kept between two runs, and the ones
  * marked are opened when the application starts.
+ *
+ * The **boards the link has heard** are listed between the buttons and the saved links. The
+ * station speaks to one board at a time, and which one that is belongs to the link — it is where
+ * the boards were heard — so the panel marks what the event says rather than what was last
+ * clicked, and a pair that was never heard cannot be chosen at all.
  */
 
 /** The state of the list of ports. */
@@ -55,6 +69,34 @@ export function ConnectionPanel() {
   const [name, setName] = useState("");
 
   const open = status === "disconnected" || status === "failed";
+
+  // The boards the link has heard. They come from the event, so the panel shows what the backend
+  // says about which one it is reading rather than deciding that for itself.
+  const vehicles = useLinkStore((state) => state.vehicles);
+  const [chooseError, setChooseError] = useState<CommandError | null>(null);
+
+  // A choice can only be made on a link that is open: the boards to choose between are the ones
+  // the link has heard, and there are none when nothing is connected.
+  const speaking =
+    status === "connected" ||
+    status === "connecting" ||
+    status === "reconnecting";
+
+  const choose = async (vehicle: VehicleEvent) => {
+    setBusy(true);
+    setChooseError(null);
+
+    try {
+      await selectVehicle({
+        systemId: vehicle.systemId,
+        componentId: vehicle.componentId,
+      });
+    } catch (cause) {
+      setChooseError(cause as CommandError);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // The ports of the machine. They are read when the panel opens.
   useEffect(() => {
@@ -247,6 +289,58 @@ export function ConnectionPanel() {
           <span className={styles.code}>{error.code}</span> {error.message}
         </p>
       ) : null}
+
+      <section className={styles.boards}>
+        <h3 className={styles.boardsHeading}>{t("The boards on the link")}</h3>
+
+        <p className={styles.note}>
+          {t(
+            "The station speaks to one board at a time. The one it speaks to is marked, and choosing another moves the reading to that one.",
+          )}
+        </p>
+
+        {vehicles.length === 0 ? (
+          <p className={styles.note}>
+            {t(
+              "Nothing has been heard yet. The boards that answer are listed here.",
+            )}
+          </p>
+        ) : (
+          <ul className={styles.boardList}>
+            {vehicles.map((vehicle) => (
+              <li
+                key={`${vehicle.systemId}:${vehicle.componentId}`}
+                className={styles.boardItem}
+              >
+                <button
+                  type="button"
+                  className={styles.boardName}
+                  aria-pressed={vehicle.chosen}
+                  title={t("Speak to {name}", { name: vehicle.name })}
+                  disabled={busy || !speaking}
+                  onClick={() => {
+                    void choose(vehicle);
+                  }}
+                >
+                  {vehicle.name}
+                </button>
+                {vehicle.chosen ? (
+                  <span className={styles.boardMark}>
+                    {t("the one the station speaks to")}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {chooseError ? (
+          <p className={styles.error} role="alert">
+            <span className={styles.code}>{chooseError.code}</span>{" "}
+            {chooseError.message}
+          </p>
+        ) : null}
+      </section>
 
       <section className={styles.saved}>
         <h3 className={styles.savedHeading}>{t("Saved links")}</h3>

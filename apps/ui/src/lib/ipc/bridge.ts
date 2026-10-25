@@ -44,6 +44,7 @@ import type {
   PlanKind,
   PlanWarning,
   PluginInfo,
+  SelectedVehicle,
   SerialPort,
   SigningKeyEntry,
   SigningStatus,
@@ -110,6 +111,19 @@ function vehicleRequest(vehicle?: VehicleKey): { req: VehicleRequest } {
     : {};
 
   return { req: request };
+}
+
+/**
+ * Chooses which vehicle the station speaks to.
+ *
+ * The answer is what the backend says about itself after the choice — the name and the mark come
+ * from the registry — so the interface cannot show a vehicle as the one it is reading when the
+ * link reads another.
+ */
+export async function selectVehicle(
+  vehicle: VehicleKey,
+): Promise<SelectedVehicle> {
+  return call<SelectedVehicle>("select_vehicle", vehicleRequest(vehicle));
 }
 
 /** Arms the vehicle. */

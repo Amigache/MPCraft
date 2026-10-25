@@ -14,7 +14,7 @@ use mpcraft_app::swarm::{SwarmRequest, SwarmStatus};
 use mpcraft_app::{
     flight_modes, plugins::PluginInfo, AppState, CommandError, CommandResult, ConnectRequest,
     ConnectResponse, ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction,
-    PlanInfo, PlanKind, PresetInfo, SeriesData, SessionState,
+    PlanInfo, PlanKind, PresetInfo, SeriesData, SessionState, VehicleKey,
 };
 use mpcraft_link::{Calibration, OsdSlot, OsdSlotConfig, VehicleId};
 use mpcraft_mission::{MissionType, Plan};
@@ -94,6 +94,55 @@ async fn disconnect(app: AppHandle, state: State<'_, AppState>) -> CommandResult
 #[tauri::command]
 async fn connection_status(state: State<'_, AppState>) -> CommandResult<ConnectionStatus> {
     Ok(state.supervisor.status())
+}
+
+/// Chooses which vehicle the station speaks to.
+///
+/// The answer is what the link says about itself after the choice, rather than what was asked
+/// for: the name and the mark come from the registry, so the interface cannot show a vehicle as
+/// the one it is reading when the link reads another.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no open link, or when the pair was
+/// never heard on it.
+#[tauri::command]
+async fn select_vehicle(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<SelectedVehicle> {
+    // A request that names no vehicle cannot be a choice: the choice is between the boards that
+    // were heard, and there is nothing to choose from when none is named.
+    let (system_id, component_id) = match (req.system_id, req.component_id) {
+        (Some(system_id), Some(component_id)) => (system_id, component_id),
+        _ => {
+            return Err(CommandError::invalid_request(
+                "the choice has to name a vehicle",
+            ))
+        }
+    };
+
+    let key = state
+        .choose_vehicle(VehicleKey::new(system_id, component_id))
+        .await?;
+
+    // The answer is read from the state after the choice, not from what was asked for.
+    let session = state.supervisor.state();
+    let vehicle = session
+        .as_ref()
+        .and_then(|session| {
+            session.vehicles.iter().find(|vehicle| {
+                vehicle.id == mpcraft_link::VehicleId::new(key.system_id, key.component_id)
+            })
+        })
+        .ok_or_else(|| CommandError::no_vehicle("the vehicle is not on the link"))?;
+
+    Ok(SelectedVehicle {
+        system_id: key.system_id,
+        component_id: key.component_id,
+        name: vehicle.display_name(),
+        chosen: vehicle.primary,
+    })
 }
 
 /// The connection profiles the user has saved.
@@ -3484,6 +3533,28 @@ struct VehicleEvent {
     component_id: u8,
     /// The vehicle family, when it is known.
     kind: Option<String>,
+    /// The name the interface lists this vehicle under, which the link decides because the link is
+    /// what knows which board is the autopilot and which is another board on the same link.
+    name: String,
+    /// Whether this is the vehicle the station speaks to.
+    ///
+    /// The interface shows what the backend says here rather than choosing a vehicle for itself:
+    /// the choice belongs to the link, which is where the boards were heard.
+    chosen: bool,
+}
+
+/// The vehicle the station speaks to, as the link says it after a choice.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SelectedVehicle {
+    /// The system id.
+    system_id: u8,
+    /// The component id.
+    component_id: u8,
+    /// The name the interface lists this vehicle under.
+    name: String,
+    /// Whether this is the vehicle the station speaks to.
+    chosen: bool,
 }
 
 /// The telemetry of the primary vehicle.
@@ -3843,6 +3914,8 @@ impl From<&LinkSnapshot> for StateEvent {
                             system_id: vehicle.id.system_id,
                             component_id: vehicle.id.component_id,
                             kind: vehicle.kind.map(|kind| kind.as_str().to_owned()),
+                            name: vehicle.display_name(),
+                            chosen: vehicle.primary,
                         })
                         .collect()
                 })
@@ -4145,6 +4218,7 @@ fn main() {
             connect,
             disconnect,
             connection_status,
+            select_vehicle,
             list_connection_profiles,
             set_connection_profiles,
             list_flight_modes,

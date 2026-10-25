@@ -223,6 +223,13 @@ enum Command {
         /// Where to deliver the collected messages.
         respond: oneshot::Sender<Result<Vec<ReceivedMessage>, LinkError>>,
     },
+    /// Chooses which vehicle the station speaks to.
+    Select {
+        /// The board that was chosen.
+        vehicle: VehicleId,
+        /// Where to report the outcome.
+        respond: oneshot::Sender<Result<(), LinkError>>,
+    },
     /// Stop the session.
     Stop,
 }
@@ -759,6 +766,25 @@ impl Session {
     #[must_use]
     pub fn is_closed(&self) -> bool {
         self.stopped.load(Ordering::Relaxed) || !self.state.borrow().connected
+    }
+
+    /// Chooses which vehicle the station speaks to.
+    ///
+    /// The choice is made from the boards the link has seen. A pair that has never spoken cannot be
+    /// chosen, because there is no state behind it — the numbers say an address, not a vehicle.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownVehicle` for a board that was never seen, and `SessionClosed` when the link
+    /// is not open.
+    pub async fn select_vehicle(&self, vehicle: VehicleId) -> Result<(), LinkError> {
+        let (respond, wait) = oneshot::channel();
+        self.commands
+            .send(Command::Select { vehicle, respond })
+            .await
+            .map_err(|_| LinkError::SessionClosed)?;
+
+        wait.await.map_err(|_| LinkError::SessionClosed)?
     }
 
     /// Writes bytes to the link.
@@ -1336,6 +1362,18 @@ async fn run_reader(
                         messages: Vec::new(),
                         respond,
                     });
+                }
+                Command::Select { vehicle, respond } => {
+                    if context.registry.choose(vehicle) {
+                        // The view belongs to the chosen vehicle from here. `set_primary` keeps what
+                        // had already been read as its starting point, so a board that has been
+                        // reporting does not lose its state at the moment it becomes the one shown.
+                        context.aggregator.set_primary(vehicle);
+                        let _ = respond.send(Ok(()));
+                        let _ = state_tx.send(context.snapshot(true));
+                    } else {
+                        let _ = respond.send(Err(LinkError::UnknownVehicle(vehicle)));
+                    }
                 }
                 Command::Stop => {
                     stopped.store(true, Ordering::Relaxed);

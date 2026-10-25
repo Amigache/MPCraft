@@ -18,7 +18,7 @@ import {
   startLiveKml,
   stopLiveKml,
 } from "../../lib/ipc/bridge";
-import { useLinkStore } from "../../lib/link/linkStore";
+import { chosenVehicle, useLinkStore } from "../../lib/link/linkStore";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { TABS, useUiStore, type Theme } from "../../lib/ui/uiStore";
@@ -90,6 +90,9 @@ export function MenuBar() {
 
   const status = useLinkStore((state) => state.status);
   const vehicles = useLinkStore((state) => state.vehicles);
+  // The bar shows the vehicle the link says it is reading, rather than the first one in the list:
+  // the choice belongs to the link, which is where the boards were heard.
+  const chosen = chosenVehicle(vehicles);
   const modes = useModesStore((state) => state.modes);
   const plans = usePlanStore((state) => state.plans);
   const setKind = usePlanStore((state) => state.setKind);
@@ -1219,9 +1222,11 @@ export function MenuBar() {
           className={styles.target}
           title={t("The link the application is opened on")}
         >
-          {vehicles.length > 0
-            ? `${vehicles[0]?.systemId ?? "?"}/${vehicles[0]?.componentId ?? "?"}`
-            : t("no vehicle")}
+          {chosen !== null
+            ? chosen.name
+            : vehicles.length > 0
+              ? t("none chosen yet")
+              : t("no vehicle")}
         </span>
         <span
           className={`${styles.state} ${styles[status] ?? ""}`}

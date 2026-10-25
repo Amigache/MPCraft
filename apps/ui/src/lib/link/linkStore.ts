@@ -273,7 +273,10 @@ function sameCameras(
   });
 }
 
-/** Whether two sets of loss statistics are the same. */function sameLoss(left: LossStats, right: LossStats): boolean {
+/** Whether two sets of loss statistics are the same. */ function sameLoss(
+  left: LossStats,
+  right: LossStats,
+): boolean {
   return left.received === right.received && left.lost === right.lost;
 }
 
@@ -290,11 +293,16 @@ function sameVehicles(
   }
   return left.every((vehicle, index) => {
     const other = right[index];
+    // The name and the mark are compared with the rest, because a choice that moves is a change
+    // the interface has to see: a comparison that stopped at the pair would keep showing the
+    // vehicle that was read before the choice.
     return (
       other !== undefined &&
       vehicle.systemId === other.systemId &&
       vehicle.componentId === other.componentId &&
-      vehicle.kind === other.kind
+      vehicle.kind === other.kind &&
+      vehicle.name === other.name &&
+      vehicle.chosen === other.chosen
     );
   });
 }
@@ -370,15 +378,22 @@ export function startLinkBridge(): void {
     }
 
     liveTelemetry.publish(normaliseTelemetry(payload.telemetry));
-    useLinkStore.setState({ playback: true, playbackPosition: payload.position });
+    useLinkStore.setState({
+      playback: true,
+      playbackPosition: payload.position,
+    });
   });
 }
-/** The primary vehicle on the link, which is the one the interface drives. */
-export function primaryVehicle(
+/**
+ * The vehicle the station speaks to, as the backend says it.
+ *
+ * The choice belongs to the link, which is where the boards were heard, so the interface reads
+ * the mark rather than picking one for itself — otherwise a panel could show a vehicle as the
+ * one it is reading while the telemetry in the same store comes from another board. Before the
+ * link has selected one there is no such vehicle, and this says so.
+ */
+export function chosenVehicle(
   vehicles: readonly VehicleEvent[],
 ): VehicleEvent | null {
-  if (vehicles.length === 0) {
-    return null;
-  }
-  return vehicles[0] ?? null;
+  return vehicles.find((vehicle) => vehicle.chosen) ?? null;
 }
