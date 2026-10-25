@@ -8,8 +8,10 @@ import {
   logMessageSamples,
   logSeries,
   logSummary,
+  logTrack,
   downloadLog,
   normaliseError,
+  playbackClose,
   playbackOpen,
   playbackSeek,
   vehicleLogs,
@@ -25,6 +27,8 @@ import type {
 } from "../../lib/ipc/types";
 import { alignSeries, planChart } from "../../lib/graphs/plan";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
+import { useLinkStore } from "../../lib/link/linkStore";
+import { useLogTrackStore } from "../../lib/logs/logTrackStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { GraphChart } from "../graphs/GraphChart";
 import styles from "./LogsScreen.module.css";
@@ -40,6 +44,14 @@ import styles from "./LogsScreen.module.css";
  * The graphs are the same ones the live view draws. The backend evaluates the
  * expressions over the telemetry of the log instead of over the telemetry of the link,
  * and the interface receives numbers with names and never sees a MAVLink field.
+ *
+ * The play-back is the backend's, so the moment shown is one moment shared by the grid,
+ * the graph and the map: clicking a row moves all three. The whole path of the log is put
+ * in a store the map reads, because the moment a row shows can be anywhere in the flight —
+ * a map that had only drawn what happened to be played would show a point on a line that is
+ * not there. And the flight can be let go of: while a log is being played back the link does
+ * not take the window, so without a way to stop there would be no way to see the vehicle
+ * that is on the wire now.
  */
 
 /** How a part of the interface says something in the language the window is read in. */
@@ -89,6 +101,9 @@ export function LogsScreen() {
   const hide = useUiStore((state) => state.hideLog);
 
   const t = useLocaleStore((state) => state.t);
+
+  /** Whether the backend is holding a flight, which is what the map and the graphs draw. */
+  const showingFlight = useLinkStore((state) => state.playback);
 
   const [typed, setTyped] = useState<string>("");
   const [path, setPath] = useState<string | null>(null);
@@ -210,6 +225,23 @@ export function LogsScreen() {
       } catch {
         if (!cancelled) {
           setFlight(0);
+        }
+      }
+
+      // The whole path the log holds, which the map reads. The moment a row shows can be anywhere
+      // in the flight, so the line on the ground has to be the path of the flight rather than the
+      // part of it that happened to be played.
+      try {
+        const points = await logTrack(path);
+
+        if (!cancelled) {
+          useLogTrackStore.getState().setTrack(path, points);
+        }
+      } catch {
+        // A log with no places in it is still a log that can be read; there is just nothing to
+        // draw on the ground.
+        if (!cancelled) {
+          useLogTrackStore.getState().clear();
         }
       }
     };
@@ -420,6 +452,31 @@ export function LogsScreen() {
     }
   };
 
+  /**
+   * Lets go of the flight.
+   *
+   * While a log is being played back the link does not take the window: the vehicle that is on the
+   * wire now is not shown, because the flight being watched is the one in the file. Stopping the
+   * play-back is the only way to see the live vehicle again, so there has to be a control for it.
+   * What is let go of is the moment shared with the map; the grid and the graph keep the log they
+   * read, because the screen does not forget what was opened on it.
+   */
+  const leaveFlight = async () => {
+    setBusy(true);
+
+    try {
+      await playbackClose();
+      useLogTrackStore.getState().clear();
+      setPlaying(false);
+      setPosition(0);
+      setError(null);
+    } catch (cause) {
+      setError(normaliseError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -518,6 +575,17 @@ export function LogsScreen() {
                 total: flight.toFixed(1),
               })}
             </span>
+
+            <button
+              type="button"
+              className="button"
+              disabled={busy || !showingFlight}
+              onClick={() => {
+                void leaveFlight();
+              }}
+            >
+              {t("Leave the flight")}
+            </button>
           </div>
         ) : null}
 

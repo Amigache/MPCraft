@@ -1237,6 +1237,7 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Ningún registro está abierto. Un registro es lo que guarda la memoria de un vuelo: es la corriente de los cuadros que cruzaron el enlace, cada uno con el instante en que se vio.",
     "Pause the flight": "Parar el vuelo",
     "Play the flight": "Reproducir el vuelo",
+    "Leave the flight": "Dejar el vuelo",
     Pause: "Parar",
     Play: "Reproducir",
     "Where the flight is": "Dónde va el vuelo",

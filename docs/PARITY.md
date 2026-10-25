@@ -468,6 +468,22 @@ the play-back are the same thing seen from three sides. The **graph** is the fou
 side of it: a log that is being played back is what the graph draws, and the line that
 says where the play-head is is the moment the grid and the map are showing too.
 
+The line the map draws for a log is the whole path the file holds, not the part that has
+been played: a moment at two minutes has to be a moment on a line that is there, and the
+map knows the flight only through the store the screen reads. It is drawn in the colour of
+what is known from a file rather than from the wire, because during a play-back the track
+and the path are two things — one is what has happened so far and the other is the flight.
+And a path is kept with the file it was read from, so a line of another flight is not drawn
+under the log that is open.
+
+The **flight can be let go of**. While a log is being played back the link does not take the
+window, because the vehicle shown is the one in the file; before there was a control for
+stopping it, an operator who opened a log could not get the live vehicle back without closing
+the program. Letting go of the flight stops the play-back and the map goes back to the wire,
+while the grid and the graph keep the log they read, because the screen does not forget what
+was opened on it. What cannot be measured at the two sizes is the row that button sits on:
+the scrub only exists once a log is open, and the browser run has no backend to open one.
+
 The **tiles of the map** can be fetched before the flight and kept on the disk: a survey
 is flown where there is no signal, and the map of the field is drawn with the pictures
 that are there. The map's button says "Save the area", and the tiles of the region and

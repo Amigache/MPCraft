@@ -31,6 +31,7 @@ import { usePlanStore } from "../../lib/plan/planStore";
 import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { usePictureStore } from "../../lib/georef/pictureStore";
+import { lineOf, useLogTrackStore } from "../../lib/logs/logTrackStore";
 import { DEFAULT_CENTRE, DEFAULT_ZOOM, TRACK_LIMIT } from "./mapStyle";
 import {
   knownProviders,
@@ -52,6 +53,12 @@ import styles from "./FlightMap.module.css";
  * While the plan is being edited the items of the plan are drawn as **markers** and not
  * as a layer of circles: a circle cannot be dragged, and dragging a waypoint on the map
  * is how a plan is drawn.
+ *
+ * The path a log holds is drawn apart from the track, in the colour of what is known from a file
+ * rather than from the wire: during a play-back the two are not the same thing. The track is what
+ * has happened so far; the path of the log is the whole flight, and the moment the grid and the
+ * graph show can be anywhere in it — a point at two minutes on a line that only drew thirty
+ * seconds is a point on a line that is not there.
  */
 
 /** The identifier of the source of the track. */
@@ -77,6 +84,9 @@ const ADSB_SOURCE = "adsb";
 
 /** The identifier of the source of the places the pictures say they were taken. */
 const PICTURES_SOURCE = "pictures";
+
+/** The identifier of the source of the path a log holds. */
+const LOG_SOURCE = "log-track";
 
 /** The smallest movement, in degrees, that is worth a point on the track. */
 const TRACK_STEP = 1e-5;
@@ -469,6 +479,31 @@ export function FlightMap() {
         },
       });
 
+      // The path a log holds: the whole flight, not the part of it that has been played.
+      instance.addSource(LOG_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [] },
+        },
+      });
+
+      // The path of the log is drawn under the track, because during a play-back the track is what
+      // has happened so far and the path is the flight: the two are known in two different ways,
+      // one from the file and one from the wire, and they are drawn as two things.
+      instance.addLayer({
+        id: "log-line",
+        type: "line",
+        source: LOG_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#a371f7",
+          "line-width": 1.5,
+          "line-opacity": 0.5,
+        },
+      });
+
       instance.addLayer({
         id: "track-line",
         type: "line",
@@ -801,6 +836,28 @@ export function FlightMap() {
       features,
     });
   }, [pictures, ready]);
+
+  // The path of the log that is open on the screen of the logs. It is drawn for the whole flight,
+  // so that the moment a row of the grid shows is a moment on a line that is there — and it is not
+  // drawn when the flight has been let go of, because then the map is showing the vehicle on the
+  // wire again.
+  const trackOfLog = useLogTrackStore((state) => state.points);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !ready) {
+      return;
+    }
+
+    setSourceData(instance, LOG_SOURCE, {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: lineOf(trackOfLog),
+      },
+    });
+  }, [trackOfLog, ready]);
 
   // The provider of the tiles. The style of the map is the provider's, and the sources
   // and the layers go with it: they are put back when the new style has loaded.
