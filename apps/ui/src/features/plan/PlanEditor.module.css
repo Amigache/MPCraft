@@ -255,11 +255,14 @@
 /* The profile of the terrain along the plan. */
 
 .profile {
+  align-items: center;
   border-bottom: 1px solid var(--colour-border);
   display: flex;
-  flex: 0 0 auto;
+  /* The drawing gives way before the grid does, so that a short editor still shows rows. */
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-1);
+  min-height: 60px;
   padding: var(--space-2) var(--space-3);
 }
 
@@ -288,7 +291,11 @@
   background: var(--colour-bg);
   border: 1px solid var(--colour-border);
   border-radius: var(--radius-sm);
-  height: 110px;
+  /* The drawing keeps its usual height when there is room and shrinks when there is not,
+     rather than pushing the rows of the plan off the screen. */
+  flex: 1 1 auto;
+  max-height: 110px;
+  min-height: 40px;
   width: 100%;
 }
 
