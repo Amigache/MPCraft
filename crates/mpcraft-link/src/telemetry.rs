@@ -190,10 +190,13 @@ impl TelemetryAggregator {
 fn apply_to(telemetry: &mut Telemetry, message: &MavMessage) {
     match message {
         MavMessage::ATTITUDE(attitude) => {
+            // The message carries radians; the model speaks degrees, which is what the graphs,
+            // the instrument and the formation read. The conversion happens here, once, at the
+            // wire boundary, so that no reader downstream has to know which the message used.
             telemetry.attitude = Some(Attitude {
-                roll: f64::from(attitude.roll),
-                pitch: f64::from(attitude.pitch),
-                yaw: f64::from(attitude.yaw),
+                roll: f64::from(attitude.roll).to_degrees(),
+                pitch: f64::from(attitude.pitch).to_degrees(),
+                yaw: f64::from(attitude.yaw).to_degrees(),
             });
         }
 
@@ -465,11 +468,12 @@ fn apply_to(telemetry: &mut Telemetry, message: &MavMessage) {
 
         MavMessage::AHRS2(ahrs) => {
             // The second estimator, which is the one the vehicle compares the first
-            // with.
+            // with. Its angles are radians on the wire and degrees in the model, like the
+            // primary attitude's.
             telemetry.ahrs2 = Some(Attitude {
-                roll: f64::from(ahrs.roll),
-                pitch: f64::from(ahrs.pitch),
-                yaw: f64::from(ahrs.yaw),
+                roll: f64::from(ahrs.roll).to_degrees(),
+                pitch: f64::from(ahrs.pitch).to_degrees(),
+                yaw: f64::from(ahrs.yaw).to_degrees(),
             });
         }
 
@@ -637,10 +641,11 @@ fn plan_state_of(state: MissionState) -> PlanState {
 mod tests {
     use super::*;
     use mpcraft_mavlink::dialect::messages::{
-        AHRS2_DATA, BATTERY_STATUS_DATA, EKF_STATUS_REPORT_DATA, GLOBAL_POSITION_INT_DATA,
-        GPS_RAW_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA, MISSION_CURRENT_DATA,
-        NAV_CONTROLLER_OUTPUT_DATA, RAW_IMU_DATA, RC_CHANNELS_DATA, SCALED_PRESSURE_DATA,
-        SERVO_OUTPUT_RAW_DATA, SYS_STATUS_DATA, TIMESYNC_DATA, VFR_HUD_DATA, VIBRATION_DATA,
+        AHRS2_DATA, ATTITUDE_DATA, BATTERY_STATUS_DATA, EKF_STATUS_REPORT_DATA,
+        GLOBAL_POSITION_INT_DATA, GPS_RAW_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA,
+        MISSION_CURRENT_DATA, NAV_CONTROLLER_OUTPUT_DATA, RAW_IMU_DATA, RC_CHANNELS_DATA,
+        SCALED_PRESSURE_DATA, SERVO_OUTPUT_RAW_DATA, SYS_STATUS_DATA, TIMESYNC_DATA, VFR_HUD_DATA,
+        VIBRATION_DATA,
     };
     use mpcraft_mavlink::{MavGpsFixType, MavType};
 
@@ -1184,8 +1189,8 @@ mod tests {
         );
 
         let ahrs2 = aggregator.telemetry().ahrs2.expect("the second estimator");
-        assert!((ahrs2.roll - 0.1).abs() < 1e-6);
-        assert!((ahrs2.pitch + 0.2).abs() < 1e-6);
+        assert!((ahrs2.roll - 5.729_578).abs() < 1e-6);
+        assert!((ahrs2.pitch - -11.459_156).abs() < 1e-6);
 
         let controller = aggregator
             .telemetry()
@@ -1195,6 +1200,30 @@ mod tests {
         assert!((controller.altitude_error + 3.0).abs() < 1e-6);
         assert!((controller.cross_track_error - 12.0).abs() < 1e-6);
         assert!((controller.waypoint_distance - 250.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_attitude_message_carries_radians_and_the_model_reads_degrees() {
+        // The hand: 0.05 · 180/π = 2.864789°, -0.02 · 180/π = -1.145916°, 3.0 · 180/π =
+        // 171.887339°. The conversion happens at the wire boundary so that the instrument, the
+        // graphs and the formation all read the same thing.
+        let mut aggregator = TelemetryAggregator::new();
+
+        aggregator.apply(
+            &MavMessage::ATTITUDE(ATTITUDE_DATA {
+                time_boot_ms: 0,
+                roll: 0.05,
+                pitch: -0.02,
+                yaw: 3.0,
+                ..Default::default()
+            }),
+            VehicleId::new(1, 1),
+        );
+
+        let attitude = aggregator.telemetry().attitude.expect("an attitude");
+        assert!((attitude.roll - 2.864_789).abs() < 1e-6);
+        assert!((attitude.pitch - -1.145_916).abs() < 1e-6);
+        assert!((attitude.yaw - 171.887_339).abs() < 1e-6);
     }
 
     #[test]

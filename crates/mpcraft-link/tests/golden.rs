@@ -272,9 +272,15 @@ async fn the_fixture_decodes_into_telemetry() {
     assert!((position.alt - 584.0).abs() < 0.01);
 
     let attitude = state.telemetry.attitude.expect("an attitude");
-    assert!((attitude.roll - 0.05).abs() < 1e-6);
-    assert!((attitude.pitch - -0.02).abs() < 1e-6);
-    assert!((attitude.yaw - 1.57).abs() < 1e-6);
+    // The fixture carries the angles as radians; the model reads them as degrees, converted at
+    // the wire boundary: 0.05 · 180/π = 2.864789°, -0.02 · 180/π = -1.145916°, 1.57 · 180/π =
+    // 89.954373°. The tolerance is the width of a single precision number: the message carries
+    // these as f32, and 1.57 is not one of the values an f32 holds exactly, so the angle that
+    // arrives is 1.57000005245 and its degrees are 89.954377 — three millionths away from the
+    // hand value. The other two land inside a millionth because their rounding is smaller.
+    assert!((attitude.roll - 2.864_789).abs() < 1e-5);
+    assert!((attitude.pitch - -1.145_916).abs() < 1e-5);
+    assert!((attitude.yaw - 89.954_373).abs() < 1e-5);
 
     let battery = state.telemetry.battery.expect("a battery");
     assert!((battery.voltage - 12.34).abs() < 1e-6);

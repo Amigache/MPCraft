@@ -407,8 +407,9 @@ pub struct Sample {
 impl Sample {
     /// Takes a sample of the telemetry.
     ///
-    /// The attitude is converted to degrees here, once, so that the expressions read the
-    /// way an operator reads them.
+    /// The angles are taken as the model holds them, which is the way an operator reads them:
+    /// the attitude is already in degrees, converted at the wire boundary, while the wish of the
+    /// controller travels as the controller states it, in radians.
     #[must_use]
     pub fn from_telemetry(telemetry: &Telemetry, at: std::time::Duration) -> Self {
         let mut values = vec![None; FIELDS.len()];
@@ -418,9 +419,9 @@ impl Sample {
         };
 
         if let Some(attitude) = telemetry.attitude {
-            set(Field::AttitudeRoll, Some(attitude.roll.to_degrees()));
-            set(Field::AttitudePitch, Some(attitude.pitch.to_degrees()));
-            set(Field::AttitudeYaw, Some(attitude.yaw.to_degrees()));
+            set(Field::AttitudeRoll, Some(attitude.roll));
+            set(Field::AttitudePitch, Some(attitude.pitch));
+            set(Field::AttitudeYaw, Some(attitude.yaw));
         }
 
         if let Some(velocity) = telemetry.velocity {
@@ -511,9 +512,9 @@ impl Sample {
         }
 
         if let Some(ahrs2) = telemetry.ahrs2 {
-            set(Field::Ahrs2Roll, Some(ahrs2.roll.to_degrees()));
-            set(Field::Ahrs2Pitch, Some(ahrs2.pitch.to_degrees()));
-            set(Field::Ahrs2Yaw, Some(ahrs2.yaw.to_degrees()));
+            set(Field::Ahrs2Roll, Some(ahrs2.roll));
+            set(Field::Ahrs2Pitch, Some(ahrs2.pitch));
+            set(Field::Ahrs2Yaw, Some(ahrs2.yaw));
         }
 
         if let Some(controller) = telemetry.controller {
@@ -1683,7 +1684,7 @@ mod tests {
     fn sample() -> Sample {
         let telemetry = Telemetry {
             attitude: Some(Attitude {
-                roll: std::f64::consts::FRAC_PI_2,
+                roll: 90.0,
                 pitch: 0.0,
                 yaw: 0.0,
             }),

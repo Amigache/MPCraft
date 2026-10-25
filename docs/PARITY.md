@@ -595,11 +595,35 @@ vehicle can satisfy the rule as well as the first, and upstream does not let the
 choice could move on a later heartbeat, and the view switched to the vehicle that talked more — the
 two-vehicle test over a real socket is what caught it.
 
+The **dispatch** is the loop itself: ten times a second, for each member, read from that vehicle's
+own state rather than from the primary's, and what the decision produced put on the wire. It belongs
+to the application because it is policy — who leads, who sits where, and how often the loop runs —
+while the decision stays pure computation in `mpcraft_vehicle::formation` and the wire shape stays in
+`mpcraft_link::commands`. The branch is the vehicle's kind, once its heartbeat has been seen: a plane
+gets the quaternion answer, the others get the position target, and the heading command only when the
+difference is past the three-degree band. Nothing is waited for, because at ten hertz there is no time
+to wait for an acknowledgement and the protocol does not give one for the position target either. The
+vehicle the settings name as the leader is never told anything, which is what upstream's `SendCommand`
+does with its own vehicle.
+
+What the loop proves over a real socket — four boards played on it, the leader, a plane in its slot,
+and two multicopters, one past the band and one inside it — is that what reaches the wire is what the
+hand computed. The plane's answer is the identity quaternion, because it already points where its slot
+puts it, with the thrust demand 0.606 and the mask `0x38`. The multicopter past the band gets forty
+metres of grid north as forty divided by the scale factor of the projection, which on the central
+meridian is 0.9996, the leader's speeds passed through rather than derived from its own, the frame as
+the number upstream sends (6) rather than as its modern synonym, and a mask built from the names the
+dialect has: 64 + 128 + 256 + 1024 + 2048 = 3520, which is not the number upstream's
+`ushort.MaxValue` arithmetic leaves behind — four of the bits it sets have no names today, and
+ArduPilot ignores them. One `COMMAND_LONG` goes out, for that vehicle alone; nothing for the vehicle
+inside the band, and nothing for the leader. What the loop cannot prove without a live fleet is that
+the vehicles fly into their slots, so the row stays partial.
+
 A telemetry log carries the frames of every vehicle that crossed the link, and the header is the only
 place that says which board a frame came from, so a record now carries its sender as well as its
 message and its instant. A log of a flight with two boards reads as two flights rather than one.
 
-Five differences are recorded. MPCraft refuses a vehicle that is in the formation without having
+Six differences are recorded. MPCraft refuses a vehicle that is in the formation without having
 been given a place in it, rather than inventing an offset from how many vehicles were missing at
 that moment, which is what upstream's fallback does. It projects through the zone its own
 projection picks rather than upstream's `(lng + 186) / 6`. It keeps only the two of the four PIDs
@@ -613,7 +637,10 @@ in the dialect as it is defined today; read through the current names the same b
 else, and a construction that keeps only the named flags would send 32 rather than `0x38`. Off the
 central meridian the grid and the earth disagree by the convergence angle — a slot measured east on
 the grid reads as a true bearing about 1.2 degrees off at Canberra — which upstream has too, and
-which the tests record rather than paper over.
+which the tests record rather than paper over. And the model speaks **degrees** for an attitude while
+the wire carries radians, so the conversion happens once, at the wire boundary; before this change the
+decoder, the graphs and the desktop event each read the same field as radians, and the three-degree
+heading band could not honestly fire on data that came from a vehicle.
 
 The generator that writes the fixture works the CRC_EXTRA seed out from the field definitions — the
 name, then each base field in wire order as `type name `, the array length, folded to a byte —

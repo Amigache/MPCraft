@@ -189,6 +189,83 @@ pub fn attitude_target_message(
     })
 }
 
+/// The message the multicopter branch puts on the wire for one vehicle.
+///
+/// The mask keeps the position and the speeds and leaves the accelerations, the heading and the
+/// turning rate alone, which is what upstream's four flags say (`pos=true, vel=true,
+/// acc=false, yaw=false`). Upstream builds the mask from `ushort.MaxValue`, which leaves four
+/// bits set that today's dialect has no names for; ArduPilot ignores those bits, so the mask is
+/// built from the names it has here rather than from the number upstream's arithmetic produced.
+///
+/// The frame travels as the number upstream sends, 6, and not as its modern synonym: the
+/// synonym carries a different byte, and a vehicle that reads the frame byte reads this one as
+/// sea level rather than as height over home.
+#[must_use]
+#[allow(deprecated)]
+pub fn swarm_position_target_message(
+    vehicle: VehicleId,
+    decision: &mpcraft_vehicle::formation::MulticopterDecision,
+) -> MavMessage {
+    // The message carries zero speeds when the leader has not reported any.
+    let velocity = match decision.velocity {
+        Some(velocity) => velocity,
+        None => mpcraft_vehicle::Velocity {
+            north: 0.0,
+            east: 0.0,
+            down: 0.0,
+            ground_speed: 0.0,
+        },
+    };
+
+    MavMessage::SET_POSITION_TARGET_GLOBAL_INT(SET_POSITION_TARGET_GLOBAL_INT_DATA {
+        time_boot_ms: 0,
+        // The integer form scales the coordinates by 1e7.
+        lat_int: (decision.target.lat * 1e7).round() as i32,
+        lon_int: (decision.target.lng * 1e7).round() as i32,
+        alt: decision.target.alt as f32,
+        // The speeds are in metres per second in the north-east-down frame, which is what the
+        // message carries and what the decision already holds.
+        vx: velocity.north as f32,
+        vy: velocity.east as f32,
+        vz: velocity.down as f32,
+        afx: 0.0,
+        afy: 0.0,
+        afz: 0.0,
+        yaw: 0.0,
+        yaw_rate: 0.0,
+        // The position and the speeds are what the vehicle is told to change; the accelerations
+        // and the heading are left as the vehicle has them, and the heading travels in its own
+        // command when it is sent at all.
+        type_mask: PositionTargetTypemask::POSITION_TARGET_TYPEMASK_AX_IGNORE
+            | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_AY_IGNORE
+            | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_AZ_IGNORE
+            | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_YAW_IGNORE
+            | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE,
+        target_system: vehicle.system_id,
+        target_component: vehicle.component_id,
+        coordinate_frame: MavFrame::MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+    })
+}
+
+/// The command that points a vehicle at the leader's heading, as upstream sends it: the angle
+/// first and one hundred as the second parameter.
+#[must_use]
+pub fn swarm_condition_yaw_message(vehicle: VehicleId, yaw_deg: f64) -> MavMessage {
+    MavMessage::COMMAND_LONG(COMMAND_LONG_DATA {
+        param1: yaw_deg as f32,
+        param2: 100.0,
+        param3: 0.0,
+        param4: 0.0,
+        param5: 0.0,
+        param6: 0.0,
+        param7: 0.0,
+        command: MavCmd::MAV_CMD_CONDITION_YAW,
+        target_system: vehicle.system_id,
+        target_component: vehicle.component_id,
+        confirmation: 0,
+    })
+}
+
 impl Session {
     /// Arms a vehicle.
     ///
@@ -369,6 +446,43 @@ impl Session {
         command: &mpcraft_vehicle::formation::AttitudeCommand,
     ) -> Result<(), LinkError> {
         self.write_message(&attitude_target_message(vehicle, command))
+            .await
+    }
+
+    /// Sends the place and the speed the formation decided for one multicopter.
+    ///
+    /// The frame is the relative-altitude one, which is what upstream's multicopter branch
+    /// uses (`Formation.cs:300`): the height of a slot is a height over the ground, not over
+    /// sea level.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the message.
+    pub async fn send_swarm_position_target(
+        &self,
+        vehicle: VehicleId,
+        decision: &mpcraft_vehicle::formation::MulticopterDecision,
+    ) -> Result<(), LinkError> {
+        self.write_message(&swarm_position_target_message(vehicle, decision))
+            .await
+    }
+
+    /// Points one vehicle at the leader's heading.
+    ///
+    /// This is sent only when the difference is past the dead band, which is what the decision
+    /// says; the decision itself does not travel, this order does. Like the position target it
+    /// is a write rather than a transaction: upstream sends it with `doCommand(..., false)`, so
+    /// there is no acknowledgement to wait for at ten hertz.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the command.
+    pub async fn send_swarm_condition_yaw(
+        &self,
+        vehicle: VehicleId,
+        yaw_deg: f64,
+    ) -> Result<(), LinkError> {
+        self.write_message(&swarm_condition_yaw_message(vehicle, yaw_deg))
             .await
     }
 
@@ -931,6 +1045,82 @@ mod tests {
         let payload = encode_command_long(1, 1, 42650, 0, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         assert_eq!(payload[28], (42650 & 0xFF) as u8);
         assert_eq!(payload[29], ((42650 >> 8) & 0xFF) as u8);
+    }
+
+    #[test]
+    fn the_multicopter_branch_carries_the_slot_and_the_leader_speeds() {
+        // The hand: the coordinates travel scaled by 1e7, the mask keeps what upstream's four
+        // flags keep — the position and the speeds — and ignores the rest, which is bits 6, 7, 8
+        // for the accelerations and 10 and 11 for the heading and its rate: 64 + 128 + 256 +
+        // 1024 + 2048 = 3520.
+        let decision = mpcraft_vehicle::formation::MulticopterDecision {
+            target: mpcraft_vehicle::GeoPoint {
+                lat: -35.0,
+                lng: 3.0,
+                alt: 105.0,
+            },
+            velocity: Some(mpcraft_vehicle::Velocity {
+                north: 8.0,
+                east: 0.0,
+                down: 0.0,
+                ground_speed: 8.0,
+            }),
+            yaw_deg: Some(0.0),
+        };
+
+        let message = swarm_position_target_message(VehicleId::new(3, 1), &decision);
+
+        let MavMessage::SET_POSITION_TARGET_GLOBAL_INT(target) = message else {
+            panic!("the multicopter branch answers with the position target");
+        };
+
+        assert_eq!(target.lat_int, -350_000_000);
+        assert_eq!(target.lon_int, 30_000_000);
+        assert_eq!(target.alt, 105.0);
+        assert_eq!((target.vx, target.vy, target.vz), (8.0, 0.0, 0.0));
+        assert_eq!(target.type_mask.bits(), 3520);
+        // The frame as the number upstream sends it, 6, rather than as its modern synonym,
+        // which carries a different byte.
+        assert_eq!(target.coordinate_frame as u32, 6);
+        assert_eq!((target.target_system, target.target_component), (3, 1));
+    }
+
+    #[test]
+    fn a_leader_that_has_not_reported_speeds_sends_zeros() {
+        let decision = mpcraft_vehicle::formation::MulticopterDecision {
+            target: mpcraft_vehicle::GeoPoint {
+                lat: -35.0,
+                lng: 3.0,
+                alt: 105.0,
+            },
+            velocity: None,
+            yaw_deg: None,
+        };
+
+        let message = swarm_position_target_message(VehicleId::new(3, 1), &decision);
+
+        let MavMessage::SET_POSITION_TARGET_GLOBAL_INT(target) = message else {
+            panic!("the multicopter branch answers with the position target");
+        };
+
+        assert_eq!((target.vx, target.vy, target.vz), (0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn the_heading_command_carries_the_angle_and_the_offset() {
+        // Upstream passes the leader's heading as the first parameter and one hundred as the
+        // second; the command number is 115.
+        let message = swarm_condition_yaw_message(VehicleId::new(3, 1), 12.345);
+
+        let MavMessage::COMMAND_LONG(command) = message else {
+            panic!("the heading travels as a command");
+        };
+
+        assert_eq!(command.command, MavCmd::MAV_CMD_CONDITION_YAW);
+        assert_eq!(MavCmd::MAV_CMD_CONDITION_YAW as u32, 115);
+        assert_eq!(command.param1, 12.345);
+        assert_eq!(command.param2, 100.0);
+        assert_eq!((command.target_system, command.target_component), (3, 1));
     }
 
     #[test]

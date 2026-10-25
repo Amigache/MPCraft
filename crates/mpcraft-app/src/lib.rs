@@ -61,6 +61,7 @@ pub mod ntrip;
 pub mod operations;
 pub mod plugins;
 pub mod supervisor;
+pub mod swarm;
 pub mod terrain;
 pub mod transponder;
 pub mod ulog;

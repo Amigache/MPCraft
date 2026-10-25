@@ -3874,10 +3874,12 @@ fn telemetry_of(telemetry: &Telemetry) -> TelemetryEvent {
             lng: position.lng,
             alt: position.alt,
         }),
+        // The angles travel as the model holds them, which is degrees: the conversion from the
+        // radians of the wire happened at the decoder, once, where the message was read.
         attitude: telemetry.attitude.map(|attitude| AttitudeEvent {
-            roll: attitude.roll.to_degrees(),
-            pitch: attitude.pitch.to_degrees(),
-            yaw: attitude.yaw.to_degrees(),
+            roll: attitude.roll,
+            pitch: attitude.pitch,
+            yaw: attitude.yaw,
         }),
         velocity: telemetry.velocity.as_ref().map(|velocity| VelocityEvent {
             ground_speed: velocity.ground_speed,
@@ -4018,9 +4020,9 @@ fn telemetry_of(telemetry: &Telemetry) -> TelemetryEvent {
             })
             .collect(),
         ahrs2: telemetry.ahrs2.map(|attitude| AttitudeEvent {
-            roll: attitude.roll.to_degrees(),
-            pitch: attitude.pitch.to_degrees(),
-            yaw: attitude.yaw.to_degrees(),
+            roll: attitude.roll,
+            pitch: attitude.pitch,
+            yaw: attitude.yaw,
         }),
         controller: telemetry.controller.map(|controller| ControllerEvent {
             roll: controller.roll,
