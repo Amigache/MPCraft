@@ -575,10 +575,11 @@ pointed). The **decision** of the closed loop is ported as pure computation in `
 the input-filtered PID in ArduPilot's shape, the point ahead of the target and the trailer behind
 it, the bearing-stability rules, the turn worked out by the sine rule, the bank from the speed over
 the ground, the thrust demand between its floor of 0.1 and its ceiling, the yaw band of three
-degrees for the vehicles that are not planes, and the flip that flies a plane in from behind when
-it is facing the wrong way round the target. What is not there yet is the dispatch: the sending of
-that decision to each vehicle ten times a second, which needs a live fleet, so the row stays
-partial.
+degrees for the vehicles that are not planes, the flip that flies a plane in from behind when it
+is facing the wrong way round the target, and the quaternion the plane's answer carries — built
+through the 3-1-2 matrix as upstream builds it, with the mask `0xff` less its three terms. What
+is not there yet is the dispatch: the sending of that decision to each vehicle ten times a second,
+which needs a live fleet, so the row stays partial.
 
 Four differences are recorded. MPCraft refuses a vehicle that is in the formation without having
 been given a place in it, rather than inventing an offset from how many vehicles were missing at

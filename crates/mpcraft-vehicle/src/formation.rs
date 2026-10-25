@@ -143,6 +143,76 @@ pub struct PlaneDecision {
     pub thrust: f64,
 }
 
+/// What the plane branch puts on the wire for one vehicle.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AttitudeCommand {
+    /// The quaternion in upstream's order, `q1` being the scalar term.
+    pub quaternion: [f64; 4],
+    /// The type mask: `0xff` less the pitch term, the thrust term, and the attitude-mode bits
+    /// (`0b10000101`), which is `0x38`.
+    pub type_mask: u8,
+}
+
+impl PlaneDecision {
+    /// The command as upstream packs it: the quaternion built from the three angles through the
+    /// 3-1-2 matrix, and the mask it subtracts its three terms from.
+    #[must_use]
+    pub fn attitude_command(&self) -> AttitudeCommand {
+        AttitudeCommand {
+            quaternion: quaternion_from_euler312(
+                self.roll_deg.to_radians(),
+                self.pitch_deg.to_radians(),
+                self.yaw_error_deg.to_radians(),
+            ),
+            type_mask: ATTITUDE_TYPE_MASK,
+        }
+    }
+}
+
+const ATTITUDE_TYPE_MASK: u8 = 0x38;
+
+/// The quaternion of a 3-1-2 Euler turn, as upstream builds it — the matrix first, then the
+/// branch on its trace.
+///
+/// The three angles are in radians. The result is the same whether the turn is read as `q` or
+/// `-q`; upstream does not normalise the sign either, and neither does this.
+#[must_use]
+pub fn quaternion_from_euler312(roll: f64, pitch: f64, yaw: f64) -> [f64; 4] {
+    let cp = pitch.cos();
+    let sp = pitch.sin();
+    let sr = roll.sin();
+    let cr = roll.cos();
+    let sy = yaw.sin();
+    let cy = yaw.cos();
+
+    // The nine terms of `Matrix3.from_euler312`, named by the cell they land in.
+    let (m00, m11, m22) = (cy * cp - sy * sr * sp, cy * cr, cp * cr);
+    let (m01, m02, m10, m12, m20, m21) = (
+        -cr * sy,
+        sp * cy + cp * sr * sy,
+        cp * sy + sp * sr * cy,
+        sy * sp - sr * cy * cp,
+        -sp * cr,
+        sr,
+    );
+
+    let trace = m00 + m11 + m22;
+
+    if trace > 0.0 {
+        let s = (trace + 1.0).sqrt() * 2.0;
+        [0.25 * s, (m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s]
+    } else if m00 > m11 && m00 > m22 {
+        let s = (1.0 + m00 - m11 - m22).sqrt() * 2.0;
+        [(m21 - m12) / s, 0.25 * s, (m01 + m10) / s, (m02 + m20) / s]
+    } else if m11 > m22 {
+        let s = (1.0 + m11 - m00 - m22).sqrt() * 2.0;
+        [(m02 - m20) / s, (m01 + m10) / s, 0.25 * s, (m12 + m21) / s]
+    } else {
+        let s = (1.0 + m22 - m00 - m11).sqrt() * 2.0;
+        [(m10 - m01) / s, (m02 + m20) / s, (m12 + m21) / s, 0.25 * s]
+    }
+}
+
 /// What one multicopter is told this tick.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MulticopterDecision {
@@ -688,6 +758,63 @@ mod tests {
             .expect("slot")
             .expect("known");
         assert_eq!(decision.yaw_deg, None);
+    }
+
+    #[test]
+    fn the_quaternion_of_a_right_angle_is_the_one_the_hand_works_out() {
+        // Ninety degrees of roll: the matrix is [[1, 0, 0], [0,  0, -1], [0, 1, 0]], its trace
+        // is one, and the first branch gives q1 = q2 = 1/√2 — the right angle about the x axis.
+        let q = quaternion_from_euler312(90f64.to_radians(), 0.0, 0.0);
+        assert!(
+            (q[0] - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-9,
+            "{q:?}"
+        );
+        assert!((q[1] - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-9);
+
+        // Ninety degrees of yaw: the same shape, carried by q4 instead.
+        let q = quaternion_from_euler312(0.0, 0.0, 90f64.to_radians());
+        assert!(
+            (q[0] - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-9,
+            "{q:?}"
+        );
+        assert!((q[3] - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-9);
+
+        // A half turn cannot use the trace branch — the trace is negative — so the branch on
+        // the largest diagonal decides, and q2 alone carries it.
+        let q = quaternion_from_euler312(180f64.to_radians(), 0.0, 0.0);
+        assert!(q[0].abs() < 1e-9 && (q[1] - 1.0).abs() < 1e-9, "{q:?}");
+    }
+
+    #[test]
+    fn the_plane_answer_carries_the_quaternion_of_its_three_angles_and_the_subtracted_mask() {
+        let decision = PlaneDecision {
+            target: GeoPoint {
+                lat: 0.0,
+                lng: LEADER,
+                alt: 100.0,
+            },
+            roll_deg: 0.0,
+            pitch_deg: 0.0,
+            yaw_error_deg: -180.0,
+            thrust: 0.1,
+        };
+
+        let command = decision.attitude_command();
+
+        // `0xff` less `0b00000010`, `0b01000000` and `0b10000101`: the three terms upstream
+        // subtracts one after the other, with no bit they can borrow from.
+        assert_eq!(command.type_mask, 0x38);
+
+        // The trace is negative and the largest diagonal is `m22`, so the last branch decides:
+        // q4 alone carries the half turn.
+        assert!(
+            (command.quaternion[3] - 1.0).abs() < 1e-9,
+            "{:?}",
+            command.quaternion
+        );
+        assert!(command.quaternion[0].abs() < 1e-9);
+        assert!(command.quaternion[1].abs() < 1e-9);
+        assert!(command.quaternion[2].abs() < 1e-9);
     }
 
     #[test]
