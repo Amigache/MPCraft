@@ -619,6 +619,34 @@ ArduPilot ignores them. One `COMMAND_LONG` goes out, for that vehicle alone; not
 inside the band, and nothing for the leader. What the loop cannot prove without a live fleet is that
 the vehicles fly into their slots, so the row stays partial.
 
+The **places** an operator wrote and the **decision** to run them are kept in the settings file, and
+they are kept apart: a fleet is set up once and flown many times, and writing slots for a fleet is not
+sending orders to it. A file with places and no decision is a formation that is described and not run,
+which is the state a fresh installation is in. The settings crate does not know what a vehicle is, so it
+keeps the name as the link names it (`2:1`) and the layer that speaks the protocol decides whether it can
+be read; a name that cannot be read is left out and said, which is the rule a secret that is not
+hexadecimal follows in the keyring. A half of `0` is refused because zero is not a board: it is the
+broadcast address, and an order sent to it goes nowhere in particular. The metres come back as the
+metres they were written as, and the equality of the document was given up when the first number
+arrived — `Eq` is no longer derived on a file that holds numbers.
+
+What the loop holds is asked for on every tick rather than kept: the link is the one the supervisor has
+at that moment, because a link that was restored after dropping is the link the orders have to go to, and
+a task that held the session it started with would keep sending to a link that was closed. A second start
+is refused rather than running two loops over the same socket, and a stop is honoured between the sends
+and the next tick, which is what a stop means for a loop that waits on the wire.
+
+The **sheet** of the formation, opened from Setup, is upstream's `Swarm/FormationControl.cs` with the
+arm, takeoff and land buttons left off, because those are the actions the actions tab already has and
+being in a formation is not a reason to do them. It shows who leads, the places with their three numbers,
+and the three buttons that say what the operator wants: Save writes what was typed without changing the
+decision, Start runs the loop, Stop stops it. The names it knows are the vehicles the link has seen and
+the names the file kept, so an unreadable name stays visible as what was written rather than being
+guessed into a vehicle. The sheet opens without a link — the file can be read without a board on the
+wire — and says that nothing is sent until one answers. What it shows is measured at 1920x1080 and at
+1024x640 in Spanish, and the store that holds its state keeps what was typed apart from what the backend
+says about it: the places that could be read, and the names that were left out.
+
 A telemetry log carries the frames of every vehicle that crossed the link, and the header is the only
 place that says which board a frame came from, so a record now carries its sender as well as its
 message and its instant. A log of a flight with two boards reads as two flights rather than one.

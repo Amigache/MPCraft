@@ -16,6 +16,8 @@ import type {
   DtedLibraryInfo,
   FirmwareManifest,
   FlightMode,
+  FormationRequest,
+  FormationStatus,
   FtpEntry,
   FtpFile,
   GraphPreset,
@@ -211,6 +213,28 @@ export async function transponderStop(): Promise<void> {
 /** What the transponder is doing. */
 export async function transponderStatus(): Promise<TransponderStatus> {
   return call<TransponderStatus>("transponder_status");
+}
+
+/**
+ * What the formation is doing.
+ *
+ * The places and the decision are read from the file, so this works without a link: a fleet can be
+ * described before any board is on the wire.
+ */
+export async function formationStatus(): Promise<FormationStatus> {
+  return call<FormationStatus>("swarm_status");
+}
+
+/**
+ * Saves what the operator wrote for the formation and puts it to work.
+ *
+ * The names are sent as they were written, including one that cannot be read as a vehicle: the
+ * answer says which of them the backend left out, and the file keeps what was actually written.
+ */
+export async function setFormation(
+  req: FormationRequest,
+): Promise<FormationStatus> {
+  return call<FormationStatus>("set_swarm_settings", { req });
 }
 
 /** The plugins the folder holds, with what the operator chose. */

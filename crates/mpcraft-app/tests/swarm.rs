@@ -1,22 +1,25 @@
 //! The formation loop, over a real link.
 //!
-//! The chain the row depends on is: the per-vehicle state of each board, the decision that
-//! reads it, and the message that carries the decision to the vehicle it belongs to. Testing it
-//! over a UDP socket exercises all three at once.
+//! The chain the row depends on is: the settings that say who sits where, the per-vehicle state of
+//! each board, the decision that reads it, and the message that carries the decision to the vehicle
+//! it belongs to. Testing it over a UDP socket exercises all four at once.
 //!
-//! What can be proved here is that the right branch runs for each member and that what reaches
-//! the wire is what the loop hand computed. What cannot be proved without a live fleet is that
-//! the vehicles fly into their slots, which is why the parity row stays partial.
+//! What can be proved here is that the right branch runs for each member, that what reaches the
+//! wire is what the loop hand computed, and that the loop stops when it is told to. What cannot be
+//! proved without a live fleet is that the vehicles fly into their slots, which is why the parity
+//! row stays partial.
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use mpcraft_app::swarm::{SlotSetting, SwarmService, SwarmSettings};
+use mpcraft_app::supervisor::SessionSupervisor;
+use mpcraft_app::swarm::SwarmService;
 use mpcraft_link::{Session, SessionOptions, VehicleId};
 use mpcraft_mavlink::dialect::messages::{ATTITUDE_DATA, GLOBAL_POSITION_INT_DATA, HEARTBEAT_DATA};
 use mpcraft_mavlink::frame::{encode_v2, FrameParser, MavHeader};
 use mpcraft_mavlink::{MavAutopilot, MavMessage, MavType, Message};
+use mpcraft_settings::Settings;
 use mpcraft_transport::ConnectionSpec;
 
 /// The leader: on the central meridian of its zone, where a direction measured on the grid is a
@@ -32,7 +35,7 @@ fn south_of_leader(metres: f64) -> f64 {
 
 /// Writes one frame to the ground station, from the board named by `system_id`.
 async fn send(
-    socket: &tokio::net::UdpSocket,
+    socket: &Arc<tokio::net::UdpSocket>,
     peer: SocketAddr,
     system_id: u8,
     message: &MavMessage,
@@ -76,11 +79,62 @@ fn attitude(yaw_deg: f64) -> MavMessage {
     })
 }
 
+/// Records what the ground station sends back — only the orders, so that the ground station's own
+/// announcements are not counted with them.
+fn spawn_recorder(socket: Arc<tokio::net::UdpSocket>, sink: Arc<Mutex<Vec<MavMessage>>>) {
+    tokio::spawn(async move {
+        let mut recorder = FrameParser::new();
+        let mut buffer = [0u8; 2048];
+
+        while let Ok((len, _)) = socket.recv_from(&mut buffer).await {
+            let mut frames = Vec::new();
+
+            if recorder.feed(&buffer[..len], &mut frames).is_err() {
+                continue;
+            }
+
+            for frame in frames {
+                let Ok(message) = mpcraft_mavlink::dialect::Dialect::parse(
+                    frame.version,
+                    frame.message_id,
+                    &frame.payload,
+                ) else {
+                    continue;
+                };
+
+                let is_an_order = matches!(
+                    message,
+                    MavMessage::SET_ATTITUDE_TARGET(_)
+                        | MavMessage::SET_POSITION_TARGET_GLOBAL_INT(_)
+                        | MavMessage::COMMAND_LONG(_)
+                );
+
+                if is_an_order {
+                    sink.lock().unwrap().push(message);
+                }
+            }
+        }
+    });
+}
+
+/// Reads the announcement of the ground station and says where it spoke from.
+async fn peer_of(socket: &Arc<tokio::net::UdpSocket>) -> SocketAddr {
+    let mut buffer = [0u8; 2048];
+    let (len, peer) = socket.recv_from(&mut buffer).await.unwrap();
+
+    assert!(
+        buffer[..len].iter().any(|&b| b == 0xFD || b == 0xFE),
+        "the ground station announced itself with a frame"
+    );
+
+    peer
+}
+
 #[tokio::test]
 async fn the_loop_tells_each_member_what_the_hand_computed() {
     // The test plays four boards on one link: the leader, a plane in a slot, and two
     // multicopters — one past the heading band and one inside it.
-    let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let socket = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap());
     let address = socket.local_addr().unwrap();
     let spec = ConnectionSpec::parse(&format!("udp:{address}")).unwrap();
 
@@ -88,19 +142,9 @@ async fn the_loop_tells_each_member_what_the_hand_computed() {
         .await
         .unwrap();
 
-    let mut buffer = [0u8; 2048];
-    let (len, peer) = socket.recv_from(&mut buffer).await.unwrap();
-
-    let start = buffer[..len]
-        .iter()
-        .position(|&b| b == 0xFD || b == 0xFE)
-        .expect("the ground station announced itself with a frame");
-
-    let mut parser = FrameParser::new();
-    let mut frames = Vec::new();
-    parser.feed(&buffer[start..len], &mut frames).unwrap();
-
-    assert_eq!(frames.len(), 1, "the announcement should be one frame");
+    let peer = peer_of(&socket).await;
+    let recorded: Arc<Mutex<Vec<MavMessage>>> = Arc::new(Mutex::new(Vec::new()));
+    spawn_recorder(Arc::clone(&socket), Arc::clone(&recorded));
 
     let plane = MavType::MAV_TYPE_FIXED_WING;
     let quad = MavType::MAV_TYPE_QUADROTOR;
@@ -165,66 +209,18 @@ async fn the_loop_tells_each_member_what_the_hand_computed() {
     sequence += 1;
     send(&socket, peer, 4, &attitude(2.0), sequence).await;
 
-    // What the station sends back is what the loop decided — only the orders, so the
-    // ground station's own announcements are not counted with them.
-    let recorded: Arc<Mutex<Vec<MavMessage>>> = Arc::new(Mutex::new(Vec::new()));
-    let reader = Arc::clone(&recorded);
-
-    tokio::spawn(async move {
-        let mut recorder = FrameParser::new();
-        let mut buffer = [0u8; 2048];
-
-        while let Ok((len, _)) = socket.recv_from(&mut buffer).await {
-            let mut frames = Vec::new();
-
-            if recorder.feed(&buffer[..len], &mut frames).is_err() {
-                continue;
-            }
-
-            for frame in frames {
-                let Ok(message) = mpcraft_mavlink::dialect::Dialect::parse(
-                    frame.version,
-                    frame.message_id,
-                    &frame.payload,
-                ) else {
-                    continue;
-                };
-
-                let is_an_order = matches!(
-                    message,
-                    MavMessage::SET_ATTITUDE_TARGET(_)
-                        | MavMessage::SET_POSITION_TARGET_GLOBAL_INT(_)
-                        | MavMessage::COMMAND_LONG(_)
-                );
-
-                if is_an_order {
-                    reader.lock().unwrap().push(message);
-                }
-            }
-        }
-    });
-
-    let settings = SwarmSettings {
-        leader: VehicleId::new(1, 1),
-        slots: vec![
-            SlotSetting {
-                vehicle: VehicleId::new(2, 1),
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            SlotSetting {
-                vehicle: VehicleId::new(3, 1),
-                x: 0.0,
-                y: 40.0,
-                z: 5.0,
-            },
-            SlotSetting {
-                vehicle: VehicleId::new(4, 1),
-                x: 0.0,
-                y: 40.0,
-                z: 0.0,
-            },
+    let file = Settings {
+        connection_profiles: Vec::new(),
+        favourite_parameters: Vec::new(),
+        signing_keys: Vec::new(),
+        plugins: Vec::new(),
+        map_injection_folder: None,
+        swarm_leader: Some("1:1".to_owned()),
+        swarm_enabled: false,
+        swarm_slots: vec![
+            mpcraft_settings::SwarmSlot::with_offset("2:1", 0.0, 0.0, 0.0),
+            mpcraft_settings::SwarmSlot::with_offset("3:1", 0.0, 40.0, 5.0),
+            mpcraft_settings::SwarmSlot::with_offset("4:1", 0.0, 40.0, 0.0),
         ],
     };
 
@@ -248,7 +244,8 @@ async fn the_loop_tells_each_member_what_the_hand_computed() {
     // The choice fell on the leader, which is what the settings name.
     assert_eq!(session.state().selected, Some(VehicleId::new(1, 1)));
 
-    let mut service = SwarmService::new(settings);
+    let service = SwarmService::new();
+    service.apply(&file);
 
     let told = service.dispatch(&session).await.expect("the loop runs");
     assert_eq!(told, 3, "three members were told");
@@ -362,4 +359,112 @@ async fn the_loop_tells_each_member_what_the_hand_computed() {
     );
 
     session.stop().await;
+}
+
+#[tokio::test]
+async fn the_loop_ticks_on_its_own_and_stops_when_it_is_told_to() {
+    // Two boards on one link: the leader and one member in a slot. The loop is started through the
+    // supervisor rather than by hand, so what is being checked is that it asks for the link on
+    // every tick and that a stop is honoured between the sends and the next tick.
+    let socket = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap());
+    let address = socket.local_addr().unwrap();
+
+    let supervisor = SessionSupervisor::new();
+    supervisor
+        .connect(&format!("udp:{address}"), |_snapshot| {})
+        .await
+        .expect("the link opens");
+
+    let peer = peer_of(&socket).await;
+
+    let recorded: Arc<Mutex<Vec<MavMessage>>> = Arc::new(Mutex::new(Vec::new()));
+    spawn_recorder(Arc::clone(&socket), Arc::clone(&recorded));
+
+    let mut sequence = 0u8;
+
+    for system_id in [1, 2] {
+        for _ in 0..2 {
+            send(
+                &socket,
+                peer,
+                system_id,
+                &heartbeat(MavType::MAV_TYPE_QUADROTOR),
+                sequence,
+            )
+            .await;
+            sequence += 1;
+        }
+    }
+
+    send(
+        &socket,
+        peer,
+        1,
+        &position(LEADER_LAT, LEADER_LNG, LEADER_ALT, 8.0),
+        sequence,
+    )
+    .await;
+    sequence += 1;
+    send(&socket, peer, 1, &attitude(0.0), sequence).await;
+    sequence += 1;
+
+    send(
+        &socket,
+        peer,
+        2,
+        &position(south_of_leader(60.0), LEADER_LNG, LEADER_ALT, 0.0),
+        sequence,
+    )
+    .await;
+    sequence += 1;
+    send(&socket, peer, 2, &attitude(0.0), sequence).await;
+
+    let file = Settings {
+        connection_profiles: Vec::new(),
+        favourite_parameters: Vec::new(),
+        signing_keys: Vec::new(),
+        plugins: Vec::new(),
+        map_injection_folder: None,
+        swarm_leader: Some("1:1".to_owned()),
+        swarm_enabled: true,
+        swarm_slots: vec![mpcraft_settings::SwarmSlot::with_offset(
+            "2:1", 0.0, 0.0, 0.0,
+        )],
+    };
+
+    let service = SwarmService::new();
+    service.apply(&file);
+
+    // The loop is started by the decision that was kept, and a second start is refused rather
+    // than running two loops over the same link.
+    service.start(&supervisor).expect("the loop starts");
+    service
+        .start(&supervisor)
+        .expect_err("the loop is not started twice");
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+
+    // More than one order means more than one tick: the loop is running on its own, not because
+    // something called it once.
+    while recorded.lock().unwrap().len() < 2 && std::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    let ticking = recorded.lock().unwrap().len();
+    assert!(ticking >= 2, "the loop ticked on its own: {ticking} orders");
+
+    service.stop();
+
+    // What was sent before the stop is kept; what comes after it is nothing, which is what a stop
+    // means for a loop that waits on the wire.
+    let stopped_at = recorded.lock().unwrap().len();
+    tokio::time::sleep(Duration::from_millis(400)).await;
+
+    assert_eq!(
+        recorded.lock().unwrap().len(),
+        stopped_at,
+        "the loop stopped when it was told to"
+    );
+
+    supervisor.disconnect().await.expect("the link closes");
 }

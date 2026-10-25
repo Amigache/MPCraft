@@ -466,6 +466,12 @@ export interface UiStore {
   readonly showPlugins: () => void;
   /** Closes the sheet of the plugins. */
   readonly hidePlugins: () => void;
+  /** Whether the sheet of the formation is open over the window. */
+  readonly formationOpen: boolean;
+  /** Opens the sheet of the formation. */
+  readonly showFormation: () => void;
+  /** Closes the sheet of the formation. */
+  readonly hideFormation: () => void;
   /** Puts the window on the screen of the parameters. */
   readonly showParameters: () => void;
   /**
@@ -525,6 +531,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   cameraOpen: false,
   picturesOpen: false,
   pluginsOpen: false,
+  formationOpen: false,
   parameterGroups: [],
 
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -642,6 +649,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   showCamera: () => set({ cameraOpen: true }),
   showPictures: () => set({ picturesOpen: true }),
   showPlugins: () => set({ pluginsOpen: true }),
+  showFormation: () => set({ formationOpen: true }),
 
   showLog: () => get().setScreen("logs"),
 
@@ -661,6 +669,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   hideCamera: () => set({ cameraOpen: false }),
   hidePictures: () => set({ picturesOpen: false }),
   hidePlugins: () => set({ pluginsOpen: false }),
+  hideFormation: () => set({ formationOpen: false }),
 
   loadParameterGroups: async () => {
     try {

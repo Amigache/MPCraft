@@ -75,6 +75,41 @@ for (const [width, height] of SIZES) {
   }
 }
 
+for (const [width, height] of SIZES) {
+  test(`the formation sheet at ${width}x${height} in Spanish`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await openInSpanish(page, "setup");
+
+    // The sheet is opened the way an operator opens it, through the Setup menu, so that what is
+    // measured is the sheet as it stands over the window rather than a box put there for the test.
+    await page.locator('button[data-menu="setup"]').click();
+    await page.getByRole("menuitem", { name: "La formación…" }).click();
+
+    await expect(
+      page.getByRole("dialog", { name: "La formación" }),
+    ).toBeVisible();
+
+    const result = await found(page);
+
+    expect(
+      {
+        size: `${width}x${height}`,
+        screen: "setup",
+        ...result,
+      },
+      "nothing is drawn on top of something else and nothing is cut off",
+    ).toEqual({
+      size: `${width}x${height}`,
+      screen: "setup",
+      clashes: [],
+      clipped: [],
+      overflowing: [],
+    });
+  });
+}
+
 test("the checker still fails on something that is genuinely wrong", async ({
   page,
 }) => {

@@ -26,6 +26,10 @@
 //! [[plugins]]
 //! name = "alarm"
 //! enabled = true
+//!
+//! [[swarm_slots]]
+//! vehicle = "2:1"
+//! y = 60.0
 //! ```
 //!
 //! A key the application does not know is an error rather than something to ignore: the
@@ -58,9 +62,11 @@ mod keys;
 mod plugins;
 mod profiles;
 mod store;
+mod swarm;
 
 pub use error::SettingsError;
 pub use keys::SigningKeyEntry;
 pub use plugins::PluginEntry;
 pub use profiles::ConnectionProfile;
 pub use store::{platform_config_dir, Settings, SettingsStore};
+pub use swarm::SwarmSlot;

@@ -133,6 +133,7 @@ export function MenuBar() {
   const showCamera = useUiStore((state) => state.showCamera);
   const showPictures = useUiStore((state) => state.showPictures);
   const showPlugins = useUiStore((state) => state.showPlugins);
+  const showFormation = useUiStore((state) => state.showFormation);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
   const [serving, setServing] = useState(false);
@@ -920,6 +921,21 @@ export function MenuBar() {
           // A plugin is somebody else's code, so the sheet that lists them and says what each one
           // asks for is open without a vehicle on the wire: deciding what may run does not need a
           // link, and a plugin that has nothing to do on a tick never asks for one.
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-formation",
+          label: t("The formation…"),
+          onSelect: () => {
+            close();
+            showFormation();
+          },
+          // The places an operator wrote are read from the file, so the sheet opens without a
+          // vehicle on the wire: a fleet is often set up before any board is on the link. What
+          // needs a link is the loop, and the sheet says so rather than pretending to send orders.
           disabled: false,
           checked: undefined,
           separator: false,

@@ -122,6 +122,46 @@ export interface TransponderStatus {
   };
 }
 
+/** One vehicle's place in the formation, as the file writes it. */
+export interface FormationSlot {
+  /** The vehicle the slot belongs to, named the way the file names it: `system:component`. */
+  readonly vehicle: string;
+  /** Metres across the direction of travel, positive to the right. */
+  readonly x: number;
+  /** Metres along the direction of travel, positive ahead. */
+  readonly y: number;
+  /** Metres above the leader. */
+  readonly z: number;
+}
+
+/** What the formation is doing. */
+export interface FormationStatus {
+  /** Whether the operator decided to run the loop. */
+  readonly enabled: boolean;
+  /** Whether the loop is running now. */
+  readonly running: boolean;
+  /** How many vehicles the last tick told. */
+  readonly told: number;
+  /** Who leads, named the way the file names it, when somebody said so. */
+  readonly leader: string | null;
+  /** The places, in the order the file wrote them. */
+  readonly slots: readonly FormationSlot[];
+  /** The names that could not be read as vehicles, and were left out. */
+  readonly refused: readonly string[];
+  /** The last failure of the loop, when there was one. */
+  readonly error: string | null;
+}
+
+/** What the interface sends for the formation: what the operator wrote, and the decision. */
+export interface FormationRequest {
+  /** Who leads, named the way the file names it. */
+  readonly leader: string | null;
+  /** Whether the loop is run. */
+  readonly enabled: boolean;
+  /** The places, in the order they were written. */
+  readonly slots: readonly FormationSlot[];
+}
+
 /** A video stream the camera of the vehicle has described. */
 export interface VideoStream {
   /** The component that owns the stream. */

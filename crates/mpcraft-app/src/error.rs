@@ -108,6 +108,12 @@ impl From<crate::adsb_relay::RelayError> for CommandError {
     }
 }
 
+impl From<crate::swarm::SwarmError> for CommandError {
+    fn from(error: crate::swarm::SwarmError) -> Self {
+        Self::new(error.code(), error.to_string())
+    }
+}
+
 impl From<mpcraft_plugin::PluginError> for CommandError {
     fn from(error: mpcraft_plugin::PluginError) -> Self {
         Self::new(error.code(), error.to_string())

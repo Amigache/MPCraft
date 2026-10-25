@@ -210,16 +210,34 @@ pub struct AppState {
     /// plugin asked for is queued here and run afterwards, because a call inside the sandbox
     /// must never wait for the wire.
     pub plugins: std::sync::Arc<std::sync::Mutex<crate::plugins::PluginRuntime>>,
+
+    ///
+    /// The formation, and the loop that runs it.
+    ///
+    /// The places and the decision to run them are read from the settings, so that a fleet is set
+    /// up once and flown many times. The loop asks the supervisor for the link on every tick
+    /// rather than holding one, because a link that was restored after dropping is the link the
+    /// orders have to go to.
+    pub swarm: crate::swarm::SwarmService,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         let tiles = TileService::new(tile_cache_dir());
+        let swarm = crate::swarm::SwarmService::new();
 
-        // The folder of tiles the operator has brought is read from the settings, so
-        // that the map is drawn with them from the first moment.
+        // What the operator wrote is read once, so that the map draws with the folder it was
+        // given and the formation starts with the places it was left with.
         if let Some(store) = SettingsStore::platform() {
             if let Ok(settings) = store.load() {
+                // What the last run left is read once, for both of them: the map draws with the
+                // folder it was given, and the formation starts with the places it was given.
+                //
+                // The loop is not started here: the decision is remembered, but there is no link
+                // yet, and a task that ticks before anything is connected would decide from
+                // nothing. The first moment it can decide is the moment a link is open.
+                swarm.apply(&settings);
+
                 if let Some(folder) = settings.map_injection_folder {
                     tiles.set_injection(Some(std::path::PathBuf::from(folder)));
                 }
@@ -243,6 +261,7 @@ impl Default for AppState {
             plugins: std::sync::Arc::new(std::sync::Mutex::new(
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
+            swarm,
         }
     }
 }
@@ -631,6 +650,75 @@ impl AppState {
         Ok(())
     }
 
+    /// What the formation is doing.
+    #[must_use]
+    pub fn swarm_status(&self) -> crate::swarm::SwarmStatus {
+        self.swarm.status()
+    }
+
+    /// Saves what the operator wrote for the formation and puts it to work.
+    ///
+    /// The places are saved as they were written, including a name that cannot be read as a
+    /// vehicle: the file has to say what the operator wrote, and the interface says which of those
+    /// names it could not use. The loop is started or stopped by the decision and not by the
+    /// places, because writing a fleet is not the same thing as sending orders to a fleet.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when this machine has no configuration directory, when the settings file
+    /// cannot be read or written, or when the loop cannot be started.
+    pub fn set_swarm(&self, req: &crate::swarm::SwarmRequest) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.swarm_leader = req.leader.clone();
+        settings.swarm_enabled = req.enabled;
+        settings.swarm_slots = req.slots.clone();
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        self.swarm.apply(&settings);
+
+        if req.enabled && !self.swarm.status().running {
+            self.swarm.start(&self.supervisor)?;
+        } else if !req.enabled {
+            self.swarm.stop();
+        }
+
+        Ok(())
+    }
+
+    /// Puts the settings into the service and starts the loop with the decision that was kept.
+    ///
+    /// This is what a run that remembers does: the places are read again, and the loop is started
+    /// only when the operator had decided to run it. A file that holds slots and no decision is a
+    /// formation that is described, not one that sends orders.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when this machine has no configuration directory, when the settings file
+    /// cannot be read, or when the loop cannot be started.
+    pub fn apply_swarm(&self) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        self.swarm.apply(&settings);
+
+        if settings.swarm_enabled && !self.swarm.status().running {
+            self.swarm.start(&self.supervisor)?;
+        }
+
+        Ok(())
+    }
+
     /// Gives the supervisor the keys of the link, so that the link that is opened next
     /// is signed.
     ///
@@ -955,6 +1043,7 @@ mod tests {
             plugins: std::sync::Arc::new(std::sync::Mutex::new(
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
+            swarm: crate::swarm::SwarmService::new(),
         };
 
         assert!(state
@@ -979,6 +1068,59 @@ mod tests {
     }
 
     #[test]
+    fn the_formation_keeps_what_was_written_and_says_which_name_it_could_not_use() {
+        let directory = TempDir::new("formation");
+        let store = SettingsStore::new(directory.path());
+        let path = store.path().clone();
+
+        let state = AppState {
+            supervisor: SessionSupervisor::new(),
+            settings: Some(store),
+            graphs: GraphHistory::new(),
+            terrain: TerrainService::new(terrain_cache_dir()),
+            tiles: TileService::new(tile_cache_dir()),
+            playback: std::sync::Arc::new(std::sync::Mutex::new(logs::Playback::default())),
+            live_track: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            dted: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            answered_terrain: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            http: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            ntrip: crate::ntrip::NtripService::default(),
+            transponder: crate::transponder::TransponderService::default(),
+            adsb_relay: crate::adsb_relay::AdsbRelayService::default(),
+            plugins: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugins::PluginRuntime::new(plugin_folder()),
+            )),
+            swarm: crate::swarm::SwarmService::new(),
+        };
+
+        let request = crate::swarm::SwarmRequest {
+            leader: Some("1:1".to_owned()),
+            enabled: false,
+            slots: vec![
+                mpcraft_settings::SwarmSlot::with_offset("2:1", 0.0, 60.0, 0.0),
+                mpcraft_settings::SwarmSlot::new("board two"),
+            ],
+        };
+
+        state
+            .set_swarm(&request)
+            .expect("the formation should be saved");
+
+        // The file keeps what the operator wrote, including the name that could not be read:
+        // somebody fixing the file has to see what they actually wrote, not what an interface
+        // guessed from it.
+        let text = std::fs::read_to_string(&path).expect("the file should be readable");
+        assert!(text.contains("board two"), "{text}");
+
+        // And the service says which of those names it left out, without pretending that an
+        // unreadable name is a vehicle.
+        let status = state.swarm_status();
+        assert_eq!(status.slots.len(), 1);
+        assert_eq!(status.refused, vec!["board two".to_owned()]);
+        assert!(!status.running, "writing places does not start a fleet");
+    }
+
+    #[test]
     fn a_machine_without_a_configuration_directory_says_so() {
         let state = AppState {
             supervisor: SessionSupervisor::new(),
@@ -997,6 +1139,7 @@ mod tests {
             plugins: std::sync::Arc::new(std::sync::Mutex::new(
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
+            swarm: crate::swarm::SwarmService::new(),
         };
 
         let error = state

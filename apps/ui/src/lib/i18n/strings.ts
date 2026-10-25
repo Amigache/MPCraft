@@ -306,6 +306,40 @@ const bundles: Record<Locale, Record<string, string>> = {
     "{name} is being run.": "{name} se está ejecutando.",
     "{name} has been left alone.": "{name} se ha dejado en paz.",
 
+    // The sheet of the formation.
+    "The formation": "La formación",
+    "The formation…": "La formación…",
+    "One vehicle leads and the others sit in the places that were written for them. The loop runs ten times a second and tells each member where its place is.":
+      "Un vehículo lidera y los otros están en los lugares que se escribieron para ellos. El ciclo va diez veces por segundo y dice a cada miembro dónde está su lugar.",
+    "Who leads": "Quién lidera",
+    "The vehicle the formation follows": "El vehículo que sigue la formación",
+    "nobody yet": "nadie todavía",
+    "Put a vehicle in the formation": "Poner un vehículo en la formación",
+    "The vehicle to put in the formation":
+      "El vehículo que se pone en la formación",
+    "choose one": "elige uno",
+    Add: "Añadir",
+    Across: "Lateral",
+    Ahead: "Por delante",
+    Above: "Por encima",
+    "Take out": "Sacar",
+    "Nothing has been written yet.": "Todavía no se ha escrito nada.",
+    "The numbers are metres from the leader.":
+      "Los números son metros desde el líder.",
+    "The places were saved.": "Los lugares se han guardado.",
+    "The loop is being run.": "El ciclo se está ejecutando.",
+    "The loop has been stopped.": "El ciclo se ha parado.",
+    "There is no link to a vehicle. The places can be written, but nothing is sent until a board answers.":
+      "No hay enlace con el vehículo. Los lugares se pueden escribir, pero no se manda nada hasta que una placa responde.",
+    "Telling each member its place": "Dice a cada miembro dónde está su lugar",
+    "Not running": "No se ejecuta",
+    "How many were told on the last tick":
+      "Cuántos se dijeron en el último ciclo",
+    "The names that could not be read as vehicles":
+      "Los nombres que no se pudieron leer como vehículos",
+    none: "ninguno",
+    "The last failure": "El último fallo",
+
     // The sheet of the on-screen display.
     "The on-screen display": "La pantalla escrita",
     "The vehicle draws the display over the picture of the camera. Each slot holds one thing, and the screens five and six are the ones that are configured here.":

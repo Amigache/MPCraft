@@ -1,0 +1,135 @@
+/* The sheet of the formation. */
+
+.backdrop {
+  align-items: flex-start;
+  background: var(--colour-overlay);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  /* The sheet starts under the bar of the menus, so that its own header does not
+     sit over the bar. */
+  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3)
+    var(--space-3);
+  position: fixed;
+  z-index: 60;
+}
+
+.panel {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px var(--colour-shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: auto;
+  width: min(700px, 100%);
+}
+
+.header {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  margin: 0;
+}
+
+.header button {
+  margin-left: auto;
+}
+
+.block {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.text {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 160px;
+}
+
+.label {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.row {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.table {
+  border-collapse: collapse;
+  font-size: var(--font-xs);
+  width: 100%;
+}
+
+.table th {
+  color: var(--colour-text-faint);
+  font-weight: 600;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+}
+
+.table td {
+  border-top: 1px solid var(--colour-border);
+  padding: var(--space-1) var(--space-2);
+  vertical-align: middle;
+}
+
+/* The numbers of a slot are short, so the inputs do not take the room a word would. */
+.table input {
+  width: 84px;
+}
+
+.facts {
+  display: grid;
+  font-size: var(--font-xs);
+  gap: var(--space-1) var(--space-3);
+  grid-template-columns: auto 1fr;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--colour-text-faint);
+}
+
+.facts dd {
+  color: var(--colour-text);
+  margin: 0;
+}
+
+.notice {
+  color: var(--colour-accent);
+  font-size: var(--font-xs);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}

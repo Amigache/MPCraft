@@ -16,6 +16,7 @@ import { AdsbSheet } from "../../features/adsb/AdsbSheet";
 import { CameraSheet } from "../../features/camera/CameraSheet";
 import { PictureSheet } from "../../features/pictures/PictureSheet";
 import { PluginSheet } from "../../features/plugins/PluginSheet";
+import { FormationSheet } from "../../features/formation/FormationSheet";
 import { VideoSheet } from "../../features/video/VideoSheet";
 import { PassthroughSheet } from "../../features/passthrough/PassthroughSheet";
 import { TerrainSheet } from "../../features/terrain/TerrainSheet";
@@ -64,7 +65,8 @@ export function AppShell() {
       state.videoOpen ||
       state.cameraOpen ||
       state.picturesOpen ||
-      state.pluginsOpen,
+      state.pluginsOpen ||
+      state.formationOpen,
   );
 
   return (
@@ -102,6 +104,7 @@ export function AppShell() {
       <CameraSheet />
       <PictureSheet />
       <PluginSheet />
+      <FormationSheet />
     </div>
   );
 }

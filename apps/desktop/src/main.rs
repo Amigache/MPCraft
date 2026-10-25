@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+use mpcraft_app::swarm::{SwarmRequest, SwarmStatus};
 use mpcraft_app::{
     flight_modes, plugins::PluginInfo, AppState, CommandError, CommandResult, ConnectRequest,
     ConnectResponse, ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction,
@@ -2442,6 +2443,36 @@ async fn set_signing_keys(
     Ok(())
 }
 
+/// What the formation is doing: the places as they were written, the decision, and what the last
+/// tick told.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be read.
+#[tauri::command]
+async fn swarm_status(state: State<'_, AppState>) -> CommandResult<SwarmStatus> {
+    Ok(state.swarm_status())
+}
+
+/// Saves what the operator wrote for the formation and puts it to work.
+///
+/// The loop is started or stopped by the decision that comes with the places, not by the places
+/// themselves: an operator can describe a fleet without sending orders to it.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be written, when a name
+/// cannot be read as a vehicle, or when the loop cannot be started.
+#[tauri::command]
+async fn set_swarm_settings(
+    state: State<'_, AppState>,
+    req: SwarmRequest,
+) -> CommandResult<SwarmStatus> {
+    state.set_swarm(&req)?;
+
+    Ok(state.swarm_status())
+}
+
 /// A key of the signed link, as the interface sees it.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4219,6 +4250,8 @@ fn main() {
             http_server_stop,
             list_signing_keys,
             set_signing_keys,
+            swarm_status,
+            set_swarm_settings,
             serial_control,
             diagnostics_bundle,
             list_parameters,
@@ -4261,6 +4294,14 @@ fn main() {
             };
 
             let target = mpcraft_app::launch_target(target.as_deref(), &profiles);
+
+            // The formation is put to work only when the operator had decided to run it. The
+            // places are read again here because they are what the last run left, and the loop is
+            // started by the decision rather than by the places: a file that describes a fleet is
+            // not a fleet that should be sent orders by itself.
+            if let Err(error) = state.apply_swarm() {
+                tracing::warn!("could not put the formation to work: {error}");
+            }
 
             // Connect to the vehicle the launch asked for, once the window is up.
             if let Some(target) = target {

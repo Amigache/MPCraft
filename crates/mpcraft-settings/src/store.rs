@@ -10,6 +10,7 @@ use crate::error::SettingsError;
 use crate::keys::SigningKeyEntry;
 use crate::plugins::PluginEntry;
 use crate::profiles::ConnectionProfile;
+use crate::swarm::SwarmSlot;
 
 /// The name of the settings file inside the configuration directory.
 const FILE_NAME: &str = "settings.toml";
@@ -25,7 +26,10 @@ static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// The document is the file, one to one: what is read is what is written. A section that
 /// is added later joins the others here rather than in a file of its own, so that a write
 /// never has to guess how to merge two files.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+// `Eq` is not derived here: the formation keeps its places as metres, which are numbers a
+// document can hold but two documents cannot be said to be exactly equal on. Every other part of
+// the file is text or a switch, so the equality was free before the first number arrived.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "snake_case", deny_unknown_fields)]
 pub struct Settings {
     /// The connection profiles the user has saved.
@@ -56,6 +60,22 @@ pub struct Settings {
     /// A map that is drawn without a signal is a map that is drawn with the pictures
     /// that are on the disk. The folder is where those pictures are.
     pub map_injection_folder: Option<String>,
+
+    /// The vehicle the formation follows, named the way the link names it: `system:component`.
+    ///
+    /// Nothing is followed until somebody says which vehicle leads, so a file that says nothing
+    /// is not a formation with no leader — it is a formation that has not been told anything.
+    pub swarm_leader: Option<String>,
+
+    /// Whether the loop of the formation is run.
+    ///
+    /// The slots describe a formation; this is the decision to run it. They are kept apart so
+    /// that writing the places does not start a fleet by itself, and so that the decision is
+    /// remembered for the next run, the way the choice of a plugin is.
+    pub swarm_enabled: bool,
+
+    /// The places the vehicles are given in the formation.
+    pub swarm_slots: Vec<SwarmSlot>,
 }
 
 /// A store of the persisted settings.
@@ -301,6 +321,9 @@ mod tests {
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
                 plugins: Vec::new(),
+                swarm_leader: None,
+                swarm_enabled: false,
+                swarm_slots: Vec::new(),
                 connection_profiles: profiles.clone(),
             })
             .expect("the settings should be written");
@@ -367,6 +390,9 @@ mod tests {
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
                 plugins: Vec::new(),
+                swarm_leader: None,
+                swarm_enabled: false,
+                swarm_slots: Vec::new(),
                 connection_profiles: first.clone(),
             })
             .expect("the first write should succeed");
@@ -407,6 +433,9 @@ mod tests {
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
                 plugins: plugins.clone(),
+                swarm_leader: None,
+                swarm_enabled: false,
+                swarm_slots: Vec::new(),
                 connection_profiles: Vec::new(),
             })
             .expect("the settings should be written");
@@ -431,6 +460,9 @@ mod tests {
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
                 plugins: Vec::new(),
+                swarm_leader: None,
+                swarm_enabled: false,
+                swarm_slots: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::auto_connect(
                     "SITL",
                     "udp:127.0.0.1:14550",
@@ -457,6 +489,9 @@ mod tests {
                 signing_keys: Vec::new(),
                 map_injection_folder: None,
                 plugins: Vec::new(),
+                swarm_leader: None,
+                swarm_enabled: false,
+                swarm_slots: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::new("SITL", "udp:127.0.0.1:14550")],
             })
             .expect("the settings should be written");
@@ -486,6 +521,68 @@ mod tests {
 
         assert_eq!(settings.connection_profiles.len(), 1);
         assert!(settings.connection_profiles[0].auto_connect);
+    }
+
+    #[test]
+    fn the_formation_round_trips_through_the_file() {
+        let directory = TempDir::new("formation");
+        let store = SettingsStore::new(directory.path());
+
+        let slots = vec![
+            SwarmSlot::with_offset("1:1", 0.0, 0.0, 0.0),
+            SwarmSlot::with_offset("3:1", 12.0, 40.0, 5.0),
+        ];
+
+        store
+            .save(&Settings {
+                favourite_parameters: Vec::new(),
+                signing_keys: Vec::new(),
+                map_injection_folder: None,
+                plugins: Vec::new(),
+                swarm_leader: Some("1:1".to_owned()),
+                swarm_enabled: true,
+                swarm_slots: slots.clone(),
+                connection_profiles: Vec::new(),
+            })
+            .expect("the settings should be written");
+
+        let settings = store.load().expect("the settings should be read");
+
+        assert_eq!(settings.swarm_leader.as_deref(), Some("1:1"));
+        assert!(settings.swarm_enabled);
+        // The metres come back as the metres they were written as: nothing is scaled between
+        // the file and the formation that reads it.
+        assert_eq!(settings.swarm_slots, slots);
+
+        let text = std::fs::read_to_string(store.path()).expect("the file should be readable");
+
+        assert!(text.contains("[[swarm_slots]]"), "{text}");
+        assert!(text.contains("vehicle = \"3:1\""), "{text}");
+        assert!(text.contains("y = 40.0"), "{text}");
+    }
+
+    #[test]
+    fn a_formation_that_is_not_run_keeps_the_places_it_was_given() {
+        // The description and the decision are two things: an operator can write the slots for a
+        // fleet that is not being flown, and the file must say which of the two it says.
+        let directory = TempDir::new("not-run");
+        let store = SettingsStore::new(directory.path());
+
+        std::fs::create_dir_all(directory.path()).expect("the directory should exist");
+        std::fs::write(
+            store.path(),
+            "[[swarm_slots]]\nvehicle = \"2:1\"\ny = 60.0\n",
+        )
+        .expect("the file should be written");
+
+        let settings = store.load().expect("the settings should be read");
+
+        assert_eq!(settings.swarm_slots.len(), 1);
+        assert!(
+            !settings.swarm_enabled,
+            "a file that says nothing is not a decision"
+        );
+        assert_eq!(settings.swarm_slots[0].y, 60.0);
     }
 
     #[test]
