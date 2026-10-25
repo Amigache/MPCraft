@@ -3500,6 +3500,12 @@ struct StateEvent {
     messages: Vec<MessageEvent>,
     /// The board that is on the other end, when the vehicle has said which one it is.
     board: Option<String>,
+    /// What the board printed on the wire outside of MAVLink frames.
+    ///
+    /// The type of the link layer is used as it is: the capture, what it had to drop, and the
+    /// decision about what the text looks like are the link's, and the shell decides nothing
+    /// about them.
+    output: mpcraft_link::BoardOutput,
     /// The traffic that the vehicle has heard.
     adsb: Vec<AdsbEvent>,
     /// The gimbals the vehicle has reported.
@@ -3979,7 +3985,8 @@ impl From<&LinkSnapshot> for StateEvent {
             telemetry: state.map(telemetry_event).unwrap_or_default(),
             // The board is told by the output of the vehicle when it starts, and the
             // output is captured by the link.
-            board: state.and_then(|state| mpcraft_app::board::detect(&state.plaintext)),
+            board: state.and_then(|state| mpcraft_app::board::detect(&state.output.lines)),
+            output: snapshot.output.clone(),
             loss: state
                 .map(|state| LossEvent {
                     received: state.loss.packets_received,
@@ -4242,6 +4249,7 @@ impl Default for StateEvent {
         Self::from(&LinkSnapshot {
             status: ConnectionStatus::Disconnected,
             session: None,
+            output: mpcraft_link::BoardOutput::default(),
         })
     }
 }
@@ -4576,10 +4584,33 @@ mod tests {
         let event = StateEvent::from(&LinkSnapshot {
             status: ConnectionStatus::Reconnecting,
             session: None,
+            output: mpcraft_link::BoardOutput::default(),
         });
 
         assert_eq!(event.status, ConnectionStatus::Reconnecting);
         assert_eq!(event.status_label(), "reconectando");
+    }
+
+    #[test]
+    fn what_the_capture_dropped_is_carried_by_the_event_with_the_lines() {
+        // The failure is read after the session that heard the words has closed, so the snapshot
+        // carries the capture rather than a session. The hand: two hundred lines arrive on the wire
+        // and the window holds fifty-two, so what travels beside the lines is one hundred and
+        // forty-eight — the number the interface says, because a window that showed only what it
+        // kept would look like the whole output.
+        let event = StateEvent::from(&LinkSnapshot {
+            status: ConnectionStatus::Failed,
+            session: None,
+            output: mpcraft_link::BoardOutput {
+                lines: vec!["ArduCopter V4.3.7 (0123abcd)".to_owned()],
+                dropped: 148,
+                looks_like_can_bus: false,
+            },
+        });
+
+        assert_eq!(event.output.lines.len(), 1);
+        assert_eq!(event.output.dropped, 148);
+        assert!(!event.output.looks_like_can_bus);
     }
 
     #[test]
@@ -4600,6 +4631,7 @@ mod tests {
         let event = StateEvent::from(&LinkSnapshot {
             status: ConnectionStatus::Connected,
             session: Some(state),
+            output: mpcraft_link::BoardOutput::default(),
         });
 
         assert_eq!(event.vehicles.len(), 1);
@@ -4644,6 +4676,7 @@ mod tests {
         let event = StateEvent::from(&LinkSnapshot {
             status: ConnectionStatus::Connected,
             session: Some(state),
+            output: mpcraft_link::BoardOutput::default(),
         });
 
         let velocity = event.telemetry.velocity.expect("a velocity");

@@ -1164,6 +1164,21 @@ export interface LossStats {
   readonly lost: number;
 }
 
+/**
+ * What the board printed on the wire outside of MAVLink frames.
+ *
+ * The capture is bounded, so it says what it dropped as well as what it kept: a window that
+ * showed only the kept lines would look like the whole output.
+ */
+export interface BoardOutput {
+  /** The lines that were kept, newest first. */
+  readonly lines: readonly string[];
+  /** How many lines were dropped because the capture is bounded. */
+  readonly dropped: number;
+  /** Whether the text looks like a DroneCAN bus, as the link decided. */
+  readonly looksLikeCanBus: boolean;
+}
+
 /** The result of a command that changed the connection state. */
 export interface ConnectResponse {
   readonly status: ConnectionStatus;

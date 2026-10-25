@@ -185,6 +185,38 @@ for (const [width, height] of SIZES) {
   });
 }
 
+for (const [width, height] of SIZES) {
+  test(`the messages tab at ${width}x${height} in Spanish`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await openInSpanish(page, "flightdata");
+
+    // The tab is opened the way an operator opens it, so what is measured is the panel as it
+    // stands in the column rather than a box put there for the test.
+    await page.getByRole("tab", { name: "Mensajes" }).click();
+
+    const result = await found(page);
+
+    expect(
+      {
+        size: `${width}x${height}`,
+        screen: "flightdata",
+        tab: "messages",
+        ...result,
+      },
+      "nothing is drawn on top of something else and nothing is cut off",
+    ).toEqual({
+      size: `${width}x${height}`,
+      screen: "flightdata",
+      tab: "messages",
+      clashes: [],
+      clipped: [],
+      overflowing: [],
+    });
+  });
+}
+
 test("the checker still fails on something that is genuinely wrong", async ({
   page,
 }) => {

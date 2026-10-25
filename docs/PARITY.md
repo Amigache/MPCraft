@@ -626,6 +626,21 @@ relay on it, because the browser run has no backend to hear a vehicle; the tab w
 note that says nothing has been said, and the rule that reads the masks is tested against numbers
 written down before the function was called.
 
+The **words the board prints** outside of MAVLink frames reach the interface now, which is where they
+were missing: the link captured them and nothing read them except the command line. They travel as one
+shape — the lines, how many had to be dropped, and the decision about what the text looks like —
+because a window that showed only the lines it kept would look like the whole output. Upstream puts
+these words inside the message that says the connection failed, so MPCraft carries them as data rather
+than as prose that has to be read for meaning: the console draws what the open link is capturing, and
+the connection sheet draws what an attempt that gave up left behind, which is where the failure is read.
+The words are kept after the attempt that heard them is gone, for two reasons: the operator reads them
+after the session closed, and the rate that matches the board is one of several, so an attempt that
+heard nothing does not erase what an earlier rate heard. They are forgotten when a new link is opened,
+because the words of an attempt that has since been replaced are not what the operator is looking at.
+What cannot be measured at the two sizes is a console with board output on it, because the browser run
+has no backend to hear a board; the messages tab was measured as it stands without a link, and the rules
+that keep the words and clear them are tested against scripted transports.
+
 The transponder, the generator telemetry and the folder of the operator's own map are
 available elsewhere in the application: in Setup, the vehicle state and the tile
 settings respectively. The video sheet describes and controls the stream, but does not

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { listen } from "../ipc/bridge";
 import type {
   AdsbVehicle,
+  BoardOutput,
   CameraDevice,
   ConnectionStatus,
   GimbalAttitude,
@@ -32,6 +33,14 @@ interface LinkStatePayload {
   readonly loss: LossStats;
   readonly messages: readonly VehicleMessage[];
   readonly board?: string | null;
+  /**
+   * What the board printed outside of MAVLink frames.
+   *
+   * While a link is open this is what its reader is capturing; for an attempt that never heard
+   * a vehicle it is what that attempt left behind, which is why the words are still there when
+   * the failure is read.
+   */
+  readonly output?: BoardOutput | null;
   readonly adsb?: readonly AdsbVehicle[];
   readonly gimbals?: readonly GimbalDevice[];
   readonly cameras?: readonly CameraDevice[];
@@ -82,6 +91,14 @@ export interface LinkStore {
    * what the camera says rather than what was asked for.
    */
   readonly cameras: readonly CameraDevice[];
+  /**
+   * What the board printed on the wire outside of MAVLink frames.
+   *
+   * The lines, what the bounded capture had to drop, and the decision about what the text looks
+   * like are the link's; the interface draws them and decides nothing. This is what explains a
+   * port that answers with nothing, and it is read after the attempt that heard it is gone.
+   */
+  readonly output: BoardOutput;
   /** The most recent telemetry snapshot. */
   readonly telemetry: Telemetry;
   /**
@@ -100,6 +117,13 @@ export interface LinkStore {
   readonly playbackPosition: number;
 }
 
+/** A capture with nothing in it. */
+const EMPTY_OUTPUT: BoardOutput = {
+  lines: [],
+  dropped: 0,
+  looksLikeCanBus: false,
+};
+
 /** The state of a link that is not open. */
 const INITIAL: LinkStore = {
   status: "disconnected",
@@ -110,6 +134,7 @@ const INITIAL: LinkStore = {
   adsb: [],
   gimbals: [],
   cameras: [],
+  output: EMPTY_OUTPUT,
   telemetry: EMPTY_TELEMETRY,
   playback: false,
   playbackPosition: 0,
@@ -155,6 +180,29 @@ function normaliseTelemetry(telemetry: Telemetry | undefined): Telemetry {
     ahrs2: telemetry.ahrs2 ?? null,
     controller: telemetry.controller ?? null,
   };
+}
+
+/** Whether two captures are the same one. */
+export function sameOutput(left: BoardOutput, right: BoardOutput): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  // The count and the decision travel with the lines, so they are part of what makes two captures
+  // the same one: a comparison that stopped at the lines would keep showing an old count, and the
+  // operator would read a bounded window as the whole output.
+  if (
+    left.dropped !== right.dropped ||
+    left.looksLikeCanBus !== right.looksLikeCanBus
+  ) {
+    return false;
+  }
+
+  if (left.lines.length !== right.lines.length) {
+    return false;
+  }
+
+  return left.lines.every((line, index) => right.lines[index] === line);
 }
 
 export const useLinkStore = create<LinkStore>(() => INITIAL);
@@ -354,6 +402,9 @@ export function startLinkBridge(): void {
           ? state.messages
           : messages,
         board: payload.board ?? null,
+        output: sameOutput(state.output, payload.output ?? EMPTY_OUTPUT)
+          ? state.output
+          : (payload.output ?? EMPTY_OUTPUT),
         adsb: sameAdsb(state.adsb, payload.adsb ?? [])
           ? state.adsb
           : (payload.adsb ?? []),

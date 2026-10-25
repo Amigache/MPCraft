@@ -7,14 +7,33 @@
 //!
 //! That diagnostic is genuinely valuable, so MPCraft keeps it. The capture is bounded: a
 //! board that prints continuously must not exhaust memory.
+//!
+//! The capture travels to the interface as [`BoardOutput`], which carries what was kept, how
+//! much had to be dropped, and the decision the link made about what the text looks like. The
+//! interface draws those three things and decides nothing itself: a window that showed the
+//! newest lines without saying that older ones were dropped would look like the whole output.
 
 use std::collections::VecDeque;
+
+use serde::Serialize;
 
 /// The number of lines kept.
 const MAX_LINES: usize = 52;
 
 /// The minimum length of a line worth keeping.
 const MIN_LINE_LENGTH: usize = 4;
+
+/// The board output, as the interface reads it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoardOutput {
+    /// The lines that were kept, newest first.
+    pub lines: Vec<String>,
+    /// How many lines were dropped because the capture is bounded.
+    pub dropped: u64,
+    /// Whether the text looks like a DroneCAN bus, as the link decided.
+    pub looks_like_can_bus: bool,
+}
 
 /// Captures printable text arriving outside of MAVLink frames.
 #[derive(Debug, Clone)]
@@ -72,22 +91,14 @@ impl PlaintextSniffer {
         }
     }
 
-    /// The captured lines, newest first.
+    /// The board output, as the interface reads it.
     #[must_use]
-    pub fn lines(&self) -> Vec<String> {
-        self.lines.iter().cloned().collect()
-    }
-
-    /// The captured text as a single block, newest first.
-    #[must_use]
-    pub fn text(&self) -> String {
-        self.lines.iter().cloned().collect::<Vec<_>>().join("\n")
-    }
-
-    /// The number of lines dropped because the buffer was full.
-    #[must_use]
-    pub fn dropped(&self) -> u64 {
-        self.dropped
+    pub fn output(&self) -> BoardOutput {
+        BoardOutput {
+            lines: self.lines.iter().cloned().collect(),
+            dropped: self.dropped,
+            looks_like_can_bus: self.looks_like_can_bus(),
+        }
     }
 
     /// Whether the captured text looks like a DroneCAN bus.
@@ -124,9 +135,11 @@ mod tests {
         let mut sniffer = PlaintextSniffer::new();
         sniffer.observe(b"ArduCopter V4.3.7 (0123abcd)\r\n");
 
-        let lines = sniffer.lines();
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0], "ArduCopter V4.3.7 (0123abcd)");
+        let output = sniffer.output();
+        assert_eq!(output.lines, vec!["ArduCopter V4.3.7 (0123abcd)"]);
+        // Nothing had to be dropped, and the banner is not a DroneCAN frame.
+        assert_eq!(output.dropped, 0);
+        assert!(!output.looks_like_can_bus);
     }
 
     #[test]
@@ -134,21 +147,27 @@ mod tests {
         let mut sniffer = PlaintextSniffer::new();
         sniffer.observe(b"ok\r\n");
 
-        assert!(sniffer.lines().is_empty());
+        assert!(sniffer.output().lines.is_empty());
     }
 
     #[test]
-    fn the_capture_is_bounded() {
+    fn the_capture_is_bounded_and_says_what_it_dropped() {
         let mut sniffer = PlaintextSniffer::new();
 
         for index in 0..200 {
             sniffer.observe(format!("line {index} of output\r\n").as_bytes());
         }
 
-        assert_eq!(sniffer.lines().len(), MAX_LINES);
-        assert!(sniffer.dropped() > 0);
+        let output = sniffer.output();
+
+        // The hand: the capture holds fifty-two lines, so two hundred lines keep the newest
+        // fifty-two and drop the other one hundred and forty-eight — which is what the interface
+        // has to say, because a window that shows only the kept lines looks like the whole output.
+        assert_eq!(output.lines.len(), MAX_LINES);
+        assert_eq!(output.dropped, 148);
+
         // The newest line is kept first.
-        assert_eq!(sniffer.lines()[0], "line 199 of output");
+        assert_eq!(output.lines[0], "line 199 of output");
     }
 
     #[test]
@@ -156,7 +175,7 @@ mod tests {
         let mut sniffer = PlaintextSniffer::new();
         sniffer.observe(b"T0123456789ABCDEF\r\n");
 
-        assert!(sniffer.looks_like_can_bus());
+        assert!(sniffer.output().looks_like_can_bus);
     }
 
     #[test]
@@ -164,17 +183,6 @@ mod tests {
         let mut sniffer = PlaintextSniffer::new();
         sniffer.observe(b"ArduCopter V4.3.7 (0123abcd)\r\n");
 
-        assert!(!sniffer.looks_like_can_bus());
-    }
-
-    #[test]
-    fn the_captured_text_is_joined_for_display() {
-        let mut sniffer = PlaintextSniffer::new();
-        sniffer.observe(b"first line\r\n");
-        sniffer.observe(b"second line\r\n");
-
-        let text = sniffer.text();
-        assert!(text.contains("first line"));
-        assert!(text.contains("second line"));
+        assert!(!sniffer.output().looks_like_can_bus);
     }
 }

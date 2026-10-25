@@ -225,6 +225,11 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Speak to {name}": "Hablar con {name}",
     "the one the station speaks to": "la que la estación escucha",
 
+    // What the board printed outside of MAVLink frames. Upstream only shows these words inside the
+    // message that says the connection failed, so they are shown here, where that message is read.
+    "What the board printed while the link was being opened":
+      "Lo que la placa imprimió mientras se abría el enlace",
+
     "Saved links": "Enlaces guardados",
     Name: "Nombre",
     Save: "Guardar",
@@ -791,6 +796,15 @@ const bundles: Record<Locale, Record<string, string>> = {
     Clear: "Vaciar",
     "The vehicle has not said anything yet.":
       "El vehículo todavía no ha dicho nada.",
+
+    // What the board printed outside of MAVLink frames, and what the bounded capture had to leave
+    // out. The count is written with the separator of the language the window is read in.
+    "What the board printed on the wire":
+      "Lo que la placa imprimió en el enlace",
+    "{count} lines were not kept because the capture is bounded.":
+      "{count} líneas no se guardaron porque la captura tiene un límite.",
+    "The link says this text is the traffic of a DroneCAN bus.":
+      "El enlace dice que este texto es el tráfico de un bus DroneCAN.",
 
     // The quick view: the tiles, one value at a glance.
     "{count} tile": "{count} ficha",

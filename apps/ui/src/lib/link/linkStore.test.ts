@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { VehicleEvent } from "../ipc/types";
-import { chosenVehicle } from "./linkStore";
+import type { BoardOutput, VehicleEvent } from "../ipc/types";
+import { chosenVehicle, sameOutput } from "./linkStore";
 
 /**
  * The vehicle the interface shows as the one it is reading.
@@ -51,5 +51,50 @@ describe("the vehicle the station speaks to", () => {
     ];
 
     expect(chosenVehicle(moved)?.name).toBe("ArduCopter");
+  });
+});
+
+describe("the words the board printed", () => {
+  it("keep their reference when nothing changed", () => {
+    // The state arrives several times a second. The console draws the capture, so a comparison
+    // that could not tell an unchanged capture from a new one would redraw the block on every
+    // tick, which is what the store exists to avoid.
+    const capture: BoardOutput = {
+      lines: ["ArduCopter V4.3.7 (0123abcd)"],
+      dropped: 0,
+      looksLikeCanBus: false,
+    };
+
+    expect(sameOutput(capture, capture)).toBe(true);
+    expect(sameOutput(capture, { ...capture })).toBe(true);
+  });
+
+  it("are not the same when what was dropped changed", () => {
+    // The number of lines that are not in the window is drawn beside the lines, so a comparison
+    // that stopped at the lines would keep showing an old count — and the operator would read a
+    // capture as the whole output when it is not.
+    const before: BoardOutput = {
+      lines: ["line 52", "line 51"],
+      dropped: 0,
+      looksLikeCanBus: false,
+    };
+
+    const after: BoardOutput = {
+      lines: ["line 52", "line 51"],
+      dropped: 148,
+      looksLikeCanBus: false,
+    };
+
+    expect(sameOutput(before, after)).toBe(false);
+
+    // The decision about what the text looks like travels with the lines for the same reason: it
+    // is the link's, and the console shows what the link says.
+    const decided: BoardOutput = {
+      lines: before.lines,
+      dropped: before.dropped,
+      looksLikeCanBus: true,
+    };
+
+    expect(sameOutput(before, decided)).toBe(false);
   });
 });

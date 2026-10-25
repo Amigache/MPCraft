@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use mpcraft_link::{LinkError, Session, SessionOptions, SessionState, SigningSetup};
+use mpcraft_link::{BoardOutput, LinkError, Session, SessionOptions, SessionState, SigningSetup};
 use mpcraft_transport::ConnectionSpec;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{watch, Notify};
@@ -68,6 +68,14 @@ pub struct LinkSnapshot {
     pub status: ConnectionStatus,
     /// The state of the session, when a link is open.
     pub session: Option<SessionState>,
+    /// What the board printed on the wire outside of MAVLink frames.
+    ///
+    /// While a link is open this is what its reader is capturing; for an attempt that never
+    /// heard a vehicle it is what that attempt left behind. It travels on the snapshot because
+    /// the operator reads it after a connection failed: upstream's genuinely useful answer is
+    /// "no heartbeat — and here is what the board was printing", and the words of an attempt
+    /// that gave up would be lost with it.
+    pub output: BoardOutput,
 }
 
 impl LinkSnapshot {
@@ -77,6 +85,7 @@ impl LinkSnapshot {
         Self {
             status: ConnectionStatus::Disconnected,
             session: None,
+            output: BoardOutput::default(),
         }
     }
 }
@@ -255,6 +264,12 @@ struct Inner {
     /// own session: the number tells it that the link it was working on is not the link
     /// any more.
     generation: AtomicU64,
+    /// What an attempt that never heard a vehicle captured, kept after that attempt ended.
+    ///
+    /// The board's output is the only thing that explains a silent port — the wrong rate, the
+    /// wrong port — and an operator reads it when the connection failed, which is after the
+    /// session that heard it is gone. So the words of an attempt that gave up are kept here.
+    kept: Mutex<BoardOutput>,
     /// What to do when the link drops.
     policy: ReconnectPolicy,
     /// Opens the sessions.
@@ -282,6 +297,52 @@ impl Inner {
     /// The number of the link that is open.
     fn generation(&self) -> u64 {
         self.generation.load(Ordering::Relaxed)
+    }
+
+    /// Keeps what an attempt captured before it gave up.
+    ///
+    /// An attempt that heard nothing does not erase what an earlier attempt heard: the rate that
+    /// matches the board is one of several, and the words are what explain the failure whichever
+    /// rate they arrived on.
+    fn keep_output(&self, state: &SessionState) {
+        if state.output.lines.is_empty() {
+            return;
+        }
+
+        if let Ok(mut kept) = self.kept.lock() {
+            *kept = state.output.clone();
+        }
+    }
+
+    /// Forgets the capture of an attempt that gave up.
+    ///
+    /// The words of a link that has since been opened are not what the operator is looking at,
+    /// so they are not shown on a new one.
+    fn clear_output(&self) {
+        if let Ok(mut kept) = self.kept.lock() {
+            *kept = BoardOutput::default();
+        }
+    }
+
+    /// The snapshot the interface reads.
+    ///
+    /// The board output is what the open link is capturing when there is one, and what the
+    /// attempt that gave up left behind when there is not.
+    fn snapshot(&self, status: ConnectionStatus, session: Option<SessionState>) -> LinkSnapshot {
+        let output = match session.as_ref() {
+            Some(state) => state.output.clone(),
+            None => self
+                .kept
+                .lock()
+                .map(|kept| kept.clone())
+                .unwrap_or_default(),
+        };
+
+        LinkSnapshot {
+            status,
+            session,
+            output,
+        }
     }
 }
 
@@ -330,6 +391,7 @@ impl SessionSupervisor {
                 signing: Mutex::new(None),
                 status: Mutex::new(ConnectionStatus::Disconnected),
                 generation: AtomicU64::new(0),
+                kept: Mutex::new(BoardOutput::default()),
                 policy,
                 connector,
                 sleeper,
@@ -405,20 +467,17 @@ impl SessionSupervisor {
         // The supervisor drives one link: a new one replaces the old.
         self.stop_current().await;
 
+        // A new link starts a fresh capture: the words of an attempt that gave up belong to that
+        // attempt, and are not shown on a link that has since been opened.
+        self.inner.clear_output();
         self.inner.set_status(ConnectionStatus::Connecting);
-        publish(&LinkSnapshot {
-            status: ConnectionStatus::Connecting,
-            session: None,
-        });
+        publish(&self.inner.snapshot(ConnectionStatus::Connecting, None));
 
         let session = match open_with_rate(&self.inner, &spec).await {
             Ok(session) => session,
             Err(error) => {
                 self.inner.set_status(ConnectionStatus::Failed);
-                publish(&LinkSnapshot {
-                    status: ConnectionStatus::Failed,
-                    session: None,
-                });
+                publish(&self.inner.snapshot(ConnectionStatus::Failed, None));
 
                 return Err(CommandError::from(error));
             }
@@ -566,6 +625,12 @@ async fn open_with_rate(inner: &Inner, spec: &ConnectionSpec) -> Result<Session,
             Ok(_vehicle) => return Ok(session),
             Err(error) => {
                 tracing::info!("nothing answered at {baud} bits per second");
+
+                // The rate was tried and nothing answered, which is the moment the operator is
+                // told about. What the board printed while it was being tried is kept, because
+                // that text is what says whether the rate was wrong or the port was.
+                inner.keep_output(&session.state());
+
                 last = Some(error);
             }
         }
@@ -597,10 +662,7 @@ async fn supervise<F>(
     // The last word belongs to the supervisor: the interface must never be left with a
     // "connected" state for a link that is gone.
     inner.set_status(final_status);
-    publish(&LinkSnapshot {
-        status: final_status,
-        session: None,
-    });
+    publish(&inner.snapshot(final_status, None));
 }
 
 /// Drives the link until it is closed.
@@ -629,6 +691,10 @@ where
             let state = session.state();
 
             if !state.connected {
+                // The link dropped. What the board had been printing is kept, because the
+                // operator reads it with the failure: the session that heard it is gone as soon
+                // as another one takes its place.
+                inner.keep_output(&state);
                 break;
             }
 
@@ -639,10 +705,7 @@ where
             }
 
             inner.set_status(ConnectionStatus::Connected);
-            publish(&LinkSnapshot {
-                status: ConnectionStatus::Connected,
-                session: Some(state),
-            });
+            publish(&inner.snapshot(ConnectionStatus::Connected, Some(state)));
 
             tokio::select! {
                 // The operator asked to stop: leave at once.
@@ -706,10 +769,7 @@ where
         let attempt = *attempts;
 
         inner.set_status(ConnectionStatus::Reconnecting);
-        publish(&LinkSnapshot {
-            status: ConnectionStatus::Reconnecting,
-            session: None,
-        });
+        publish(&inner.snapshot(ConnectionStatus::Reconnecting, None));
 
         // The wait between two attempts belongs to the policy, and the wait itself is
         // injected: a test asserts the sequence of delays without waiting for them.

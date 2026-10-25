@@ -104,7 +104,7 @@ pub use mission::{
 pub use mpcraft_mavlink::signing::{SigningKey, SigningKeyring};
 pub use osd::{OsdSlot, OsdSlotConfig};
 pub use params::{ParamError, DEFAULT_LIST_TIMEOUT, DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT};
-pub use plaintext::PlaintextSniffer;
+pub use plaintext::{BoardOutput, PlaintextSniffer};
 pub use session::{ReceivedMessage, Session, SessionOptions, SessionState, SigningSetup};
 pub use telemetry::TelemetryAggregator;
 pub use terrain::{TerrainRequest, TerrainSquare};

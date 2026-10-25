@@ -83,3 +83,53 @@
 .debug .text {
   color: var(--colour-text-faint);
 }
+
+/* What the board printed outside of MAVLink frames. The block is bounded so that the console keeps
+   the room its own list needs; what does not fit is scrolled to, and the number of lines that are
+   not in the window is said beside it. */
+.board {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.heading {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  max-height: 118px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.line {
+  color: var(--colour-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  margin: 0;
+}
+
+/* The decision is the link's, and it is a reason to look elsewhere, so it is not drawn as a plain
+   note. */
+.warn {
+  color: var(--colour-warning);
+}

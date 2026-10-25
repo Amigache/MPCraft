@@ -259,8 +259,8 @@ pub struct SessionState {
     pub capabilities: Option<u64>,
     /// The parameters the vehicle has reported.
     pub parameters: ParameterStore,
-    /// The lines of board output captured outside of MAVLink frames.
-    pub plaintext: Vec<String>,
+    /// What the board printed on the wire outside of MAVLink frames.
+    pub output: crate::plaintext::BoardOutput,
     /// The messages the vehicle has sent, most recent last.
     ///
     /// The list is bounded: a vehicle that talks a great deal must not grow the state
@@ -274,8 +274,6 @@ pub struct SessionState {
     pub cameras: Vec<crate::camera::CameraDevice>,
     /// The request of the terrain the vehicle has made, when it has made one.
     pub terrain_request: Option<crate::terrain::TerrainRequest>,
-    /// Whether the board's output looks like a DroneCAN bus.
-    pub looks_like_can_bus: bool,
     /// Whether the link is still open.
     pub connected: bool,
 }
@@ -549,13 +547,12 @@ impl SessionContext {
             loss: self.loss,
             capabilities: self.capabilities,
             parameters: self.parameters.clone(),
-            plaintext: self.plaintext.lines(),
+            output: self.plaintext.output(),
             messages: self.messages.iter().cloned().collect(),
             adsb: self.adsb.vehicles(),
             gimbals: self.gimbals.devices(),
             cameras: self.cameras.cameras(),
             terrain_request: self.terrain_request,
-            looks_like_can_bus: self.plaintext.looks_like_can_bus(),
             connected,
         }
     }
@@ -573,13 +570,12 @@ impl SessionState {
             loss: LossStats::default(),
             capabilities: None,
             parameters: mpcraft_params::ParameterStore::new(),
-            plaintext: Vec::new(),
+            output: crate::plaintext::BoardOutput::default(),
             messages: Vec::new(),
             adsb: Vec::new(),
             gimbals: Vec::new(),
             cameras: Vec::new(),
             terrain_request: None,
-            looks_like_can_bus: false,
             connected: false,
         }
     }

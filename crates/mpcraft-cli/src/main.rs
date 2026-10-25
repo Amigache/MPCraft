@@ -702,20 +702,29 @@ async fn monitor_session(session: &mpcraft_link::Session) -> Result<(), String> 
     if state.vehicles.is_empty() {
         eprintln!("no vehicle answered on this link");
 
-        if state.looks_like_can_bus {
+        if state.output.looks_like_can_bus {
             eprintln!(
                 "this looks like a DroneCAN port; use the DroneCAN screen rather than the \
                  serial link"
             );
         }
 
-        if !state.plaintext.is_empty() {
+        if state.output.lines.is_empty() {
+            eprintln!("no board output was captured either; check the baud rate and the port");
+        } else {
             eprintln!("the board printed:");
-            for line in &state.plaintext {
+            for line in &state.output.lines {
                 eprintln!("  {line}");
             }
-        } else {
-            eprintln!("no board output was captured either; check the baud rate and the port");
+
+            // The capture is bounded, so what is printed is the window the capture holds; say
+            // how much of the output is not in it.
+            if state.output.dropped > 0 {
+                eprintln!(
+                    "  {} lines were dropped by the bounded capture",
+                    state.output.dropped
+                );
+            }
         }
 
         return Err("no vehicle answered".to_owned());

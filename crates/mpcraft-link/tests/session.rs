@@ -183,17 +183,56 @@ async fn the_board_output_outside_of_frames_is_captured() {
         .unwrap();
 
     let got = wait_for(&session, Duration::from_secs(5), |state| {
-        !state.plaintext.is_empty()
+        !state.output.lines.is_empty()
     })
     .await;
 
     assert!(got, "the board output was not captured");
     let state = session.state();
     assert!(
-        state.plaintext[0].contains("ArduCopter"),
+        state.output.lines[0].contains("ArduCopter"),
         "the captured text was {:?}",
-        state.plaintext
+        state.output.lines
     );
+
+    // Nothing was dropped, and the banner is an ordinary banner: the state carries both facts,
+    // which is what the console draws.
+    assert_eq!(state.output.dropped, 0);
+    assert!(!state.output.looks_like_can_bus);
+}
+
+#[tokio::test]
+async fn a_capture_that_is_full_says_what_it_dropped() {
+    // A board that prints more than the window holds, and prints it as a DroneCAN node would:
+    // ninety lines, each one a 'T' followed by hexadecimal digits. The window keeps the newest
+    // fifty-two — the hand: ninety lines keep fifty-two and drop thirty-eight — and the state
+    // says so, because a window that showed only what it kept would look like the whole output.
+    let mut stream = Vec::new();
+    for index in 0..90 {
+        stream.extend(format!("T{:09X}\r\n", index).as_bytes());
+    }
+    stream.extend(frame(heartbeat(5), 0));
+    stream.extend(frame(heartbeat(5), 1));
+
+    let path = temp_stream("dropped-plaintext", &stream);
+    let spec = ConnectionSpec::parse(&format!("file:{}", path.display())).unwrap();
+
+    let session = Session::connect(&spec, SessionOptions::default())
+        .await
+        .unwrap();
+
+    let seen = wait_for(&session, Duration::from_secs(5), |state| {
+        state.output.lines.len() == 52 && state.output.dropped == 38
+    })
+    .await;
+
+    assert!(
+        seen,
+        "the capture should have filled and said what it dropped"
+    );
+
+    let state = session.state();
+    assert!(state.output.looks_like_can_bus);
 }
 
 #[tokio::test]

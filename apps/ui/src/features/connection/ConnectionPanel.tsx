@@ -11,6 +11,7 @@ import type {
   VehicleEvent,
 } from "../../lib/ipc/types";
 import { useLinkStore } from "../../lib/link/linkStore";
+import { formatCount } from "../../lib/format";
 import { useProfilesStore } from "../../lib/connection/profilesStore";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import {
@@ -45,6 +46,12 @@ import styles from "./ConnectionPanel.module.css";
  * station speaks to one board at a time, and which one that is belongs to the link — it is where
  * the boards were heard — so the panel marks what the event says rather than what was last
  * clicked, and a pair that was never heard cannot be chosen at all.
+ *
+ * When a connection failed, the panel also shows **what the board printed** while it was being opened:
+ * the words the link captured outside of MAVLink frames, kept after the attempt that heard them closed.
+ * They are drawn as the link says them, with the number of lines its bounded capture had to leave out;
+ * upstream puts the same words inside its connection-failure message, and here they are data rather than
+ * prose.
  */
 
 /** The state of the list of ports. */
@@ -74,6 +81,11 @@ export function ConnectionPanel() {
   // says about which one it is reading rather than deciding that for itself.
   const vehicles = useLinkStore((state) => state.vehicles);
   const [chooseError, setChooseError] = useState<CommandError | null>(null);
+
+  // What the board printed while the link was being opened. The words are kept by the supervisor
+  // after the attempt that heard them is gone, which is what makes them readable here: the failure
+  // is read after the session that captured them has closed.
+  const output = useLinkStore((state) => state.output);
 
   // A choice can only be made on a link that is open: the boards to choose between are the ones
   // the link has heard, and there are none when nothing is connected.
@@ -288,6 +300,38 @@ export function ConnectionPanel() {
         <p className={styles.error} role="alert">
           <span className={styles.code}>{error.code}</span> {error.message}
         </p>
+      ) : null}
+
+      {status === "failed" &&
+      (output.lines.length > 0 || output.dropped > 0) ? (
+        <section className={styles.board}>
+          <h3 className={styles.boardHeading}>
+            {t("What the board printed while the link was being opened")}
+          </h3>
+
+          <ul className={styles.boardLines}>
+            {output.lines.map((line, index) => (
+              <li key={`${index}-${line}`} className={styles.boardLine}>
+                {line}
+              </li>
+            ))}
+          </ul>
+
+          {output.dropped > 0 ? (
+            <p className={styles.note}>
+              {t(
+                "{count} lines were not kept because the capture is bounded.",
+                { count: formatCount(output.dropped) },
+              )}
+            </p>
+          ) : null}
+
+          {output.looksLikeCanBus ? (
+            <p className={`${styles.note} ${styles.warn}`}>
+              {t("The link says this text is the traffic of a DroneCAN bus.")}
+            </p>
+          ) : null}
+        </section>
       ) : null}
 
       <section className={styles.boards}>

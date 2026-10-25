@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { messageTone } from "../../lib/messages/severity";
-import type { VehicleMessage } from "../../lib/ipc/types";
+import { formatCount } from "../../lib/format";
+import type { BoardOutput, VehicleMessage } from "../../lib/ipc/types";
 import styles from "./MessageConsole.module.css";
 
 /**
@@ -12,6 +13,13 @@ import styles from "./MessageConsole.module.css";
  * The vehicle speaks through `STATUSTEXT`, and this is where it is read: the newest
  * message at the bottom, coloured by how serious it is, with the name of the severity
  * beside it.
+ *
+ * What the board printed outside of MAVLink frames is drawn below, because a board that prints
+ * its banner is not a vehicle speaking: it is the board saying what it is, and those are the
+ * words that explain a port nobody wrote a rate for. The lines, what the bounded capture had to
+ * drop, and the decision about what the text looks like come from the link; the console draws
+ * them as it is given them — including the number of lines that are not in the window, because a
+ * block that showed only what was kept would look like the whole output.
  */
 
 /** How many messages are kept. */
@@ -22,8 +30,14 @@ function sameMessage(left: VehicleMessage, right: VehicleMessage): boolean {
   return left.severity === right.severity && left.text === right.text;
 }
 
+/** Whether a capture has anything to show. */
+function hasOutput(output: BoardOutput): boolean {
+  return output.lines.length > 0 || output.dropped > 0;
+}
+
 export function MessageConsole() {
   const messages = useLinkStore((state) => state.messages);
+  const output = useLinkStore((state) => state.output);
   const [shown, setShown] = useState<VehicleMessage[]>([]);
   const previous = useRef<readonly VehicleMessage[]>([]);
   const list = useRef<HTMLOListElement | null>(null);
@@ -83,6 +97,37 @@ export function MessageConsole() {
           {t("Clear")}
         </button>
       </div>
+
+      {hasOutput(output) ? (
+        <section className={styles.board}>
+          <h3 className={styles.heading}>
+            {t("What the board printed on the wire")}
+          </h3>
+
+          <ul className={styles.lines}>
+            {output.lines.map((line, index) => (
+              <li key={`${index}-${line}`} className={styles.line}>
+                {line}
+              </li>
+            ))}
+          </ul>
+
+          {output.dropped > 0 ? (
+            <p className={styles.note}>
+              {t(
+                "{count} lines were not kept because the capture is bounded.",
+                { count: formatCount(output.dropped) },
+              )}
+            </p>
+          ) : null}
+
+          {output.looksLikeCanBus ? (
+            <p className={`${styles.note} ${styles.warn}`}>
+              {t("The link says this text is the traffic of a DroneCAN bus.")}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {shown.length === 0 ? (
         <p className={styles.empty}>
