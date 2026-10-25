@@ -343,6 +343,7 @@ localised messages. **A message is never parsed for meaning.**
 | Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli` in CI |
 | Compatibility | Upstream's own test corpus: real `.tlog`, `.param`, `.waypoints` files |
 | Frontend | Vitest for stores and reducers; Playwright for the critical flows |
+| Gates | A home-grown gate is shown failing on a known-bad case and passing on a known-good one, before its green is trusted (`scripts/check-overlaps-controls.js`) |
 
 The SITL container is the linchpin: it lets the whole stack be tested without hardware, and the
 same harness serves the demo builds.

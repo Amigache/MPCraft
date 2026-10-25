@@ -206,7 +206,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | --- | --- | --- | --- | --- |
 | 10.1 | Screen-switching shell | `ExtLibs/Controls/MainSwitcher.cs` | ✅ | 1 |
 | 10.2 | Theme system (light / dark / high-contrast) | `ThemeManager.cs`, `*.mpsystheme` | ✅ | 7 |
-| 10.3 | Internationalisation | `Strings.resx` + Crowdin | 🔽 | 7 |
+| 10.3 | Internationalisation | `Strings.resx` + Crowdin | ✅ | 7 |
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | ✅ | 0 |
 | 10.6 | Auto-updater | `Updater/` | 🔜 | 7 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 142 |
+| ✅ Done | 143 |
 | 🔜 Planned | 9 |
 | ⬜ Dropped | 1 |
-| Partial (🟡 / 🔽) | 3 |
+| Partial (🟡 / 🔽) | 2 |
 
-The 142 rows marked done are the connection, transport, parameter, mission, command and
+The 143 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -268,7 +268,9 @@ the parameters of a file can be read, written and compared with the vehicle's.
 The **plan editor** takes the place of the graphs, the way upstream's planner puts its grid
 above the map. The waypoints are dragged on the map, the plan is checked before it is
 flown, and the edits are kept apart from the plan the vehicle holds, so that a plan with
-unsent changes never looks like the plan on the vehicle.
+unsent changes never looks like the plan on the vehicle. The rows and the drawing of the
+ground share the room the bar and the status line leave, and the drawing gives way before
+the rows do, so a short editor still shows a plan that can be read.
 
 The **home** of the vehicle is read and moved from the actions tab: the vehicle is
 asked where its home is, and the home can be moved to the place the vehicle is in,
@@ -536,7 +538,13 @@ own words, so that the two can be told apart by somebody who cannot read either 
 the language the code speaks, so it is what a run that has chosen nothing reads; another language is
 only what the next run remembers. The bar of the menus, the switcher of the screens and the tabs of
 the left column speak from the bundles; the sheets and the panels follow one by one, and a test says
-which names have no entry.
+which names have no entry. Every word the interface writes now goes through the bundles, and the
+test says which ones do not, so a gap is a change that can be reviewed rather than a hole.
+What arrives as data stays as the data says it: the names of the modes, of the camera states,
+of the gamepads, of the parameters and of the tile providers are what the vehicle or the file
+says, and translating them would say something the vehicle does not say. What the library of the
+map writes is outside the reach of the bundles: the titles of its own navigation control — zoom,
+rotation — are the library's words, not ours.
 
 The **identification of the vehicle** is in the tab of the state: what it is, its
 number, what kind of vehicle it is, where it says it is and what the operator says about
