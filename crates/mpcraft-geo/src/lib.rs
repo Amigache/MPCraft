@@ -17,6 +17,7 @@
 pub mod drawing;
 pub mod dted;
 pub mod dxf;
+pub mod formation;
 pub mod georef;
 pub mod height;
 pub mod projection;
@@ -30,6 +31,7 @@ pub mod zip;
 pub use drawing::{Drawing, DrawingError};
 pub use dted::{DtedBounds, DtedError, DtedFile, DtedHeader, DtedLayout, DtedLevel, DtedLibrary};
 pub use dxf::{DxfError, DxfFile};
+pub use formation::{place, places, wrap_180, FormationError, Layout, Offset};
 pub use georef::{GeorefError, GeoreferencedImage, Orientation};
 pub use projection::{utm_from_lat_lng, utm_to_lat_lng, LatLng, Mgrs, Utm, UtmZone, UtmZoneError};
 pub use shapefile::{ShapeError, ShapeFile, ShapePoint};

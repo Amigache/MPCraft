@@ -194,7 +194,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 9.2 | Plugin host API surface | `Plugin/Plugin.cs` (PluginHost) | ✅ | 6 |
 | 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | ✅ | 6 |
 | 9.4 | Scripting host | `Script.cs` (IronPython) | 🔜 | 6 |
-| 9.5 | Swarm / formation control | `Swarm/` | 🔜 | 6 |
+| 9.5 | Swarm / formation control | `Swarm/` | 🔽 | 6 |
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
 | 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🟡 | 5 |
 | 9.8 | HTTP server (MJPEG / KML stream) | `ExtLibs/Utilities/httpserver.cs` | ✅ | 7 |
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 143 |
-| 🔜 Planned | 9 |
+| 🔜 Planned | 8 |
 | ⬜ Dropped | 1 |
-| Partial (🟡 / 🔽) | 2 |
+| Partial (🟡 / 🔽) | 3 |
 
 The 143 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
@@ -566,6 +566,20 @@ strips the vehicle flies one after the other, apart by the distance its sensor s
 and the smooth path, the curve the vehicle follows when it is told to follow a spline.
 The plan draws the path as a straight line from one place to the next, and the smooth
 one when the operator asks for it.
+
+The **formation** is ported as far as this machine can verify it: the slots — which vehicle sits
+where relative to the one it follows, in metres across and along the direction of travel and up —
+and the places the slots put the vehicles, turned by the heading of the leader with the sign
+upstream uses (`heading = -yaw`, so `y` stays ahead and `x` to the right however the leader is
+pointed). What cannot be ported here is the closed loop: upstream sends corrections through its own
+per-port sockets with a PID on each vehicle, and that needs a live fleet, so the row stays partial.
+Two differences are recorded. MPCraft refuses a vehicle that is in the formation without having
+been given a place in it, rather than inventing an offset from how many vehicles were missing at
+that moment, which is what upstream's fallback does. And it projects through the zone its own
+projection picks rather than upstream's `(lng + 186) / 6`. Off the central meridian the grid and
+the earth disagree by the convergence angle — a slot measured east on the grid reads as a true
+bearing about 1.2 degrees off at Canberra — which upstream has too, and which the tests record
+rather than paper over.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not
