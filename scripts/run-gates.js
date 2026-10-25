@@ -116,6 +116,17 @@ const GATES = [
       "the golden-file stream, which is a second implementation rather than a mirror of the parser",
   },
   {
+    name: "parity matrix",
+    layer: "documentation",
+    command: "node",
+    probe: ["--version"],
+    args: ["scripts/check-parity.js"],
+    cwd: ROOT,
+    control:
+      "scripts/check-parity-controls.js, which shows each rule firing on a known-bad row and the matrix passing untouched",
+    proof: (text) => lineMatching(text, /"verdict": "PASS"/),
+  },
+  {
     name: "rust formatting",
     layer: "rust",
     command: "cargo",
