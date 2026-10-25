@@ -541,4 +541,72 @@ async fn the_message_ids_are_the_ones_the_protocol_says() {
     assert_eq!(mpcraft_link::commands::COMMAND_INT_ID, 75);
     assert_eq!(mpcraft_link::commands::COMMAND_ACK_ID, 77);
     assert_eq!(mpcraft_link::commands::SET_MODE_ID, 11);
+    assert_eq!(mpcraft_link::commands::SET_ATTITUDE_TARGET_ID, 82);
+}
+
+#[tokio::test]
+async fn the_answer_the_formation_decides_reaches_the_vehicle_as_bytes() {
+    // A silent vehicle: this message has no acknowledgement, so nothing comes back and there is
+    // nothing to wait for. What the vehicle received is the decision itself, and what is asserted
+    // here are the hand values — the right angle about the x axis and the floor of the thrust
+    // demand — rather than the code that produced them.
+    let (address, received) = Vehicle::start_with(MavResult::MAV_RESULT_ACCEPTED, true).await;
+    let session = session_to(address).await;
+
+    let decision = mpcraft_vehicle::formation::PlaneDecision {
+        target: mpcraft_vehicle::GeoPoint {
+            lat: 0.0,
+            lng: 0.0,
+            alt: 0.0,
+        },
+        roll_deg: 90.0,
+        pitch_deg: 0.0,
+        yaw_error_deg: 0.0,
+        thrust: 0.1,
+    };
+
+    session
+        .send_attitude_target(vehicle(), &decision.attitude_command())
+        .await
+        .expect("the link should carry the answer");
+
+    assert!(wait_for_messages(&received, 1).await);
+
+    let log = received.lock().unwrap();
+    let Some(MavMessage::SET_ATTITUDE_TARGET(target)) = log.first() else {
+        panic!("the vehicle did not receive the attitude target");
+    };
+
+    let root_half = std::f64::consts::FRAC_1_SQRT_2;
+
+    assert!(
+        (target.q[0] as f64 - root_half).abs() < 1e-7,
+        "q1 was {}",
+        target.q[0]
+    );
+    assert!(
+        (target.q[1] as f64 - root_half).abs() < 1e-7,
+        "q2 was {}",
+        target.q[1]
+    );
+    assert!(target.q[2].abs() < 1e-9, "q3 was {}", target.q[2]);
+    assert!(target.q[3].abs() < 1e-9, "q4 was {}", target.q[3]);
+
+    // The mask as upstream's arithmetic leaves it, with the two bits the current dialect does
+    // not name still set. Read through `from_bits_truncate` they would have been dropped and this
+    // byte would have come back as 32.
+    assert_eq!(
+        target.type_mask.bits(),
+        0x38,
+        "the mask was {:?}",
+        target.type_mask
+    );
+
+    assert!(
+        (target.thrust - 0.1).abs() < 1e-7,
+        "thrust was {}",
+        target.thrust
+    );
+    assert_eq!(target.target_system, 1);
+    assert_eq!(target.target_component, 1);
 }

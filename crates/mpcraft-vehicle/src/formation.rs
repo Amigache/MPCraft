@@ -149,13 +149,19 @@ pub struct AttitudeCommand {
     /// The quaternion in upstream's order, `q1` being the scalar term.
     pub quaternion: [f64; 4],
     /// The type mask: `0xff` less the pitch term, the thrust term, and the attitude-mode bits
-    /// (`0b10000101`), which is `0x38`.
+    /// (`0b10000101`), which is `0x38`. It is kept as a raw byte because two of the bits that
+    /// survive the arithmetic — 8 and 16 — have no name in the dialect as it is defined today;
+    /// they were the roll and pitch *rate* ignore flags in the enum upstream's arithmetic
+    /// assumes. Read through today's names the same byte means something else, so the number
+    /// travels as upstream worked it out rather than as the current names would spell it.
     pub type_mask: u8,
+    /// The thrust demand the plane branch worked out, which the message carries as it is.
+    pub thrust: f64,
 }
 
 impl PlaneDecision {
     /// The command as upstream packs it: the quaternion built from the three angles through the
-    /// 3-1-2 matrix, and the mask it subtracts its three terms from.
+    /// 3-1-2 matrix, the mask it subtracts its three terms from, and the thrust demand.
     #[must_use]
     pub fn attitude_command(&self) -> AttitudeCommand {
         AttitudeCommand {
@@ -165,6 +171,7 @@ impl PlaneDecision {
                 self.yaw_error_deg.to_radians(),
             ),
             type_mask: ATTITUDE_TYPE_MASK,
+            thrust: self.thrust,
         }
     }
 }
@@ -804,6 +811,13 @@ mod tests {
         // `0xff` less `0b00000010`, `0b01000000` and `0b10000101`: the three terms upstream
         // subtracts one after the other, with no bit they can borrow from.
         assert_eq!(command.type_mask, 0x38);
+
+        // The demand travels with the quaternion rather than being worked out again at the wire.
+        assert!(
+            (command.thrust - 0.1).abs() < 1e-9,
+            "thrust was {}",
+            command.thrust
+        );
 
         // The trace is negative and the largest diagonal is `m22`, so the last branch decides:
         // q4 alone carries the half turn.

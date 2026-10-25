@@ -37,8 +37,9 @@ use std::time::{Duration, Instant};
 // suffers — and every autopilot still understands it. Both are sent.
 #[allow(deprecated)]
 use mpcraft_mavlink::dialect::messages::{
-    PositionTargetTypemask, COMMAND_INT_DATA, COMMAND_LONG_DATA, MANUAL_CONTROL_DATA,
-    RC_CHANNELS_OVERRIDE_DATA, SET_MODE_DATA, SET_POSITION_TARGET_GLOBAL_INT_DATA,
+    AttitudeTargetTypemask, PositionTargetTypemask, COMMAND_INT_DATA, COMMAND_LONG_DATA,
+    MANUAL_CONTROL_DATA, RC_CHANNELS_OVERRIDE_DATA, SET_ATTITUDE_TARGET_DATA, SET_MODE_DATA,
+    SET_POSITION_TARGET_GLOBAL_INT_DATA,
 };
 use mpcraft_mavlink::{MavCmd, MavFrame, MavMessage, MavModeFlag, MavResult};
 
@@ -63,6 +64,9 @@ pub const SET_MODE_ID: u32 = 11;
 
 /// The message id of `SET_POSITION_TARGET_GLOBAL_INT`.
 pub const SET_POSITION_TARGET_ID: u32 = 86;
+
+/// The message id of `SET_ATTITUDE_TARGET`.
+pub const SET_ATTITUDE_TARGET_ID: u32 = 82;
 
 /// The message id of `RC_CHANNELS_OVERRIDE`.
 pub const RC_CHANNELS_OVERRIDE_ID: u32 = 70;
@@ -152,6 +156,39 @@ impl Calibration {
 }
 
 /// The command operations of a session.
+/// The message the plane branch's answer travels in.
+///
+/// This is the one place the decision becomes bytes: the quaternion is rounded to the four
+/// floats the wire carries here and nowhere else. The rates are zero because the mask says the
+/// vehicle is to leave them alone, but they still travel — MAVLink 2 only removes the *trailing*
+/// zeros of a payload, and the thrust is not zero.
+#[must_use]
+pub fn attitude_target_message(
+    vehicle: VehicleId,
+    command: &mpcraft_vehicle::formation::AttitudeCommand,
+) -> MavMessage {
+    MavMessage::SET_ATTITUDE_TARGET(SET_ATTITUDE_TARGET_DATA {
+        time_boot_ms: 0,
+        q: [
+            command.quaternion[0] as f32,
+            command.quaternion[1] as f32,
+            command.quaternion[2] as f32,
+            command.quaternion[3] as f32,
+        ],
+        body_roll_rate: 0.0,
+        body_pitch_rate: 0.0,
+        body_yaw_rate: 0.0,
+        thrust: command.thrust as f32,
+        target_system: vehicle.system_id,
+        target_component: vehicle.component_id,
+        // Retained rather than truncated: two of the bits upstream's arithmetic leaves set have
+        // no name in the dialect as it is defined today, and dropping them would send a different
+        // byte than upstream sends.
+        type_mask: AttitudeTargetTypemask::from_bits_retain(command.type_mask),
+        ..Default::default()
+    })
+}
+
 impl Session {
     /// Arms a vehicle.
     ///
@@ -310,6 +347,29 @@ impl Session {
             });
 
         self.write_message(&message).await
+    }
+
+    /// Sends the attitude the formation decided for one vehicle.
+    ///
+    /// The plane branch of the loop answers with a quaternion built through the 3-1-2 matrix,
+    /// not with three angles, and with the mask upstream's arithmetic leaves behind. This is a
+    /// write rather than a transaction: the protocol has no acknowledgement for it, so there is
+    /// nothing to wait for and nothing to retry — the same kind of send `set_position_target`
+    /// is. What the vehicle does with the command is not reported back.
+    ///
+    /// The rates are sent as zero because the mask says the vehicle is to leave them alone; the
+    /// bytes still travel, which is what the fixture shows.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the message.
+    pub async fn send_attitude_target(
+        &self,
+        vehicle: VehicleId,
+        command: &mpcraft_vehicle::formation::AttitudeCommand,
+    ) -> Result<(), LinkError> {
+        self.write_message(&attitude_target_message(vehicle, command))
+            .await
     }
 
     /// Runs the motors of the vehicle, to see whether they turn.

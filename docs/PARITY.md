@@ -577,22 +577,35 @@ it, the bearing-stability rules, the turn worked out by the sine rule, the bank 
 the ground, the thrust demand between its floor of 0.1 and its ceiling, the yaw band of three
 degrees for the vehicles that are not planes, the flip that flies a plane in from behind when it
 is facing the wrong way round the target, and the quaternion the plane's answer carries — built
-through the 3-1-2 matrix as upstream builds it, with the mask `0xff` less its three terms. What
-is not there yet is the dispatch: the sending of that decision to each vehicle ten times a second,
-which needs a live fleet, so the row stays partial.
+through the 3-1-2 matrix as upstream builds it, with the mask `0xff` less its three terms. The
+answer also **reaches the wire**: the fixture carries a `SET_ATTITUDE_TARGET` frame with the
+quaternion the hand works out for a right angle of roll, the two implementations write the same
+bytes for it, and the session sends what the decision produced to a simulated vehicle. What is not
+there yet is the dispatch: the sending of that decision to each vehicle ten times a second, which
+needs a live fleet, so the row stays partial.
 
-Four differences are recorded. MPCraft refuses a vehicle that is in the formation without having
+Five differences are recorded. MPCraft refuses a vehicle that is in the formation without having
 been given a place in it, rather than inventing an offset from how many vehicles were missing at
 that moment, which is what upstream's fallback does. It projects through the zone its own
 projection picks rather than upstream's `(lng + 186) / 6`. It keeps only the two of the four PIDs
 upstream allocates per vehicle — the roll and yaw filters are constructed and never read, because
 the roll comes from the geometry of the turn and the yaw error goes through raw — and it guards
-the two divisions upstream lets run to infinity, which give the same outcome with the guard. And
-the yaw band is compared against the wrapped difference: upstream compares the raw one, which
-makes 179° and -179° three hundred and fifty-eight degrees apart. Off the central meridian the
-grid and the earth disagree by the convergence angle — a slot measured east on the grid reads as a
-true bearing about 1.2 degrees off at Canberra — which upstream has too, and which the tests
-record rather than paper over.
+the two divisions upstream lets run to infinity, which give the same outcome with the guard. The
+yaw band is compared against the wrapped difference: upstream compares the raw one, which makes
+179° and -179° three hundred and fifty-eight degrees apart. And the mask travels as the byte
+upstream's arithmetic leaves behind, because two of the bits it leaves set — 8 and 16 — have no name
+in the dialect as it is defined today; read through the current names the same byte means something
+else, and a construction that keeps only the named flags would send 32 rather than `0x38`. Off the
+central meridian the grid and the earth disagree by the convergence angle — a slot measured east on
+the grid reads as a true bearing about 1.2 degrees off at Canberra — which upstream has too, and
+which the tests record rather than paper over.
+
+The generator that writes the fixture works the CRC_EXTRA seed out from the field definitions — the
+name, then each base field in wire order as `type name `, the array length, folded to a byte —
+rather than copying a table, and it has to reproduce the five seeds the dialect publishes before it
+is allowed to write anything. The sixth, the one for `SET_ATTITUDE_TARGET`, comes only from the rule;
+it agrees with what the dialect generates, which is the kind of agreement worth having between two
+implementations that were not built from each other.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not

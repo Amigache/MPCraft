@@ -13,10 +13,14 @@
 //! # What the fixture exercises
 //!
 //! * MAVLink 2 framing with the message id at offset seven.
-//! * The CRC with each message's own CRC_EXTRA seed.
+//! * The CRC with each message's own CRC_EXTRA seed — which the generator now works out from
+//!   the field definitions rather than copies from a table, and proves it against the values
+//!   the dialect publishes before writing anything.
 //! * **Payload truncation**: MAVLink 2 removes the trailing zero bytes of a payload. The
 //!   `ATTITUDE` and `HOME_POSITION` messages in the fixture are truncated, so the parser is
 //!   tested against the shorter payload it will really receive.
+//! * `SET_ATTITUDE_TARGET`, the message the formation's decision travels in, carrying the
+//!   quaternion the hand works out for a right angle of roll.
 
 use std::time::Duration;
 
@@ -35,7 +39,7 @@ use mpcraft_transport::ConnectionSpec;
 const FIXTURE: &[u8] = include_bytes!("fixtures/stream.tlog");
 
 /// The number of frames in the fixture.
-const FRAME_COUNT: usize = 12;
+const FRAME_COUNT: usize = 13;
 
 /// Waits for a condition to hold, polling the session state.
 async fn wait_for<F>(session: &Session, timeout: Duration, condition: F) -> bool
@@ -110,6 +114,7 @@ fn the_fixture_has_the_expected_message_sequence() {
             30,  // ATTITUDE
             1,   // SYS_STATUS
             242, // HOME_POSITION
+            82,  // SET_ATTITUDE_TARGET
         ]
     );
 }
@@ -146,6 +151,12 @@ fn the_frames_carry_the_expected_values() {
     let home = &frames[11];
     assert_eq!(home.message_id, 242);
     assert_eq!(home.payload.len(), 28);
+
+    // The attitude target keeps its thirty-nine base bytes because the thrust is not zero, and
+    // loses only the twelve extension bytes.
+    let target = &frames[12];
+    assert_eq!(target.message_id, 82);
+    assert_eq!(target.payload.len(), 39);
 }
 
 #[test]
@@ -172,6 +183,68 @@ fn the_truncated_payload_is_padded_back_when_it_is_decoded() {
     // The truncated fields come back as zero.
     assert!((values.rollspeed - 0.0).abs() < 1e-6);
     assert!((values.yawspeed - 0.0).abs() < 1e-6);
+}
+
+#[test]
+fn the_attitude_target_decodes_as_the_answer_the_hand_works_out() {
+    let frames = parse_fixture();
+
+    let frame = &frames[12];
+    let decoded = MavMessage::parse(
+        mpcraft_mavlink::MavlinkVersion::V2,
+        frame.message_id,
+        &frame.payload,
+    )
+    .expect("the attitude target should decode");
+
+    let MavMessage::SET_ATTITUDE_TARGET(values) = decoded else {
+        panic!("the frame should decode as an attitude target");
+    };
+
+    // A right angle about the x axis is (√2/2, √2/2, 0, 0), and the payload carries it in the
+    // `(w, x, y, z)` order MAVLink uses.
+    let root_half = std::f64::consts::FRAC_1_SQRT_2;
+
+    assert!(
+        (values.q[0] as f64 - root_half).abs() < 1e-7,
+        "q1 was {}",
+        values.q[0]
+    );
+    assert!(
+        (values.q[1] as f64 - root_half).abs() < 1e-7,
+        "q2 was {}",
+        values.q[1]
+    );
+    assert!(values.q[2].abs() < 1e-9, "q3 was {}", values.q[2]);
+    assert!(values.q[3].abs() < 1e-9, "q4 was {}", values.q[3]);
+
+    // The mask is `0xff` less the three terms upstream subtracts, which is `0x38`.
+    assert_eq!(
+        values.type_mask.bits(),
+        0x38,
+        "the mask was {:?}",
+        values.type_mask
+    );
+    assert!(
+        (values.thrust - 0.1).abs() < 1e-7,
+        "thrust was {}",
+        values.thrust
+    );
+
+    // The same numbers the decision produces, so that the wire shape of the answer is checked
+    // against the computation rather than against a copy of it.
+    let command =
+        mpcraft_vehicle::formation::quaternion_from_euler312(90.0_f64.to_radians(), 0.0, 0.0);
+
+    for (index, term) in command.iter().enumerate() {
+        assert!(
+            (values.q[index] as f64 - term).abs() < 1e-7,
+            "term {} was {}, the hand says {}",
+            index,
+            values.q[index],
+            term
+        );
+    }
 }
 
 #[tokio::test]
@@ -292,6 +365,29 @@ fn the_rust_encoder_and_the_python_generator_agree_on_every_frame() {
         ..Default::default()
     });
 
+    // The answer the plane branch gives for a right angle of roll, put on the wire by the same
+    // code the session writes with. The quaternion here is what the matrix works out; the
+    // generator wrote it as the hand does, so the two agree only if both are right.
+    let decision = mpcraft_vehicle::formation::PlaneDecision {
+        target: mpcraft_vehicle::GeoPoint {
+            lat: 0.0,
+            lng: 0.0,
+            alt: 0.0,
+        },
+        roll_deg: 90.0,
+        pitch_deg: 0.0,
+        yaw_error_deg: 0.0,
+        thrust: 0.1,
+    };
+
+    let attitude_target = mpcraft_link::commands::attitude_target_message(
+        mpcraft_link::VehicleId {
+            system_id: 1,
+            component_id: 1,
+        },
+        &decision.attitude_command(),
+    );
+
     // The messages the generator sends, in order.
     let expected: Vec<(MavMessage, u8)> = vec![
         (heartbeat.clone(), 0),
@@ -306,6 +402,7 @@ fn the_rust_encoder_and_the_python_generator_agree_on_every_frame() {
         (attitude.clone(), 9),
         (sys_status(), 10),
         (home.clone(), 11),
+        (attitude_target.clone(), 12),
     ];
 
     let mut offset = 0;
