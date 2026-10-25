@@ -74,6 +74,7 @@ pub use graphs::{GraphHistory, PresetInfo, SeriesData, SeriesInfo, SeriesPoints}
 pub use live_kml::LiveTrack;
 pub use mpcraft_link::SessionState;
 pub use mpcraft_settings::ConnectionProfile;
+pub use operations::CommandAnswer;
 pub use operations::OutputFunction;
 pub use operations::{flight_modes, ModeInfo, PlanInfo, PlanItem, PlanKind, VehicleLog};
 pub use supervisor::{

@@ -174,6 +174,10 @@ const bundles: Record<Locale, Record<string, string>> = {
     "the home was moved to {place}": "la casa se movió a {place}",
     "the home is at {place}": "la casa está en {place}",
     "the vehicle was asked to restart": "se pidió al vehículo reiniciar",
+    // The answer of the vehicle to a command. Both names come from the protocol, so they are said as
+    // the vehicle said them rather than as words this project chose.
+    "the vehicle answered {result} to {command}":
+      "el vehículo respondió {result} a la orden {command}",
     "the link was closed": "el enlace se cerró",
 
     // The bar of the connection.
@@ -1101,6 +1105,20 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Ask the vehicle": "Preguntar al vehículo",
     "The home is the place the vehicle measures the distance from. Moving it is what an operator does when the vehicle was armed in the wrong place.":
       "La casa es el lugar desde el que el vehículo mide la distancia. Moverla es lo que hace el operador cuando el vehículo se armó en el sitio equivocado.",
+
+    // The generic executor, reached through the table the backend carries rather than through a list
+    // of names written by hand. The role and the unit of a slot are what the catalogue says, so they
+    // are drawn as data and are not words here.
+    "The command of the catalogue": "La orden del catálogo",
+    "The command to send": "La orden que se envía",
+    "no commands": "sin órdenes",
+    "Slot {number}": "Hueco {number}",
+    "The value for slot {number}": "El valor del hueco {number}",
+    "Send it": "Enviarla",
+    "Confirm sending": "Confirmar el envío",
+    "The command is chosen from the catalogue, which is what says what each slot means. A slot the command does not use cannot be filled in, and is sent as zero. What is read below is what the vehicle answered, as the vehicle said it.":
+      "La orden se elige del catálogo, que es lo que dice qué significa cada hueco. Un hueco que la orden no usa no se puede rellenar, y se manda como cero. Lo que se lee debajo es lo que el vehículo respondió, como el vehículo lo dijo.",
+
     "Motor test": "La prueba de motor",
     "One motor at a time, and only for a moment. The props are taken off, so the vehicle must not be flying.":
       "Un motor cada vez, y solo un momento. Las hélices están quitadas, así que el vehículo no tiene que estar volando.",

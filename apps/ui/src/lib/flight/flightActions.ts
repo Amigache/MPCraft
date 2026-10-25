@@ -6,13 +6,14 @@ import {
   jumpToItem,
   normaliseError,
   reboot,
+  runMavCommand,
   setCurrentItem,
   setHomePosition,
   setMode,
   setPositionTarget,
   takeoff,
 } from "../ipc/bridge";
-import type { ConnectResponse } from "../ipc/types";
+import type { ConnectResponse, MavCommand } from "../ipc/types";
 import { formatAltitude, formatCoordinate, formatCount } from "../format";
 import { useLocaleStore } from "../i18n/localeStore";
 import { useActivityStore } from "../ui/activityStore";
@@ -190,6 +191,34 @@ export async function rebootVehicle(): Promise<void> {
   try {
     await reboot();
     report(null, t("the vehicle was asked to restart"));
+  } catch (cause) {
+    report(normaliseError(cause), null);
+  }
+}
+
+/**
+ * Sends one command of the catalogue to the vehicle.
+ *
+ * The values are the seven slots as the operator wrote them, and the name of what is reported is
+ * the answer the vehicle gave rather than the command that was sent: an executor has to say what the
+ * vehicle said, not only that it worked. A value the catalogue does not describe is refused by the
+ * backend before anything is sent, so it never reaches the wire.
+ */
+export async function sendCatalogueCommand(
+  command: MavCommand,
+  values: readonly number[],
+): Promise<void> {
+  const report = useActivityStore.getState().report;
+  const t = useLocaleStore.getState().t;
+  try {
+    const answer = await runMavCommand(command.value, values);
+    report(
+      null,
+      t("the vehicle answered {result} to {command}", {
+        result: answer.result,
+        command: answer.command,
+      }),
+    );
   } catch (cause) {
     report(normaliseError(cause), null);
   }

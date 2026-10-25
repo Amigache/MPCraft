@@ -641,6 +641,26 @@ What cannot be measured at the two sizes is a console with board output on it, b
 has no backend to hear a board; the messages tab was measured as it stands without a link, and the rules
 that keep the words and clear them are tested against scripted transports.
 
+The **generic executor** has an entry point now: the actions tab chooses the command from the
+catalogue, which is what says what each of the seven slots means, and reads what the vehicle answered
+afterwards. Upstream reaches the same executor through its actions dropdown — `CMB_action`, bound to a
+list of names written out by hand (`FlightData.cs` line 353), with the parameters decided name by name
+at line 1873 — and a list of names is a thing that can fall out of step with the dialect. MPCraft has no
+such list: the interface asks the backend for the table, so the meaning of a slot is not written twice,
+and a value the table does not describe is refused before anything is sent, because the interface cannot
+say what its slots mean. That is a difference rather than a gap: upstream sends such a command anyway,
+and the bootloader command reaches the wire through the sheet that builds the frame byte by byte.
+
+What is read after sending is what the vehicle reported, named the way the protocol names it, and a
+refusal is kept apart from a board that never answered — upstream's `doCommand` answers with a bool, so
+the operator cannot tell the two apart. The slots travel as the float form carries them: the integer
+form, which is where a latitude and a longitude keep their precision, belongs to the plan editor (4.2),
+and this entry point does not rescale a number the operator typed. What cannot be measured at the two
+sizes is a row with a command chosen on it, or an answer from a vehicle, because the browser run has no
+backend to hear one; the actions tab was measured as it stands without a link, and the rules — that the
+wire carries what was typed, that the answer travels as data, and that an undescribed value is refused
+before any wire is touched — are tested against scripted transports.
+
 The transponder, the generator telemetry and the folder of the operator's own map are
 available elsewhere in the application: in Setup, the vehicle state and the tile
 settings respectively. The video sheet describes and controls the stream, but does not

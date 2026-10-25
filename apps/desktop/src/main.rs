@@ -12,9 +12,9 @@
 use mpcraft_app::signing::SigningStatus;
 use mpcraft_app::swarm::{SwarmRequest, SwarmStatus};
 use mpcraft_app::{
-    flight_modes, plugins::PluginInfo, AppState, CommandError, CommandResult, ConnectRequest,
-    ConnectResponse, ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo, OutputFunction,
-    PlanInfo, PlanKind, PresetInfo, SeriesData, SessionState, VehicleKey,
+    flight_modes, plugins::PluginInfo, AppState, CommandAnswer, CommandError, CommandResult,
+    ConnectRequest, ConnectResponse, ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo,
+    OutputFunction, PlanInfo, PlanKind, PresetInfo, SeriesData, SessionState, VehicleKey,
 };
 use mpcraft_link::{Calibration, OsdSlot, OsdSlotConfig, VehicleId};
 use mpcraft_mission::{MissionType, Plan};
@@ -1123,6 +1123,29 @@ async fn list_mav_commands() -> CommandResult<Vec<MavCommandEvent>> {
             units: entry.units.iter().map(|unit| unit_name(*unit)).collect(),
         })
         .collect())
+}
+
+/// Sends one command of the catalogue to the vehicle.
+///
+/// The shell is thin here: it resolves which board to speak to and hands the seven slots to the
+/// operation. What the catalogue says a slot means is not read in this file — the interface asks the
+/// catalogue for it, and the answer it shows is what the vehicle reported.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the command is not one
+/// the catalogue describes, when there is no vehicle on the link, or when the vehicle refuses the
+/// command or does not answer.
+#[tauri::command]
+async fn run_mav_command(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    command: u32,
+    params: [f32; 7],
+) -> CommandResult<CommandAnswer> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.run_command(vehicle, command, params).await
 }
 
 /// The name of the role of a parameter slot.
@@ -4327,6 +4350,7 @@ fn main() {
             set_favourite_parameter,
             parameter_metadata,
             list_mav_commands,
+            run_mav_command,
             graph_series,
             log_summary,
             read_pictures,

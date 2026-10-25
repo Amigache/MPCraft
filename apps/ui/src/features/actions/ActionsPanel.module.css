@@ -55,7 +55,6 @@
   display: flex;
   gap: var(--space-1);
 }
-
 .kind,
 .kindActive {
   background: transparent;
@@ -113,4 +112,36 @@
   line-height: 1.4;
   margin: 0;
   padding: 0 var(--space-1);
+}
+
+/* The seven slots of the command, as the catalogue says they are. The role and the unit are what the
+   catalogue says about each slot, so they are drawn as data rather than as words this project chose,
+   and a slot the command does not use cannot be filled in. */
+.slots {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+
+.slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.slot .input {
+  width: 100%;
+}
+
+.slot .input:disabled {
+  color: var(--colour-text-faint);
+  cursor: default;
+}
+
+.role {
+  color: var(--colour-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-2xs);
+  overflow-wrap: anywhere;
 }

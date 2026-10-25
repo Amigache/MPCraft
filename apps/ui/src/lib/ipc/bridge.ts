@@ -7,6 +7,7 @@ import type {
   BoardInfo,
   CameraDevice,
   ChecklistEntry,
+  CommandAnswer,
   CommandError,
   ConnectRequest,
   ConnectionProfile,
@@ -1462,6 +1463,27 @@ export async function importPlan(format: string, path: string): Promise<Plan> {
  */
 export async function listMavCommands(): Promise<MavCommand[]> {
   return call<MavCommand[]>("list_mav_commands");
+}
+
+/**
+ * Sends one command of the catalogue to the vehicle.
+ *
+ * The seven slots are sent as the operator wrote them; a slot the command does not use is sent as
+ * zero. The answer is what the vehicle reported, named the way the protocol names it — this
+ * function does not decide what the answer means.
+ */
+export async function runMavCommand(
+  command: number,
+  params: readonly number[],
+  vehicle?: VehicleKey,
+): Promise<CommandAnswer> {
+  const slots = Array.from({ length: 7 }, (_, index) => params[index] ?? 0);
+
+  return call<CommandAnswer>("run_mav_command", {
+    ...vehicleRequest(vehicle),
+    command,
+    params: slots,
+  });
 }
 
 /** The connection state exposed to the UI. */

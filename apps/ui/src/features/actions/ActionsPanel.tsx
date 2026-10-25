@@ -12,12 +12,15 @@ import {
   makeCurrent,
   moveHome,
   rebootVehicle,
+  sendCatalogueCommand,
 } from "../../lib/flight/flightActions";
 import { useLiveValue } from "../../lib/link/liveTelemetry";
 import type { PlanKind } from "../../lib/ipc/types";
+import { formatCount } from "../../lib/format";
 import { usePlanEditorStore } from "../../lib/plan/planEditorStore";
 import { FlightTestPanel } from "./FlightTestPanel";
 import { usePlanStore } from "../../lib/plan/planStore";
+import { useCommandStore } from "../../lib/plan/commandStore";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useActivityStore } from "../../lib/ui/activityStore";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -31,6 +34,12 @@ import styles from "./ActionsPanel.module.css";
  *
  * Every action that hurts — arming, disarming, writing a plan, emptying a plan — asks
  * first, and none of them is the button that is pressed by accident.
+ *
+ * The **command of the catalogue** is the generic executor. The command is chosen from the table the
+ * backend carries, which is what says what each of the seven slots means, and what is read after
+ * sending is what the vehicle answered rather than what was asked for. Upstream reaches the same
+ * executor through its actions dropdown, where the names of the actions are written out by hand; here
+ * the choice comes from the catalogue, so a command the catalogue does not describe cannot be picked.
  */
 
 /**
@@ -54,9 +63,17 @@ const PLAN_KINDS: readonly { id: PlanKind; label: string }[] = [
   { id: "rally", label: "Rally" },
 ];
 
+/** The seven parameter slots a command has, in the order the protocol puts them. */
+const SLOTS = [0, 1, 2, 3, 4, 5, 6];
+
 export function ActionsPanel() {
   const modes = useModesStore((state) => state.modes);
   const loadModes = useModesStore((state) => state.load);
+
+  // The catalogue of the commands, read from the backend: the meaning of a slot belongs to the
+  // autopilot, so the panel does not write it out again.
+  const catalogue = useCommandStore((state) => state.commands);
+  const loadCatalogue = useCommandStore((state) => state.load);
 
   const plans = usePlanStore((state) => state.plans);
   const kind = usePlanStore((state) => state.kind);
@@ -83,6 +100,14 @@ export function ActionsPanel() {
   const [mode, setModeChoice] = useState<number | "">("");
   const [item, setItem] = useState<number | "">("");
 
+  // The command of the catalogue and its seven slots. The values are kept as they were typed, so that
+  // a half-written number is not turned into zero while the operator is still writing it; an empty
+  // slot — which is what a slot the command does not use stays — is sent as zero.
+  const [commandValue, setChosenCommand] = useState<number | "">("");
+  const [values, setValues] = useState<string[]>(() =>
+    Array(SLOTS.length).fill(""),
+  );
+
   const plan = plans[kind];
 
   // Where the vehicle is: the home can be moved to the place it is in.
@@ -93,6 +118,13 @@ export function ActionsPanel() {
       void loadModes();
     }
   }, [modes.length, loadModes]);
+
+  // The catalogue is read once and kept, the way the map and the plan editor read it.
+  useEffect(() => {
+    if (catalogue.length === 0) {
+      void loadCatalogue();
+    }
+  }, [catalogue.length, loadCatalogue]);
 
   // The first mode of the list is the one the selector starts on.
   useEffect(() => {
@@ -108,6 +140,19 @@ export function ActionsPanel() {
   // The place of the plan that is chosen, when there is one: it is where the
   // vehicle is told to go when the operator asks it to.
   const chosen = items.find((entry) => entry.seq === item);
+
+  // The command of the catalogue that is chosen, when there is one. The role and the unit of every
+  // slot are what the catalogue says, so the panel draws them as data and decides nothing about what
+  // a slot means — which is why a slot the command does not use cannot be filled in at all.
+  const picked = catalogue.find((entry) => entry.value === commandValue);
+
+  // What goes on the wire: seven numbers, with an empty slot — the one the command does not use —
+  // sent as zero.
+  const slots = SLOTS.map((slot) => {
+    const typed = values[slot] ?? "";
+    const number = Number.parseFloat(typed);
+    return Number.isFinite(number) ? number : 0;
+  });
 
   const shown = error ?? planError;
 
@@ -372,6 +417,88 @@ export function ActionsPanel() {
         <p className={styles.hint}>
           {t(
             "The home is the place the vehicle measures the distance from. Moving it is what an operator does when the vehicle was armed in the wrong place.",
+          )}
+        </p>
+      </section>
+
+      <section className={styles.block}>
+        <h3 className={styles.heading}>{t("The command of the catalogue")}</h3>
+
+        <label className={styles.field}>
+          <span className={styles.label}>{t("Command")}</span>
+          <select
+            className="select"
+            value={commandValue}
+            aria-label={t("The command to send")}
+            onChange={(event) =>
+              setChosenCommand(Number.parseInt(event.target.value, 10))
+            }
+          >
+            {catalogue.length === 0 ? (
+              <option value="">{t("no commands")}</option>
+            ) : null}
+            {catalogue.map((entry) => (
+              <option key={entry.value} value={entry.value}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* The role and the unit are what the catalogue says, so they are drawn as data: the panel
+           does not decide that a slot is a bank number or a percentage. */}
+        <div className={styles.slots}>
+          {SLOTS.map((slot) => {
+            const role = picked?.roles[slot] ?? "empty";
+            const unit = picked?.units[slot] ?? "none";
+            const used = role !== "empty";
+            const number = formatCount(slot + 1);
+
+            return (
+              <label key={slot} className={styles.slot}>
+                <span className={styles.label}>
+                  {t("Slot {number}", { number })}
+                </span>
+                <span className={styles.role}>
+                  {unit === "none" ? role : `${role} · ${unit}`}
+                </span>
+                <input
+                  className="input"
+                  type="number"
+                  value={values[slot] ?? ""}
+                  disabled={!used}
+                  aria-label={t("The value for slot {number}", { number })}
+                  onChange={(event) => {
+                    const typed = event.target.value;
+                    setValues((current) =>
+                      current.map((entry, index) =>
+                        index === slot ? typed : entry,
+                      ),
+                    );
+                  }}
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        <div className={styles.row}>
+          <ConfirmButton
+            label={t("Send it")}
+            confirmLabel={t("Confirm sending")}
+            variant="primary"
+            disabled={picked === undefined}
+            onConfirm={() => {
+              if (picked !== undefined) {
+                void sendCatalogueCommand(picked, slots);
+              }
+            }}
+          />
+        </div>
+
+        <p className={styles.hint}>
+          {t(
+            "The command is chosen from the catalogue, which is what says what each slot means. A slot the command does not use cannot be filled in, and is sent as zero. What is read below is what the vehicle answered, as the vehicle said it.",
           )}
         </p>
       </section>

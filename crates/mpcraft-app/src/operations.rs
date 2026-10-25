@@ -151,6 +151,54 @@ impl SessionSupervisor {
         Ok(())
     }
 
+    /// Sends one command of the catalogue and returns what the vehicle answered.
+    ///
+    /// The named actions above are this executor with the slots written down for one command. Here
+    /// the operator chooses the command from the catalogue, which is what says what each of the
+    /// seven slots means — so the interface does not have to know that the second slot of a battery
+    /// reset is a bank number and the third is a percentage.
+    ///
+    /// The answer is returned as data rather than as a word: an executor has to say what the vehicle
+    /// said, not only that it worked. A refusal is still an error, because a refusal and a vehicle
+    /// that never answered are two different things.
+    ///
+    /// A value the catalogue does not describe is refused before anything is sent. The entry point *is*
+    /// the catalogue: without the table the interface cannot say what a slot of the command means, so
+    /// this station does not send a command whose parameters it cannot name. Upstream sends such a
+    /// command anyway, because its actions dropdown is a list of names rather than a table with
+    /// meanings — the bootloader command reaches the wire through the sheet that builds the frame byte
+    /// by byte, which is where a number outside the table is handled.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the command is not one the catalogue describes, when there is no open
+    /// link, or when the vehicle refuses the command or does not answer.
+    pub async fn run_command(
+        &self,
+        vehicle: VehicleId,
+        value: u32,
+        params: [f32; 7],
+    ) -> CommandResult<CommandAnswer> {
+        let Some(command) = mpcraft_mission::mavcmd::command_from_value(value)
+            .filter(|command| mpcraft_mission::mavcmd::metadata(*command).is_some())
+        else {
+            return Err(CommandError::invalid_request(format!(
+                "the command {value} is not one the catalogue describes"
+            )));
+        };
+
+        let session = self.open_session()?;
+
+        let result = session
+            .command_long(vehicle, command, params, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(CommandAnswer {
+            command: mpcraft_mission::mavcmd::command_name(command),
+            result: format!("{result:?}"),
+        })
+    }
+
     /// Asks the vehicle to write its parameters to its own memory.
     ///
     /// A parameter the vehicle has in its memory but not in the flash is lost when the
@@ -1357,6 +1405,19 @@ pub struct PlanItem {
     pub current: bool,
     /// Whether the vehicle continues to the next item automatically.
     pub autocontinue: bool,
+}
+
+/// What the vehicle answered to a command.
+///
+/// Both names are the ones the protocol gives: the answer is what the vehicle said, and the
+/// interface shows it as the vehicle said it rather than as a word this project chose.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandAnswer {
+    /// The command that was sent, named the way the specification names it.
+    pub command: String,
+    /// The result the vehicle reported, named the way the protocol names it.
+    pub result: String,
 }
 
 /// What the outputs of the vehicle are for.

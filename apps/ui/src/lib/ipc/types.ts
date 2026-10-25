@@ -852,6 +852,19 @@ export interface MavCommand {
   readonly canonicalName: string;
 }
 
+/**
+ * What the vehicle answered to a command that was sent through the catalogue.
+ *
+ * Both names are the ones the protocol gives, so the interface shows what the vehicle said rather
+ * than a word this project chose for it.
+ */
+export interface CommandAnswer {
+  /** The command that was sent, named the way the specification names it. */
+  readonly command: string;
+  /** The result the vehicle reported, named the way the protocol names it. */
+  readonly result: string;
+}
+
 /** A warning about an item of a plan. */
 export interface PlanWarning {
   /** The position of the item in the plan, when the warning is about one. */
