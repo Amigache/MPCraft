@@ -65,12 +65,14 @@ interface Menu {
  * The themes the interface can be drawn in.
  *
  * The dark one is the default, the light one is for the sun and the one of the contrast
- * is for the eyes that need it.
+ * is for the eyes that need it. The table holds what is looked up in the catalogue, not the
+ * word itself: the bar draws its items as it is given them, so a word put here would never be
+ * translated on the way to the screen.
  */
-const THEMES: readonly { id: Theme; label: string }[] = [
-  { id: "dark", label: "Dark" },
-  { id: "light", label: "Light" },
-  { id: "contrast", label: "High contrast" },
+const THEMES: readonly { id: Theme; key: string }[] = [
+  { id: "dark", key: "Dark" },
+  { id: "light", key: "Light" },
+  { id: "contrast", key: "High contrast" },
 ];
 
 /** The version shown in the About box. */
@@ -168,12 +170,12 @@ export function MenuBar() {
 
     try {
       await setMapInjectionFolder(picked.path);
-      setNote(`The tiles are taken from ${picked.path}.`);
+      setNote(t("The tiles are taken from {folder}.", { folder: picked.path }));
     } catch (error) {
       const cause = error as { message?: string };
-      setNote(cause.message ?? "The folder of tiles could not be kept.");
+      setNote(cause.message ?? t("The folder of tiles could not be kept."));
     }
-  }, [setNote]);
+  }, [setNote, t]);
   // A click anywhere else closes the menu.
   useEffect(() => {
     if (open === null) {
@@ -253,8 +255,8 @@ export function MenuBar() {
           id: "live-kml",
           label:
             liveKml === null
-              ? "Stream the track to a KML file…"
-              : "Stop streaming the track",
+              ? t("Stream the track to a KML file…")
+              : t("Stop writing the track"),
           onSelect: () => {
             close();
 
@@ -262,10 +264,12 @@ export function MenuBar() {
               void stopLiveKml()
                 .then(() => {
                   setLiveKml(null);
-                  setNote("The track has been written.");
+                  setNote(t("The track has been written."));
                 })
                 .catch((error: { message?: string }) => {
-                  setNote(error.message ?? "The track could not be stopped.");
+                  setNote(
+                    error.message ?? t("The track could not be stopped."),
+                  );
                 });
               return;
             }
@@ -281,14 +285,20 @@ export function MenuBar() {
                 return startLiveKml(picked.path)
                   .then(() => {
                     setLiveKml(picked.path);
-                    setNote(`The track is written to ${picked.path}.`);
+                    setNote(
+                      t("The track is written to {path}.", {
+                        path: picked.path,
+                      }),
+                    );
                   })
                   .catch((error: { message?: string }) => {
-                    setNote(error.message ?? "The track could not be started.");
+                    setNote(
+                      error.message ?? t("The track could not be started."),
+                    );
                   });
               })
               .catch(() => {
-                setNote("The file could not be asked for.");
+                setNote(t("The file could not be asked for."));
               });
           },
           disabled: false,
@@ -383,7 +393,7 @@ export function MenuBar() {
           disabled: modes.length === 0,
           checked: undefined,
           separator: false,
-          hint: modes.length === 0 ? "no modes" : "",
+          hint: modes.length === 0 ? t("no modes") : "",
         },
         {
           id: "flight-sep-2",
@@ -416,7 +426,7 @@ export function MenuBar() {
           disabled: !linked || busy || !plan || plan.items.length === 0,
           checked: undefined,
           separator: false,
-          hint: plan ? "" : "no plan",
+          hint: plan ? "" : t("no plan"),
         },
         {
           id: "clear",
@@ -501,7 +511,7 @@ export function MenuBar() {
         },
         ...THEMES.map((entry): MenuItem => ({
           id: `theme-${entry.id}`,
-          label: t(entry.label),
+          label: t(entry.key),
           onSelect: () => {
             close();
             setTheme(entry.id);
@@ -553,10 +563,12 @@ export function MenuBar() {
               void httpServerStop()
                 .then(() => {
                   setServing(false);
-                  setNote("The server was stopped.");
+                  setNote(t("The server was stopped."));
                 })
                 .catch((cause: { message?: string }) => {
-                  setNote(cause.message ?? "The server could not be stopped.");
+                  setNote(
+                    cause.message ?? t("The server could not be stopped."),
+                  );
                 });
               return;
             }
@@ -564,10 +576,12 @@ export function MenuBar() {
             void httpServerStart()
               .then((port) => {
                 setServing(true);
-                setNote(`The flight is served on the port ${port}.`);
+                setNote(
+                  t("The flight is served on the port {port}.", { port }),
+                );
               })
               .catch((cause: { message?: string }) => {
-                setNote(cause.message ?? "The server could not be started.");
+                setNote(cause.message ?? t("The server could not be started."));
               });
           },
           disabled: false,
@@ -1029,7 +1043,7 @@ export function MenuBar() {
             close();
 
             void pickSavePath("mpcraft-diagnostics.zip", [
-              { name: "The bundle of the diagnostics", extensions: ["zip"] },
+              { name: t("The bundle of the diagnostics"), extensions: ["zip"] },
             ])
               .then((picked) => {
                 if (!picked.ok) {
@@ -1038,7 +1052,11 @@ export function MenuBar() {
 
                 return diagnosticsBundle(picked.path)
                   .then(() => {
-                    setNote(`The bundle was written to ${picked.path}.`);
+                    setNote(
+                      t("The bundle was written to {path}.", {
+                        path: picked.path,
+                      }),
+                    );
                   })
                   .catch((cause: { message?: string }) => {
                     setNote(
@@ -1047,7 +1065,7 @@ export function MenuBar() {
                   });
               })
               .catch(() => {
-                setNote("The file could not be asked for.");
+                setNote(t("The file could not be asked for."));
               });
           },
           disabled: false,

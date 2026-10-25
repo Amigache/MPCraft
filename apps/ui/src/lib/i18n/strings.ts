@@ -56,6 +56,16 @@ const bundles: Record<Locale, Record<string, string>> = {
     Disconnect: "Desconectar",
     "Serial passthrough?": "¿Puerto serie directo?",
     "The files of the vehicle…": "Los archivos del vehículo…",
+
+    // What the File menu does with the track, and what it says afterwards.
+    "Stream the track to a KML file…": "Escribir el camino en un archivo KML…",
+    "Stop writing the track": "Dejar de escribir el camino",
+    "The track has been written.": "El camino se ha escrito.",
+    "The track could not be started.": "El camino no se pudo empezar.",
+    "The track could not be stopped.": "El camino no se pudo detener.",
+    "The track is written to {path}.": "El camino se escribe en {path}.",
+    "The file could not be asked for.": "No se pudo pedir el archivo.",
+
     Exit: "Salir",
 
     Arm: "Armar",
@@ -69,6 +79,11 @@ const bundles: Record<Locale, Record<string, string>> = {
     Logs: "Registros",
     "The theme": "El tema",
     "Serve the flight on the network": "Servir el vuelo en la red",
+    "The server could not be started.": "No se pudo abrir el servidor.",
+    "The server could not be stopped.": "No se pudo cerrar el servidor.",
+    "The server was stopped.": "El servidor se cerró.",
+    "The flight is served on the port {port}.":
+      "El vuelo se sirve por el puerto {port}.",
     "Units in feet and miles": "Medidas en pies y millas",
     "Side panel": "Panel lateral",
     Graphs: "Gráficos",
@@ -92,6 +107,9 @@ const bundles: Record<Locale, Record<string, string>> = {
     Mount: "Montura",
     DroneCAN: "DroneCAN",
     "The folder of tiles…": "La carpeta de las fichas…",
+    "The folder of tiles could not be kept.":
+      "No se pudo guardar la carpeta de las fichas.",
+    "The tiles are taken from {folder}.": "Las fichas se toman de {folder}.",
     Terrain: "El terreno",
     "On-screen display…": "La pantalla escrita…",
     "The corrections of a base station…": "Las correcciones de una base…",
@@ -106,6 +124,8 @@ const bundles: Record<Locale, Record<string, string>> = {
     Firmware: "El firmware",
 
     "Write a diagnostics bundle…": "Escribir un paquete de diagnóstico…",
+    "The bundle of the diagnostics": "El paquete de diagnóstico",
+    "The bundle was written to {path}.": "El paquete se escribió en {path}.",
     "About MPCraft": "Sobre MPCraft",
     "Main menu": "El menú principal",
 
@@ -135,6 +155,23 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The state of the link": "El estado del enlace",
     "The link the application is opened on":
       "El enlace en el que la aplicación está abierta",
+
+    // What an action says when it finishes. These are the sentences the flight actions leave in
+    // the activity store, which the status bar and the panels read as they are given.
+    "the vehicle was armed": "el vehículo se armó",
+    "the vehicle was disarmed": "el vehículo se desarmó",
+    "the mode is now {mode}": "el modo es ahora {mode}",
+    "the vehicle was told to take off to {height}":
+      "se mandó al vehículo despegar hasta {height}",
+    "the vehicle is now on item {item}":
+      "el vehículo está ahora en el elemento {item}",
+    "the vehicle jumped to item {item}": "el vehículo saltó al elemento {item}",
+    "the vehicle was told to go to {place}":
+      "se mandó al vehículo ir a {place}",
+    "the home was moved to {place}": "la casa se movió a {place}",
+    "the home is at {place}": "la casa está en {place}",
+    "the vehicle was asked to restart": "se pidió al vehículo reiniciar",
+    "the link was closed": "el enlace se cerró",
 
     // The bar of the connection.
     Serial: "Serie",

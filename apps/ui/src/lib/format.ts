@@ -10,6 +10,7 @@
  * units of the protocol.
  */
 
+import { useLocaleStore } from "./i18n/localeStore";
 import { useUiStore } from "./ui/uiStore";
 import {
   altitudeUnit,
@@ -36,9 +37,18 @@ export function formatNumber(
   return present(value) ? value.toFixed(digits) : DASH;
 }
 
-/** A whole number, without a decimal point. */
+/**
+ * A whole number, without a decimal point.
+ *
+ * The thousands separator is the one the language the window is read in uses: a count is read as
+ * a word, and "1,234" and "1.234" are two different numbers to somebody who reads one of them.
+ */
 export function formatCount(value: number | null | undefined): string {
-  return present(value) ? Math.round(value).toLocaleString("en-US") : DASH;
+  return present(value)
+    ? new Intl.NumberFormat(useLocaleStore.getState().tag, {
+        maximumFractionDigits: 0,
+      }).format(value)
+    : DASH;
 }
 
 /**

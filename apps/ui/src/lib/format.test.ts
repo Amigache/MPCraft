@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { useLocaleStore } from "./i18n/localeStore";
 import {
   DASH,
   formatAltitude,
@@ -60,9 +61,29 @@ describe("the formatting of the values", () => {
     expect(formatCoordinate(-35.2809, null)).toBe(DASH);
   });
 
-  it("shows a whole count with a thousands separator", () => {
-    expect(formatCount(1234)).toBe("1,234");
-    expect(formatCount(0)).toBe("0");
+  it("writes a whole count with the separator of the language it is read in", () => {
+    // The separators are what each language uses, and they were written down before the function
+    // was called. English groups every three digits from the first one, so one million two hundred
+    // and thirty-four thousand five hundred and sixty-seven is "1,234,567". Spanish puts a point
+    // instead of a comma, and it only starts grouping when the number has five digits, so the same
+    // number is "1.234.567" and a count of one thousand two hundred and thirty-four is written
+    // with no separator at all. A count that always uses the separator of English says one number
+    // to somebody who reads the other: "1.234.567" read as English is a number with decimals.
+    const chosen = useLocaleStore.getState();
+
+    try {
+      useLocaleStore.setState({ locale: "en", tag: "en-US" });
+      expect(formatCount(1234567)).toBe("1,234,567");
+      expect(formatCount(1234)).toBe("1,234");
+      expect(formatCount(0)).toBe("0");
+
+      useLocaleStore.setState({ locale: "es", tag: "es-ES" });
+      expect(formatCount(1234567)).toBe("1.234.567");
+      expect(formatCount(1234)).toBe("1234");
+      expect(formatCount(0)).toBe("0");
+    } finally {
+      useLocaleStore.setState(chosen);
+    }
   });
 
   it("shows the other values with their unit", () => {

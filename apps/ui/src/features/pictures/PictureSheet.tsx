@@ -79,13 +79,13 @@ export function PictureSheet() {
   };
 
   const chooseLog = () => {
-    void pickOpenPath([{ name: "Telemetry log", extensions: ["tlog"] }]).then(
-      (picked) => {
-        if (picked.ok) {
-          setLog(picked.path);
-        }
-      },
-    );
+    void pickOpenPath([
+      { name: t("Telemetry log"), extensions: ["tlog"] },
+    ]).then((picked) => {
+      if (picked.ok) {
+        setLog(picked.path);
+      }
+    });
   };
 
   const readThePictures = () =>

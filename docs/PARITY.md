@@ -565,6 +565,25 @@ only what the next run remembers. The bar of the menus, the switcher of the scre
 the left column speak from the bundles; the sheets and the panels follow one by one, and a test says
 which names have no entry. Every word the interface writes now goes through the bundles, and the
 test says which ones do not, so a gap is a change that can be reviewed rather than a hole.
+
+The gate reads two things. It reads the words that go through the catalogue, whether or not the
+parts of the sentence are named with them; and it reads the words that reach the screen without
+being looked up, on the two channels where what is written is what is drawn: the note the bar
+leaves, the report an action makes, and the label or hint of the bar itself, because the bar draws
+its items as it is given them. A label written in another file is not the same thing - the quick
+view, the actions panel and the plan editor hold names that belong to the vehicle or to the file,
+and those are data, not words. So the rule is only for the bar, which is the file that draws its
+own labels. What the gate cannot see is said rather than pretended otherwise: a word written as
+text inside a component, and a wrong translation. The gate is shown failing on a known-bad word
+before its green is read as a pass.
+
+The numbers that go into a sentence are made into strings by the formatting module, as they are
+everywhere else, and the separator is the one the language the window is read in uses. English
+groups every three digits and puts a point before the decimals; Spanish does the other way round,
+and it only starts grouping when a number has five digits, so the same count is "1,234,567" in one
+and "1.234.567" in the other, and a count of 1234 is written with no separator at all in Spanish.
+A count always written with the separator of English says one number to somebody who reads the
+other language, where "1.234.567" is a number with decimals.
 What arrives as data stays as the data says it: the names of the modes, of the camera states,
 of the gamepads, of the parameters and of the tile providers are what the vehicle or the file
 says, and translating them would say something the vehicle does not say. What the library of the
