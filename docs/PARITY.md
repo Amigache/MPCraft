@@ -571,15 +571,27 @@ The **formation** is ported as far as this machine can verify it: the slots — 
 where relative to the one it follows, in metres across and along the direction of travel and up —
 and the places the slots put the vehicles, turned by the heading of the leader with the sign
 upstream uses (`heading = -yaw`, so `y` stays ahead and `x` to the right however the leader is
-pointed). What cannot be ported here is the closed loop: upstream sends corrections through its own
-per-port sockets with a PID on each vehicle, and that needs a live fleet, so the row stays partial.
-Two differences are recorded. MPCraft refuses a vehicle that is in the formation without having
+pointed). The **decision** of the closed loop is ported as pure computation in `mpcraft-vehicle`:
+the input-filtered PID in ArduPilot's shape, the point ahead of the target and the trailer behind
+it, the bearing-stability rules, the turn worked out by the sine rule, the bank from the speed over
+the ground, the thrust demand between its floor of 0.1 and its ceiling, the yaw band of three
+degrees for the vehicles that are not planes, and the flip that flies a plane in from behind when
+it is facing the wrong way round the target. What is not there yet is the dispatch: the sending of
+that decision to each vehicle ten times a second, which needs a live fleet, so the row stays
+partial.
+
+Four differences are recorded. MPCraft refuses a vehicle that is in the formation without having
 been given a place in it, rather than inventing an offset from how many vehicles were missing at
-that moment, which is what upstream's fallback does. And it projects through the zone its own
-projection picks rather than upstream's `(lng + 186) / 6`. Off the central meridian the grid and
-the earth disagree by the convergence angle — a slot measured east on the grid reads as a true
-bearing about 1.2 degrees off at Canberra — which upstream has too, and which the tests record
-rather than paper over.
+that moment, which is what upstream's fallback does. It projects through the zone its own
+projection picks rather than upstream's `(lng + 186) / 6`. It keeps only the two of the four PIDs
+upstream allocates per vehicle — the roll and yaw filters are constructed and never read, because
+the roll comes from the geometry of the turn and the yaw error goes through raw — and it guards
+the two divisions upstream lets run to infinity, which give the same outcome with the guard. And
+the yaw band is compared against the wrapped difference: upstream compares the raw one, which
+makes 179° and -179° three hundred and fifty-eight degrees apart. Off the central meridian the
+grid and the earth disagree by the convergence angle — a slot measured east on the grid reads as a
+true bearing about 1.2 degrees off at Canberra — which upstream has too, and which the tests
+record rather than paper over.
 
 The fence used to be impossible: `MAV_MISSION_TYPE` is a MAVLink 2 *extension* field, and
 the generated bindings were built without the extension feature, so the plan type could not

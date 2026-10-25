@@ -20,6 +20,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod formation;
 pub mod graph;
 pub mod modes;
 
