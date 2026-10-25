@@ -147,6 +147,7 @@ function normaliseTelemetry(telemetry: Telemetry | undefined): Telemetry {
     imu: telemetry.imu ?? null,
     barometer: telemetry.barometer ?? null,
     controls: telemetry.controls ?? null,
+    relays: telemetry.relays ?? null,
     airspeed: telemetry.airspeed ?? null,
     ekf: telemetry.ekf ?? null,
     vibration: telemetry.vibration ?? null,

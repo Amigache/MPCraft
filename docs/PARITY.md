@@ -610,6 +610,22 @@ with a board on it, because the browser run has no backend to hear a vehicle; th
 measured with an empty list, and the rule the store reads is tested against names written down
 before the function was called.
 
+The **relays** of the vehicle are read and set from the tab of the outputs. The report carries two
+masks — which relays the vehicle has and which of them are on — and they are read into a list at the
+wire boundary, so the interface draws the relays the vehicle has without having to know that a relay
+is a bit. The rows are those relays, and the state shown is what the vehicle said rather than what
+was last clicked, because the vehicle can answer with a relay in another state than the one that was
+asked for. A relay the vehicle has said it does not have is refused before anything is sent: that is
+not something this board would do at another moment, it is something it cannot do. A vehicle that has
+never reported its relays is asked anyway, since the report is not streamed unless the station asks
+for it, and refusing on silence would refuse a board that can do it; the tab asks once, when the link
+is open, because a station that is not connected asks nothing. One button upstream has is not ported:
+Repeat, which sends off and then on again after a pause, is the same command twice and is done here
+with the two buttons that say what they do. What cannot be measured at the two sizes is a row with a
+relay on it, because the browser run has no backend to hear a vehicle; the tab was measured with the
+note that says nothing has been said, and the rule that reads the masks is tested against numbers
+written down before the function was called.
+
 The transponder, the generator telemetry and the folder of the operator's own map are
 available elsewhere in the application: in Setup, the vehicle state and the tile
 settings respectively. The video sheet describes and controls the stream, but does not

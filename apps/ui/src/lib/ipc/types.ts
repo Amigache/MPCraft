@@ -521,6 +521,16 @@ export interface Controls {
   readonly signal: number | null;
 }
 
+/** One relay of the vehicle, as the vehicle said it. */
+export interface RelayInstance {
+  /** Which relay this is, counting from the first — the number the command carries. */
+  readonly number: number;
+  /** Whether the vehicle says it has this relay. */
+  readonly present: boolean;
+  /** Whether it is on. */
+  readonly on: boolean;
+}
+
 /** The air data of the vehicle. */
 export interface Airspeed {
   /** The speed through the air, in metres per second. */
@@ -676,6 +686,13 @@ export interface Telemetry {
   readonly imu: Imu | null;
   readonly barometer: Barometer | null;
   readonly controls: Controls | null;
+  /**
+   * The relays the vehicle has said it has.
+   *
+   * Null when the vehicle has not said anything: that is the absence of a report, not a relay at
+   * zero, and the panel draws no rows for it.
+   */
+  readonly relays: readonly RelayInstance[] | null;
   readonly airspeed: Airspeed | null;
   readonly ekf: Ekf | null;
   readonly vibration: Vibration | null;

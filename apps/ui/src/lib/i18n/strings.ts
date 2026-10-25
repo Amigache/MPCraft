@@ -869,6 +869,21 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Radio channels": "Los canales de la radio",
     "Channel {number}": "Canal {number}",
     Strength: "La fuerza",
+
+    // The relays of the vehicle. The rows are the relays the vehicle said it has, and the state is
+    // what the vehicle said rather than what was last asked for.
+    Relays: "Los relés",
+    "Relay {number}": "Relé {number}",
+    on: "encendido",
+    off: "apagado",
+    "Nothing has been said about the relays. The station asks for the report when the link is open.":
+      "No se ha dicho nada de los relés. La estación pide el informe cuando el enlace está abierto.",
+    "Turn on": "Encender",
+    "Turn off": "Apagar",
+    "Turn relay {number} on": "Encender el relé {number}",
+    "Turn relay {number} off": "Apagar el relé {number}",
+    "The relay was told what to do.": "Se le dijo al relé qué hacer.",
+
     "Auxiliary functions": "Las funciones auxiliares",
     "The vehicle has not said what its outputs are for.":
       "El vehículo no ha dicho para qué son sus salidas.",

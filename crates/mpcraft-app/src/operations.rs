@@ -251,6 +251,50 @@ impl SessionSupervisor {
         Ok(())
     }
 
+    /// Turns one of the relays of the vehicle on or off.
+    ///
+    /// The refusal of a relay the vehicle has said it does not have happens in the link, which is
+    /// where the report of the relays is kept; this layer only requires an open link, so that the
+    /// rule is written once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle has said it does not have the
+    /// relay, or when it refuses the command or does not answer.
+    pub async fn set_relay(
+        &self,
+        vehicle: VehicleId,
+        instance: u16,
+        on: bool,
+    ) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .set_relay(vehicle, instance, on, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle once for the report of its relays.
+    ///
+    /// The report is not streamed unless it is asked for, so the sheet has to ask before it can show
+    /// what the vehicle says about its relays. What the sheet shows afterwards is the state the event
+    /// carries rather than this answer: the request only makes the vehicle say something.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle does not answer in time.
+    pub async fn relay_status(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .request_relay_status(vehicle, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
     /// The logs the vehicle holds in its own memory.
     ///
     /// # Errors

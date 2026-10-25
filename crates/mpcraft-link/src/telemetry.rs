@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use crate::vehicle::VehicleId;
 
 use mpcraft_vehicle::{
-    Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, DroneId,
+    relays_of, Airspeed, Attitude, Barometer, Battery, BatteryBank, Controller, Controls, DroneId,
     DroneIdLocation, Efi, Ekf, FlightMode, GeoPoint, GpsStatus, Imu, MissionProgress,
     PassthroughData, PlanState, Telemetry, Velocity, Vibration, Wind,
 };
@@ -418,6 +418,13 @@ fn apply_to(telemetry: &mut Telemetry, message: &MavMessage) {
             telemetry.controls = Some(controls);
         }
 
+        MavMessage::RELAY_STATUS(relay) => {
+            // The message carries two masks: which relays the vehicle has, and which of them are
+            // on. They are read into the list the interface draws here, once, so that the frontend
+            // does not have to know that a relay is a bit in a mask.
+            telemetry.relays = Some(relays_of(relay.present, relay.on));
+        }
+
         MavMessage::BATTERY_STATUS(status) => {
             // The vehicle reports each bank on its own, and says which bank it is.
             // The voltages of the cells are in millivolts, and the ones the bank does
@@ -644,8 +651,8 @@ mod tests {
         AHRS2_DATA, ATTITUDE_DATA, BATTERY_STATUS_DATA, EKF_STATUS_REPORT_DATA,
         GLOBAL_POSITION_INT_DATA, GPS_RAW_INT_DATA, HEARTBEAT_DATA, HOME_POSITION_DATA,
         MISSION_CURRENT_DATA, NAV_CONTROLLER_OUTPUT_DATA, RAW_IMU_DATA, RC_CHANNELS_DATA,
-        SCALED_PRESSURE_DATA, SERVO_OUTPUT_RAW_DATA, SYS_STATUS_DATA, TIMESYNC_DATA, VFR_HUD_DATA,
-        VIBRATION_DATA,
+        RELAY_STATUS_DATA, SCALED_PRESSURE_DATA, SERVO_OUTPUT_RAW_DATA, SYS_STATUS_DATA,
+        TIMESYNC_DATA, VFR_HUD_DATA, VIBRATION_DATA,
     };
     use mpcraft_mavlink::{MavGpsFixType, MavType};
 
@@ -1049,6 +1056,61 @@ mod tests {
         // unknown, and not a channel sitting at zero.
         assert_eq!(controls.inputs[4], None);
         assert_eq!(controls.signal, Some(90.0));
+    }
+
+    #[test]
+    fn the_report_of_the_relays_is_read_into_the_list_the_interface_draws() {
+        // The hand: the vehicle says it has one relay — the mask 2 is 10 in binary, so the bit at
+        // position 1 — and that relays 0 and 1 are on: the mask 3 is 11. Relay 0 is not a relay
+        // this vehicle has, so the second mask cannot make it one, and the list holds relay 1.
+        let message = MavMessage::RELAY_STATUS(RELAY_STATUS_DATA {
+            time_boot_ms: 4_000,
+            on: 0b0011,
+            present: 0b0010,
+        });
+
+        let mut aggregator = TelemetryAggregator::new();
+        aggregator.apply(&message, VehicleId::new(1, 1));
+
+        let relays = aggregator
+            .telemetry()
+            .relays
+            .as_ref()
+            .expect("the report of the relays");
+
+        assert_eq!(relays.instances.len(), 1);
+        assert_eq!(relays.instances[0].number, 1);
+        assert!(relays.instances[0].on);
+
+        // A second board reports its own relays, and what it says stays in its own slot: the view
+        // belongs to the primary vehicle, so the interface does not draw a relay of board 2 under
+        // the report of board 1.
+        aggregator.set_primary(VehicleId::new(1, 1));
+
+        aggregator.apply(
+            &MavMessage::RELAY_STATUS(RELAY_STATUS_DATA {
+                time_boot_ms: 4_500,
+                on: 0b0100,
+                present: 0b0100,
+            }),
+            VehicleId::new(2, 1),
+        );
+
+        let primary = aggregator
+            .telemetry()
+            .relays
+            .as_ref()
+            .expect("the report of the primary");
+        assert_eq!(primary.instances.len(), 1);
+        assert_eq!(primary.instances[0].number, 1);
+
+        let other = aggregator
+            .telemetry_of(VehicleId::new(2, 1))
+            .expect("the state of the second board")
+            .relays
+            .as_ref()
+            .expect("the report of the second board");
+        assert_eq!(other.instances[0].number, 2);
     }
 
     #[test]

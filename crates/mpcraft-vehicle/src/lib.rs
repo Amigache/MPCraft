@@ -335,6 +335,56 @@ pub struct Controls {
     pub signal: Option<f64>,
 }
 
+/// One relay of the vehicle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelayInstance {
+    /// Which relay this is, counting from the first as the bits of the message do.
+    pub number: u8,
+    /// Whether the vehicle says it has this relay.
+    pub present: bool,
+    /// Whether it is on.
+    pub on: bool,
+}
+
+/// What the vehicle says about its relays.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Relays {
+    /// The relays the vehicle has, in the order their numbers are counted.
+    pub instances: Vec<RelayInstance>,
+}
+
+/// The relays, one per instance the vehicle says it has, from the two masks of the message.
+///
+/// The message gives `present` as a mask and `on` as a mask, with each relay instance at its own
+/// bit. Reading them as a list is what stops the interface from having to know that a relay is a
+/// bit: it sees the relays the vehicle has, and whether each one is on.
+#[must_use]
+pub fn relays_of(present: u16, on: u16) -> Relays {
+    let instances = (0..u16::BITS)
+        .filter(|bit| (present >> bit) & 1 == 1)
+        .map(|bit| RelayInstance {
+            number: bit as u8,
+            present: true,
+            on: (on >> bit) & 1 == 1,
+        })
+        .collect();
+
+    Relays { instances }
+}
+
+/// Whether the vehicle can be asked for a relay it does not have.
+///
+/// The message says which relays are configured, so asking for one that is not there is not a
+/// command the vehicle would take at another time — it is something this vehicle cannot do, which
+/// is the same reason an angle a gimbal cannot reach is refused before anything is sent.
+#[must_use]
+pub fn has_relay(relays: &Relays, instance: u16) -> bool {
+    relays
+        .instances
+        .iter()
+        .any(|relay| relay.number as u16 == instance)
+}
+
 /// The air data of the vehicle.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Airspeed {
@@ -471,6 +521,8 @@ pub struct Telemetry {
     pub barometer: Option<Barometer>,
     /// The servos and the radio control, once received.
     pub controls: Option<Controls>,
+    /// The relays the vehicle has, once it has said which ones they are.
+    pub relays: Option<Relays>,
     /// The air data, once received.
     pub airspeed: Option<Airspeed>,
     /// The state of the estimator, once received.
@@ -508,6 +560,7 @@ impl Telemetry {
             && self.imu.is_none()
             && self.barometer.is_none()
             && self.controls.is_none()
+            && self.relays.is_none()
             && self.airspeed.is_none()
             && self.ekf.is_none()
             && self.vibration.is_none()
@@ -572,6 +625,9 @@ impl Telemetry {
         }
         if let Some(controls) = update.controls {
             self.controls = Some(controls);
+        }
+        if let Some(relays) = update.relays {
+            self.relays = Some(relays);
         }
         if let Some(airspeed) = update.airspeed {
             self.airspeed = Some(airspeed);
@@ -648,6 +704,8 @@ pub struct TelemetryUpdate {
     pub barometer: Option<Barometer>,
     /// New state of the servos and the radio control.
     pub controls: Option<Controls>,
+    /// New report of the relays the vehicle has.
+    pub relays: Option<Relays>,
     /// New air data.
     pub airspeed: Option<Airspeed>,
     /// New state of the estimator.
@@ -883,5 +941,64 @@ mod tests {
     #[test]
     fn vehicle_id_displays_system_and_component() {
         assert_eq!(VehicleId::new(1, 1).to_string(), "1/1");
+    }
+
+    #[test]
+    fn the_two_masks_of_the_report_become_the_relays_the_vehicle_has() {
+        // The hand: the vehicle says it has relays 0, 1 and 3 — the mask 11 is 1011 in binary,
+        // so the bits at positions 0, 1 and 3 are set — and that relays 0 and 3 are on: the mask
+        // 9 is 1001, with the bits at positions 0 and 3 set. Relay 1 is present but off.
+        // The relays come out in the order their bits are counted from the first.
+        let relays = relays_of(0b1011, 0b1001);
+
+        assert_eq!(
+            relays.instances,
+            vec![
+                RelayInstance {
+                    number: 0,
+                    present: true,
+                    on: true,
+                },
+                RelayInstance {
+                    number: 1,
+                    present: true,
+                    on: false,
+                },
+                RelayInstance {
+                    number: 3,
+                    present: true,
+                    on: true,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_vehicle_that_has_not_said_what_it_has_is_not_said_to_have_anything() {
+        // A report of nothing is not a relay sitting at zero: it is the absence of a report, and
+        // the interface draws no rows for it.
+        assert!(relays_of(0, 0).instances.is_empty());
+
+        // A bit that is not in `present` cannot be a relay, whatever `on` says about it — the
+        // second mask only says which of the ones the vehicle has are on.
+        let relays = relays_of(0b0100, 0b1111);
+        assert_eq!(relays.instances.len(), 1);
+        assert_eq!(relays.instances[0].number, 2);
+    }
+
+    #[test]
+    fn a_relay_the_vehicle_has_not_said_it_has_cannot_be_asked_for() {
+        let relays = relays_of(0b1011, 0b0000);
+
+        assert!(has_relay(&relays, 0));
+        assert!(has_relay(&relays, 3));
+        // Relay 2 is not in the mask, so this board cannot be asked for it; and an instance past
+        // the width of the mask is not a relay at all.
+        assert!(!has_relay(&relays, 2));
+        assert!(!has_relay(&relays, 16));
+
+        // Before the vehicle has said anything there is nothing to check against, and the rule
+        // says no: the refusal is made on what the vehicle reported, not on silence.
+        assert!(!has_relay(&Relays::default(), 0));
     }
 }

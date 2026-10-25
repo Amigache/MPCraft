@@ -454,6 +454,48 @@ async fn calibrate(
     state.supervisor.calibrate(vehicle, calibration).await
 }
 
+/// Turns one of the relays of the vehicle on or off.
+///
+/// The instance is the number the vehicle counts its relays from, and the answer says whether
+/// that relay is on. A relay the vehicle has said it does not have is refused before anything is
+/// sent, so the code says what the vehicle cannot do rather than what this command failed to do.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle has said it
+/// has no such relay, or when it refuses the command or does not answer.
+#[tauri::command]
+async fn set_relay(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    instance: u16,
+    on: bool,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.set_relay(vehicle, instance, on).await
+}
+
+/// Asks the vehicle once for the report of its relays.
+///
+/// The command does not answer with the report: the report reaches the interface through the state
+/// of the link, which is where the vehicle's own words are kept. Asking is what makes a vehicle that
+/// has relays say so, since it does not say it on its own.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle does not
+/// answer in time.
+#[tauri::command]
+async fn request_relay_status(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.relay_status(vehicle).await
+}
+
 /// Takes the radio channels over, one at a time.
 ///
 /// # Errors
@@ -3601,6 +3643,8 @@ struct TelemetryEvent {
     barometer: Option<BarometerEvent>,
     /// The servos and the radio control, when they are known.
     controls: Option<ControlsEvent>,
+    /// The relays the vehicle has, once it has said which ones they are.
+    relays: Option<Vec<RelayInstanceEvent>>,
     /// The air data, when it is known.
     airspeed: Option<AirspeedEvent>,
     /// The state of the estimator, when it is known.
@@ -3677,6 +3721,18 @@ struct ControlsEvent {
     inputs: [Option<f64>; 8],
     /// The strength of the radio signal, as a percentage.
     signal: Option<f64>,
+}
+
+/// One relay of the vehicle, as the vehicle said it.
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RelayInstanceEvent {
+    /// Which relay this is, counting from the first.
+    number: u8,
+    /// Whether the vehicle says it has this relay.
+    present: bool,
+    /// Whether it is on.
+    on: bool,
 }
 
 /// The air data of the vehicle.
@@ -4090,6 +4146,19 @@ fn telemetry_of(telemetry: &Telemetry) -> TelemetryEvent {
             inputs: controls.inputs,
             signal: controls.signal,
         }),
+        // The relays travel as the list the decoder built from the two masks, so the interface
+        // draws the relays the vehicle has without knowing that a relay is a bit in a mask.
+        relays: telemetry.relays.as_ref().map(|relays| {
+            relays
+                .instances
+                .iter()
+                .map(|relay| RelayInstanceEvent {
+                    number: relay.number,
+                    present: relay.present,
+                    on: relay.on,
+                })
+                .collect()
+        }),
         airspeed: telemetry.airspeed.map(|airspeed| AirspeedEvent {
             airspeed: airspeed.airspeed,
             ground_speed: airspeed.ground_speed,
@@ -4239,6 +4308,8 @@ fn main() {
             output_functions,
             motor_test,
             calibrate,
+            set_relay,
+            request_relay_status,
             rc_override,
             rc_override_release,
             manual_control,

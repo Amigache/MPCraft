@@ -542,6 +542,14 @@ async fn the_message_ids_are_the_ones_the_protocol_says() {
     assert_eq!(mpcraft_link::commands::COMMAND_ACK_ID, 77);
     assert_eq!(mpcraft_link::commands::SET_MODE_ID, 11);
     assert_eq!(mpcraft_link::commands::SET_ATTITUDE_TARGET_ID, 82);
+    // The report of the relays is message 376, and the dialect agrees with the number written
+    // down here: the seed of its checksum is computed from its fields, so a frame of this message
+    // is checked against the same seed the vehicle uses.
+    assert_eq!(mpcraft_link::commands::RELAY_STATUS_ID, 376);
+    assert_eq!(
+        mpcraft_mavlink::dialect::message_id("RELAY_STATUS"),
+        Some(mpcraft_link::commands::RELAY_STATUS_ID)
+    );
 }
 
 #[tokio::test]

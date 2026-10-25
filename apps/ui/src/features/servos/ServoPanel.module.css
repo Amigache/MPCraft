@@ -59,3 +59,27 @@
   flex: 0 0 auto;
   font-size: var(--font-2xs);
 }
+
+.note {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  margin: 0;
+}
+
+/* The state the vehicle reported, which is not the state that was last asked for. */
+.state {
+  color: var(--colour-text-dim);
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+}
+
+.state.on {
+  color: var(--colour-accent);
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+}

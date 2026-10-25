@@ -42,6 +42,7 @@ use mpcraft_mavlink::dialect::messages::{
     SET_POSITION_TARGET_GLOBAL_INT_DATA,
 };
 use mpcraft_mavlink::{MavCmd, MavFrame, MavMessage, MavModeFlag, MavResult};
+use mpcraft_vehicle::{relays_of, Relays};
 
 use crate::error::LinkError;
 use crate::session::{ReceivedMessage, Session};
@@ -73,6 +74,9 @@ pub const RC_CHANNELS_OVERRIDE_ID: u32 = 70;
 
 /// The message id of `MANUAL_CONTROL`.
 pub const MANUAL_CONTROL_ID: u32 = 69;
+
+/// The message id of `RELAY_STATUS`, the report of the relays.
+pub const RELAY_STATUS_ID: u32 = 376;
 
 /// How long to wait for the acknowledgement of a command.
 ///
@@ -512,6 +516,114 @@ impl Session {
         .await?;
 
         Ok(())
+    }
+
+    /// Sets a relay of the vehicle.
+    ///
+    /// The vehicle says which relays it has, and MPCraft does not ask for one it has said it does
+    /// not have: that is not something the vehicle would do at another moment, it is something this
+    /// board cannot do, which is the same rule as an angle a gimbal cannot reach. A vehicle that
+    /// has never reported its relays is asked anyway, because the report is not streamed unless the
+    /// station asks for it — refusing on silence would refuse a board that can do it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `unsupported_by_vehicle` for a relay the vehicle has said it does not have, and the
+    /// error of the command when the vehicle refuses it or does not answer in time.
+    pub async fn set_relay(
+        &self,
+        vehicle: VehicleId,
+        instance: u16,
+        on: bool,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        // The report is read through the snapshot, so it is cloned rather than moved out of it.
+        let reported = self
+            .state()
+            .telemetries
+            .get(&vehicle)
+            .and_then(|state| state.relays.clone());
+
+        if let Some(relays) = reported {
+            if !mpcraft_vehicle::has_relay(&relays, instance) {
+                return Err(LinkError::Unsupported(format!(
+                    "the vehicle has no relay {instance}"
+                )));
+            }
+        }
+
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_DO_SET_RELAY,
+            [
+                instance as f32,
+                if on { 1.0 } else { 0.0 },
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ],
+            timeout,
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle once for the report of its relays.
+    ///
+    /// The specification says this report is streamed only when the station asks for it, so a sheet
+    /// that waited for something to arrive would show nothing on a vehicle that has relays and has
+    /// said nothing about them. The answer reads into the state of the vehicle through the
+    /// aggregator, which is what the sheet shows; this returns the same report so that the caller
+    /// can say whether the vehicle answered at all.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle does not answer in time.
+    pub async fn request_relay_status(
+        &self,
+        vehicle: VehicleId,
+        timeout: Duration,
+    ) -> Result<Relays, LinkError> {
+        let matcher = move |message: &ReceivedMessage| {
+            message.message_id == RELAY_STATUS_ID && message.system_id == vehicle.system_id
+        };
+
+        let collected = self
+            .exchange(
+                timeout,
+                matcher,
+                |messages: &[ReceivedMessage]| !messages.is_empty(),
+                move |confirmation| {
+                    MavMessage::COMMAND_LONG(COMMAND_LONG_DATA {
+                        param1: RELAY_STATUS_ID as f32,
+                        param2: 0.0,
+                        param3: 0.0,
+                        param4: 0.0,
+                        param5: 0.0,
+                        param6: 0.0,
+                        param7: 0.0,
+                        command: MavCmd::MAV_CMD_REQUEST_MESSAGE,
+                        target_system: vehicle.system_id,
+                        target_component: vehicle.component_id,
+                        confirmation,
+                    })
+                },
+            )
+            .await?;
+
+        let answer = collected.first().ok_or(LinkError::Timeout(timeout))?;
+
+        match &answer.message {
+            MavMessage::RELAY_STATUS(report) => Ok(relays_of(report.present, report.on)),
+            _ => Err(LinkError::Protocol(
+                mpcraft_mavlink::ProtocolError::Malformed(
+                    "the answer to the request for the relays is not a report of the relays",
+                ),
+            )),
+        }
     }
 
     /// Takes the radio channels over, one at a time.

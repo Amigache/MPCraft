@@ -913,6 +913,30 @@ export async function calibrate(
   await call<void>("calibrate", { ...vehicleRequest(vehicle), kind });
 }
 
+/**
+ * Turns one of the relays of the vehicle on or off.
+ *
+ * A relay the vehicle has said it does not have is refused by the backend before anything is sent,
+ * so the error says what the vehicle cannot do rather than what this command failed to do.
+ */
+export async function setRelay(
+  instance: number,
+  on: boolean,
+  vehicle?: VehicleKey,
+): Promise<void> {
+  await call<void>("set_relay", { ...vehicleRequest(vehicle), instance, on });
+}
+
+/**
+ * Asks the vehicle once for the report of its relays.
+ *
+ * The vehicle does not say what its relays are unless it is asked, so the panel asks when it is
+ * opened; what it draws afterwards is the state the event carries, not the answer of this call.
+ */
+export async function requestRelayStatus(vehicle?: VehicleKey): Promise<void> {
+  await call<void>("request_relay_status", vehicleRequest(vehicle));
+}
+
 /** Asks the vehicle to restart. */
 export async function reboot(vehicle?: VehicleKey): Promise<void> {
   await call<void>("reboot", vehicleRequest(vehicle));
@@ -1556,6 +1580,7 @@ const EMPTY_STATE: LinkState = {
     imu: null,
     barometer: null,
     controls: null,
+    relays: null,
     airspeed: null,
     ekf: null,
     vibration: null,
