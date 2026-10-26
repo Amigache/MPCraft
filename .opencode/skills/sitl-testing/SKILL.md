@@ -132,7 +132,9 @@ cargo +stable-x86_64-pc-windows-gnu test -p mpcraft-link --features sitl-tests -
 Set `MPCRAFT_SITL_LIVE=1` when a vehicle is really on the wire. `scripts/run-gates.js` says which one answered
 the gate: without it a scripted vehicle written from the specification stands in, and the gate reports
 `SUSTITUIDA`, because that stand-in covers the protocols but not timing, a radio, or a board. A green that rests
-on a stand-in is not a pass against a vehicle.
+on a stand-in is not a pass against a vehicle. When a vehicle does answer, the gate shows the report of the live
+binary rather than the first count the run prints, which is the count of the unit tests and says nothing about
+the vehicle.
 
 ## What to verify in SITL
 

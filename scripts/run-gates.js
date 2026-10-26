@@ -31,6 +31,8 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
+import { lineMatching, plain, resultForSection } from "./gate-proof.js";
+
 const ROOT = new URL("../", import.meta.url);
 const UI = new URL("./apps/ui/", ROOT);
 
@@ -129,8 +131,12 @@ const GATES = [
     substitute:
       "scripts/simulated-vehicle.py, which answers the parameter, mission and command protocols",
     control:
-      "the golden-file stream, which is a second implementation rather than a mirror of the parser",
-    proof: (text) => lineMatching(text, /\d+ passed/),
+      "the golden-file stream, which is a second implementation rather than a mirror of the parser, and scripts/run-gates-controls.js for the report line this gate reads",
+    /**
+     * The report of the live binary, not the first count the run prints: several test binaries ran and
+     * the first one is the unit tests, which say nothing about the vehicle.
+     */
+    proof: (text) => resultForSection(text, "sitl"),
   },
   {
     name: "parity matrix",
@@ -435,15 +441,4 @@ function firstLine(text) {
   return line === undefined ? "" : line.trim();
 }
 
-function lineMatching(text, pattern) {
-  const line = plain(text)
-    .split("\n")
-    .find((row) => pattern.test(row));
-
-  return line === undefined ? "no line said what was expected" : line.trim();
-}
-
-/** The colours a runner puts in its report are not part of what it says. */
-function plain(text) {
-  return String(text ?? "").replace(/\u001b\[[0-9;]*m/g, "");
-}
+/** What a gate reads is in `scripts/gate-proof.js`, so the reading can be shown firing on its own. */

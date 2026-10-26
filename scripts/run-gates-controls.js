@@ -7,6 +7,8 @@
  *     it can pass          the same run without the scratch file
  *     it names what did not run, and does not read it as green   a layer that was not touched, a
  *                          tool that is not there, and a gate something else stands in for
+ *     which count it reads   a report where the unit tests passed and the live areas failed is read as
+ *                          the live areas, because those are the ones a vehicle answered
  *
  * What these prove, and what they do not: they prove the states are reachable and that the exit
  * code follows them. They do not prove that a gate that runs is strong — a gate whose green rests
@@ -17,6 +19,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+import { lineMatching, resultForSection } from "./gate-proof.js";
 
 const ROOT = new URL("../", import.meta.url);
 const runner = fileURLToPath(new URL("./run-gates.js", import.meta.url));
@@ -139,6 +143,105 @@ checks.push({
   saw: {
     verdict: missingTool.verdict,
     gate: stateOf(missingTool, "rust lints"),
+  },
+});
+
+/*
+ * Which count a gate's green rests on, shown on transcripts that disagree. A live vehicle cannot be
+ * driven from here, so the reading itself is what is exercised: a report where the unit tests passed and
+ * the live areas failed must read as the live areas, because those are the ones a vehicle answered.
+ */
+const disagreeing =
+  "     Running unittests src/lib.rs (target/debug/deps/mpcraft_link-1)\n" +
+  "test result: ok. 108 passed; 0 failed; finished in 0.02s\n" +
+  "     Running tests/sitl.rs (target/debug/deps/sitl-2)\n" +
+  "test result: FAILED. 0 passed; 1 failed; finished in 25.15s\n";
+
+const bothOk =
+  "     Running unittests src/lib.rs (target/debug/deps/mpcraft_link-1)\n" +
+  "test result: ok. 108 passed; 0 failed; finished in 0.02s\n" +
+  "     Running tests/sitl.rs (target/debug/deps/sitl-2)\n" +
+  "test result: ok. 1 passed; 0 failed; finished in 25.15s\n";
+
+checks.push({
+  claim:
+    "the integration gate reads the report of the binary that the vehicle answered, not the first count the run prints",
+  ok: resultForSection(disagreeing, "sitl").includes("FAILED"),
+  saw: {
+    read: resultForSection(disagreeing, "sitl"),
+    /** What reading the first count would have said for the same output — the bug this control holds. */
+    instead: lineMatching(disagreeing, /\d+ passed/),
+  },
+});
+
+checks.push({
+  claim: "the same reading names the live report when both halves are green",
+  ok: resultForSection(bothOk, "sitl").includes("finished in 25.15s"),
+  saw: { read: resultForSection(bothOk, "sitl") },
+});
+
+checks.push({
+  claim:
+    "a live area that never started is said as not running rather than counted as passing",
+  ok:
+    resultForSection(
+      bothOk
+        .split("\n")
+        .filter((row) => !row.includes("tests/sitl.rs"))
+        .join("\n"),
+      "sitl",
+    ) === "the sitl test binary did not run",
+  saw: {
+    read: resultForSection(
+      bothOk
+        .split("\n")
+        .filter((row) => !row.includes("tests/sitl.rs"))
+        .join("\n"),
+      "sitl",
+    ),
+  },
+});
+
+/* What caught this reading: the heading as this machine's runner prints it, with the separator a path on
+ * disk uses rather than the one the source tree does. A reading that accepts only one of the two calls a
+ * run that ran a run that did not. */
+const windowsHeading =
+  "     Running unittests src/lib.rs (target/debug/deps/mpcraft_link-1)\n" +
+  "test result: ok. 108 passed; 0 failed; finished in 0.02s\n" +
+  "     Running tests\\sitl.rs (target/debug/deps/sitl-2)\n" +
+  "test result: ok. 1 passed; 0 failed; finished in 25.15s\n";
+
+checks.push({
+  claim:
+    "the heading is read with either separator, because the separator is not part of what the report says",
+  ok: resultForSection(windowsHeading, "sitl").includes("finished in 25.15s"),
+  saw: { read: resultForSection(windowsHeading, "sitl") },
+});
+
+/* The shape this machine's runner actually produces when both streams are joined: every report before
+ * every heading, because cargo writes the headings on one stream and the reports on the other. A reading
+ * that looks after the heading finds nothing here, so the pairing is by order rather than by position. */
+const joinedStreams =
+  "test result: ok. 108 passed; 0 failed; finished in 0.02s\n" +
+  "test result: ok. 1 passed; 0 failed; finished in 25.15s\n" +
+  "     Running unittests src/lib.rs (target/debug/deps/mpcraft_link-1)\n" +
+  "     Running tests\\sitl.rs (target/debug/deps/sitl-2)\n";
+
+const joinedRows = joinedStreams
+  .split("\n")
+  .map((row) => row.replaceAll("\\", "/"));
+
+checks.push({
+  claim:
+    "the report is paired with its heading by order, not by position, because joining the streams puts the reports first",
+  ok: resultForSection(joinedStreams, "sitl").includes("finished in 25.15s"),
+  saw: {
+    read: resultForSection(joinedStreams, "sitl"),
+    /** What looking after the heading would have said for the same output — the shape this control caught. */
+    instead:
+      joinedRows
+        .slice(joinedRows.findIndex((row) => row.includes("tests/sitl.rs")) + 1)
+        .find((row) => /test result:/.test(row)) ?? "nothing after the heading",
   },
 });
 
