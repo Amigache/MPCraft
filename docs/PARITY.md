@@ -494,6 +494,28 @@ the message and its values, with the declarations in the log as well. The values
 read with the types they were declared with, and the scaled ones are said in the unit
 they are in.
 
+The reader of the binary log has been checked against bytes that came from a card: 8 280
+bytes of the head were brought over the transfer protocol, which is what a parser needs,
+because the declarations of DataFlash are at the top of the file. The same bytes were read
+by pymavlink's own reader and by a walker written from the rules, and the two agreed on 299
+fields — and what that comparison found was the map of types. It did not have `c` and `C`,
+a half word and an unsigned half word said in hundredths, so those characters were skipped
+and the values of a message that carries them were read from the wrong place: `XKF1` came
+back with its roll where its instance should be. And `e` was read as four bytes but counted
+as two, which shifts everything after it. The map is now the published table the logger
+uses, one kind per field, and a character the table does not give keeps its place and is
+named by the declaration rather than shifting the values that come after it; a message with
+such a field cannot be read at all, because its field has no size, and is passed over. The
+head is cut in the middle of its sixty-fourth declaration, which is what a partial fetch
+gives: sixty-three declarations and sixty-three messages are read, and the place where the
+bytes that could not be read begin is said — 8 209.
+
+The block was asked for without letting the channel go quiet, which is what the same rule
+about an open file says when it is followed: fifteen seconds between the open and the read
+was answered with the code for the end even though the file is 36 MB, because the vehicle
+closes an open file after three seconds with nothing sent on its channel, while the same
+read asked straight away answered with the block.
+
 The **text log of DataFlash** is read as well as the telemetry log: the declarations
 at the top of the file say what every message is, and the samples that follow are read
 with the types they were declared with — a position in millionths of a degree is said in
@@ -782,8 +804,10 @@ none, because an entry counts as a log only when its name ends in the extension 
 sensitive, against `.BIN` — and begins with a number within the maximum the logger allows, which is five hundred on
 a board and five thousand in the simulator. The name on this card is a date, so the folder says one thing and the
 log protocol another, and both are kept as data rather than reconciled by hand. What cannot be asserted is said
-rather than assumed: the bytes of that file cannot be parsed while the transfer protocol does not answer, so the
-binary reader has still not been checked against bytes from a card.
+rather than assumed: the transfer protocol had stopped answering after a request for the whole file put this board's
+IO thread into an internal error, and it answered again after the board was restarted, so the head of that file was
+brought to the disk of the computer and read — which is what closed the gap this paragraph used to say could not be
+closed.
 
 The catalogue carries `SYSID_THISMAV`, the name upstream's metadata still holds, while this build of ArduPilot
 reports `MAV_SYSID`. A parameter the catalogue does not know still arrives as the vehicle said it, and the gap is
@@ -993,6 +1017,18 @@ be put back as they were: the catalogue knows the value every parameter had befo
 anybody changed it, and only the ones that were changed are written, in the order the
 vehicle needs them - the ones that turn something on go first, the way upstream writes
 them.
+
+A value written to flash **survives the power going away**, and only a person can take the power away, so the check
+is in two halves: the number is written, the board is restarted by hand, and what is compared afterwards is what the
+board says about itself after its own boot. On this board `FENCE_ALT_MAX` was written as 61.5 and came back as 61.5,
+and it was put back as this run found it — 42.5 — while the number it held before anybody changed it is not known,
+because an earlier run on this bench wrote a value without recording what it replaced; that is said rather than
+hidden.
+
+The number written has to be different from the number the board already holds, because writing the number the board
+had says nothing about flash, which is what an earlier run did. This board answers its whole list — 1 389 values —
+and not a single request for one parameter, so the value before and the value after both come from the list, and the
+echo a write is owed was given on one run and not on another, so nothing here depends on which of the two happens.
 
 The **plugins** run inside a sandbox. A plugin is a WebAssembly module with a manifest a person can
 read: the name, the module, what it wants to be allowed to do, and how often it wants to be called,

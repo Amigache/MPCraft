@@ -13,8 +13,8 @@ pub mod dataflash;
 pub mod tlog;
 pub mod ulog;
 
-pub use binary::{BinaryReader, BinarySample};
-pub use dataflash::{DataFlashReader, MessageFormat, Sample, Value};
+pub use binary::{BinaryDamage, BinaryReader, BinarySample};
+pub use dataflash::{DataFlashReader, FieldKind, MessageFormat, Sample, Value};
 pub use tlog::{LogError, Record, TlogReader};
 pub use ulog::{
     FieldUnit, ULog, ULogDamage, ULogDropout, ULogField, ULogFormat, ULogHeader, ULogInfo,

@@ -59,18 +59,33 @@ pub enum FieldKind {
     F32,
     /// A double-precision number.
     F64,
-    /// A number in hundredths.
-    Cents,
+    /// A number in hundredths, from a word.
+    CentsI32,
+    /// A number in hundredths, from an unsigned word.
+    CentsU32,
+    /// A number in hundredths, from a half word.
+    CentsI16,
+    /// A number in hundredths, from an unsigned half word.
+    CentsU16,
     /// A position in millionths of a degree.
     Location,
     /// A half-precision number.
     Half,
+    /// A type the published table does not give, so the field has no size.
+    Unknown,
     /// A text of the given length.
     Text(usize),
 }
 
 impl FieldKind {
-    /// The kind a format character means.
+    /// The kind a format character means, taken from the table the logger uses.
+    ///
+    /// The table is the published one (`pymavlink/DFReader.py`, which follows ArduPilot's
+    /// `FormatEnum`), not a list this project decided for itself: `c` and `C` are half words
+    /// said in hundredths, `e` and `E` are words said in hundredths, `M` is a byte rather
+    /// than a text, and `a` is an array of sixty-four characters. A character the table does
+    /// not have cannot be read with a size, so the message that carries it is skipped and
+    /// the field is named in `MessageFormat::untyped`.
     pub fn of(character: char) -> Option<Self> {
         match character {
             'B' => Some(Self::U8),
@@ -81,16 +96,19 @@ impl FieldKind {
             'i' => Some(Self::I32),
             'Q' => Some(Self::U64),
             'q' => Some(Self::I64),
-            'e' | 'E' => Some(Self::Cents),
+            'c' => Some(Self::CentsI16),
+            'C' => Some(Self::CentsU16),
+            'e' => Some(Self::CentsI32),
+            'E' => Some(Self::CentsU32),
             'f' => Some(Self::F32),
             'd' => Some(Self::F64),
             'L' => Some(Self::Location),
             'g' => Some(Self::Half),
             'n' => Some(Self::Text(4)),
             'N' => Some(Self::Text(16)),
-            'M' => Some(Self::Text(1)),
+            'M' => Some(Self::I8),
             'Z' => Some(Self::Text(64)),
-            'a' => Some(Self::Text(128)),
+            'a' => Some(Self::Text(64)),
             _ => None,
         }
     }
@@ -131,7 +149,7 @@ pub struct MessageFormat {
     pub name: String,
     /// The name of each of its values.
     pub fields: Vec<String>,
-    /// The type of each of its values.
+    /// The type of each of its values, one per field.
     pub kinds: Vec<FieldKind>,
 }
 
@@ -142,6 +160,17 @@ impl MessageFormat {
         self.fields
             .iter()
             .position(|field| field.eq_ignore_ascii_case(name))
+    }
+
+    /// The names of the fields whose type the published table does not give.
+    #[must_use]
+    pub fn untyped(&self) -> Vec<String> {
+        self.fields
+            .iter()
+            .zip(&self.kinds)
+            .filter(|(_, kind)| **kind == FieldKind::Unknown)
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 }
 
@@ -259,7 +288,14 @@ impl<R: BufRead> DataFlashReader<R> {
         };
 
         let name = items[3].to_owned();
-        let kinds: Vec<FieldKind> = items[4].chars().filter_map(FieldKind::of).collect();
+
+        // One kind per field: a character the table does not describe keeps its place, so the
+        // fields after it are not read from the bytes of this one, and the name goes into
+        // `untyped` where the operator can see it.
+        let kinds: Vec<FieldKind> = items[4]
+            .chars()
+            .map(|character| FieldKind::of(character).unwrap_or(FieldKind::Unknown))
+            .collect();
 
         let fields: Vec<String> = items[5..].iter().map(|field| (*field).to_owned()).collect();
 
@@ -285,6 +321,9 @@ fn read_values(format: &MessageFormat, items: &[&str]) -> Vec<Value> {
 
         values.push(match kind {
             Some(FieldKind::Text(_)) => Value::Text((*item).to_owned()),
+            // A field whose type the table does not give keeps what the line says, as it is
+            // written, because the reader cannot know what unit it is in.
+            Some(FieldKind::Unknown) => Value::Text((*item).to_owned()),
             Some(kind) => Value::Number(read_number(item, kind)),
             None => Value::Text((*item).to_owned()),
         });
@@ -314,16 +353,23 @@ fn read_number(text: &str, kind: FieldKind) -> f64 {
             .unwrap_or(0.0),
         FieldKind::F32 => trimmed.parse::<f32>().map(f64::from).unwrap_or(0.0),
         FieldKind::F64 => trimmed.parse::<f64>().unwrap_or(0.0),
-        FieldKind::Cents => trimmed
-            .parse::<f64>()
-            .map(|value| value / 100.0)
-            .unwrap_or(0.0),
+        // In a text log the hundredths are written as the number they are, so the signedness
+        // only matters when the bytes are read.
+        FieldKind::CentsI32 | FieldKind::CentsU32 | FieldKind::CentsI16 | FieldKind::CentsU16 => {
+            trimmed
+                .parse::<f64>()
+                .map(|value| value / 100.0)
+                .unwrap_or(0.0)
+        }
         FieldKind::Location => trimmed
             .parse::<f64>()
             .map(|value| value / 1e7)
             .unwrap_or(0.0),
         FieldKind::Half => trimmed.parse::<f64>().unwrap_or(0.0),
         FieldKind::Text(_) => 0.0,
+        // Reached only when a caller asks for the number of a field the table does not
+        // describe, which is what `read_values` does not do.
+        FieldKind::Unknown => 0.0,
     }
 }
 
@@ -412,5 +458,43 @@ GPS, 1000, 2100, -35.3547178, 149.1696673, 885.52, 2.45\n";
         let mut reader = DataFlashReader::new("".as_bytes());
 
         assert!(reader.next_sample().expect("the log is read").is_none());
+    }
+
+    #[test]
+    fn a_half_word_in_hundredths_is_said_in_its_unit() {
+        let log = "FMT, 131, 20, XKF, cC, Roll,Yaw\nXKF, -39, 13165\n";
+
+        let mut reader = DataFlashReader::new(log.as_bytes());
+
+        let sample = reader
+            .next_sample()
+            .expect("the log is read")
+            .expect("a sample");
+
+        assert!((sample.values[0].number().unwrap() - -0.39).abs() < 1e-9);
+        assert!((sample.values[1].number().unwrap() - 131.65).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_field_the_table_does_not_describe_keeps_its_place_and_is_named() {
+        let log = "FMT, 132, 20, MYS, QY, TimeUS,Mystery\nMYS, 1000, seven\n";
+
+        let mut reader = DataFlashReader::new(log.as_bytes());
+
+        let sample = reader
+            .next_sample()
+            .expect("the log is read")
+            .expect("a sample");
+
+        // The field that has no type keeps what the line says, as it is written: the reader
+        // cannot know what unit it is in, and it does not pretend otherwise.
+        assert_eq!(sample.values[1], Value::Text("seven".to_owned()));
+
+        while reader.next_sample().expect("the log is read").is_some() {}
+
+        let format = reader.formats().get("MYS").expect("the log declares MYS");
+
+        assert_eq!(format.kinds.len(), format.fields.len());
+        assert_eq!(format.untyped(), vec!["Mystery".to_owned()]);
     }
 }

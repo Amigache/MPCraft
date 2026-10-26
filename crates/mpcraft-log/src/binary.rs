@@ -42,6 +42,19 @@ pub struct BinaryReader<R: Read> {
     reader: R,
     /// What the log says about its messages.
     formats: HashMap<u8, MessageFormat>,
+    /// How many bytes of the log have been read.
+    position: usize,
+    /// Where the log was broken.
+    damage: Vec<BinaryDamage>,
+}
+
+/// Where the log was broken, and what the reader could not do there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BinaryDamage {
+    /// Where it happened, counted from the start of the log.
+    pub offset: usize,
+    /// Why the reader could not read it.
+    pub reason: String,
 }
 
 impl<R: Read> BinaryReader<R> {
@@ -50,6 +63,8 @@ impl<R: Read> BinaryReader<R> {
         Self {
             reader,
             formats: HashMap::new(),
+            position: 0,
+            damage: Vec::new(),
         }
     }
 
@@ -57,6 +72,42 @@ impl<R: Read> BinaryReader<R> {
     #[must_use]
     pub fn formats(&self) -> &HashMap<u8, MessageFormat> {
         &self.formats
+    }
+
+    /// Where the log was broken.
+    ///
+    /// A log that ends in the middle of a message keeps what came before it, and the reader
+    /// says where it stopped: a head fetched from a card is often cut in the middle of a
+    /// sample, which is what the fixture of the golden test is.
+    #[must_use]
+    pub fn damage(&self) -> &[BinaryDamage] {
+        &self.damage
+    }
+
+    /// Reads `size` bytes, or says where the log ends in the middle of them.
+    fn fill(&mut self, size: usize) -> Result<Option<Vec<u8>>, LogError> {
+        let start = self.position;
+        let mut buffer = vec![0_u8; size];
+        let mut read = 0_usize;
+
+        while read < size {
+            match self.reader.read(&mut buffer[read..]) {
+                Ok(0) => {
+                    self.damage.push(BinaryDamage {
+                        offset: start,
+                        reason: format!("the log ends in the middle of a record of {size} bytes"),
+                    });
+
+                    return Ok(None);
+                }
+                Ok(got) => read += got,
+                Err(error) => return Err(LogError::Io(error)),
+            }
+        }
+
+        self.position += read;
+
+        Ok(Some(buffer))
     }
 
     /// The next sample of the log, or nothing when the log has ended.
@@ -84,9 +135,17 @@ impl<R: Read> BinaryReader<R> {
             // The length of the message counts the marker and the number of the
             // message, so the values are three bytes shorter.
             let size = format.length.saturating_sub(3) as usize;
-            let mut payload = vec![0_u8; size];
 
-            self.reader.read_exact(&mut payload)?;
+            let Some(payload) = self.fill(size)? else {
+                return Ok(None);
+            };
+
+            // A field whose type the table does not give has no size, so none of the values of
+            // this message can be read with the type it was declared with: the message is
+            // passed over, and the names it could not read stay with its declaration.
+            if !format.untyped().is_empty() {
+                continue;
+            }
 
             let values = read_values(&format, &payload);
 
@@ -104,7 +163,7 @@ impl<R: Read> BinaryReader<R> {
         loop {
             match self.reader.read(&mut byte) {
                 Ok(0) => return Ok(None),
-                Ok(_) => {}
+                Ok(_) => self.position += 1,
                 Err(error) => return Err(LogError::Io(error)),
             }
 
@@ -112,22 +171,29 @@ impl<R: Read> BinaryReader<R> {
                 continue;
             }
 
-            let mut second = [0_u8; 1];
-            self.reader.read_exact(&mut second)?;
+            // A log that ends after the first byte of a marker keeps what came before it and says
+            // where it stopped.
+            let Some(second) = self.fill(1)? else {
+                return Ok(None);
+            };
 
-            if second[0] == HEAD_BYTE2 {
-                let mut kind = [0_u8; 1];
-                self.reader.read_exact(&mut kind)?;
-
-                return Ok(Some(kind[0]));
+            if second[0] != HEAD_BYTE2 {
+                continue;
             }
+
+            let Some(kind) = self.fill(1)? else {
+                return Ok(None);
+            };
+
+            return Ok(Some(kind[0]));
         }
     }
 
     /// Reads the declaration of a message.
     fn read_format(&mut self) -> Result<(), LogError> {
-        let mut payload = vec![0_u8; FORMAT_LENGTH];
-        self.reader.read_exact(&mut payload)?;
+        let Some(payload) = self.fill(FORMAT_LENGTH)? else {
+            return Ok(());
+        };
 
         let kind = payload[0];
         let length = payload[1];
@@ -135,13 +201,19 @@ impl<R: Read> BinaryReader<R> {
         let format = text_of(&payload[6..22]);
         let labels = text_of(&payload[22..86]);
 
-        let kinds: Vec<FieldKind> = format.chars().filter_map(FieldKind::of).collect();
-
         let fields: Vec<String> = labels
             .split(',')
             .map(str::trim)
             .filter(|field| !field.is_empty())
             .map(str::to_owned)
+            .collect();
+
+        // One kind per field, so a character the table does not describe keeps its place and
+        // is named by `untyped` instead of shifting the values that come after it.
+        let kinds: Vec<FieldKind> = format
+            .chars()
+            .take(fields.len())
+            .map(|character| FieldKind::of(character).unwrap_or(FieldKind::Unknown))
             .collect();
 
         self.formats.insert(
@@ -260,11 +332,31 @@ fn read_value(kind: FieldKind, payload: &[u8], offset: usize) -> (Value, usize) 
             array[..length].copy_from_slice(&bytes[..length]);
             f64::from_le_bytes(array)
         }
-        FieldKind::Cents => {
+        FieldKind::CentsI16 => {
+            let value = i16::from_le_bytes([
+                bytes.first().copied().unwrap_or(0),
+                *bytes.get(1).unwrap_or(&0),
+            ]);
+            f64::from(value) / 100.0
+        }
+        FieldKind::CentsU16 => {
+            let value = u16::from_le_bytes([
+                bytes.first().copied().unwrap_or(0),
+                *bytes.get(1).unwrap_or(&0),
+            ]);
+            f64::from(value) / 100.0
+        }
+        FieldKind::CentsI32 => {
             let mut array = [0_u8; 4];
             let length = bytes.len().min(4);
             array[..length].copy_from_slice(&bytes[..length]);
             f64::from(i32::from_le_bytes(array)) / 100.0
+        }
+        FieldKind::CentsU32 => {
+            let mut array = [0_u8; 4];
+            let length = bytes.len().min(4);
+            array[..length].copy_from_slice(&bytes[..length]);
+            f64::from(u32::from_le_bytes(array)) / 100.0
         }
         FieldKind::Location => {
             let mut array = [0_u8; 4];
@@ -280,10 +372,15 @@ fn read_value(kind: FieldKind, payload: &[u8], offset: usize) -> (Value, usize) 
             f64::from(half_to_single(value))
         }
         FieldKind::Text(_) => 0.0,
+        FieldKind::Unknown => 0.0,
     };
 
     let value = match kind {
         FieldKind::Text(_) => Value::Text(text_of(bytes)),
+        // Reached only when a caller asks for the value of a field the table does not
+        // describe, which is what the reader of a binary log does not do: it passes the whole
+        // message over when it has one.
+        FieldKind::Unknown => Value::Text(String::new()),
         _ => Value::Number(number),
     };
 
@@ -294,11 +391,19 @@ fn read_value(kind: FieldKind, payload: &[u8], offset: usize) -> (Value, usize) 
 fn size_of(kind: FieldKind) -> usize {
     match kind {
         FieldKind::U8 | FieldKind::I8 => 1,
-        FieldKind::U16 | FieldKind::I16 | FieldKind::Cents => 2,
-        FieldKind::U32 | FieldKind::I32 | FieldKind::Location | FieldKind::F32 => 4,
+        FieldKind::U16 | FieldKind::I16 | FieldKind::CentsI16 | FieldKind::CentsU16 => 2,
+        FieldKind::U32
+        | FieldKind::I32
+        | FieldKind::CentsI32
+        | FieldKind::CentsU32
+        | FieldKind::Location
+        | FieldKind::F32 => 4,
         FieldKind::U64 | FieldKind::I64 | FieldKind::F64 => 8,
         FieldKind::Half => 2,
         FieldKind::Text(length) => length,
+        // A field the table does not describe has no size, which is why a message that carries
+        // one is passed over rather than read.
+        FieldKind::Unknown => 0,
     }
 }
 
@@ -415,5 +520,76 @@ mod tests {
         let mut reader = BinaryReader::new("".as_bytes());
 
         assert!(reader.next_sample().expect("the log is read").is_none());
+    }
+
+    #[test]
+    fn a_half_word_in_hundredths_is_said_in_its_unit() {
+        // The types `c` and `C`, which the map did not have: a half word and an unsigned half
+        // word, both said in hundredths.
+        let mut log = format_declaration(0x81, 5, "XKF", "cC", "Roll,Yaw");
+        log.extend_from_slice(&message(0x81, &(-39_i16).to_le_bytes()));
+        log.extend_from_slice(&message(0x81, &13_165_u16.to_le_bytes()));
+
+        let mut reader = BinaryReader::new(&log[..]);
+
+        let roll = reader
+            .next_sample()
+            .expect("the log is read")
+            .expect("there is a sample");
+        let yaw = reader
+            .next_sample()
+            .expect("the log is read")
+            .expect("there is a sample");
+
+        assert!((roll.values[0].number().unwrap() - -0.39).abs() < 1e-9);
+        assert!((yaw.values[0].number().unwrap() - 131.65).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_field_the_table_does_not_describe_keeps_its_place() {
+        // A type the published table does not give has no size, so the message that carries it
+        // cannot be read at all — but the field still keeps its place, and the name is said.
+        let mut log = format_declaration(0x81, 11, "MYS", "QY", "TimeUS,Mystery");
+        log.extend_from_slice(&message(0x81, &1_000_u64.to_le_bytes()));
+
+        let mut reader = BinaryReader::new(&log[..]);
+
+        assert!(reader.next_sample().expect("the log is read").is_none());
+
+        let format = reader.formats().get(&0x81).expect("the log declares MYS");
+
+        assert_eq!(format.kinds.len(), format.fields.len());
+        assert_eq!(format.untyped(), vec!["Mystery".to_owned()]);
+    }
+
+    #[test]
+    fn a_log_that_ends_in_the_middle_of_a_record_says_where_it_broke() {
+        let mut log = format_declaration(0x81, 8, "MODE", "IB", "Mode,Reason");
+        log.extend_from_slice(&message(0x81, &[5, 0, 0, 0, 2]));
+
+        // The next record begins and then the log stops: two of its five bytes are there.
+        log.extend_from_slice(&[0xA3, 0x95, 0x81, 5]);
+
+        let mut reader = BinaryReader::new(&log[..]);
+
+        let sample = reader
+            .next_sample()
+            .expect("the log is read")
+            .expect("the sample that came before is kept");
+
+        assert_eq!(sample.values[0].number(), Some(5.0));
+
+        assert!(reader.next_sample().expect("the log is read").is_none());
+
+        let damage = reader.damage();
+
+        assert_eq!(damage.len(), 1);
+        // The declaration takes eighty-nine bytes, the first record eight, the second record's marker three: the
+        // place said is where the bytes that could not be read begin.
+        assert_eq!(damage[0].offset, 100);
+        assert_eq!(
+            damage[0].reason,
+            "the log ends in the middle of a record of 5 bytes"
+        );
     }
 }
