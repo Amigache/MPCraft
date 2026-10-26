@@ -856,8 +856,12 @@ where zero means stop. A refusal is kept per message rather than stopping the as
 kept apart from silence: a board that refuses one message is not a board that refuses all of them, and
 the operator has to see which screens will stay empty. The number of the command is 511 rather than 52,
 which is the number of the command this ask replaced, and the dialect is checked against the dictionary
-rather than trusted. What the table reads for the EKF status is not the dictionary this project uses but
-the ArduPilot one, which is said in the module rather than passed over.
+rather than trusted. What the table reads for the EKF status is not the common dictionary but the ArduPilot
+one — the common dialect does not name that message at all, and the ArduPilot one gives 193, which is the
+number both sources agree on without being built from each other, because this project compiles the ArduPilot
+dialect. A comment that said the compiled dialect did not carry it was wrong and is corrected: the aggregator
+matches that message, and the live area counts a row through the raw path so the count does not depend on what
+the bindings can decode.
 
 The **home** is in the table because the map draws it and the distance bar reads it, and a live vehicle
 sends it only once the station asks: before the ask the run had no home to draw, and after it the board

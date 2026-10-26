@@ -133,9 +133,10 @@ async fn every_row_of_the_table_is_answered_and_arrives() {
 
 /// Counts the frames of one message that arrive during the window.
 ///
-/// The frame is read through the raw path rather than the decoded one because the vehicle speaks messages the
-/// compiled dialect does not carry — `EKF_STATUS_REPORT` is one of them — and a collector only sees what the
-/// bindings can decode.
+/// The frame is read through the raw path rather than the decoded one so the count does not depend on what
+/// the bindings can decode: the dialect this project compiles does name `EKF_STATUS_REPORT`, but a collector
+/// only sees the messages its dialect names, and a row that arrives as bytes is counted whether or not it can
+/// be turned into a value.
 async fn count_row(session: &Session, message_id: u32) -> usize {
     let deadline = Instant::now() + WINDOW;
     let mut counted = 0;

@@ -13,8 +13,9 @@
 //!
 //! The names are the ones the dialect gives the messages, and the numbers come from the dialect
 //! rather than being written down: a number copied into a table is a number that can fall out of
-//! step with the dialect it came from. One of them — `EKF_STATUS_REPORT` — is not in the compiled
-//! dialect but is one a vehicle speaks, so its number comes from the table of those messages.
+//! step with the dialect it came from. `EKF_STATUS_REPORT` is the one that shows why a second source
+//! matters — the plain common dialect does not name it at all, so its number comes from the ArduPilot
+//! one, which is the dialect this project compiles and what the test compares against.
 
 use mpcraft_mavlink::dialect::message_id;
 
@@ -114,10 +115,12 @@ mod tests {
 
     #[test]
     fn the_table_agrees_with_the_published_dictionary() {
-        // The numbers below are read from the MAVLink dictionary, not from this project's dialect, so
-        // the test is a second source rather than a mirror of the code it checks. A number copied into
-        // a table is a number that can fall out of step with the source it was copied from, which is
-        // why the table reads its numbers from the dialect instead of writing them down.
+        // The numbers below are read from the published dictionary — pymavlink's dialects — and not
+        // from this project's dialect, so the test is a second source rather than a mirror of the code
+        // it checks. A number copied into a table is a number that can fall out of step with the source
+        // it was copied from, which is why the table reads its numbers from the dialect instead of
+        // writing them down. Fourteen of them are in the common dialect; `EKF_STATUS_REPORT` is only in
+        // the ArduPilot one, which is what both sources name here.
         const DICTIONARY: [(&str, u32); 15] = [
             ("SYS_STATUS", 1),
             ("GPS_RAW_INT", 24),
