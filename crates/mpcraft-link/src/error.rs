@@ -47,6 +47,14 @@ pub enum LinkError {
     #[error("the vehicle cannot do this: {0}")]
     Unsupported(String),
 
+    /// The vehicle refused an FTP command, kept as the numbers it named.
+    ///
+    /// The code and the file-system number are data rather than part of a sentence, because the decision about
+    /// what to do next — whether to ask again with the older opcode — reads them, and the interface branches on
+    /// codes rather than on text.
+    #[error("the vehicle refused the FTP command: {0}")]
+    FtpRefused(crate::ftp::FtpRefusal),
+
     /// The vehicle refused a command.
     ///
     /// The command error carries the result the vehicle reported, so the caller can tell
@@ -81,8 +89,9 @@ impl LinkError {
             Self::NoVehicle => "no_vehicle",
             Self::Protocol(_) => "protocol",
             // A refused command is a refusal: the frontend already knows how to present
-            // one, and the message says which command it was.
-            Self::Rejected(_) | Self::Command(_) => "rejected_by_vehicle",
+            // one, and the message says which command it was. An FTP refusal carries its own
+            // numbers, so it is presented the same way and keeps them as data.
+            Self::Rejected(_) | Self::Command(_) | Self::FtpRefused(_) => "rejected_by_vehicle",
             // A capability the device does not have is not a refusal at this moment: it is
             // something the vehicle can never do.
             Self::Unsupported(_) => "unsupported_by_vehicle",
@@ -129,6 +138,18 @@ mod tests {
         assert_eq!(
             LinkError::UnknownVehicle(VehicleId::new(9, 1)).code(),
             "invalid_request"
+        );
+
+        // An FTP refusal carries its own numbers, and the frontend presents it as the refusal it is while keeping
+        // those numbers as data rather than reading them out of the message.
+        assert_eq!(
+            LinkError::FtpRefused(crate::ftp::FtpRefusal {
+                req_opcode: crate::ftp::Opcode::ListDirectory,
+                code: Some(crate::ftp::FtpError::FailErrno),
+                errno: Some(16),
+            })
+            .code(),
+            "rejected_by_vehicle"
         );
     }
 }

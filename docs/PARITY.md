@@ -340,6 +340,32 @@ carries — the message is the 110th, and its seed is not among the ones the lib
 knows — so it is written by hand as well: the header of the transfer, the opcodes, and
 the payload of each answer.
 
+A refusal from that protocol travels as the numbers the vehicle named rather than as a sentence: the opcode the
+answer is for, the code from the dictionary, and the file-system number when the code says one is present. That is
+what the interface needs, because it branches on codes and never reads a message for meaning — and the decision
+about what to do next reads those numbers too, which is what an earlier rule could not do: a vehicle that says it
+does not know an opcode is asked again with the older command, while a refusal that names a number is the file
+system speaking and is not asked again, because asking with another opcode would say the same thing twice. The case
+that shows the two are different is a refusal whose words contain "Fail" while its code names an error number: read
+as text it would be retried, and read as data it is not.
+
+What this board says is not what the specification says, and the two are kept apart rather than merged: the
+specification gives the shape of a refusal for a server that does not implement a command, and this build answers
+an unknown opcode with a generic failure that names no number, so the rule accepts both — which is why the number
+is read from the answer rather than from the rendering. The number this board gives for every folder is the one
+ArduPilot's mapping gives a drive that cannot work, taken from the published source rather than copied from what
+the board answered, and it is the same fact the startup text gave for the card that failed to start, said in two
+channels by the same machine. What cannot be asserted here is said rather than assumed: no listing has ever come
+from a real card, so nothing has been parsed from a filesystem, and what the run against the board proves is that a
+refusal is read as numbers and that the fall-back ran — which is visible because the answer names the plain listing
+rather than the one with the times.
+
+The address a request carries is the pair the link chose from the boards that answered, not the address a station
+would assume: on the bench this board answered nothing addressed to `1:1` and answered the pair it had chosen for
+itself, which is what the encoder writes now. And each exchange takes its own sequence number, because the board
+re-sends the answer for a number it has already seen — a probe that reused one read the same refusal four times,
+which is how that rule was found.
+
 A **plan** can also be carried in the file the vehicle keeps it in, over that same
 protocol, the way upstream offers it with its `chk_usemavftp` box. The editor has the
 box too: with it marked, the plan is read from the file of the vehicle and written to

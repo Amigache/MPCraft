@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use crate::error::LinkError;
 use crate::session::{RawMessage, Session};
+use crate::vehicle::VehicleId;
 
 /// The id of the `FILE_TRANSFER_PROTOCOL` message.
 const MESSAGE_ID: u32 = 110;
@@ -123,6 +124,69 @@ pub enum FtpError {
     FileNotFound = 10,
 }
 
+/// The refusal a vehicle gave to an FTP command, kept as the answer said it.
+///
+/// The first byte of a refusal names one of the codes the dictionary gives `MAV_FTP_ERR`; when that code is
+/// `FailErrno` the second byte is a file-system error number understood by the vehicle's own filesystem. This
+/// crate cannot name such a number — it is not part of the protocol dictionary — so it keeps it. That number is
+/// what turns "the listing failed" into "the card did not start", and a refusal kept only as a sentence would
+/// leave the interface reading text for meaning, which the IPC contract forbids.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FtpRefusal {
+    /// The opcode this answer is for, which is what says whether the fall-back ran.
+    pub req_opcode: Opcode,
+    /// The code the vehicle named. A number the dictionary does not have is kept as nothing rather than
+    /// guessed at, because a refusal whose code is invented is a refusal described wrong.
+    pub code: Option<FtpError>,
+    /// The file-system error number, when the answer carried one. Only a `FailErrno` carries one.
+    pub errno: Option<u8>,
+}
+
+impl std::fmt::Display for FtpRefusal {
+    fn fmt(&self, form: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.errno {
+            Some(errno) => write!(
+                form,
+                "FTP {:?}: {:?} errno={errno}",
+                self.req_opcode, self.code
+            ),
+            None => write!(form, "FTP {:?}: {:?}", self.req_opcode, self.code),
+        }
+    }
+}
+
+/// Whether the plain listing should be asked after the vehicle refused the listing with the times.
+///
+/// The specification says a server that does not implement a command answers `UnknownCommand`, and that a client
+/// then uses the older command; that is the case this rule is written for. A generic failure that names no
+/// number is taken the same way, because it says nothing an operator could read and the older path is the one
+/// that reports the file system — which is what a real board answered on the bench, and it is recorded as a
+/// divergence rather than passed over as the rule.
+///
+/// A refusal that does name a number is not retried: the number is the file system speaking, and asking again
+/// with another opcode would say the same thing twice.
+#[must_use]
+pub fn falls_back_from(refusal: &FtpRefusal) -> bool {
+    matches!(
+        refusal.code,
+        Some(FtpError::UnknownCommand) | Some(FtpError::Fail)
+    )
+}
+
+/// The refusal read from an answer, with the numbers the vehicle named.
+#[must_use]
+pub fn refusal_of(answer: &FtpMessage) -> FtpRefusal {
+    let code = FtpError::from_u8(answer.data.first().copied().unwrap_or(0));
+
+    FtpRefusal {
+        req_opcode: Opcode::from_u8(answer.req_opcode).unwrap_or(Opcode::None),
+        code,
+        errno: matches!(code, Some(FtpError::FailErrno))
+            .then(|| answer.data.get(1).copied())
+            .flatten(),
+    }
+}
+
 impl FtpError {
     fn from_u8(value: u8) -> Option<Self> {
         match value {
@@ -184,14 +248,16 @@ pub struct FtpMessage {
     pub data: Vec<u8>,
 }
 
-fn encode_ftp(message: &FtpMessage) -> [u8; PAYLOAD_LEN] {
+fn encode_ftp(message: &FtpMessage, vehicle: VehicleId) -> [u8; PAYLOAD_LEN] {
     let mut payload = [0_u8; PAYLOAD_LEN];
 
-    // The network, the system and the component the request is for. A vehicle that is
-    // not the one that was asked answers nothing, so the vehicle of the link is named.
+    // The network, the system and the component the request is for. These are not a station's assumption of an
+    // address: they are the pair the vehicle introduced itself with. A board on the bench answered an FTP request
+    // addressed to the pair it chose for itself and said nothing to one addressed to `1:1`, which is what this
+    // function used to write for every vehicle.
     payload[0] = 0;
-    payload[1] = 1;
-    payload[2] = 1;
+    payload[1] = vehicle.system_id;
+    payload[2] = vehicle.component_id;
 
     let start = TARGET_LEN;
 
@@ -400,11 +466,22 @@ impl FtpClient {
         self.seq.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     }
 
-    async fn exchange(&self, mut message: FtpMessage) -> Result<FtpMessage, LinkError> {
+    /// One command and its answer.
+    ///
+    /// This is the primitive every operation is built on: the sequence number is what says which answer belongs
+    /// to which command, and a refusal is kept as the numbers the vehicle named rather than as a sentence. It is
+    /// open because the shape of an answer is something a test against a real board has to read directly — what a
+    /// vehicle says about an opcode it does not know is a fact about the vehicle, not about this code.
+    pub async fn exchange(&self, mut message: FtpMessage) -> Result<FtpMessage, LinkError> {
+        // The pair the request is addressed to is the one the link chose from the boards that answered, not an
+        // address this code assumes. A pair that has never spoken has no state behind it, so there is nothing to
+        // address a request to.
+        let vehicle = self.session.state().selected.ok_or(LinkError::NoVehicle)?;
+
         message.seq_number = self.next_seq();
         let seq = message.seq_number;
         let req_opcode = message.opcode;
-        let payload = encode_ftp(&message);
+        let payload = encode_ftp(&message, vehicle);
 
         let raw = self
             .session
@@ -421,26 +498,7 @@ impl FtpClient {
         ))?;
 
         if response.opcode == Opcode::Nak {
-            let error_code = response
-                .data
-                .first()
-                .copied()
-                .and_then(FtpError::from_u8)
-                .map(|error| format!("{error:?}"))
-                .unwrap_or_else(|| "unknown".to_string());
-
-            let errno_value = response.data.get(1).copied();
-
-            let detail = if matches!(
-                FtpError::from_u8(response.data.first().copied().unwrap_or(0)),
-                Some(FtpError::FailErrno)
-            ) {
-                format!("FTP {req_opcode:?} failed: {error_code} errno={errno_value:?}")
-            } else {
-                format!("FTP {req_opcode:?} failed: {error_code}")
-            };
-
-            return Err(LinkError::Rejected(detail));
+            return Err(LinkError::FtpRefused(refusal_of(&response)));
         }
 
         Ok(response)
@@ -471,7 +529,8 @@ impl FtpClient {
     /// says how many entries have already been read.
     ///
     /// A vehicle that does not know the listing with the times is asked for the plain
-    /// one instead.
+    /// one instead, and the decision reads the code the vehicle named rather than the
+    /// message it rendered.
     pub async fn list_directory(&self, path: &str) -> Result<Vec<FtpEntry>, LinkError> {
         let mut entries: Vec<FtpEntry> = Vec::new();
         let mut offset: u32 = 0;
@@ -511,19 +570,19 @@ impl FtpClient {
 
             let response = match result {
                 Ok(response) => response,
-                Err(LinkError::Rejected(error)) => {
-                    // A vehicle that does not know the listing with the times refuses it.
-                    // Only the first answer can mean that: a refusal in the middle of a
-                    // listing is a real error.
+                Err(LinkError::FtpRefused(refusal)) => {
+                    // Only the first answer can mean that the vehicle does not know this opcode: a refusal in the
+                    // middle of a listing is a real error. The decision is made from the code the vehicle named,
+                    // not from the words the message renders — a message is never read for meaning.
                     if used_list_directory_with_time
                         && entries.is_empty()
-                        && (error.contains("UnknownCommand") || error.contains("Fail"))
+                        && falls_back_from(&refusal)
                     {
                         used_list_directory_with_time = false;
                         continue;
                     }
 
-                    return Err(LinkError::Rejected(error));
+                    return Err(LinkError::FtpRefused(refusal));
                 }
                 Err(error) => return Err(error),
             };
@@ -717,9 +776,13 @@ mod tests {
             data: b"/\0".to_vec(),
         };
 
-        let encoded = encode_ftp(&message);
+        // The pair here is the one a real board chose for itself rather than the one the protocol reserves, so the
+        // assertion says which address the request carries: the vehicle's own, not an assumed one.
+        let vehicle = VehicleId::new(2, 1);
+        let encoded = encode_ftp(&message, vehicle);
+
         assert_eq!(encoded[0], 0);
-        assert_eq!(encoded[1], 1);
+        assert_eq!(encoded[1], 2);
         assert_eq!(encoded[2], 1);
         assert_eq!(encoded[TARGET_LEN], 7);
         assert_eq!(encoded[TARGET_LEN + 1], 0);
@@ -783,7 +846,7 @@ mod tests {
             data: vec![],
         };
 
-        let encoded = encode_ftp(&message);
+        let encoded = encode_ftp(&message, VehicleId::new(1, 1));
         assert_eq!(encoded[TARGET_LEN + 4], 230);
 
         let raw = RawMessage {
@@ -830,6 +893,99 @@ mod tests {
 
         assert_eq!(entries[0].name, "odd\tname");
         assert_eq!(entries[0].path, "/logs/odd\tname");
+    }
+
+    #[test]
+    fn the_number_a_vehicle_names_for_its_filesystem_is_kept_as_data() {
+        // The whole answer this board gave on the bench for a folder: the code that says the command failed with
+        // a file-system error, and the number itself. The number is not something this crate can name — it belongs
+        // to the vehicle's filesystem, not to the protocol dictionary — so it is kept rather than translated.
+        let answer = FtpMessage {
+            seq_number: 2,
+            session: 0,
+            opcode: Opcode::Nak,
+            size: 2,
+            req_opcode: Opcode::ListDirectory as u8,
+            burst_complete: 0,
+            padding: 0,
+            offset: 0,
+            data: vec![FtpError::FailErrno as u8, 16],
+        };
+
+        let refusal = refusal_of(&answer);
+
+        assert_eq!(refusal.req_opcode, Opcode::ListDirectory);
+        assert_eq!(refusal.code, Some(FtpError::FailErrno));
+        assert_eq!(refusal.errno, Some(16));
+    }
+
+    #[test]
+    fn the_fall_back_reads_the_code_the_vehicle_named() {
+        // The specification gives the shape this rule is written for: a server that does not implement a command
+        // says so, and the client uses the older command. A generic failure that names no number is taken the
+        // same way, because it carries nothing an operator could read.
+        let unknown = FtpMessage {
+            seq_number: 2,
+            session: 0,
+            opcode: Opcode::Nak,
+            size: 1,
+            req_opcode: Opcode::ListDirectoryWithTime as u8,
+            burst_complete: 0,
+            padding: 0,
+            offset: 0,
+            data: vec![FtpError::UnknownCommand as u8],
+        };
+
+        let generic = FtpMessage {
+            data: vec![FtpError::Fail as u8],
+            ..unknown
+        };
+
+        assert!(falls_back_from(&refusal_of(&unknown)));
+        assert!(falls_back_from(&refusal_of(&generic)));
+    }
+
+    #[test]
+    fn a_refusal_that_names_a_number_is_not_read_as_an_unknown_command() {
+        // The rendering of this refusal contains the word "Fail", which is what the rule used to read. A refusal
+        // that carries an error number is the file system speaking, and asking again with another opcode would say
+        // the same thing twice — so the decision reads the code, not the message.
+        let answer = FtpMessage {
+            seq_number: 2,
+            session: 0,
+            opcode: Opcode::Nak,
+            size: 2,
+            req_opcode: Opcode::ListDirectoryWithTime as u8,
+            burst_complete: 0,
+            padding: 0,
+            offset: 0,
+            data: vec![FtpError::FailErrno as u8, 16],
+        };
+
+        let refusal = refusal_of(&answer);
+
+        // The rendering of this refusal contains the word "Fail", which is what the rule used to read.
+        assert!(format!("{refusal}").contains("Fail"));
+        assert!(!falls_back_from(&refusal));
+    }
+
+    #[test]
+    fn a_second_byte_only_counts_when_the_code_says_an_error_number() {
+        // The specification says the second byte is present only for FailErrno. A byte after another code is not a
+        // file-system number, and reading it as one would describe the vehicle wrong.
+        let answer = FtpMessage {
+            seq_number: 2,
+            session: 0,
+            opcode: Opcode::Nak,
+            size: 2,
+            req_opcode: Opcode::OpenFileRo as u8,
+            burst_complete: 0,
+            padding: 0,
+            offset: 0,
+            data: vec![FtpError::FileNotFound as u8, 16],
+        };
+
+        assert_eq!(refusal_of(&answer).errno, None);
     }
 
     #[test]

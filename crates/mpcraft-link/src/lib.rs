@@ -85,7 +85,10 @@ pub use camera::{
 };
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
 pub use error::LinkError;
-pub use ftp::{FtpClient, FtpEntry, FtpError, Opcode as FtpOpcode};
+pub use ftp::{
+    falls_back_from, refusal_of, FtpClient, FtpEntry, FtpError, FtpMessage, FtpRefusal,
+    Opcode as FtpOpcode,
+};
 pub use gimbal::{
     euler_of, wrap_180, GimbalAttitude, GimbalCapabilities, GimbalDevice, GimbalFlags,
     GimbalLimits, GimbalRegistry, DEFAULT_GIMBAL_TIMEOUT, GIMBAL_DEVICE_ATTITUDE_STATUS_ID,

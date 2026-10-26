@@ -1,10 +1,11 @@
 //! A real board on the other end of the port, read as a vehicle.
 //!
 //! A simulator cannot say what a board says about itself. It does not name its hardware, it does not fail to
-//! find a sensor, it does not choose an address for itself, and it does not have a card that failed to start.
-//! What this area asserts is the half that only hardware can answer for: the pair the board introduces itself
-//! with, the capabilities it declares, the family its heartbeat names, the words it says about itself, and the
-//! answer it gives when asked for the logs it holds.
+//! find a sensor, it does not choose an address for itself, it does not have a card that failed to start, and it
+//! has no filesystem to reach. What this area asserts is the half that only hardware can answer for: the pair the
+//! board introduces itself with, the capabilities it declares, the family its heartbeat names, the words it says
+//! about itself, the answer it gives when asked for the logs it holds, and the number its file system gives when
+//! it cannot work.
 //!
 //! ```text
 //! MPCRAFT_HARDWARE_TARGET="serial:COM5:115200" cargo test -p mpcraft-app --features hardware-tests
@@ -20,13 +21,15 @@
 
 #![cfg(feature = "hardware-tests")]
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::time::Instant;
 
 use mpcraft_app::board::detect;
+use mpcraft_link::ftp::{falls_back_from, FtpClient, FtpError, FtpMessage, Opcode};
 use mpcraft_link::vehicle::VehicleKind;
-use mpcraft_link::{Session, SessionOptions, VehicleId};
+use mpcraft_link::{LinkError, Session, SessionOptions, VehicleId};
 use mpcraft_params::ParamEncoding;
 use mpcraft_transport::ConnectionSpec;
 
@@ -71,6 +74,12 @@ mod dictionary {
     pub const RALLY: u64 = 32768;
 }
 
+/// The number ArduPilot's file-system mapping gives for a drive that cannot work (`FR_NOT_READY` becomes
+/// `EBUSY`), read from the published source rather than copied from what the board answered. This crate cannot
+/// name such a number — it belongs to the vehicle's filesystem, not to the protocol dictionary — so the golden
+/// value lives here, next to the capability bits that are read the same way.
+const EBUSY: u8 = 16;
+
 /// The address the board is on.
 fn target() -> String {
     std::env::var("MPCRAFT_HARDWARE_TARGET").expect("the gate names the port the board is on")
@@ -79,9 +88,13 @@ fn target() -> String {
 #[tokio::test]
 async fn a_board_says_what_a_simulator_cannot() {
     let spec = ConnectionSpec::parse(&target()).expect("the target is a connection specification");
-    let session = Session::connect(&spec, SessionOptions::default())
-        .await
-        .expect("the board can be reached");
+    // The client for the transfer protocol is built over the session the link holds, so the session is shared
+    // rather than borrowed; the areas that read it take it as they always did.
+    let session = Arc::new(
+        Session::connect(&spec, SessionOptions::default())
+            .await
+            .expect("the board can be reached"),
+    );
 
     let vehicle = session
         .wait_for_any_vehicle(CONNECT_TIMEOUT)
@@ -93,6 +106,7 @@ async fn a_board_says_what_a_simulator_cannot() {
     keeps_the_number_it_holds_for_itself(&session, vehicle).await;
     its_words_reach_the_interface(&session).await;
     says_it_has_no_logs(&session, vehicle).await;
+    reaches_its_own_files(&session, vehicle).await;
 
     session.stop().await;
 }
@@ -281,4 +295,133 @@ async fn says_it_has_no_logs(session: &Session, vehicle: VehicleId) {
         entries.is_empty(),
         "what the board said is that it has none"
     );
+}
+
+/// The board's own filesystem, asked for through the transfer protocol.
+///
+/// A simulator has no filesystem to reach, so this is the half that only hardware answers for. Three things are
+/// read apart here: the command the board answers without touching a filesystem at all, which is where the path
+/// is proved before anything is said about the card; the opcode this build of the firmware does not know; and the
+/// number the vehicle's file system gives when its drive cannot work.
+async fn reaches_its_own_files(session: &Arc<Session>, vehicle: VehicleId) {
+    let client = FtpClient::new(session.clone());
+
+    // `ResetSessions` is the one command this board answers without reaching its filesystem, so it is where the
+    // path is proved first: the frame, the pair the request carries, and the rule that an answer names the command
+    // it is answering. Everything asserted after this depends on those being right.
+    let reset = client
+        .exchange(ftp_message(Opcode::ResetSessions, "/"))
+        .await
+        .expect("the board answers the command that never touches a filesystem");
+
+    assert_eq!(reset.opcode, Opcode::Ack);
+    assert_eq!(
+        reset.req_opcode,
+        Opcode::ResetSessions as u8,
+        "the answer says which command it is answering",
+    );
+
+    /*
+     * The listing with the times is the opcode the published dictionary numbers 16, and the client asks for it
+     * first. This build of the firmware answers an opcode it does not know with a generic failure that names no
+     * number, so the shape the specification gives for an unknown command cannot fire against it — which is the
+     * divergence recorded in the parity matrix. It is read here rather than assumed, because the fall-back is
+     * written for a shape this board does not produce.
+     */
+    let unknown = client
+        .exchange(ftp_message(Opcode::ListDirectoryWithTime, "/"))
+        .await;
+
+    match unknown {
+        Err(LinkError::FtpRefused(refusal)) => {
+            println!("opcode 16 answered: {refusal}");
+
+            assert_eq!(refusal.req_opcode, Opcode::ListDirectoryWithTime);
+            assert_eq!(refusal.code, Some(FtpError::Fail));
+            assert_eq!(
+                refusal.errno, None,
+                "a failure that names no code carries no number"
+            );
+        }
+        other => panic!("the board answered opcode 16 with something else: {other:?}"),
+    }
+
+    /*
+     * Each exchange takes its own sequence number, which is what keeps these two answers apart: the board re-sends
+     * the answer for a number it has already seen, and a probe on the bench that reused one read the same refusal
+     * four times.
+     */
+    let listing = client.list_directory("/").await;
+
+    let refusal = match listing {
+        Err(LinkError::FtpRefused(refusal)) => refusal,
+        other => panic!("the board answered the listing with something else: {other:?}"),
+    };
+
+    println!("the listing read through the client: {refusal}");
+
+    assert_eq!(
+        refusal.req_opcode,
+        Opcode::ListDirectory,
+        "this is the answer to the second ask, so the fall-back ran",
+    );
+
+    assert_eq!(refusal.code, Some(FtpError::FailErrno));
+
+    assert_eq!(
+        refusal.errno,
+        Some(EBUSY),
+        "the number is the file system saying that its drive cannot work",
+    );
+
+    // The decision about what to do next reads the code rather than the words the message renders, and this
+    // refusal is the case where the two differ: its rendering contains the word "Fail" — which is what an earlier
+    // rule read — while the code names an error number, and a refusal that names a number is not asked again with
+    // another opcode.
+    assert!(format!("{refusal}").contains("Fail"));
+    assert!(!falls_back_from(&refusal));
+
+    // A refusal reaches the interface as a refusal, with its numbers kept apart from the sentence.
+    assert_eq!(LinkError::FtpRefused(refusal).code(), "rejected_by_vehicle");
+
+    /*
+     * What the number means is said by the same board in another channel: the startup text keeps the line about
+     * the card it could not start, and the mapping ArduPilot's file system uses gives that state the number
+     * asserted above. Two channels saying one fact, and neither is read out of prose for meaning.
+     */
+    let boot = include_str!("fixtures/pixhawk_startup.txt");
+
+    assert!(
+        boot.contains("SDCard failed to start"),
+        "the card the number says cannot work is the card the board said did not start",
+    );
+
+    /*
+     * What this area cannot assert is a filesystem. Nothing can be listed, read or parsed while the drive cannot
+     * work, so what is proved here is the part that does not depend on a card: that a refusal travels as the
+     * numbers the vehicle named. The pair the request carries is proved by the answer arriving at all — this
+     * board said nothing on the bench to a request addressed to the reserved pair and answered the one addressed
+     * to the pair it chose for itself, which is what `encode_ftp` now writes rather than what it assumed.
+     */
+    assert_eq!(
+        session.state().selected,
+        Some(vehicle),
+        "the request was addressed to the vehicle the link chose, not to an assumed address",
+    );
+}
+
+/// A request in the shape the transfer protocol carries it: the sequence number is given by the client when the
+/// command goes out, and the path asked for is the data, inside the block of bytes a payload can carry.
+fn ftp_message(opcode: Opcode, path: &str) -> FtpMessage {
+    FtpMessage {
+        seq_number: 0,
+        session: 0,
+        opcode,
+        size: path.len().min(239) as u8,
+        req_opcode: 0,
+        burst_complete: 0,
+        padding: 0,
+        offset: 0,
+        data: path.as_bytes().to_vec(),
+    }
 }
