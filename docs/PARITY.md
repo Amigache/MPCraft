@@ -798,7 +798,11 @@ dialect has: 64 + 128 + 256 + 1024 + 2048 = 3520, which is not the number upstre
 `ushort.MaxValue` arithmetic leaves behind — four of the bits it sets have no names today, and
 ArduPilot ignores them. One `COMMAND_LONG` goes out, for that vehicle alone; nothing for the vehicle
 inside the band, and nothing for the leader. What the loop cannot prove without a live fleet is that
-the vehicles fly into their slots, so the row stays partial.
+the vehicles fly into their slots, so the row stays partial — and a fleet cannot be assembled on this machine,
+which is said rather than assumed: these builds of the simulator refuse a device string for UDP, and `--slave`
+puts the extra airframes on JSON control ports (`9012`, `9022`, `9032`) rather than on the link, so one wire
+cannot see two vehicles. The scripted peer stands in for the dispatch, which covers the arithmetic and not the
+flying.
 
 The **places** an operator wrote and the **decision** to run them are kept in the settings file, and
 they are kept apart: a fleet is set up once and flown many times, and writing slots for a fleet is not
