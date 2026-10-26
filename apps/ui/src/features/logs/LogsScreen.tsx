@@ -713,7 +713,6 @@ export function LogsScreen() {
                     {samples.rows.map((row, index) => (
                       // The rows are the samples of the log, and they have no identity
                       // of their own: the position in the list is the identity.
-                      // eslint-disable-next-line react/no-array-index-key
                       <tr
                         key={index}
                         className={styles.row}

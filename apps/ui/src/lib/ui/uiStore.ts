@@ -684,9 +684,10 @@ export const useUiStore = create<UiStore>((set, get) => ({
     try {
       const groups = await listParameterGroups();
       set({ parameterGroups: groups });
-    } catch (cause) {
+    } catch {
       // A catalogue that could not be read is an empty one, and an empty
-      // configuration menu is better than one that lies about the groups.
+      // configuration menu is better than one that lies about the groups. The reason is not
+      // kept: nothing on the screen reads it, so a name for it would be a name for nothing.
       set({ parameterGroups: [] });
     }
   },

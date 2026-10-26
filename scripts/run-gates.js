@@ -71,6 +71,27 @@ const GATES = [
     control: null,
   },
   {
+    name: "frontend lint",
+    layer: "frontend",
+    /**
+     * The gate reads the sources this project can change and names what it leaves out: the vendored
+     * MapLibre worker under public/, and the React JSX rules, because the plugin for those cannot run on
+     * the version of eslint declared in apps/ui/package.json. A rule that is not carried cannot be
+     * switched off, so a source file that disables one is a finding rather than a preference.
+     */
+    command: "npm",
+    probe: ["--version"],
+    args: ["run", "lint"],
+    cwd: UI,
+    control:
+      "scripts/check-lint-controls.js: a name written and never read, a dependency list that does not match what the effect reads, and a disable comment for a rule the configuration does not register",
+    /** eslint says nothing when it is happy, so its green rests on the exit code alone. */
+    proof: (text) =>
+      /(\d+) problems/.test(text)
+        ? text.match(/(\d+) problems/)[0]
+        : "no findings; its green rests on the exit code alone",
+  },
+  {
     name: "prettier",
     layer: "any",
     /** The house rule: only the files the change touched. */

@@ -87,7 +87,9 @@ export function FlightTestPanel() {
         );
       }
     },
-    [report, t],
+    // `t` is read by the panel itself, not by this callback, so it is not part of what the
+    // callback closes over.
+    [report],
   );
 
   return (

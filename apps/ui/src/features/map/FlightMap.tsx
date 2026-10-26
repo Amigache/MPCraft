@@ -343,6 +343,10 @@ export function FlightMap() {
   // The sources of tiles are the backend's, and the backend is the one that fetches
   // them: the map asks it for the tiles it needs.
   const [sources, setSources] = useState<readonly MapProvider[]>([]);
+  // A source that could not be read is said as the fact that it could not be read, and not as a
+  // sentence kept inside the slot that holds what the map itself said went wrong: that slot is data,
+  // and the word about it is worked out when the screen draws it.
+  const [sourcesFailure, setSourcesFailure] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -357,7 +361,7 @@ export function FlightMap() {
         // The map is drawn with what it has: a source that cannot be read is a map
         // without tiles, and the map says so.
         if (!cancelled) {
-          setFailure(t("The sources of tiles could not be read."));
+          setSourcesFailure(true);
         }
       });
 
@@ -373,7 +377,11 @@ export function FlightMap() {
       return;
     }
 
-    const provider = providerOf(mapProvider);
+    // The provider is read from the store here rather than from the value the component holds: the
+    // map is built once with the provider chosen at that moment, and a provider chosen afterwards is
+    // applied by the effect that puts a new style on the map that already exists. A dependency on the
+    // value would build a second map instead of changing the style of this one.
+    const provider = providerOf(useUiStore.getState().mapProvider);
     if (provider === null) {
       return;
     }
@@ -713,14 +721,19 @@ export function FlightMap() {
     });
     observer.observe(element);
 
+    // The refs are copied here rather than read inside the cleanup: by the time the cleanup runs, a
+    // ref can point at something else, and the markers that this effect put on the map are the ones
+    // it has to take off.
+    const markers = items.current;
+
     return () => {
       observer.disconnect();
       marker.current?.remove();
       marker.current = null;
-      for (const entry of items.current.values()) {
+      for (const entry of markers.values()) {
         entry.marker.remove();
       }
-      items.current.clear();
+      markers.clear();
       instance.remove();
       map.current = null;
       loaded.current = false;
@@ -1132,7 +1145,9 @@ export function FlightMap() {
 
     // The operator is told when the map is not showing every item of the plan.
     usePlanEditorStore.getState().setMarked(drawn, places.length);
-  }, []);
+    // The plan on the screen is the plan being edited only while the editor is the screen that is
+    // open, so the guard is part of what this callback reads.
+  }, [editorOpen]);
 
   // The markers are drawn when the plan changes.
   useEffect(() => {
@@ -1357,6 +1372,12 @@ export function FlightMap() {
         {adding ? (
           <p className={styles.hint} role="status">
             {t("Click the map to add a waypoint")}
+          </p>
+        ) : null}
+
+        {sourcesFailure ? (
+          <p className={styles.failure} role="alert">
+            {t("The sources of tiles could not be read.")}
           </p>
         ) : null}
 

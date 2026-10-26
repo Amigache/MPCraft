@@ -113,8 +113,6 @@ export function Gauge({
     draw(liveTelemetry.value);
 
     return liveTelemetry.subscribe(draw);
-    // The selector and the range are fixed for the life of the dial.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, min, max, digits, label, unit, select]);
 
   return (
@@ -129,11 +127,7 @@ export function Gauge({
         {label}
       </text>
 
-      {kind === "compass" ? (
-        <CompassScale />
-      ) : (
-        <Scale min={min} max={max} />
-      )}
+      {kind === "compass" ? <CompassScale /> : <Scale min={min} max={max} />}
 
       <g ref={needle}>
         <path

@@ -340,13 +340,15 @@ localised messages. **A message is never parsed for meaning.**
 | Pure logic | Unit tests next to the code; `proptest` for the framer and parsers |
 | Wire format | Golden files: real captured frames → expected decoded values |
 | Round-trip | `serialise → parse → serialise` byte equality |
-| Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli` in CI |
+| Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli`. In CI the half that needs no vehicle — the golden files — runs on the runner, and the live half is named as `HERRAMIENTA-AUSENTE` when no image can be pulled anonymously; it runs against a simulator started locally with `MPCRAFT_SITL_LIVE=1` |
 | Compatibility | Upstream's own test corpus: real `.tlog`, `.param`, `.waypoints` files |
-| Frontend | Vitest for stores and reducers; Playwright for the critical flows |
-| Gates | `scripts/run-gates.js` runs them and says which layer it did not read (`NO-APLICA`, `HERRAMIENTA-AUSENTE`, `SUSTITUIDA`), so a green that rests on nothing is not read as a pass. A home-grown gate is shown failing on a known-bad case and passing on a known-good one before its green is trusted (`scripts/check-overlaps-controls.js`, `scripts/run-gates-controls.js`, `scripts/check-parity-controls.js`). The parity matrix is read rather than remembered: its counts are worked out from the rows (`scripts/check-parity.js`) |
+| Frontend | Vitest for stores and reducers; Playwright for the critical flows; eslint for what a reader would have to notice by hand — a name written and never used, a dependency list that does not match what the effect reads. It reads the sources this project can change and names what it leaves out: the vendored MapLibre worker under `public/`, and the React JSX rules, because the plugin for those cannot run on the version of eslint declared in `apps/ui/package.json`. A rule that is not carried cannot be switched off, so a source file that disables one is a finding |
+| Gates | `scripts/run-gates.js` runs them and says which layer it did not read (`NO-APLICA`, `HERRAMIENTA-AUSENTE`, `SUSTITUIDA`), so a green that rests on nothing is not read as a pass. A home-grown gate is shown failing on a known-bad case and passing on a known-good one before its green is trusted (`scripts/check-overlaps-controls.js`, `scripts/run-gates-controls.js`, `scripts/check-lint-controls.js`, `scripts/check-parity-controls.js`). The parity matrix is read rather than remembered: its counts are worked out from the rows (`scripts/check-parity.js`) |
 
 The SITL container is the linchpin: it lets the whole stack be tested without hardware, and the
-same harness serves the demo builds.
+same harness serves the demo builds. It is not published anonymously, so on the runner the live half is
+said as a tool that is not there rather than failing at an initialization it cannot complete; the same
+suite answers against a simulator started locally, where a vehicle is really on the wire.
 
 ---
 

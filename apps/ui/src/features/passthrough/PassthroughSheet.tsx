@@ -181,6 +181,10 @@ export function PassthroughSheet() {
             <pre className={styles.answer}>
               {new TextDecoder()
                 .decode(new Uint8Array(passthrough.data))
+                // The control characters are the point of this line, not an accident: the bytes a
+                // port can hand over include them, and only the ones that cannot be drawn are
+                // replaced with a dot.
+                // eslint-disable-next-line no-control-regex
                 .replace(/[\u0000-\u0008\u000e-\u001f]/g, ".")}
             </pre>
             <p className={styles.text}>
