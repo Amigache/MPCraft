@@ -565,6 +565,16 @@ the play-back are the same thing seen from three sides. The **graph** is the fou
 side of it: a log that is being played back is what the graph draws, and the line that
 says where the play-head is is the moment the grid and the map are showing too.
 
+The grid **names the columns whose type the published table does not give**, so that a value kept
+as the text of the file does not look like a number the reader read badly. The names come from the
+declaration, not from the sample, and they are said as data — the field is called what the file
+calls it — while the sentence that says it is a word of the interface. In the binary form the same
+field makes the whole message unreadable, because a field with no type has no size, and there the
+screen says why rather than reporting that the message is not there: the log does declare it, and
+what is missing is not the message but the size of one of its fields. What cannot be measured at
+the two sizes is a grid with rows on it, because the browser run has no backend to open a log; the
+screen was measured as it stands without one, and both sentences are checked against the catalogue.
+
 The line the map draws for a log is the whole path the file holds, not the part that has
 been played: a moment at two minutes has to be a moment on a line that is there, and the
 map knows the flight only through the store the screen reads. It is drawn in the colour of

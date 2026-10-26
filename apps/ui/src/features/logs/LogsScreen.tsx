@@ -747,6 +747,20 @@ export function LogsScreen() {
                     { shown: samples.rows.length, total: samples.total },
                   )}
                 </p>
+
+                {samples.untyped.length > 0 ? (
+                  // The names are what the file says, so they are said as data; what is added here
+                  // is that these columns are not numbers read with a type — they are what the file
+                  // wrote, and the reader cannot know what unit they are in.
+                  <p className={styles.note}>
+                    {t(
+                      samples.untyped.length === 1
+                        ? "{names} has no type the published table gives, so its value is drawn as the file wrote it."
+                        : "{names} have no type the published table gives, so their values are drawn as the file wrote them.",
+                      { names: samples.untyped.join(", ") },
+                    )}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </>

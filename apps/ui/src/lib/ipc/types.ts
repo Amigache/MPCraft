@@ -1054,6 +1054,13 @@ export interface MessageSamples {
   /** How many of them the log holds. */
   readonly total: number;
   /**
+   * The names of the fields whose type the published table does not give.
+   *
+   * Their values are what the file wrote rather than numbers read with a type, so the grid says
+   * which columns are of that kind instead of letting a text look like a value read badly.
+   */
+  readonly untyped: readonly string[];
+  /**
    * When each of them happened, in seconds after the start of the log.
    */
   readonly instants: readonly number[];

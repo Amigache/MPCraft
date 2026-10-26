@@ -1371,6 +1371,13 @@ const bundles: Record<Locale, Record<string, string>> = {
       "{shown} de {total} muestra. Al pulsar una fila, el vuelo se mueve a ese momento.",
     "{shown} of {total} samples. Click a row and the flight is moved to that moment.":
       "{shown} de {total} muestras. Al pulsar una fila, el vuelo se mueve a ese momento.",
+    // The columns whose type the published table does not give. The names are what the file says,
+    // so they are said as data; what is added here is that the value is the text of the file and
+    // not a number read with a type.
+    "{names} has no type the published table gives, so its value is drawn as the file wrote it.":
+      "{names} no tiene un tipo que la tabla publicada dé, por eso su valor se dibuja como lo escribió el archivo.",
+    "{names} have no type the published table gives, so their values are drawn as the file wrote them.":
+      "{names} no tienen un tipo que la tabla publicada dé, por eso sus valores se dibujan como los escribió el archivo.",
     "Write the track of the log as a KML document":
       "Escribir el camino del registro como documento KML",
     "Write the track (KML)": "Escribir el camino (KML)",

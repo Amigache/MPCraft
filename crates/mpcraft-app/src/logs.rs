@@ -276,6 +276,13 @@ pub fn dataflash_samples(path: &Path, name: &str, limit: usize) -> CommandResult
         fields,
         rows,
         total,
+        // A field the table does not give keeps its name here, so the grid can say which columns
+        // are drawn as the file wrote them rather than as numbers read with a type.
+        untyped: reader
+            .formats()
+            .get(name)
+            .map(|format| format.untyped())
+            .unwrap_or_default(),
         instants: Vec::new(),
     })
 }
@@ -474,6 +481,24 @@ pub fn binary_samples(path: &Path, name: &str, limit: usize) -> CommandResult<Me
     }
 
     if total == 0 {
+        // The log does declare this message, and the reader knows why it could not read it: a field
+        // whose type the published table does not give has no size, so none of its values can be
+        // read with the types they were declared with. That is said rather than reported as an
+        // absence, because the message is not absent — it is unreadable.
+        let gap = reader
+            .formats()
+            .values()
+            .find(|format| format.name == name)
+            .map(|format| format.untyped())
+            .unwrap_or_default();
+
+        if !gap.is_empty() {
+            return Err(CommandError::invalid_request(format!(
+                "the log declares {name:?}, and its fields {} have no type the published table gives, so their values cannot be read",
+                gap.join(", ")
+            )));
+        }
+
         return Err(CommandError::invalid_request(format!(
             "the log holds no message called {name:?}"
         )));
@@ -484,6 +509,14 @@ pub fn binary_samples(path: &Path, name: &str, limit: usize) -> CommandResult<Me
         fields,
         rows,
         total,
+        // The same names, from the declaration rather than from the sample: in a binary log the
+        // reader cannot know what a field of a type the table does not give holds.
+        untyped: reader
+            .formats()
+            .values()
+            .find(|format| format.name == name)
+            .map(|format| format.untyped())
+            .unwrap_or_default(),
         instants: Vec::new(),
     })
 }
@@ -504,6 +537,12 @@ pub struct MessageSamples {
     pub rows: Vec<Vec<serde_json::Value>>,
     /// How many of them the log holds.
     pub total: u64,
+    /// The names of the fields whose type the published table does not give.
+    ///
+    /// These are drawn as the file wrote them rather than as numbers worked out with a type, so
+    /// the grid has to say which columns are of that kind — otherwise a value kept as text looks
+    /// like a value the reader read badly.
+    pub untyped: Vec<String>,
     ///
     /// When each of them happened, in seconds after the start of the log.
     ///
@@ -612,6 +651,9 @@ pub fn message_samples(path: &Path, name: &str, limit: usize) -> CommandResult<M
         fields,
         rows,
         total,
+        // Every field of a frame comes from a message the dialect defines, so there is nothing
+        // here to say.
+        untyped: Vec::new(),
         instants,
     })
 }
@@ -1015,6 +1057,59 @@ mod tests {
 
         assert_eq!(summary.records, 2);
         assert_eq!(summary.broken, 1);
+    }
+
+    #[test]
+    fn the_grid_names_the_field_the_table_does_not_give() {
+        let path = std::env::temp_dir().join("mpcraft-test-untyped-grid.log");
+
+        std::fs::write(
+            &path,
+            "FMT, 132, 20, MYS, QY, TimeUS,Mystery\nMYS, 1000, seven\n",
+        )
+        .expect("the log is written");
+
+        let samples = message_samples(&path, "MYS", 10).expect("the samples are read");
+
+        // The field keeps its place in the row and its name is said as untipped, so the grid can
+        // show what the file wrote without looking like a number the reader read badly.
+        assert_eq!(samples.untyped, vec!["Mystery".to_owned()]);
+        assert_eq!(
+            samples.rows[0][1],
+            serde_json::Value::String("seven".to_owned())
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_binary_message_that_cannot_be_read_says_why_rather_than_that_it_is_absent() {
+        let path = std::env::temp_dir().join("mpcraft-test-untyped-grid.bin");
+
+        // A declaration with a character the published table does not give: the message is there,
+        // and its values cannot be read because the field has no size. The three regions of a
+        // declaration have fixed widths — four for the name, sixteen for the types, sixty-four for
+        // the labels — so the padding is written as the log writes it.
+        let mut bytes = vec![0xA3, 0x95, 0x80, 0x81, 11];
+        bytes.extend_from_slice(b"MYS\0");
+        bytes.extend_from_slice(b"QY");
+        bytes.extend_from_slice(&[0_u8; 14]);
+        bytes.extend_from_slice(b"TimeUS,Mystery");
+        bytes.extend_from_slice(&[0_u8; 50]);
+        bytes.extend_from_slice(&[0xA3, 0x95, 0x81]);
+        bytes.extend_from_slice(&1_000_u64.to_le_bytes());
+
+        std::fs::write(&path, bytes).expect("the log is written");
+
+        let error = message_samples(&path, "MYS", 10).unwrap_err();
+
+        assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
+        assert!(
+            error.message.contains("no type the published table gives"),
+            "{error}"
+        );
+
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

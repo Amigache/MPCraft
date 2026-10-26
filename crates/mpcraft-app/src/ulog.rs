@@ -152,6 +152,9 @@ pub fn samples(path: &Path, name: &str, limit: usize) -> CommandResult<MessageSa
         fields,
         rows,
         total,
+        // A log of PX4 declares the type of every field of its topics, so there is nothing here
+        // to say: the grid draws what the file declares.
+        untyped: Vec::new(),
         instants,
     })
 }
