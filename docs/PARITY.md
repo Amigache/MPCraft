@@ -319,12 +319,14 @@ waited for, asked what it is, its flash is erased, the firmware is written block
 block and the board is told to start again.
 
 The board can also be **restarted into its bootloader** from the same sheet: the vehicle
-is asked to do it, and it does. The command that asks for it (`MAV_CMD_FLASH_BOOTLOADER`,
-42650) is not in the enumeration of commands of the protocol library the project uses,
-which stops at 32000, so it is written by hand: the message that carries it is built
-byte by byte, the number of the command goes in it as it is, and the answer of the
-vehicle is read as an answer is read. The link stops carrying MAVLink when the board is
-in the bootloader, because the board is then waiting for the protocol of the bootloader.
+is asked to do it, and it does. The message that carries the command (`MAV_CMD_FLASH_BOOTLOADER`,
+42650) is built byte by byte rather than through the enumeration of commands of the protocol
+library, so the number travels as it was written and the answer of the vehicle is read as an
+answer is read. That is what a command the metadata table does not describe needs, because the
+generic executor cannot say what its slots mean and does not offer them — and the dialect this
+project uses does name 42650, so the raw path is kept for the numbers it does not. The link stops
+carrying MAVLink when the board is in the bootloader, because the board is then waiting for the
+protocol of the bootloader.
 
 The flash of a board can also be **erased**, from the same sheet: the board is asked
 what it is and its memory is left clean, which is what the operator wants when the

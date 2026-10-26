@@ -104,9 +104,8 @@ pub enum CommandError {
     },
     /// The vehicle understood the command and refused it.
     ///
-    /// The command is one whose number the enumeration of the protocol library does not
-    /// carry — ArduPilot gives commands to itself with numbers above the ones the
-    /// library knows — so the number itself is what is said.
+    /// The command was sent as a number rather than as a variant the library names — one the
+    /// metadata table does not describe — so the number itself is what is said.
     RefusedRaw {
         /// The number of the command that was sent.
         command: u32,
@@ -826,10 +825,11 @@ impl Session {
 
     /// Reboots a vehicle into the bootloader so it can be flashed.
     ///
-    /// The command is sent as a raw `COMMAND_LONG` because the value of
-    /// `MAV_CMD_FLASH_BOOTLOADER` is larger than the command ids the generated bindings
-    /// carry — the enumeration of the protocol library stops at 32000, and this command is
-    /// 42650. The vehicle answers with `COMMAND_ACK`.
+    /// The command is sent as a raw `COMMAND_LONG`: the number travels as it was written, rather
+    /// than as a variant of the enumeration. That is what a command the metadata table does not
+    /// describe needs, because the generic executor cannot say what its slots mean and so does not
+    /// offer it. The dialect the project uses does name 42650 as `MAV_CMD_FLASH_BOOTLOADER`; the
+    /// raw path is kept for the numbers it does not. The vehicle answers with `COMMAND_ACK`.
     ///
     /// # Errors
     ///
@@ -1115,11 +1115,10 @@ fn encode_command_long(
 
 /// The result of the last acknowledgement of a raw command.
 ///
-/// The generated `COMMAND_ACK` carries the command as an enumeration that stops short of
-/// the values ArduPilot uses for its own commands, so the id of the command cannot be
-/// compared here. The acknowledgement is matched on the vehicle instead — the same way
-/// the ordinary commands are — and the result is taken from the last one that is not
-/// interim.
+/// A raw command may be a number the enumeration does not name, and the generated parser refuses an
+/// acknowledgement whose command value it does not define, so the id cannot be compared here. The
+/// acknowledgement is matched on the vehicle instead — the same way the ordinary commands are — and
+/// the result is taken from the last one that is not interim.
 fn acknowledgement_result_raw(messages: &[ReceivedMessage]) -> Option<MavResult> {
     messages
         .iter()
