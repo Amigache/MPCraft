@@ -628,10 +628,51 @@ export function LogsScreen() {
               {summary.messages.map((message) => (
                 <span key={message.name} className={styles.message}>
                   <span className={styles.messageName}>{message.name}</span>
-                  <span className={styles.messageCount}>{message.count}</span>
+                  <span className={styles.messageCount}>
+                    {formatCount(message.count)}
+                  </span>
                 </span>
               ))}
             </div>
+
+            {/* The count is said with its places: a number that the interface knows and does not show
+                is a number the operator cannot look at. The names of the message and of the field are
+                what the file calls them; the word about the line is a word of the interface. */}
+            {summary.unread.length > 0 ? (
+              <section className={styles.places}>
+                <h3 className={styles.label}>
+                  {t("Where the reader could not read")}
+                </h3>
+                <ul className={styles.placeList}>
+                  {summary.unread.map((place) => (
+                    <li
+                      key={`${place.line}:${place.message}:${place.field}`}
+                      className={styles.place}
+                    >
+                      <span className={styles.placeLine}>
+                        {t("line {line}", { line: formatNumber(place.line) })}
+                      </span>
+                      <span className={styles.placeName}>{place.message}</span>
+                      <span className={styles.placeField}>{place.field}</span>
+                      <span className={styles.placeText}>{place.text}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* A list that stops is not a list that is whole, so what it left out is said as its
+                    own number rather than read as nothing. */}
+                {summary.unreadLeft > 0 ? (
+                  <p className={styles.note}>
+                    {t(
+                      summary.unreadLeft === 1
+                        ? "{count} place was left out of the list"
+                        : "{count} places were left out of the list",
+                      { count: formatCount(summary.unreadLeft) },
+                    )}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
           </>
         ) : null}
 

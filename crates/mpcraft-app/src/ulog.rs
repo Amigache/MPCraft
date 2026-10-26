@@ -75,6 +75,10 @@ pub fn summary(path: &Path) -> CommandResult<LogSummary> {
         end,
         records: total,
         broken: reader.damage().len() as u64,
+        // The places this list can hold are fields with a declared type; what the log says it lost is
+        // a stretch of bytes without a field to name, so the count has no places behind it.
+        unread: Vec::new(),
+        unread_left: reader.damage().len() as u64,
     })
 }
 

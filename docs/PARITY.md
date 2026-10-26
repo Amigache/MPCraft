@@ -599,6 +599,19 @@ cannot be measured at the two sizes is a log open on the screen, because the bro
 backend to open one; the rules that keep the text and count the places are tested against lines
 written down before the function was called.
 
+The places the reader names travel with the count, because a number the interface knows and does not show
+is a number the operator cannot look at: the contract carries the line, the message, the field and what the
+line said, up to the fifty the reader keeps, and the screen draws them when there are any, with what the
+bounded list left out said as its own number — a list that stops is not a list that is whole. In the binary
+form and in the PX4 one there is nothing to name, because a field whose type the published table does not
+give has no size, so the whole message cannot be read rather than one value of it: those counts arrive
+without a list, and the code says why rather than sending an empty list as if the file had named none. What
+cannot be measured at the two sizes is the list with rows on it, because the browser run has no backend to
+open a log; the screen was measured as it stands without one and the words are checked against the
+catalogue. The count of each message on the screen is written with the separator of the language the window
+is read in, which is the rule the formatting module carries — before this it was drawn as the number itself,
+which says one number to somebody who reads the other language.
+
 The block was asked for without letting the channel go quiet, which is what the same rule
 about an open file says when it is followed: fifteen seconds between the open and the read
 was answered with the code for the end even though the file is 36 MB, because the vehicle

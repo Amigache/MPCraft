@@ -948,6 +948,22 @@ export interface LogSummary {
   readonly records: number;
   /** How many records could not be read. */
   readonly broken: number;
+  /**
+   * The places the reader names, up to the ceiling it keeps. A count without its places is a count
+   * the interface knows and does not show, so they travel with it.
+   */
+  readonly unread: readonly {
+    /** The line it was on. */
+    readonly line: number;
+    /** The message it belongs to, named as the file names it. */
+    readonly message: string;
+    /** The field, named as the declaration names it. */
+    readonly field: string;
+    /** What the line said, kept as it was written. */
+    readonly text: string;
+  }[];
+  /** How many of them the bounded list did not name. */
+  readonly unreadLeft: number;
 }
 
 /**

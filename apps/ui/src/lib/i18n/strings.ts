@@ -1370,6 +1370,14 @@ const bundles: Record<Locale, Record<string, string>> = {
       "{broken} registro contiene algo que el lector no pudo leer",
     "{broken} records hold something the reader could not read":
       "{broken} registros contienen algo que el lector no pudo leer",
+    // The places the reader names, up to the ceiling it keeps. The message and the field are named as
+    // the file names them — that is data — while the word about the line is a word of the interface.
+    "Where the reader could not read": "Dónde el lector no pudo leer",
+    "line {line}": "línea {line}",
+    "{count} place was left out of the list":
+      "{count} lugar se quedó fuera de la lista",
+    "{count} places were left out of the list":
+      "{count} lugares se quedaron fuera de la lista",
     "The logs of the vehicle": "Los registros del vehículo",
     "Ask the vehicle for the logs it holds in its own memory":
       "Pedir al vehículo los registros que tiene en su propia memoria",

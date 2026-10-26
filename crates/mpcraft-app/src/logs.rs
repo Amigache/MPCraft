@@ -88,7 +88,6 @@ pub fn format_of(path: &Path) -> LogFormat {
 }
 
 /// What a log holds.
-/// What a log holds.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LogSummary {
@@ -103,6 +102,25 @@ pub struct LogSummary {
     /// How many records hold something the reader could not read with the type it was declared
     /// with — a record that is partly read is not a record that was read whole.
     pub broken: u64,
+    /// The places the reader names, up to the ceiling it keeps. A count that can be said without
+    /// its places is a count the interface knows and does not show, so the places travel with it.
+    pub unread: Vec<UnreadPlace>,
+    /// How many of them the bounded list did not name.
+    pub unread_left: u64,
+}
+
+/// One place the reader could not read with the type its declaration says, kept as the file wrote it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadPlace {
+    /// The line it was on.
+    pub line: u64,
+    /// The message it belongs to, named as the file names it.
+    pub message: String,
+    /// The field, named as the declaration names it.
+    pub field: String,
+    /// What the line said, kept as it was written.
+    pub text: String,
 }
 
 /// One of the messages a log holds.
@@ -175,6 +193,11 @@ pub fn summarise(path: &Path) -> CommandResult<LogSummary> {
         end,
         records,
         broken,
+        // A telemetry log declares no types to read a value against, so there is no place to name:
+        // what cannot be read there is a record that does not frame, and the count is all the log
+        // says about it.
+        unread: Vec::new(),
+        unread_left: 0,
     })
 }
 
@@ -213,6 +236,20 @@ pub fn dataflash_summary(path: &Path) -> CommandResult<LogSummary> {
         // A line whose number is not the type its declaration says is not read as zero: it keeps
         // what the file wrote, and the count here names how many there were.
         broken: reader.unread_count(),
+        // The places are kept with the count, up to the ceiling the reader holds, so the interface
+        // can say where it could not read rather than only how many. What the ceiling left out is
+        // said as a number rather than invented as a place.
+        unread: reader
+            .unread()
+            .iter()
+            .map(|place| UnreadPlace {
+                line: place.line,
+                message: place.message.clone(),
+                field: place.field.clone(),
+                text: place.text.clone(),
+            })
+            .collect(),
+        unread_left: reader.dropped_unread(),
     })
 }
 
@@ -425,6 +462,11 @@ pub fn binary_summary(path: &Path) -> CommandResult<LogSummary> {
         // that ends in the middle of a record keeps what came before it, and the place where it
         // stopped is with the reader.
         broken: reader.damage().len() as u64,
+        // Nothing can be named as a place here: a field whose type the published table does not give
+        // has no size, so the whole message cannot be read rather than one value of it, and the
+        // places that were counted are all outside of what this list can hold.
+        unread: Vec::new(),
+        unread_left: reader.damage().len() as u64,
     })
 }
 
@@ -1057,6 +1099,39 @@ mod tests {
 
         assert_eq!(summary.records, 2);
         assert_eq!(summary.broken, 1);
+        assert_eq!(
+            summary.unread,
+            vec![UnreadPlace {
+                line: 2,
+                message: "GPS".to_owned(),
+                field: "Hdop".to_owned(),
+                text: "-1".to_owned(),
+            }]
+        );
+        assert_eq!(summary.unread_left, 0);
+    }
+
+    #[test]
+    fn the_places_are_named_up_to_the_ceiling_and_the_rest_are_counted() {
+        let path = std::env::temp_dir().join("mpcraft-test-unread-ceiling.log");
+
+        // Fifty places are named and one is not. A list that stops is not a list that is whole, so
+        // what it left out travels as its own number rather than being read as nothing.
+        let mut log = String::from("FMT, 131, 20, GPS, QI, TimeUS,Hdop\n");
+
+        for step in 0..51 {
+            log.push_str(&format!("GPS, {}, -1\n", 1_000 + step));
+        }
+
+        std::fs::write(&path, log).expect("the log is written");
+
+        let summary = summarise(&path).expect("the log is read");
+
+        assert_eq!(summary.broken, 51);
+        assert_eq!(summary.unread.len(), 50);
+        assert_eq!(summary.unread_left, 1);
+        assert_eq!(summary.unread[0].line, 2);
+        assert_eq!(summary.unread[49].line, 51);
     }
 
     #[test]
