@@ -24,7 +24,7 @@ use mpcraft_mavlink::dialect::messages::{
 use mpcraft_mavlink::MavMessage;
 
 use crate::error::LinkError;
-use crate::session::Session;
+use crate::session::{ReceivedMessage, Session};
 use crate::vehicle::VehicleId;
 
 /// The message id of `LOG_REQUEST_LIST`.
@@ -95,17 +95,7 @@ pub async fn list_logs(
 
     let messages = collector.wait(timeout).await?;
 
-    let mut entries: Vec<LogEntry> = messages
-        .iter()
-        .filter_map(|message| match &message.message {
-            MavMessage::LOG_ENTRY(entry) => Some(entry_of(entry)),
-            _ => None,
-        })
-        .collect();
-
-    entries.sort_by_key(|entry| entry.id);
-
-    Ok(entries)
+    Ok(entries_of(&messages))
 }
 
 /// Fetches a log of the vehicle, and gives the bytes back.
@@ -189,6 +179,34 @@ pub async fn read_log(
     Ok(bytes)
 }
 
+/// The logs the answers say the vehicle holds.
+///
+/// A vehicle that has no logs answers with one entry that says there are none: `num_logs` zero and
+/// `last_log_num` zero, with nothing else behind it. That is the vehicle saying something about itself, and
+/// it must not be read as a log — an entry that says nothing would put a log of no bytes in front of the
+/// operator, and the browser would count records it cannot read. Upstream returns the empty list for exactly
+/// this answer (`MAVLinkInterface.cs`, the branch on `num_logs == 0 && last_log_num == 0`).
+fn entries_of(messages: &[ReceivedMessage]) -> Vec<LogEntry> {
+    if messages.iter().any(|message| match &message.message {
+        MavMessage::LOG_ENTRY(entry) => entry.num_logs == 0 && entry.last_log_num == 0,
+        _ => false,
+    }) {
+        return Vec::new();
+    }
+
+    let mut entries: Vec<LogEntry> = messages
+        .iter()
+        .filter_map(|message| match &message.message {
+            MavMessage::LOG_ENTRY(entry) => Some(entry_of(entry)),
+            _ => None,
+        })
+        .collect();
+
+    entries.sort_by_key(|entry| entry.id);
+
+    entries
+}
+
 /// One of the logs a vehicle holds, as the message says it.
 fn entry_of(entry: &LOG_ENTRY_DATA) -> LogEntry {
     LogEntry {
@@ -207,4 +225,57 @@ fn piece(id: u16, offset: u32, count: u8) -> MavMessage {
         count,
         data: [0; 90],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use mpcraft_mavlink::dialect::messages::LOG_ENTRY_DATA;
+
+    use super::*;
+
+    /// One answer of the list, as the vehicle sent it.
+    fn answer(id: u16, num_logs: u16, last_log_num: u16, size: u32) -> ReceivedMessage {
+        ReceivedMessage {
+            system_id: 1,
+            component_id: 1,
+            message_id: LOG_ENTRY_ID,
+            message_name: "LOG_ENTRY".to_owned(),
+            message: MavMessage::LOG_ENTRY(LOG_ENTRY_DATA {
+                id,
+                num_logs,
+                last_log_num,
+                time_utc: 0,
+                size,
+            }),
+        }
+    }
+
+    #[test]
+    fn a_vehicle_that_has_no_logs_says_so_and_is_not_read_as_a_log() {
+        // The whole answer this board gave on the bench: one entry that says there are none, with nothing
+        // behind it. Read as a log it would show a flight with no records to graph.
+        let messages = vec![answer(0, 0, 0, 0)];
+
+        assert_eq!(entries_of(&messages), Vec::new());
+    }
+
+    #[test]
+    fn the_logs_a_vehicle_lists_are_read_in_the_order_the_vehicle_numbers_them() {
+        // The answers arrive in any order; the number the vehicle gives each log is what orders them.
+        let messages = vec![answer(2, 3, 2, 4_196), answer(1, 3, 2, 8_192)];
+        let entries = entries_of(&messages);
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].id, 1);
+        assert_eq!(entries[1].id, 2);
+    }
+
+    #[test]
+    fn an_answer_that_names_a_log_is_not_the_answer_that_says_there_are_none() {
+        // An entry that carries its own number and a total is a log, even when its last number happens to be
+        // its own.
+        let messages = vec![answer(1, 1, 1, 120)];
+
+        assert_eq!(entries_of(&messages).len(), 1);
+    }
 }

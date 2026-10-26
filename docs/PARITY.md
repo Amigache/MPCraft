@@ -707,6 +707,31 @@ would never see it arrive. And the gate names each live area by its own report, 
 now and one that passed cannot stand for the other; each of them is read against an instance of its own, since
 one instance serves one connection and stops when that connection goes away.
 
+The **board** on the other end of a port says things a simulator cannot say. It names its model in the text it
+prints when it starts — `Detected Pixhawk` — and the identifier it reports cannot name a model: vendor `4617`
+and product `22337` are `0x1209` and `0x5741`, the pair ArduPilot uses as the default for non-composite boards,
+so they say the family and nothing else, which is why the detection reads the startup text rather than the
+number. The capture keeps that text as it was captured, with the frames taken out by the rule the sniffer uses,
+and the expected name is the one the hardware list the firmware manifest follows gives this board rather than the
+table in the module being checked. The board also chooses an address for itself: it introduces itself as `2:1`,
+and its own parameter says `MAV_SYSID = 2`, so the key the station builds can be compared with what the vehicle
+holds for itself instead of with the address a station would assume. What it says about what it does not have is
+the same kind of fact — the airspeed sensor it did not find, the card that failed to start, and therefore no
+logs. While a link answers as a vehicle its words come inside the frames, as `STATUSTEXT`, so the capture of the
+text outside them stays empty on a running link; that is what the run recorded, and the gate names the peer that
+answered it, because with no port named a scripted board stands in and a script has no model to name and no
+address of its own.
+
+A board with no logs answers the list with **one entry that says there are none**, which is the vehicle saying
+something about itself rather than a log: the reader used to turn that answer into a flight with no records, and
+upstream returns the empty list for exactly this answer (`num_logs == 0 && last_log_num == 0`). The rule now
+matches, and the area that reads a real board asserts it against the answer the board gave.
+
+The catalogue carries `SYSID_THISMAV`, the name upstream's metadata still holds, while this build of ArduPilot
+reports `MAV_SYSID`. A parameter the catalogue does not know still arrives as the vehicle said it, and the gap is
+written down rather than closed by hand, because the catalogue is generated from upstream's files: a hand-written
+entry would be a catalogue that disagrees with the tool that produces it.
+
 The **station asks for the capabilities** too, because they decide which encoding the items of a plan
 travel in. Upstream asks for the autopilot version when the link opens, through the command that
 requests a message with the number 148 as its first slot; MPCraft decoded that report without ever

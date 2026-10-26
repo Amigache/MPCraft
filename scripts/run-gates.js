@@ -169,6 +169,39 @@ const GATES = [
     proof: (text) => resultForSection(text, "streams_live"),
   },
   {
+    name: "the board read as a vehicle",
+    layer: "rust",
+    /**
+     * A board on a port answers this gate when MPCRAFT_HARDWARE_TARGET names it, because the things it says
+     * about itself are things a simulator cannot say: the model it is, the address it chose for itself, the card
+     * that failed to start, and the answer it gives when asked for logs it does not hold. Without one on the
+     * machine a scripted board stands in — it prints a banner and answers as a vehicle, but it has no hardware
+     * to name and no address of its own, so what stands in is narrower than what it replaces.
+     */
+    command: "cargo",
+    probe: [TOOLCHAIN, "--version"],
+    needs: ["gcc"],
+    args: [
+      TOOLCHAIN,
+      "test",
+      "-p",
+      "mpcraft-app",
+      "--features",
+      "hardware-tests",
+      "--test",
+      "hardware_live",
+      "--",
+      "--test-threads=1",
+    ],
+    cwd: ROOT,
+    liveWhen: (env) => Boolean(env.MPCRAFT_HARDWARE_TARGET),
+    substitute:
+      "the scripted board in crates/mpcraft-app/tests/plaintext.rs, which prints text and answers as a vehicle but cannot name its own model or choose its own address",
+    control:
+      "scripts/run-gates-controls.js for the report line this gate reads, shown against a transcript where the board area failed while another binary passed",
+    proof: (text) => resultForSection(text, "hardware_live"),
+  },
+  {
     name: "parity matrix",
     layer: "documentation",
     command: "node",

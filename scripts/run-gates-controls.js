@@ -285,6 +285,44 @@ checks.push({
   },
 });
 
+/* The board gate names the peer that answered it. With no port named, the scripted board stands in, and the
+ * simulator's green is not read as covering hardware: a script has no model to name and no address of its own. */
+const boardGate = run(
+  ["crates/mpcraft-app/tests/hardware_live.rs"],
+  ["the board read as a vehicle"],
+  { MPCRAFT_HARDWARE_TARGET: "" },
+);
+
+checks.push({
+  claim:
+    "the board gate names what stands in for it when no port is named, rather than reading the simulator's green as covering hardware",
+  ok: stateOf(boardGate, "the board read as a vehicle") === "SUSTITUIDA",
+  saw: {
+    gate: stateOf(boardGate, "the board read as a vehicle"),
+    why: boardGate.gates?.[0]?.why,
+  },
+});
+
+/* A transcript where the area that speaks to the board failed and another binary passed. The reports come
+ * before the headings because cargo prints them on different streams, which is what the pairing reads. */
+const boardTranscript =
+  "test result: ok. 3 passed; 0 failed; finished in 0.01s\n" +
+  "test result: FAILED. 0 passed; 1 failed; finished in 33.52s\n" +
+  "     Running tests\\board_boot_text.rs (target/debug/deps/board_boot_text-1)\n" +
+  "     Running tests\\hardware_live.rs (target/debug/deps/hardware_live-2)\n";
+
+checks.push({
+  claim:
+    "the board gate reads the report of its own binary, so a golden test passing does not stand for an area that failed against the board",
+  ok:
+    resultForSection(boardTranscript, "hardware_live").includes("FAILED") &&
+    resultForSection(boardTranscript, "board_boot_text").includes("3 passed"),
+  saw: {
+    hardware: resultForSection(boardTranscript, "hardware_live"),
+    golden: resultForSection(boardTranscript, "board_boot_text"),
+  },
+});
+
 const fails = checks.filter((check) => !check.ok);
 
 console.log(

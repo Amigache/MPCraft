@@ -13,6 +13,11 @@ repository.workspace = true
 # scripted peer cannot imitate, and a suite that requires a simulator teaches everyone to ignore it.
 sitl-tests = []
 
+# The area that speaks to a board on a port rather than to a simulator. It needs the port named by
+# MPCRAFT_HARDWARE_TARGET; without one the scripted board stands in, and the gate says so rather than reading
+# the simulator's green as covering it.
+hardware-tests = []
+
 [dependencies]
 async-trait = { workspace = true }
 csv = { workspace = true }

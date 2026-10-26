@@ -1,0 +1,24 @@
+Initialised Storage type=1
+Init ArduPlane V4.7.1 (dbe79216)
+Free RAM: 138456
+0 0 0 IOMCU: CRC ok
+IOMCU: 0x10016420
+Detected Pixhawk
+IOMCU startup
+SDCard failed to start
+AP_Logger_File: buffer size=16384
+MS5611 found on bus 1 address 0x03
+Started MSP DisplayPort OSD
+Ground start
+Beginning INS calibration. Do not move plane
+Init Gyro***
+Calibrating barometer
+Barometer 1 calibration complete
+ArduPilot Ready
+AHRS: DCM active
+RCOut: PWM:1-14
+MS4525[0]: no sensor found
+Airspeed 1 init failed
+PreArm: 3D Accel calibration needed
+PreArm: AHRS: waiting for home
+PreArm: Waiting for RC

@@ -139,6 +139,29 @@ on a stand-in is not a pass against a vehicle. When a vehicle does answer, the g
 binary rather than the first count the run prints, which is the count of the unit tests and says nothing about
 the vehicle.
 
+## Against a board on a port
+
+A board says things a simulator cannot say, so the areas that read hardware are kept apart from the ones that
+read a simulator: the flag `hardware-tests`, the target `MPCRAFT_HARDWARE_TARGET` written as a connection
+specification (`serial:COM5:115200`), and a gate of its own that names which peer answered it. The rule about
+connections holds here too — a board serves one station, so one run holds one connection.
+
+What hardware buys that a script or a simulator cannot:
+
+- the model it names in the text it prints when it starts (`Detected Pixhawk`). The identifier it reports in
+  `AUTOPILOT_VERSION` names only ArduPilot's default pair for non-composite boards, so the model has to come
+  from the text;
+- the address it chose for itself (`2:1`), compared with what its own parameter says rather than with the
+  address a station would assume;
+- the family its heartbeat names, which is not the family the run was started as;
+- what it does not have: the sensor it did not find, the card that failed to start, and therefore no logs. An
+  answer that says there are none is read as an empty list, not as a log of no bytes.
+
+The startup text only exists while the board boots, so it is kept as a fixture
+(`crates/mpcraft-app/tests/fixtures/pixhawk_startup.txt`) and asserted there; on a running link the board's words
+arrive inside the frames as `STATUSTEXT`, and the capture of the text outside them stays empty — which is what
+the run recorded, and what the area says rather than what it pretends.
+
 ## What to verify in SITL
 
 | Area | Test |
