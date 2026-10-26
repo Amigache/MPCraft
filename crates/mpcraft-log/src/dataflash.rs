@@ -207,7 +207,27 @@ pub struct DataFlashReader<R: BufRead> {
     formats: HashMap<String, MessageFormat>,
     /// How many lines have been read.
     lines: u64,
+    /// The fields that could not be read with the type they were declared with.
+    unread: Vec<UnreadField>,
+    /// How many there were in all, including the ones this bounded list did not name.
+    unread_total: u64,
 }
+
+/// A field whose text is not the number its declared type says it is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnreadField {
+    /// The line it was on.
+    pub line: u64,
+    /// The message it belongs to.
+    pub message: String,
+    /// The name of the field.
+    pub field: String,
+    /// What the line said, kept as it was written.
+    pub text: String,
+}
+
+/// How many places the reader names; the rest are counted without being named.
+const UNREAD_LIMIT: usize = 50;
 
 impl<R: BufRead> DataFlashReader<R> {
     /// A reader of the log in the given source.
@@ -216,6 +236,8 @@ impl<R: BufRead> DataFlashReader<R> {
             reader,
             formats: HashMap::new(),
             lines: 0,
+            unread: Vec::new(),
+            unread_total: 0,
         }
     }
 
@@ -223,6 +245,24 @@ impl<R: BufRead> DataFlashReader<R> {
     #[must_use]
     pub fn formats(&self) -> &HashMap<String, MessageFormat> {
         &self.formats
+    }
+
+    /// The fields that could not be read with the type they were declared with, up to the ceiling.
+    #[must_use]
+    pub fn unread(&self) -> &[UnreadField] {
+        &self.unread
+    }
+
+    /// How many there were in all, which is what the count reports when the list named fewer.
+    #[must_use]
+    pub fn unread_count(&self) -> u64 {
+        self.unread_total
+    }
+
+    /// How many were left out of the bounded list.
+    #[must_use]
+    pub fn dropped_unread(&self) -> u64 {
+        self.unread_total.saturating_sub(self.unread.len() as u64)
     }
 
     /// The next sample of the log, or nothing when the log has ended.
@@ -265,13 +305,19 @@ impl<R: BufRead> DataFlashReader<R> {
                 continue;
             }
 
-            let Some(format) = self.formats.get(name) else {
+            let Some(format) = self.formats.get(name).cloned() else {
                 continue;
             };
 
+            let mut values = Vec::with_capacity(items.len() - 1);
+
+            for (index, item) in items[1..].iter().enumerate() {
+                values.push(self.read_value(&format, index, item));
+            }
+
             return Ok(Some(Sample {
                 name: name.to_owned(),
-                values: read_values(format, &items[1..]),
+                values,
             }));
         }
     }
@@ -310,66 +356,65 @@ impl<R: BufRead> DataFlashReader<R> {
             },
         );
     }
-}
-
-/// Reads the values of a sample with the types the message declares.
-fn read_values(format: &MessageFormat, items: &[&str]) -> Vec<Value> {
-    let mut values = Vec::with_capacity(items.len());
-
-    for (index, item) in items.iter().enumerate() {
+    /// Reads one value with the type it was declared with.
+    fn read_value(&mut self, format: &MessageFormat, index: usize, text: &str) -> Value {
         let kind = format.kinds.get(index).copied();
 
-        values.push(match kind {
-            Some(FieldKind::Text(_)) => Value::Text((*item).to_owned()),
+        match kind {
             // A field whose type the table does not give keeps what the line says, as it is
             // written, because the reader cannot know what unit it is in.
-            Some(FieldKind::Unknown) => Value::Text((*item).to_owned()),
-            Some(kind) => Value::Number(read_number(item, kind)),
-            None => Value::Text((*item).to_owned()),
-        });
-    }
+            Some(FieldKind::Text(_)) | Some(FieldKind::Unknown) | None => {
+                Value::Text(text.to_owned())
+            }
+            Some(kind) => match read_number(text, kind) {
+                Some(number) => Value::Number(number),
+                // A zero the reader invented would look like something the vehicle said, so the
+                // value is kept as the line wrote it and the place is named.
+                None => {
+                    if self.unread.len() < UNREAD_LIMIT {
+                        self.unread.push(UnreadField {
+                            line: self.lines,
+                            message: format.name.clone(),
+                            field: format.fields.get(index).cloned().unwrap_or_default(),
+                            text: text.to_owned(),
+                        });
+                    }
 
-    values
+                    self.unread_total += 1;
+
+                    Value::Text(text.to_owned())
+                }
+            },
+        }
+    }
 }
 
-/// Reads one number with the type it was declared with.
-fn read_number(text: &str, kind: FieldKind) -> f64 {
+/// Reads one number with the type it was declared with, or says nothing when the text is not that
+/// type — which is what keeps a zero from being invented.
+fn read_number(text: &str, kind: FieldKind) -> Option<f64> {
     let trimmed = text.trim();
 
     match kind {
-        FieldKind::U8 => trimmed.parse::<u8>().map(f64::from).unwrap_or(0.0),
-        FieldKind::I8 => trimmed.parse::<i8>().map(f64::from).unwrap_or(0.0),
-        FieldKind::U16 => trimmed.parse::<u16>().map(f64::from).unwrap_or(0.0),
-        FieldKind::I16 => trimmed.parse::<i16>().map(f64::from).unwrap_or(0.0),
-        FieldKind::U32 => trimmed.parse::<u32>().map(f64::from).unwrap_or(0.0),
-        FieldKind::I32 => trimmed.parse::<i32>().map(f64::from).unwrap_or(0.0),
-        FieldKind::U64 => trimmed
-            .parse::<u64>()
-            .map(|value| value as f64)
-            .unwrap_or(0.0),
-        FieldKind::I64 => trimmed
-            .parse::<i64>()
-            .map(|value| value as f64)
-            .unwrap_or(0.0),
-        FieldKind::F32 => trimmed.parse::<f32>().map(f64::from).unwrap_or(0.0),
-        FieldKind::F64 => trimmed.parse::<f64>().unwrap_or(0.0),
+        FieldKind::U8 => trimmed.parse::<u8>().map(f64::from).ok(),
+        FieldKind::I8 => trimmed.parse::<i8>().map(f64::from).ok(),
+        FieldKind::U16 => trimmed.parse::<u16>().map(f64::from).ok(),
+        FieldKind::I16 => trimmed.parse::<i16>().map(f64::from).ok(),
+        FieldKind::U32 => trimmed.parse::<u32>().map(f64::from).ok(),
+        FieldKind::I32 => trimmed.parse::<i32>().map(f64::from).ok(),
+        FieldKind::U64 => trimmed.parse::<u64>().map(|value| value as f64).ok(),
+        FieldKind::I64 => trimmed.parse::<i64>().map(|value| value as f64).ok(),
+        FieldKind::F32 => trimmed.parse::<f32>().map(f64::from).ok(),
+        FieldKind::F64 => trimmed.parse::<f64>().ok(),
         // In a text log the hundredths are written as the number they are, so the signedness
         // only matters when the bytes are read.
         FieldKind::CentsI32 | FieldKind::CentsU32 | FieldKind::CentsI16 | FieldKind::CentsU16 => {
-            trimmed
-                .parse::<f64>()
-                .map(|value| value / 100.0)
-                .unwrap_or(0.0)
+            trimmed.parse::<f64>().map(|value| value / 100.0).ok()
         }
-        FieldKind::Location => trimmed
-            .parse::<f64>()
-            .map(|value| value / 1e7)
-            .unwrap_or(0.0),
-        FieldKind::Half => trimmed.parse::<f64>().unwrap_or(0.0),
-        FieldKind::Text(_) => 0.0,
-        // Reached only when a caller asks for the number of a field the table does not
-        // describe, which is what `read_values` does not do.
-        FieldKind::Unknown => 0.0,
+        FieldKind::Location => trimmed.parse::<f64>().map(|value| value / 1e7).ok(),
+        FieldKind::Half => trimmed.parse::<f64>().ok(),
+        // Reached only when a caller asks for the number of a field that is not a number, which
+        // is what `read_value` does not do.
+        FieldKind::Text(_) | FieldKind::Unknown => None,
     }
 }
 
@@ -473,6 +518,45 @@ GPS, 1000, 2100, -35.3547178, 149.1696673, 885.52, 2.45\n";
 
         assert!((sample.values[0].number().unwrap() - -0.39).abs() < 1e-9);
         assert!((sample.values[1].number().unwrap() - 131.65).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_number_that_is_not_the_type_it_was_declared_with_keeps_what_the_line_said() {
+        let log = "FMT, 131, 20, GPS, QI, TimeUS,Hdop\nGPS, 1000, -1\n";
+
+        let mut reader = DataFlashReader::new(log.as_bytes());
+
+        let sample = reader
+            .next_sample()
+            .expect("the log is read")
+            .expect("a sample");
+
+        // A field declared as an unsigned word cannot hold what this line wrote, so the reader does
+        // not say zero — which a vehicle could have said — and keeps the line as it is.
+        assert_eq!(sample.values[1], Value::Text("-1".to_owned()));
+
+        assert_eq!(reader.unread_count(), 1);
+        assert_eq!(reader.unread()[0].line, 2);
+        assert_eq!(reader.unread()[0].message, "GPS");
+        assert_eq!(reader.unread()[0].field, "Hdop");
+        assert_eq!(reader.unread()[0].text, "-1");
+    }
+
+    #[test]
+    fn the_bounded_list_says_what_it_left_out() {
+        let mut log = String::from("FMT, 131, 20, GPS, QI, TimeUS,Hdop\n");
+
+        for _ in 0..60 {
+            log.push_str("GPS, 1000, -1\n");
+        }
+
+        let mut reader = DataFlashReader::new(log.as_bytes());
+
+        while reader.next_sample().expect("the log is read").is_some() {}
+
+        assert_eq!(reader.unread_count(), 60);
+        assert_eq!(reader.unread().len(), UNREAD_LIMIT);
+        assert_eq!(reader.dropped_unread(), 10);
     }
 
     #[test]

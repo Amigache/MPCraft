@@ -100,7 +100,8 @@ pub struct LogSummary {
     pub end: u64,
     /// How many records the log holds.
     pub records: u64,
-    /// How many records could not be read.
+    /// How many records hold something the reader could not read with the type it was declared
+    /// with — a record that is partly read is not a record that was read whole.
     pub broken: u64,
 }
 
@@ -209,7 +210,9 @@ pub fn dataflash_summary(path: &Path) -> CommandResult<LogSummary> {
         start: 0,
         end: 0,
         records: total,
-        broken: 0,
+        // A line whose number is not the type its declaration says is not read as zero: it keeps
+        // what the file wrote, and the count here names how many there were.
+        broken: reader.unread_count(),
     })
 }
 
@@ -992,6 +995,25 @@ mod tests {
         assert_eq!(summary.records, 1);
         assert_eq!(summary.messages[0].name, "MODE");
         assert_eq!(summary.messages[0].count, 1);
+        assert_eq!(summary.broken, 1);
+    }
+
+    #[test]
+    fn the_summary_of_a_text_log_counts_the_fields_it_could_not_read() {
+        let path = std::env::temp_dir().join("mpcraft-test-unread.log");
+
+        // A field declared as an unsigned word, with a line that wrote something else. The reader
+        // keeps what the file said rather than saying zero, which is a number a vehicle could have
+        // said, and the summary counts the place where it could not read.
+        std::fs::write(
+            &path,
+            "FMT, 131, 20, GPS, QI, TimeUS,Hdop\nGPS, 1000, -1\nGPS, 2000, 4\n",
+        )
+        .expect("the log is written");
+
+        let summary = summarise(&path).expect("the log is read");
+
+        assert_eq!(summary.records, 2);
         assert_eq!(summary.broken, 1);
     }
 

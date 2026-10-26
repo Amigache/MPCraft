@@ -512,7 +512,21 @@ bytes that could not be read begin is said — 8 209. A count that leaves a gap 
 that says the log is whole when it is not, so the number of records that could not be read is
 filled from the reader instead of being written as zero, and what the interface does with it is
 said rather than pretended: the summary carries it and the screen of the logs does not show it
-yet.
+yet. A declaration whose types do not fill its own length is the same kind of gap: the bytes
+that would be read as values of that message belong to the next one, so the message is passed
+over and what disagrees is written down rather than read as if it made sense.
+
+The reader of the **text** log has the same rule, and it did not have it: a value that is not
+the type its declaration says it is was turned into zero, which is a number a vehicle could
+have said — a `Hdop` field declared as an unsigned word and written as `-1` would be drawn as
+zero on the grid and plotted on the graph, and nothing on the screen would say that the reader
+invented it. Such a value now keeps what the line wrote, as it is written, and the place is
+named with the line, the message, the field and the text; the list is bounded at fifty places
+and says how many it left out, which is the rule the captured board output follows. The count in
+the summary is filled from this reader too, so the two readers say the same kind of thing. What
+cannot be measured at the two sizes is a log open on the screen, because the browser run has no
+backend to open one; the rules that keep the text and count the places are tested against lines
+written down before the function was called.
 
 The block was asked for without letting the channel go quiet, which is what the same rule
 about an open file says when it is followed: fifteen seconds between the open and the read

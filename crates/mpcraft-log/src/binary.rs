@@ -135,10 +135,27 @@ impl<R: Read> BinaryReader<R> {
             // The length of the message counts the marker and the number of the
             // message, so the values are three bytes shorter.
             let size = format.length.saturating_sub(3) as usize;
+            let start = self.position;
 
             let Some(payload) = self.fill(size)? else {
                 return Ok(None);
             };
+
+            // A declaration whose types do not fill its own length cannot be read: the bytes that
+            // belong to the next message would be read as values of this one, so the message is
+            // passed over and what the declaration says is written down.
+            let needed = value_bytes(&format);
+
+            if needed != size {
+                self.damage.push(BinaryDamage {
+                    offset: start,
+                    reason: format!(
+                        "the declaration says {size} bytes of values and its types need {needed}"
+                    ),
+                });
+
+                continue;
+            }
 
             // A field whose type the table does not give has no size, so none of the values of
             // this message can be read with the type it was declared with: the message is
@@ -263,6 +280,14 @@ fn read_values(format: &MessageFormat, payload: &[u8]) -> Vec<Value> {
     }
 
     values
+}
+
+/// How many bytes the values of a message take when read with the types its declaration gives.
+///
+/// When this does not equal what the declaration says the message is, the declaration and the log
+/// disagree, and the reader cannot know which of the two it is reading.
+fn value_bytes(format: &MessageFormat) -> usize {
+    format.kinds.iter().copied().map(size_of).sum()
 }
 
 /// Reads one value with the type it was declared with.
@@ -523,26 +548,58 @@ mod tests {
     }
 
     #[test]
-    fn a_half_word_in_hundredths_is_said_in_its_unit() {
-        // The types `c` and `C`, which the map did not have: a half word and an unsigned half
-        // word, both said in hundredths.
-        let mut log = format_declaration(0x81, 5, "XKF", "cC", "Roll,Yaw");
-        log.extend_from_slice(&message(0x81, &(-39_i16).to_le_bytes()));
-        log.extend_from_slice(&message(0x81, &13_165_u16.to_le_bytes()));
+    fn a_declaration_that_does_not_fill_its_own_length_is_said_and_the_message_is_passed_over() {
+        // The declaration says MODE holds four bytes of values while its types need five (`I` is a
+        // word and `B` a byte), so the reader cannot know which of the two it is reading: it reads
+        // nothing and says what disagrees, then finds the next record by its marker.
+        let mut log = format_declaration(0x81, 7, "MODE", "IB", "Mode,Reason");
+        log.extend_from_slice(&message(0x81, &[5, 0, 0, 0, 2]));
+
+        // A message that does fill its own length, after the one that does not.
+        log.extend_from_slice(&format_declaration(0x82, 11, "RSSI", "If", "TimeUS,Rssi"));
+        log.extend_from_slice(&message(0x82, &1_000_u32.to_le_bytes()));
+        log.extend_from_slice(&1.0_f32.to_le_bytes());
 
         let mut reader = BinaryReader::new(&log[..]);
 
-        let roll = reader
+        let sample = reader
             .next_sample()
             .expect("the log is read")
-            .expect("there is a sample");
-        let yaw = reader
+            .expect("the message that can be read is read");
+
+        assert_eq!(sample.name, "RSSI");
+
+        let damage = reader.damage();
+
+        assert_eq!(damage.len(), 1);
+        // The record begins at 89 and its values begin at 92, which is what the reader names.
+        assert_eq!(damage[0].offset, 92);
+        assert_eq!(
+            damage[0].reason,
+            "the declaration says 4 bytes of values and its types need 5"
+        );
+    }
+
+    #[test]
+    fn a_half_word_in_hundredths_is_said_in_its_unit() {
+        // The types `c` and `C`, which the map did not have: a half word and an unsigned half
+        // word, both said in hundredths. The declaration's length counts the three-byte marker, so
+        // it says seven for a message whose values are four.
+        let mut log = format_declaration(0x81, 7, "XKF", "cC", "Roll,Yaw");
+
+        let mut values = (-39_i16).to_le_bytes().to_vec();
+        values.extend_from_slice(&13_165_u16.to_le_bytes());
+        log.extend_from_slice(&message(0x81, &values));
+
+        let mut reader = BinaryReader::new(&log[..]);
+
+        let sample = reader
             .next_sample()
             .expect("the log is read")
             .expect("there is a sample");
 
-        assert!((roll.values[0].number().unwrap() - -0.39).abs() < 1e-9);
-        assert!((yaw.values[0].number().unwrap() - 131.65).abs() < 1e-9);
+        assert!((sample.values[0].number().unwrap() - -0.39).abs() < 1e-9);
+        assert!((sample.values[1].number().unwrap() - 131.65).abs() < 1e-9);
     }
 
     #[test]
