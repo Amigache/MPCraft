@@ -111,6 +111,19 @@ jobs:
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # The workspace includes the desktop binary, and that needs the system libraries of the webview even
+      # when nothing is built from them here: without them the suite does not compile, which is a fact about
+      # the machine rather than about the code.
+      - name: Install the Linux webview dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            pkg-config
+
       - name: Run the half that needs no vehicle
         run: cargo test --workspace
 
