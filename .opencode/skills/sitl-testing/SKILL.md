@@ -48,13 +48,14 @@ lets a test feed the radio check.
 ## Starting SITL — the local binaries (this machine)
 
 Mission Planner's build of SITL does not take a device string for UDP, so it is reached over TCP on the port
-it reserves per instance:
+it reserves per instance. `scripts/sitl.ps1` starts one instance in a working directory of its own, because the
+binary writes its parameter state (`eeprom.bin`) and the terrain cells it fetches wherever it was started from:
+started from the repository, the state of one run is where the next run reads it.
 
 ```powershell
-Set-Location "C:\Users\Byte.DESKTOP-JN9IU2Q\Documents\Mission Planner\sitl"
-.\ArduCopter.exe -M + -s 1 --serial0 "tcp:0" `
-  --defaults "default_params\copter.parm" --instance 0 `
-  --home "-35.35,149.16,584,270"
+.\scripts\sitl.ps1 -Instance 5            # clears the state, prints tcp:127.0.0.1:5810
+$env:MPCRAFT_SITL_TARGET = "tcp:127.0.0.1:5810"
+cargo +stable-x86_64-pc-windows-gnu test -p mpcraft-link --features sitl-tests --test sitl -- --nocapture --test-threads=1
 ```
 
 Three things about this build that change how a suite is written against it:
@@ -68,8 +69,11 @@ Three things about this build that change how a suite is written against it:
   inside it — opening a connection per area takes the vehicle down after the first one. Run the suite with
   `--test-threads=1`.
 
-Start a *new* instance for each fresh run: the process writes `eeprom.bin` in its own working directory, and a
-leftover file carries the state of the previous run (a parameter written by an earlier test, an arming).
+The state is what carries a value between two runs, which is why a fresh instance must not inherit it. Three
+runs on the same instance showed the rule firing: a write of `THR_DZ` came back as **7.0** when 7.5 was asked
+for — the vehicle's value, not the one requested — the next run with `-KeepState` read the same 7.0 back, and
+the run after it, which cleared the state, read the default. `-KeepState` is for when the state of a particular
+flight is what is being looked at, which is rare enough to be an explicit choice.
 
 ## Manual verification
 
@@ -178,9 +182,10 @@ Always stop the container, even on test failure:
 docker compose -f infra/sitl/docker-compose.yml down -v
 ```
 
-The local build leaves its own traces in the working directory it was started from — `eeprom.bin` and the
-terrain cells it fetched (`terrain/S36E149.DAT`). They are state from the previous run, so a fresh instance
-must not inherit them; keep them out of the repository rather than committing them.
+The local build leaves its own traces in the directory it was started from — `eeprom.bin` and the terrain cells
+it fetched (`terrain/S36E149.DAT`). They are the state of the previous run, so a fresh instance must not inherit
+them; `scripts/sitl.ps1` keeps them in a directory per instance outside the repository and clears them before
+starting, which is why they are ignored rather than committed.
 
 ## Red flags
 
