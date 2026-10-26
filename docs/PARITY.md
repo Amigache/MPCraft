@@ -776,6 +776,15 @@ something about itself rather than a log: the reader used to turn that answer in
 upstream returns the empty list for exactly this answer (`num_logs == 0 && last_log_num == 0`). The rule now
 matches, and the area that reads a real board asserts it against the answer the board gave.
 
+The log protocol **reads names rather than folders**, which is what makes two channels say different things about
+one place: this card holds a `.bin` in its log folder while the list answers with the entry that says there are
+none, because an entry counts as a log only when its name ends in the extension the logger compares — case
+sensitive, against `.BIN` — and begins with a number within the maximum the logger allows, which is five hundred on
+a board and five thousand in the simulator. The name on this card is a date, so the folder says one thing and the
+log protocol another, and both are kept as data rather than reconciled by hand. What cannot be asserted is said
+rather than assumed: the bytes of that file cannot be parsed while the transfer protocol does not answer, so the
+binary reader has still not been checked against bytes from a card.
+
 The catalogue carries `SYSID_THISMAV`, the name upstream's metadata still holds, while this build of ArduPilot
 reports `MAV_SYSID`. A parameter the catalogue does not know still arrives as the vehicle said it, and the gap is
 written down rather than closed by hand, because the catalogue is generated from upstream's files: a hand-written
