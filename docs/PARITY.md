@@ -315,8 +315,56 @@ the autopilot, the one that is written to a board.
 
 The **firmware** can also be written to a board, from the same sheet: the board has to
 be in its bootloader, and the file is written to it over the port serie — the board is
-waited for, asked what it is, its flash is erased, the firmware is written block by
-block and the board is told to start again.
+waited for, asked what it is, compared with the file before anything is erased, its flash
+is erased, the image is written block by block, what the board says about its own flash is
+read back, and the board is told to start again.
+
+The file the manifest points at is **read as the document it is** rather than as bytes for
+the flash: an `.apj` says which board the image is for, how big the image is, and carries the
+image compressed and written in base64, so a path that took the file as it stands on the disk
+would put the text of the document into the board. The two numbers are kept apart because they
+are not the same thing — the length the document declares, and the bytes as they go to the
+flash, which are padded to a multiple of four because the protocol counts a length in a byte
+and the board wants blocks of four. The length the sheet shows is the key the published
+document carries (`image_size`); `size` is one it does not carry, and `sha256` is another, so
+the sheet says nothing about a hash rather than inventing one — the number that was shown
+before came from keys this reader looked for and the published document never has.
+
+The check the board can be asked for after writing is worked out with the rule the bootloader
+counts with, which is not the ordinary CRC32: the reflected table, starting at zero, without
+the starting mask or the final inversion — what `crc32_small(sum, word, 4)` over the flashable
+area gives, which is what the published bootloader does. A zlib reader gives a different number
+for the same bytes, so the golden values here come from an implementation written from the
+published polynomial, whose table was then compared entry by entry with the table the reference
+clone carries: `a1848b49` for the fixture image alone and `4b98510b` for it inside a flash of
+1000. And the number depends on the board rather than only on the file, because the part of the
+flash that is not written is read as erased, and erased reads as fours of `0xFF` up to the size
+the board says — which is why the rule counts a block that runs past the end of the flash.
+
+A board that already holds this image is not erased for nothing: the station asks the board for
+the number its flash holds before erasing, and refuses when that number is the one the file
+gives, unless the operator says otherwise with the box on the sheet — which is what upstream has
+as `allowSameUpload`. A board of revision three answers the number; a board of revision two cannot
+be asked for one, so its blocks are read back one by one instead, and that is decided from what the
+board says about itself rather than assumed from the file. Both refusals happen before the erase,
+because the erase is the half that cannot be taken back, and a file for another board would leave
+this one with nothing on it.
+
+The command that asks the vehicle to restart into its bootloader carries **290876 in slot five**,
+which is what the published dictionary says the slot is for — "Magic number - set to 290876 to
+actually flash" — and the code was sending zeros there. On the board on the bench the difference
+showed: the command with the slots empty was answered `MAV_RESULT_IN_PROGRESS` and the board kept
+speaking as a vehicle, and the one with the number was answered `ACCEPTED`. What an answer is not
+is what happens afterwards: the board did not take over the port, because on these boards the flag
+is read when the board boots, so the board has to be restarted by hand — which is what upstream
+tells the operator at the same moment ("Please ignore the unplug and plug back in when uploading
+flight firmware"). The half that erases is therefore not asserted here, and it is said rather than
+assumed: the gate that reads `GET_DEVICE` and `GET_CRC` can only run against a board someone put
+into its bootloader. What the bench did say is that two sources agree on this board without being
+built from each other — the number the published manifest gives for it (9) and the number the
+vehicle reports for itself (`board_version` 589824, which is `0x09 << 16`), and the git hash the
+vehicle reports is the one the published entry for `Plane/stable-4.7.1/fmuv3` carries, so the board
+holds the published image byte for byte.
 
 The board can also be **restarted into its bootloader** from the same sheet: the vehicle
 is asked to do it, and it does. The message that carries the command (`MAV_CMD_FLASH_BOOTLOADER`,

@@ -11,9 +11,17 @@
 //!    answers — it is booting, and booting takes a while;
 //! 2. the board is asked what it is (`GET_DEVICE`): the revision of the protocol, the
 //!    board, the size of its flash;
-//! 3. the flash is erased (`CHIP_ERASE`), which takes seconds;
-//! 4. the firmware is written in blocks (`PROG_MULTI`);
-//! 5. the board is told to start again (`REBOOT`).
+//! 3. the file is compared with the board before anything is erased, because an erase is
+//!    the part that cannot be taken back;
+//! 4. the flash is erased (`CHIP_ERASE`), which takes seconds;
+//! 5. the firmware is written in blocks (`PROG_MULTI`);
+//! 6. the board is asked for the CRC of what its flash now holds (`GET_CRC`, or `CHIP_VERIFY`
+//!    with `READ_MULTI` on revision 2), so that what was written is read from the board rather
+//!    than assumed from the send;
+//! 7. the board is told to start again (`REBOOT`).
+//!
+//! A board that already holds this image says so when it is asked for the CRC, and that is not the
+//! same as a failure: the station refuses to erase what matches, unless the operator says otherwise.
 //!
 //! The protocol is spoken over the transport of the project, so that the board is
 //! spoken to in the same way as everything else, and it can be tried against a board
@@ -49,8 +57,17 @@ const GET_DEVICE: u8 = 0x22;
 /// Erases the flash of the board.
 const CHIP_ERASE: u8 = 0x23;
 
+/// Asks the board to read back what was written, one block at a time (revision 2).
+const CHIP_VERIFY: u8 = 0x24;
+
 /// Writes a block of the firmware.
 const PROG_MULTI: u8 = 0x27;
+
+/// Reads a block back from the board (revision 2).
+const READ_MULTI: u8 = 0x28;
+
+/// Asks the board for the CRC of what its flash holds (revision 3 and newer).
+const GET_CRC: u8 = 0x29;
 
 /// Tells the board to start again.
 const REBOOT: u8 = 0x30;
@@ -66,6 +83,12 @@ pub const BL_REV_MAX: u8 = 20;
 /// The protocol counts the length in a byte, and the bootloader wants the blocks to be
 /// a multiple of four.
 pub const PROG_MULTI_MAX: usize = 252;
+
+/// How many bytes come back from one read.
+///
+/// The protocol can ask for 255, and the published implementation stops at 252 because something
+/// overflows past 64 on the way back.
+pub const READ_MULTI_MAX: usize = 252;
 
 /// How long the board is given to answer a command.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(2);
@@ -228,6 +251,92 @@ impl<P: Port> Bootloader<P> {
             board_rev: self.device(Info::BoardRev).await?,
             flash_size: self.device(Info::FlashSize).await?,
         })
+    }
+
+    /// Asks the board for the CRC of what its flash holds.
+    ///
+    /// The number is worked out by the board, over the whole area the board says it has, so it is what
+    /// the board is rather than what was last sent to it. A board of revision 2 cannot be asked, and
+    /// the caller has to read the blocks back instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the board does not answer or refuses the question.
+    pub async fn crc(&mut self) -> CommandResult<u32> {
+        self.port.write_all(&[GET_CRC, EOC]).await?;
+
+        let mut answer = [0_u8; 4];
+        self.read_exact(&mut answer).await?;
+
+        let value = u32::from_le_bytes(answer);
+
+        self.read_sync().await?;
+
+        Ok(value)
+    }
+
+    /// Reads one block back from the board, which is the way a board of revision 2 is checked.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the board does not answer or refuses the question.
+    pub async fn read_multi(&mut self, length: usize) -> CommandResult<Vec<u8>> {
+        self.port
+            .write_all(&[READ_MULTI, length as u8, EOC])
+            .await?;
+
+        let mut block = vec![0_u8; length];
+        self.read_exact(&mut block).await?;
+
+        self.read_sync().await?;
+
+        Ok(block)
+    }
+
+    /// Checks what the flash holds against what was written.
+    ///
+    /// A board of revision 3 and newer answers with the CRC over its whole area, so that is what is
+    /// compared. A board of revision 2 cannot be asked for one, and its blocks are read back one by
+    /// one instead — which is why the number of the protocol is read from the board before this is
+    /// decided, rather than assumed from the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the board does not answer, when it refuses, or when what it says does not
+    /// match what was written.
+    pub async fn verify(
+        &mut self,
+        file: &crate::apj::FirmwareImage,
+        info: &BoardInfo,
+    ) -> CommandResult<()> {
+        if info.bl_rev >= 3 {
+            let holds = self.crc().await?;
+            let expected = file.expected_crc(info.flash_size);
+
+            if holds != expected {
+                return Err(CommandError::rejected(format!(
+                    "the board says its flash holds {:08x} and what was written gives {expected:08x}",
+                    holds
+                )));
+            }
+
+            return Ok(());
+        }
+
+        self.port.write_all(&[CHIP_VERIFY, EOC]).await?;
+        self.read_sync().await?;
+
+        for block in file.image.chunks(READ_MULTI_MAX) {
+            let programmed = self.read_multi(block.len()).await?;
+
+            if programmed != block {
+                return Err(CommandError::rejected(
+                    "the board read back a block that is not the one it was given",
+                ));
+            }
+        }
+
+        Ok(())
     }
 
     /// Erases the flash of the board.
@@ -398,18 +507,26 @@ impl<T: mpcraft_transport::Transport> Port for T {
 /// Writes a firmware to a board, from the moment it answers to the moment it starts
 /// again.
 ///
-/// The board is waited for, asked what it is, its flash is erased, the firmware is
-/// written and the board is told to start. The callback says how much of the firmware
-/// has been written, so that the operator can see the progress.
+/// The board is waited for, asked what it is, compared with the file before anything is erased, its
+/// flash is erased, the image is written block by block, what the board says about its own flash is
+/// read back, and the board is told to start. The callback says how much of the image has been
+/// written, so that the operator can see the progress.
+///
+/// `allow_same` is what the operator says when the board already holds this image. Without it the same
+/// image is not written again, because writing it means erasing first, and an erase is the part that
+/// cannot be taken back. A board of revision 2 cannot be asked what its flash holds, so nothing can be
+/// said about it before the erase — which is why the guard runs only where the board can answer.
 ///
 /// # Errors
 ///
-/// Returns an error when the board does not answer, when it refuses a command, or when
-/// the firmware does not fit in its flash.
+/// Returns an error when the board does not answer, when it refuses a command, when the file is not for
+/// the board that is on the port, when the image does not fit in its flash, or when what the board says
+/// about its flash afterwards is not what was written.
 pub async fn write_firmware<P: Port>(
     port: P,
-    firmware: &[u8],
+    file: &crate::apj::FirmwareImage,
     progress: impl FnMut(usize, usize),
+    allow_same: bool,
 ) -> CommandResult<BoardInfo> {
     let mut board = Bootloader::new(port);
 
@@ -417,16 +534,37 @@ pub async fn write_firmware<P: Port>(
 
     let info = board.info().await?;
 
-    if info.flash_size > 0 && firmware.len() as u32 > info.flash_size {
+    // Both refusals are before the erase, because the erase is the half that cannot be taken back. A
+    // file for another board would leave this one with nothing on it, and an image that is already
+    // there does not need to be written again.
+    if file.board_id != info.board_id {
         return Err(CommandError::invalid_request(format!(
-            "the firmware is {} bytes and the flash of the board holds {}",
-            firmware.len(),
+            "the file is for board {} and the board says it is {}",
+            file.board_id, info.board_id
+        )));
+    }
+
+    if info.flash_size > 0 && file.image.len() as u32 > info.flash_size {
+        return Err(CommandError::invalid_request(format!(
+            "the image is {} bytes and the flash of the board holds {}",
+            file.image.len(),
             info.flash_size
         )));
     }
 
+    if !allow_same && info.bl_rev >= 3 {
+        let holds = board.crc().await?;
+
+        if holds == file.expected_crc(info.flash_size) {
+            return Err(CommandError::rejected(
+                "the board already holds this image, so it was not erased for something that is there",
+            ));
+        }
+    }
+
     board.erase().await?;
-    board.program(firmware, progress).await?;
+    board.program(&file.image, progress).await?;
+    board.verify(file, &info).await?;
     board.reboot().await?;
 
     Ok(info)
@@ -461,6 +599,9 @@ fn io_error(error: std::io::Error) -> CommandError {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
+
     use super::*;
 
     /// A board that answers as the real one does, and remembers what it was told.
@@ -590,5 +731,281 @@ mod tests {
             .expect_err("the board never wakes up");
 
         assert_eq!(error.code, CommandError::CODE_TIMEOUT);
+    }
+
+    /// A board that answers each command with what was written down for it, and keeps what it was told.
+    /// What it says about its own flash is a number, not a sentence, so the test can show what the code
+    /// does when the number disagrees with what was written.
+    ///
+    /// It answers a command when the command is complete rather than when a piece of it arrives, because
+    /// the bytes of a block go over the port in three parts — the opcode with its length, the bytes, and
+    /// the end — and answering each part would put replies in the queue that nobody asked for.
+    struct ScriptedBoard {
+        /// What the board was told, kept where the test can still read it after the port has been
+        /// handed to the bootloader.
+        told: Arc<Mutex<Vec<u8>>>,
+        /// What the board says to each complete command.
+        replies: BTreeMap<Vec<u8>, Vec<u8>>,
+        /// What the board has still to say.
+        queue: Vec<u8>,
+        /// The command being assembled, from its opcode to its end.
+        command: Vec<u8>,
+        /// How many payload bytes are still expected for the command being assembled.
+        payload: usize,
+        /// Whether the board is reading an opcode, a length, the bytes, or the end.
+        step: Step,
+    }
+
+    /// The parts of a command, as the protocol puts them on the wire.
+    #[derive(Debug, PartialEq)]
+    enum Step {
+        Opcode,
+        Length,
+        Payload,
+        End,
+    }
+
+    impl ScriptedBoard {
+        fn answering(replies: BTreeMap<Vec<u8>, Vec<u8>>) -> Self {
+            Self {
+                told: Arc::new(Mutex::new(Vec::new())),
+                replies,
+                queue: Vec::new(),
+                command: Vec::new(),
+                payload: 0,
+                step: Step::Opcode,
+            }
+        }
+
+        /// Records what the board was told and says what it thinks of it.
+        fn receive(&mut self, byte: u8) {
+            if let Ok(mut kept) = self.told.lock() {
+                kept.push(byte);
+            }
+
+            match self.step {
+                Step::Opcode => {
+                    self.command.push(byte);
+
+                    if byte == EOC {
+                        self.answer();
+                    } else if byte == PROG_MULTI {
+                        // Only the writing command carries bytes from the station. The read command says
+                        // how many bytes the board should answer with, and its end comes straight after
+                        // the number — which is what the protocol itself says (`PROG_MULTI/<len>/<data>/EOC`
+                        // against `READ_MULTI/<len>/EOC`).
+                        self.step = Step::Length;
+                    } else {
+                        self.step = Step::End;
+                    }
+                }
+                Step::Length => {
+                    self.command.push(byte);
+                    self.payload = usize::from(byte);
+
+                    self.step = if self.payload == 0 {
+                        Step::End
+                    } else {
+                        Step::Payload
+                    };
+                }
+                Step::Payload => {
+                    self.command.push(byte);
+                    self.payload -= 1;
+
+                    if self.payload == 0 {
+                        self.step = Step::End;
+                    }
+                }
+                Step::End => {
+                    self.command.push(byte);
+
+                    // The end of a command is its own byte; anything before it is the argument the board
+                    // was given, which is how a question about itself carries its number.
+                    if byte == EOC {
+                        self.answer();
+                    }
+                }
+            }
+        }
+
+        /// Says what the board thinks of the command that was just assembled.
+        fn answer(&mut self) {
+            let reply = self
+                .replies
+                .get(&self.command)
+                .cloned()
+                .unwrap_or_else(|| vec![INSYNC, OK]);
+
+            self.command.clear();
+            self.step = Step::Opcode;
+            self.queue.extend(reply);
+        }
+    }
+
+    #[async_trait]
+    impl Port for ScriptedBoard {
+        async fn write_all(&mut self, data: &[u8]) -> CommandResult<()> {
+            for byte in data {
+                self.receive(*byte);
+            }
+
+            Ok(())
+        }
+
+        async fn read_some(&mut self, data: &mut [u8]) -> CommandResult<usize> {
+            if self.queue.is_empty() {
+                return Err(CommandError::timeout("the board had nothing left to say"));
+            }
+
+            let count = data.len().min(self.queue.len());
+            data[..count].copy_from_slice(&self.queue[..count]);
+            self.queue.drain(..count);
+
+            Ok(count)
+        }
+    }
+
+    /// The fixture, read through the reader that is not this one. Its numbers are golden: board 9, an
+    /// image of 305 bytes, and `4b98510b` for a flash of 1000 — the number the rule gives, not the one a
+    /// zlib reader gives for the same bytes.
+    fn fixture() -> crate::apj::FirmwareImage {
+        crate::apj::FirmwareImage::read(include_bytes!("../tests/fixtures/sample_apj.json"))
+            .expect("the fixture is the document")
+    }
+
+    /// What a board says when it is asked what it is, and what it says about its own flash.
+    fn board_answers(revision: u32, holds: u32) -> BTreeMap<Vec<u8>, Vec<u8>> {
+        let mut replies = BTreeMap::new();
+
+        for (which, value) in [(1_u8, revision), (2, 9), (3, 0), (4, 1000), (5, 0), (6, 0)] {
+            replies.insert(
+                vec![GET_DEVICE, which, EOC],
+                [value.to_le_bytes().to_vec(), vec![INSYNC, OK]].concat(),
+            );
+        }
+
+        replies.insert(
+            vec![GET_CRC, EOC],
+            [holds.to_le_bytes().to_vec(), vec![INSYNC, OK]].concat(),
+        );
+
+        // An erase answers with the byte that says the flash is clean, then with the two that say the
+        // command was carried out.
+        replies.insert(vec![CHIP_ERASE, EOC], vec![0x00, INSYNC, OK]);
+
+        replies
+    }
+
+    #[tokio::test]
+    async fn a_file_for_another_board_is_refused_before_the_flash_is_erased() {
+        let mut replies = board_answers(3, 0xFFFF_FFFF);
+        replies.insert(
+            vec![GET_DEVICE, 2, EOC],
+            [5_u32.to_le_bytes().to_vec(), vec![INSYNC, OK]].concat(),
+        );
+
+        let board = ScriptedBoard::answering(replies);
+        let seen = board.told.clone();
+
+        let error = write_firmware(board, &fixture(), |_, _| {}, false)
+            .await
+            .expect_err("the file is for board 9 and the board says it is 5");
+
+        assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
+
+        // The refusal is what an erase would have been done for, so what is read here is what the board
+        // was told: nothing that erases reached it.
+        assert!(!seen
+            .lock()
+            .expect("the board keeps what it was sent")
+            .contains(&CHIP_ERASE));
+    }
+
+    #[tokio::test]
+    async fn a_board_that_already_holds_the_image_is_not_erased_for_nothing() {
+        // The number the board gives is the golden one for this image inside a flash of 1000 bytes, so
+        // what the board is saying is that it already holds this.
+        let board = ScriptedBoard::answering(board_answers(3, 0x4b98_510b));
+        let seen = board.told.clone();
+
+        let error = write_firmware(board, &fixture(), |_, _| {}, false)
+            .await
+            .expect_err("the board holds what the file is");
+
+        assert_eq!(error.code, CommandError::CODE_REJECTED);
+        assert!(error.message.contains("already holds"));
+
+        assert!(!seen
+            .lock()
+            .expect("the board keeps what it was sent")
+            .contains(&CHIP_ERASE));
+    }
+
+    #[tokio::test]
+    async fn the_same_image_is_written_when_the_operator_says_so() {
+        let board = ScriptedBoard::answering(board_answers(3, 0x4b98_510b));
+        let seen = board.told.clone();
+
+        let info = write_firmware(board, &fixture(), |_, _| {}, true)
+            .await
+            .expect("the operator said the same image could be written again");
+
+        assert_eq!(info.board_id, 9);
+        assert_eq!(info.bl_rev, 3);
+
+        assert!(
+            seen.lock()
+                .expect("the board keeps what it was sent")
+                .contains(&CHIP_ERASE),
+            "the erase happened after the operator said so"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_board_that_answers_a_different_number_is_said_as_a_failure() {
+        let board = ScriptedBoard::answering(board_answers(3, 0x1234_5678));
+
+        let error = write_firmware(board, &fixture(), |_, _| {}, true)
+            .await
+            .expect_err("the board says something else about its flash");
+
+        assert_eq!(error.code, CommandError::CODE_REJECTED);
+        assert!(error.message.contains("12345678"));
+        assert!(error.message.contains("4b98510b"));
+    }
+
+    #[tokio::test]
+    async fn a_board_of_revision_two_is_read_back_block_by_block() {
+        // A board of revision 2 cannot be asked for a CRC, so what was written is read back. This board
+        // answers the reads with an erased flash — fours of `0xFF` — which is not what it was given.
+        let mut replies = board_answers(2, 0);
+        replies.insert(vec![CHIP_VERIFY, EOC], vec![INSYNC, OK]);
+        replies.insert(
+            vec![READ_MULTI, 252, EOC],
+            [vec![0xFF; 252], vec![INSYNC, OK]].concat(),
+        );
+        replies.insert(
+            vec![READ_MULTI, 56, EOC],
+            [vec![0xFF; 56], vec![INSYNC, OK]].concat(),
+        );
+
+        let board = ScriptedBoard::answering(replies);
+        let seen = board.told.clone();
+
+        let error = write_firmware(board, &fixture(), |_, _| {}, true)
+            .await
+            .expect_err("the board read back something that is not what it was given");
+
+        assert_eq!(error.code, CommandError::CODE_REJECTED);
+
+        let told = seen
+            .lock()
+            .expect("the board keeps what it was sent")
+            .clone();
+        assert!(
+            told.contains(&CHIP_VERIFY),
+            "the read-back is asked for first"
+        );
     }
 }

@@ -50,6 +50,14 @@ struct Entry {
     /// The hash of the file, so that a file that is not the one can be told.
     #[serde(default)]
     sha256: Option<String>,
+    /// The number the published document gives for the board, which is what the bootloader of the
+    /// board is compared with when a file is written to it.
+    #[serde(default)]
+    board_id: u32,
+    /// How big the image inside the document is, as the published document says. This is the key the
+    /// published manifest carries; `size` above is one it does not carry.
+    #[serde(default)]
+    image_size: Option<u64>,
 }
 
 /// The name the operator knows a vehicle by.
@@ -91,13 +99,16 @@ pub struct FirmwareVersion {
 pub struct FirmwareFile {
     /// The board the file is for.
     pub platform: String,
+    /// The number the published document gives for that board.
+    pub board_id: u32,
     /// Where the file is.
     pub url: String,
     /// The shape of the file.
     pub format: String,
     /// How big the file is, in bytes.
     pub size: u64,
-    /// The hash of the file.
+    /// The hash of the file, as the document says. A document that says nothing about one leaves this
+    /// empty, which is what the interface shows.
     pub sha256: String,
 }
 
@@ -196,10 +207,13 @@ fn parse_manifest(bytes: &[u8]) -> CommandResult<FirmwareManifest> {
             .or_default()
             .entry(entry.platform.clone())
             .or_insert_with(|| FirmwareFile {
-                platform: entry.platform,
-                url: entry.url,
-                format: entry.format,
-                size: entry.size.unwrap_or_default(),
+                platform: entry.platform.clone(),
+                board_id: entry.board_id,
+                url: entry.url.clone(),
+                format: entry.format.clone(),
+                // The published document says the length of the image; `size` is a key it does not
+                // carry, so what the document says is what is shown.
+                size: entry.image_size.or(entry.size).unwrap_or_default(),
                 sha256: entry.sha256.unwrap_or_default(),
             });
     }
@@ -355,5 +369,42 @@ mod tests {
     fn a_manifest_that_is_not_the_one_expected_is_an_error() {
         let error = parse_manifest(b"this is not a manifest").expect_err("it is not a manifest");
         assert_eq!(error.code, CommandError::CODE_INTERNAL);
+    }
+
+    /// The shape the manifest is published in, taken from what the server actually sends rather than
+    /// from what this reader used to expect: it carries `board_id` and `image_size`, and it does not
+    /// carry `size` or `sha256`. A reader that only looked for the keys it knew showed an empty size
+    /// for every file on the live document.
+    const PUBLISHED_SHAPE: &str = r#"{
+        "format-version": "1.0.0",
+        "firmware": [
+            {
+                "vehicletype": "Plane",
+                "platform": "fmuv3",
+                "url": "https://firmware.ardupilot.org/Plane/stable-4.7.1/fmuv3/arduplane.apj",
+                "mav-firmware-version-str": "V4.7.1",
+                "format": "apj",
+                "board_id": 9,
+                "image_size": 1535384
+            }
+        ]
+    }"#;
+
+    #[test]
+    fn the_numbers_the_published_document_carries_are_read_from_it() {
+        // The two numbers are the ones an independent reader — python's own gzip and json — gives for
+        // this entry of the published manifest. They are what the bootloader compares a board with:
+        // `board_id` against what the board says it is, and `image_size` against the image inside the
+        // document, which is the length the reader of the document checks.
+        let manifest = parse_manifest(PUBLISHED_SHAPE.as_bytes()).expect("the manifest is read");
+        let file = &manifest.boards[0].versions[0].files[0];
+
+        assert_eq!(file.board_id, 9);
+        assert_eq!(file.size, 1_535_384);
+
+        // The key this reader used to look for is one the published document does not have, so a file
+        // read from the live manifest has no hash to show — which is what the interface says rather
+        // than inventing.
+        assert_eq!(file.sha256, "");
     }
 }

@@ -1188,12 +1188,16 @@ export async function firmwareDownload(
  *
  * The board has to be in its bootloader: it answers the questions of the protocol
  * instead of the MAVLink of a flight. The answer is what the board said about itself.
+ *
+ * `allowSame` is what the operator says when the board already holds this image; without it the
+ * board is not erased for something that is already there.
  */
 export async function firmwareWriteToBoard(
   port: string,
   file: string,
+  allowSame: boolean,
 ): Promise<BoardInfo> {
-  return call<BoardInfo>("firmware_write_to_board", { port, file });
+  return call<BoardInfo>("firmware_write_to_board", { port, file, allowSame });
 }
 
 /**

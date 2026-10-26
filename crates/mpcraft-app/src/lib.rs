@@ -45,6 +45,7 @@ use mpcraft_settings::{PluginEntry, SettingsStore};
 use serde::{Deserialize, Serialize};
 
 pub mod adsb_relay;
+pub mod apj;
 pub mod board;
 pub mod bootloader;
 pub mod checklist;

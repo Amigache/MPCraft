@@ -81,6 +81,14 @@ pub const RELAY_STATUS_ID: u32 = 376;
 /// The message id of `AUTOPILOT_VERSION`, the report of what the vehicle is capable of.
 pub const AUTOPILOT_VERSION_ID: u32 = 148;
 
+/// What slot five of `MAV_CMD_FLASH_BOOTLOADER` has to carry for the vehicle to do anything.
+///
+/// The published dictionary says the slot is a magic number "set to 290876 to actually flash". A
+/// command that carries zeros is a command the vehicle answers without doing what it was asked for,
+/// which is what the live run recorded: the board answered the version with the slots empty and kept
+/// speaking as a vehicle, and answered the one with this number.
+pub const FLASH_BOOTLOADER_MAGIC: f32 = 290_876.0;
+
 /// How long to wait for the acknowledgement of a command.
 ///
 /// Upstream waits two seconds for a command to be acknowledged.
@@ -842,6 +850,15 @@ impl Session {
     /// offer it. The dialect the project uses does name 42650 as `MAV_CMD_FLASH_BOOTLOADER`; the
     /// raw path is kept for the numbers it does not. The vehicle answers with `COMMAND_ACK`.
     ///
+    /// Slot five is the number the published dictionary says the vehicle looks at before it does
+    /// anything, so it travels as `FLASH_BOOTLOADER_MAGIC` rather than as an empty slot. What the
+    /// vehicle answers is not what happens afterwards: against the board on the bench, the command with
+    /// the slots empty was answered and the board kept speaking as a vehicle, and the one with the
+    /// number was answered without the board taking over the port. On these boards the decision is read
+    /// when the board boots, so the board has to be restarted by hand — which is what upstream tells the
+    /// operator at the same moment ("Please ignore the unplug and plug back in when uploading flight
+    /// firmware").
+    ///
     /// # Errors
     ///
     /// Returns an error when the vehicle refuses the command or does not answer in time.
@@ -855,7 +872,7 @@ impl Session {
             vehicle.component_id,
             MAV_CMD_FLASH_BOOTLOADER as u32,
             0,
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, FLASH_BOOTLOADER_MAGIC, 0.0, 0.0],
         );
 
         let mut collector = self
@@ -1238,6 +1255,29 @@ mod tests {
         let payload = encode_command_long(1, 1, 42650, 0, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         assert_eq!(payload[28], (42650 & 0xFF) as u8);
         assert_eq!(payload[29], ((42650 >> 8) & 0xFF) as u8);
+    }
+
+    #[test]
+    fn the_bootloader_command_carries_the_magic_number_in_slot_five() {
+        // The number is what the vehicle looks at before it does anything, so the test asserts the
+        // bytes on the wire rather than the answer they may bring back.
+        let payload = encode_command_long(
+            2,
+            1,
+            42650,
+            0,
+            [0.0, 0.0, 0.0, 0.0, FLASH_BOOTLOADER_MAGIC, 0.0, 0.0],
+        );
+
+        assert_eq!(&payload[16..20], &FLASH_BOOTLOADER_MAGIC.to_le_bytes());
+
+        // Slot five of `COMMAND_LONG` is the fifth group of four bytes, and what travels is the float
+        // form, so the number read back from those bytes is the number the dictionary gives — which is
+        // what the vehicle looks at before it does anything.
+        assert_eq!(
+            f32::from_le_bytes(payload[16..20].try_into().unwrap()),
+            290_876.0
+        );
     }
 
     #[test]

@@ -440,6 +440,8 @@ export interface FirmwareVersion {
 /** The file of the firmware of one board. */
 export interface FirmwareFile {
   readonly platform: string;
+  /** The number the published document gives for the board, which is what the board is compared with before anything is erased. */
+  readonly boardId: number;
   readonly url: string;
   readonly format: string;
   readonly size: number;

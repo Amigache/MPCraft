@@ -16,6 +16,7 @@ import type {
   FirmwareManifest,
   SerialPort,
 } from "../../lib/ipc/types";
+import { formatCount, formatText } from "../../lib/format";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -67,6 +68,7 @@ export function FirmwareSheet() {
   const [boardInfo, setBoardInfo] = useState<BoardInfo | null>(null);
 
   const [busy, setBusy] = useState(false);
+  const [allowSame, setAllowSame] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -237,7 +239,7 @@ export function FirmwareSheet() {
     setNotice(null);
 
     try {
-      const info = await firmwareWriteToBoard(port, file);
+      const info = await firmwareWriteToBoard(port, file, allowSame);
       setBoardInfo(info);
       setNotice(t("The board was written and told to start again."));
     } catch (cause) {
@@ -347,10 +349,12 @@ export function FirmwareSheet() {
             <dl className={styles.facts}>
               <dt>{t("The file")}</dt>
               <dd>{chosenFile.url}</dd>
+              <dt>{t("The board the document says it is for")}</dt>
+              <dd>{formatCount(chosenFile.boardId)}</dd>
               <dt>{t("How big")}</dt>
               <dd>{showSize(chosenFile.size)}</dd>
               <dt>{t("Its hash")}</dt>
-              <dd className={styles.hash}>{chosenFile.sha256}</dd>
+              <dd className={styles.hash}>{formatText(chosenFile.sha256)}</dd>
             </dl>
           ) : null}
 
@@ -421,6 +425,22 @@ export function FirmwareSheet() {
             </label>
           </div>
 
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={allowSame}
+              aria-label={t(
+                "Write it again when the board already holds this image",
+              )}
+              onChange={(event) => {
+                setAllowSame(event.target.checked);
+              }}
+            />
+            <span>
+              {t("Write it again when the board already holds this image")}
+            </span>
+          </label>
+
           <div className={styles.row}>
             <button
               type="button"
@@ -449,6 +469,12 @@ export function FirmwareSheet() {
           <p className={styles.text}>
             {t(
               "The board has to be in its bootloader for this to work: the link has to be closed, the board has to be restarted into the bootloader, and the file is written over the port. The board is asked what it is before anything is erased, and the file is not written if it does not fit in the flash.",
+            )}
+          </p>
+
+          <p className={styles.text}>
+            {t(
+              "A board that says its flash already holds this image is not erased for nothing, and what was written is read back from the board afterwards rather than assumed from the send.",
             )}
           </p>
 

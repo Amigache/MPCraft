@@ -1677,26 +1677,36 @@ async fn diagnostics_bundle(state: State<'_, AppState>, output: String) -> Comma
 ///
 /// The board has to be in its bootloader: it answers the questions of the protocol
 /// instead of the MAVLink of a flight. The file is the one that the manifest of the
-/// firmware points at.
+/// firmware points at, and it is read as the document it is — the image inside is what
+/// goes to the flash, not the text of the document.
+///
+/// `allow_same` is what the operator says when the board already holds this image. Without it the
+/// board is not erased for something that is already there, and the command says so.
 ///
 /// # Errors
 ///
 /// Returns a `CommandError` with a stable code when the port cannot be opened, when the
-/// file cannot be read, or when the board does not answer.
+/// file cannot be read or is not the document, when the file is not for the board that is on the
+/// port, or when the board does not answer.
 #[tauri::command]
 async fn firmware_write_to_board(
     port: String,
     file: String,
+    allow_same: bool,
 ) -> CommandResult<mpcraft_app::bootloader::BoardInfo> {
     let transport = SerialTransport::open(port, 115200, false).map_err(|error| {
         CommandError::internal(format!("the port could not be opened: {error}"))
     })?;
 
-    let firmware = std::fs::read(&file).map_err(|error| {
+    let bytes = std::fs::read(&file).map_err(|error| {
         CommandError::invalid_request(format!("the file could not be read: {error}"))
     })?;
 
-    mpcraft_app::bootloader::write_firmware(transport, &firmware, |_, _| {}).await
+    // The file the manifest points at is a document, not a stream of bytes for the flash. Writing it
+    // as it stands would put its text into the board, so the image inside is what travels.
+    let firmware = mpcraft_app::apj::FirmwareImage::read(&bytes)?;
+
+    mpcraft_app::bootloader::write_firmware(transport, &firmware, |_, _| {}, allow_same).await
 }
 
 /// Erases the firmware of a board, over the port the board is on.

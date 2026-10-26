@@ -12,7 +12,8 @@
   justify-content: center;
   /* The sheet starts under the bar of the menus, so that its own header does not
      sit over the bar. */
-  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3) var(--space-3);
+  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3)
+    var(--space-3);
   position: fixed;
   z-index: 60;
 }
@@ -95,6 +96,16 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* The box that says to write an image that is already there ------------------- */
+
+.check {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+  font-size: var(--font-xs);
+  margin-bottom: var(--space-2);
 }
 
 /* What the version is --------------------------------------------------------- */

@@ -749,6 +749,8 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The board the firmware is for": "La placa para la que es el firmware",
     "How big": "Lo grande que es",
     "Its hash": "Su huella",
+    "The board the document says it is for":
+      "La placa para la que el documento dice que es",
     "Fetch the file": "Traer el archivo",
     "The file is fetched to the disk. It can then be written to a board that is in its bootloader: the board answers the questions of the bootloader instead of the MAVLink of a flight, and the file is written to it block by block.":
       "El archivo se trae al disco. Después se puede escribir en una placa que esté en su cargador de arranque: la placa responde a las preguntas del cargador en lugar del MAVLink de un vuelo, y el archivo se escribe en ella bloque a bloque.",
@@ -765,6 +767,10 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Erase the board": "Borrar la placa",
     "The board has to be in its bootloader for this to work: the link has to be closed, the board has to be restarted into the bootloader, and the file is written over the port. The board is asked what it is before anything is erased, and the file is not written if it does not fit in the flash.":
       "La placa tiene que estar en su cargador de arranque para que esto funcione: el enlace tiene que estar cerrado, la placa tiene que haber vuelto al cargador, y el archivo se escribe por el puerto. Se pregunta a la placa qué es antes de borrar nada, y el archivo no se escribe si no cabe en la memoria.",
+    "Write it again when the board already holds this image":
+      "Escribirlo otra vez cuando la placa ya tiene esta imagen",
+    "A board that says its flash already holds this image is not erased for nothing, and what was written is read back from the board afterwards rather than assumed from the send.":
+      "Una placa que dice que su memoria ya tiene esta imagen no se borra por nada, y lo que se escribió se lee después en la placa en lugar de darlo por hecho por el envío.",
     "The board is the {board} (revision {revision}), with {kilobytes} kB of flash, speaking the protocol {protocol}.":
       "La placa es la {board} (revisión {revision}), con {kilobytes} kB de memoria, que habla el protocolo {protocol}.",
     "there is no file chosen.": "no hay archivo elegido.",
