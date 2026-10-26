@@ -374,6 +374,43 @@ async fn the_mode_change_sends_both_the_message_and_the_command() {
 }
 
 #[tokio::test]
+async fn a_mode_change_carries_the_flag_that_makes_the_custom_mode_be_read() {
+    let (address, received) = Vehicle::start(MavResult::MAV_RESULT_ACCEPTED).await;
+    let session = session_to(address).await;
+
+    // The caller gives the mode without saying anything about the flags, which is what the
+    // interface does when it only knows a mode number.
+    session
+        .set_mode(vehicle(), 5, MavModeFlag::empty(), Duration::from_secs(5))
+        .await
+        .expect("the vehicle should accept the command");
+
+    assert!(wait_for_messages(&received, 2).await);
+
+    let log = received.lock().unwrap();
+
+    let command = log
+        .iter()
+        .find_map(|message| match message {
+            MavMessage::COMMAND_LONG(command) => Some(command),
+            _ => None,
+        })
+        .expect("the vehicle did not receive a command");
+
+    // The dictionary says the second parameter is only read when this flag is set in the first, so
+    // a command without it is a command whose mode the vehicle ignores — and a live board answers
+    // that with `MAV_RESULT_DENIED`, which is what the run against the simulator found.
+    let flags = MavModeFlag::from_bits_retain(command.param1 as u8);
+
+    assert!(
+        flags.contains(MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
+        "the flag that makes the custom mode be read is on the wire: {flags:?}"
+    );
+
+    assert_eq!(command.param2, 5.0, "the custom mode was not carried");
+}
+
+#[tokio::test]
 async fn the_integer_command_carries_the_position() {
     let (address, received) = Vehicle::start(MavResult::MAV_RESULT_ACCEPTED).await;
     let session = session_to(address).await;

@@ -707,6 +707,13 @@ afterwards — so a board that says it cannot do this is not reported as a board
 the matcher for the report is registered before the ask goes out, because a vehicle answers the two in
 the same breath and an answer that arrives before anybody is listening is lost.
 
+The **mode change** carries the flag that makes the custom mode be read. The dictionary says the second
+parameter of `MAV_CMD_DO_SET_MODE` is used only when the custom-mode flag is in the first, so a command that
+sends a mode without it is a command whose mode the vehicle is told to ignore — and a live board answered one
+with `MAV_RESULT_DENIED` before the line existed. The helper sets the flag whatever the caller passes, and the
+test asserts the flag on the wire rather than the number the flag makes the vehicle ignore; the live run then
+reads the mode back from the heartbeat, which is what the vehicle says rather than what was asked for.
+
 The **formation** is ported as far as this machine can verify it: the slots — which vehicle sits
 where relative to the one it follows, in metres across and along the direction of travel and up —
 and the places the slots put the vehicles, turned by the heading of the leader with the sign

@@ -341,6 +341,12 @@ impl Session {
     ///
     /// Upstream sends the same two messages (`MAVLinkInterface.cs:4620`).
     ///
+    /// The custom mode is only read when the custom-mode flag is set in the mode flags, which is
+    /// what the dictionary says for `MAV_CMD_DO_SET_MODE` parameter 2, so this sets it: a caller
+    /// that passes the mode without the flag sends a command whose second parameter the vehicle
+    /// ignores, and a live board answers that with `MAV_RESULT_DENIED` — which is what the run
+    /// against the simulator found before this line existed.
+    ///
     /// # Errors
     ///
     /// Returns an error when the vehicle refuses the command or does not answer in time.
@@ -351,6 +357,8 @@ impl Session {
         base_mode: MavModeFlag,
         timeout: Duration,
     ) -> Result<(), LinkError> {
+        let base_mode = base_mode | MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
+
         #[allow(deprecated)]
         self.write_message(&MavMessage::SET_MODE(SET_MODE_DATA {
             custom_mode,
