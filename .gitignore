@@ -43,5 +43,6 @@ __pycache__/
 # Editors / OS
 .vscode/
 .idea/
+/.opencode/
 .DS_Store
 Thumbs.db
