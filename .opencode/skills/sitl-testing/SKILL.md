@@ -67,7 +67,10 @@ Three things about this build that change how a suite is written against it:
   rather than asserted.
 - **It exits when the client disconnects**, so one run holds one connection and walks through its areas
   inside it — opening a connection per area takes the vehicle down after the first one. Run the suite with
-  `--test-threads=1`.
+  `--test-threads=1`. The same rule decides how many instances a run needs: an instance serves one connection,
+  so two live test binaries need two instances, and the second one finds no peer otherwise — a failure that
+  belongs to the environment rather than to the code. The gate reads each live area against its own address,
+  `MPCRAFT_SITL_TARGET` and `MPCRAFT_SITL_TABLE_TARGET`, and names which one answered which.
 
 The state is what carries a value between two runs, which is why a fresh instance must not inherit it. Three
 runs on the same instance showed the rule firing: a write of `THR_DZ` came back as **7.0** when 7.5 was asked

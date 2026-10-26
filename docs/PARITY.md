@@ -696,6 +696,17 @@ not in the table, because the words the board prints arrive as they are said rat
 ask for that message was answered `MAV_RESULT_DENIED` in one run and accepted in another, so nothing here
 depends on which of the two this build chooses.
 
+The **table is read row by row** against a live board, and the two halves agree: every row was answered
+`MAV_RESULT_ACCEPTED`, and every row the board answered put traffic on the wire inside its window — thirty frames
+of `ATTITUDE` in three seconds against three of `SYS_STATUS`, which is the ten hertz and the one hertz the table
+asks for. One row stayed empty: `GPS2_RAW`. The board answered the ask and then said nothing, because it has one
+receiver — that is what the vehicle said about itself, and it is written down rather than asserted as a failure,
+because a row can be accepted and still keep its screen empty. The counting reads the raw path rather than the
+decoded one for this reason: `EKF_STATUS_REPORT` is a message the compiled dialect does not carry, so a collector
+would never see it arrive. And the gate names each live area by its own report, because two binaries answer it
+now and one that passed cannot stand for the other; each of them is read against an instance of its own, since
+one instance serves one connection and stops when that connection goes away.
+
 The **station asks for the capabilities** too, because they decide which encoding the items of a plan
 travel in. Upstream asks for the autopilot version when the link opens, through the command that
 requests a message with the number 148 as its first slot; MPCraft decoded that report without ever

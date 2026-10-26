@@ -245,6 +245,46 @@ checks.push({
   },
 });
 
+/* Two live areas answer this gate now, so each is named by its own report. One passing and one failing
+ * cannot be read as a pass, and a count that covers only the first of them says nothing about the other. */
+const twoAreas =
+  "test result: ok. 108 passed; 0 failed; finished in 0.02s\n" +
+  "test result: FAILED. 0 passed; 1 failed; finished in 16.22s\n" +
+  "test result: ok. 1 passed; 0 failed; finished in 45.10s\n" +
+  "     Running unittests src/lib.rs (target/debug/deps/mpcraft_link-1)\n" +
+  "     Running tests\\sitl.rs (target/debug/deps/sitl-2)\n" +
+  "     Running tests\\streams_live.rs (target/debug/deps/streams_live-3)\n";
+
+checks.push({
+  claim:
+    "each live area is named by its own report, so one that failed and one that passed is not read as a pass",
+  ok:
+    resultForSection(twoAreas, "sitl").includes("FAILED") &&
+    resultForSection(twoAreas, "streams_live").includes("45.10s"),
+  saw: {
+    link: resultForSection(twoAreas, "sitl"),
+    app: resultForSection(twoAreas, "streams_live"),
+  },
+});
+
+/* The second live area cannot share the first one's vehicle: an instance serves one connection and stops when
+ * that connection goes away. So when no second peer is named, the scripted board stands in and says so. */
+const tableGate = run(
+  ["crates/mpcraft-app/tests/streams_live.rs"],
+  ["the table read against a live board"],
+);
+
+checks.push({
+  claim:
+    "the second live area names what stands in for it when no second peer is named, rather than reading the first area as if it covered both",
+  ok:
+    stateOf(tableGate, "the table read against a live board") === "SUSTITUIDA",
+  saw: {
+    gate: stateOf(tableGate, "the table read against a live board"),
+    why: tableGate.gates?.[0]?.why,
+  },
+});
+
 const fails = checks.filter((check) => !check.ok);
 
 console.log(

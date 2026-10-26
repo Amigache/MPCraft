@@ -8,6 +8,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[features]
+# The tests that speak to a live simulator, under the same flag as the link crate: what they prove is what a
+# scripted peer cannot imitate, and a suite that requires a simulator teaches everyone to ignore it.
+sitl-tests = []
+
 [dependencies]
 async-trait = { workspace = true }
 csv = { workspace = true }

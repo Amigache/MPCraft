@@ -132,11 +132,41 @@ const GATES = [
       "scripts/simulated-vehicle.py, which answers the parameter, mission and command protocols",
     control:
       "the golden-file stream, which is a second implementation rather than a mirror of the parser, and scripts/run-gates-controls.js for the report line this gate reads",
-    /**
-     * The report of the live binary, not the first count the run prints: several test binaries ran and
-     * the first one is the unit tests, which say nothing about the vehicle.
-     */
+    /** The report of the live binary, not the first count the run prints. */
     proof: (text) => resultForSection(text, "sitl"),
+  },
+  {
+    name: "the table read against a live board",
+    layer: "rust",
+    /**
+     * Each live area needs an instance of its own: one instance serves one connection and stops when that
+     * connection goes away, so two binaries cannot share one vehicle. Without a second peer named, the
+     * scripted board stands in — it answers the asks, but it does not decide which rows an airframe can
+     * speak, which is what this gate measures.
+     */
+    command: "cargo",
+    probe: [TOOLCHAIN, "--version"],
+    needs: ["gcc"],
+    args: [
+      TOOLCHAIN,
+      "test",
+      "-p",
+      "mpcraft-app",
+      "--features",
+      "sitl-tests",
+      "--test",
+      "streams_live",
+      "--",
+      "--test-threads=1",
+    ],
+    cwd: ROOT,
+    liveWhen: (env) =>
+      env.MPCRAFT_SITL_LIVE === "1" && Boolean(env.MPCRAFT_SITL_TABLE_TARGET),
+    substitute:
+      "the scripted board in crates/mpcraft-app/tests/streams.rs, which answers each ask but cannot say which rows an airframe can speak",
+    control:
+      "scripts/run-gates-controls.js for the report line this gate reads, shown against a transcript where one area passed and the other failed",
+    proof: (text) => resultForSection(text, "streams_live"),
   },
   {
     name: "parity matrix",
