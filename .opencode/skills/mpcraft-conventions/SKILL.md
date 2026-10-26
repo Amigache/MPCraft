@@ -83,7 +83,7 @@ If you need a global mutex around the link, you are reintroducing the upstream f
 | Pure logic | Unit tests beside the code; `proptest` for parsers |
 | Wire format | Golden files — real captured bytes → expected decode |
 | Round-trip | serialise → parse → serialise byte equality |
-| Integration | SITL via Docker, behind a `sitl-tests` feature flag |
+| Integration | SITL — the CI container or the local binaries, behind a `sitl-tests` feature flag |
 | Frontend | Vitest for stores; Playwright for critical flows |
 
 - A test must **assert** something. Calling code is not a test.

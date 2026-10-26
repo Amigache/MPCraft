@@ -29,6 +29,10 @@ sim.out
 /plan.waypoints
 /plan.kml
 
+# What the local simulator writes where it is started: its parameter state and the terrain cells it fetched
+/eeprom.bin
+/terrain/
+
 # The artefacts of the browser automation
 /.playwright-mcp/
 

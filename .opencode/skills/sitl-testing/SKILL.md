@@ -12,20 +12,25 @@ Unit tests prove logic. SITL proves the whole stack works against a real autopil
 ## Why SITL
 
 - Deterministic, repeatable, no hardware needed.
-- The same container runs in CI and locally.
 - It is the only way to verify mission upload, parameter write, and mode changes end-to-end.
+- A live vehicle adds what a scripted peer cannot imitate: its own values, its own encoding, its own
+  streaming, and its own decisions — including refusals, which are the vehicle's answer and not a failure
+  of this code.
 
-## Prerequisites
+Two ways to have one, and they are not interchangeable:
+
+| | CI | This machine |
+| --- | --- | --- |
+| Vehicle | `ghcr.io/ardupilot/sitl` container | Mission Planner's local `sitl\ArduCopter.exe` |
+| Address | UDP `127.0.0.1:14550` | TCP `127.0.0.1:5760 + 10 × instance` |
+| Connection | one per test area | **one per run** — the process exits when its client goes away |
+| Parameters | `Parameters.parm` in the working dir | `default_params\copter.parm`, plus a fresh `eeprom.bin` per directory |
+
+## Starting SITL — the container (CI)
 
 ```bash
 docker pull ghcr.io/ardupilot/sitl:latest
-```
 
-SITL needs a `SITL_WORKING_DIR` and a writable parameters file. The container handles both.
-
-## Starting SITL
-
-```bash
 docker run --rm -it \
   -e HOME=/tmp \
   --name mpcraft-sitl \
@@ -36,8 +41,35 @@ docker run --rm -it \
     Tools/autotest/sim_vehicle.py -v ArduCopter -D --out=UDP:127.0.0.1:14550 --model + --speedup 1"
 ```
 
-The vehicle is now listening on UDP 14550. The MAVLink stream comes from
-`127.0.0.1:14550`; `sim_vehicle.py` also exposes a simulator control port on 5501.
+SITL needs a `SITL_WORKING_DIR` and a writable parameters file; the container handles both. The stream comes
+from `127.0.0.1:14550`, and `sim_vehicle.py` also exposes a simulator control port on 5501 — which is what
+lets a test feed the radio check.
+
+## Starting SITL — the local binaries (this machine)
+
+Mission Planner's build of SITL does not take a device string for UDP, so it is reached over TCP on the port
+it reserves per instance:
+
+```powershell
+Set-Location "C:\Users\Byte.DESKTOP-JN9IU2Q\Documents\Mission Planner\sitl"
+.\ArduCopter.exe -M + -s 1 --serial0 "tcp:0" `
+  --defaults "default_params\copter.parm" --instance 0 `
+  --home "-35.35,149.16,584,270"
+```
+
+Three things about this build that change how a suite is written against it:
+
+- **The port is `5760 + 10 × instance`.** Two instances need two addresses; a test that hardcodes one cannot
+  run two vehicles.
+- **It binds only the telemetry port**, not the RC input port (`5501 + 10 × instance`). Nothing travels
+  through the radio, so a pre-arm check that reads the radio cannot be fed and must be said as uncovered
+  rather than asserted.
+- **It exits when the client disconnects**, so one run holds one connection and walks through its areas
+  inside it — opening a connection per area takes the vehicle down after the first one. Run the suite with
+  `--test-threads=1`.
+
+Start a *new* instance for each fresh run: the process writes `eeprom.bin` in its own working directory, and a
+leftover file carries the state of the previous run (a parameter written by an earlier test, an arming).
 
 ## Manual verification
 
@@ -58,13 +90,14 @@ cargo run -p mpcraft-cli -- connect udp:127.0.0.1:14550 -- params set ARMING_CHE
 ## Writing an integration test
 
 Integration tests live in `crates/mpcraft-link/tests/` and are gated behind a feature flag so
-`cargo test --workspace` does not require Docker.
+`cargo test --workspace` does not require a simulator — Docker or otherwise.
 
 ```rust
 #![cfg(feature = "sitl-tests")]
 
 #[tokio::test]
 async fn uploads_mission_and_reads_it_back() {
+    // The address comes from MPCRAFT_SITL_TARGET in a real run; it is written here to show the shape.
     let session = Session::connect(ConnectionSpec::udp("127.0.0.1:14550")).await.unwrap();
     session.wait_for_vehicle(Duration::from_secs(30)).await.unwrap();
 
@@ -84,6 +117,19 @@ docker compose -f infra/sitl/docker-compose.yml up -d
 cargo test --workspace --features sitl-tests
 ```
 
+Against the local binaries the address comes from `MPCRAFT_SITL_TARGET` rather than being hardcoded, so the same
+suite answers against either build:
+
+```powershell
+$env:MPCRAFT_SITL_TARGET = "tcp:127.0.0.1:5760"
+cargo +stable-x86_64-pc-windows-gnu test -p mpcraft-link --features sitl-tests --test sitl -- --nocapture --test-threads=1
+```
+
+Set `MPCRAFT_SITL_LIVE=1` when a vehicle is really on the wire. `scripts/run-gates.js` says which one answered
+the gate: without it a scripted vehicle written from the specification stands in, and the gate reports
+`SUSTITUIDA`, because that stand-in covers the protocols but not timing, a radio, or a board. A green that rests
+on a stand-in is not a pass against a vehicle.
+
 ## What to verify in SITL
 
 | Area | Test |
@@ -96,11 +142,33 @@ cargo test --workspace --features sitl-tests
 | Commands | `COMMAND_LONG` for takeoff returns `MAV_RESULT_ACCEPTED` |
 | Reconnect | Killing SITL surfaces a disconnect; restarting it triggers reconnect |
 
+Two areas need a live vehicle rather than a scripted one, and they read as the vehicle's answer:
+
+- **Arming** is refused or accepted by the board. With Mission Planner's defaults `ARMING_CHECK` is 1 — the full
+  checks — and a fresh simulator refuses for its own reason while printing it on the wire ("Arm: Gyros
+  inconsistent", "Arm: Need Position Estimate"). Assert that the answer arrives as the vehicle's own, kept apart
+  from a board that never answered; prove acceptance by writing the check off and polling, not by asserting a
+  duration, because the estimate the check reads is still the vehicle's decision. Then put the parameter back as
+  it was found.
+- **Sequence 0 of a plan** is not an item: the specification puts the home position there, so whatever was
+  uploaded is replaced on read-back by the home, in the absolute frame above mean sea level. Compare the items
+  from sequence 1 onwards and assert sequence 0 as the home.
+
+What cannot be asserted against this build is said rather than assumed: the disconnect, because a test that
+connects to a peer cannot stop that peer, and the radio check, because these builds do not bind the RC input
+port. A command that answers with a refusal in every state tried — `DO_CHANGE_SPEED` did — asserts how the
+refusal is read, not an acceptance this build does not give.
+
 ## Timeouts
 
 SITL is slower than real hardware but not instant. Use generous timeouts (30 s for connect,
 5 s for transactions) and **never** assert on wall-clock timing tighter than that. A CI machine
 under load will fail a flaky timing assertion and teach everyone to ignore the suite.
+
+A state the vehicle decides for itself has no duration that can be asserted — an arming, an EKF that has to
+converge, a message that arrives on a rate. Poll with a bounded deadline instead: the deadline says what the
+machine is allowed to take, and the assertion says what the vehicle said. The recorded runs show why: the same
+check refused twenty times and accepted on the twenty-first.
 
 ## Cleanup
 
@@ -110,8 +178,17 @@ Always stop the container, even on test failure:
 docker compose -f infra/sitl/docker-compose.yml down -v
 ```
 
+The local build leaves its own traces in the working directory it was started from — `eeprom.bin` and the
+terrain cells it fetched (`terrain/S36E149.DAT`). They are state from the previous run, so a fresh instance
+must not inherit them; keep them out of the repository rather than committing them.
+
 ## Red flags
 
 - An integration test is flaky on repeated runs — it is asserting on timing, not behaviour.
 - A test needs a hardcoded real-world vehicle state.
 - The suite requires Docker for `cargo test --workspace` — it must be behind a feature flag.
+- A live assertion claims an acceptance this build does not give, or reads a refusal as a failure of this code
+  rather than as the board's own answer.
+- The target is hardcoded instead of read from `MPCRAFT_SITL_TARGET`, so the same suite cannot answer against
+  both builds; or the gate reports a stand-in as though a vehicle had answered it.
+- One connection per area against the local binaries, which take the vehicle down after the first one.
