@@ -24,5 +24,11 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
+[features]
+# The tests that speak to a live simulator. They are behind a flag so that `cargo test` does not
+# need one: what they prove is what a scripted peer cannot imitate, and a suite that requires a
+# simulator teaches everyone to ignore it.
+sitl-tests = []
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

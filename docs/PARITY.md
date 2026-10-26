@@ -714,6 +714,40 @@ with `MAV_RESULT_DENIED` before the line existed. The helper sets the flag whate
 test asserts the flag on the wire rather than the number the flag makes the vehicle ignore; the live run then
 reads the mode back from the heartbeat, which is what the vehicle says rather than what was asked for.
 
+A **plan goes up and comes back item by item**, and the live run is what recorded two things about the
+trip. Sequence 0 is not one of the items: the specification says the first slot of a plan carries the
+home position instead of the first item, and whatever was uploaded there — a takeoff — is replaced on the
+read-back by the home, in the absolute frame and measured above mean sea level, so the round trip compares
+the items from sequence 1 onwards and asserts sequence 0 as the home, where the vehicle is. And before
+the station asked for the capabilities the places came back rounded to single precision, which is the
+float form losing a decimal rather than the wire losing a value; on the integer path the equality that
+holds is the exact scaled one; and the home sequence 0 is asserted against is the one the ask brings in,
+because a simulator that has not been asked has no home to say. What the live run cannot assert is said
+rather than assumed: the disconnect when the simulator is stopped, because a test that connects to a peer
+cannot stop that peer. The battery and the home are read after the ask rather than before it, which is what
+the run prints: four packets before, every one of them a heartbeat, and sixty-nine after.
+
+The **arming** is read as the vehicle's answer rather than as a success this machine decides. The number the
+dictionary gives the command is 400; an earlier probe sent 40001 and was answered `MAV_RESULT_UNSUPPORTED`,
+which is a different thing from a refusal and would have made the area assert a fact about a command the board
+does not know. A healthy simulator started with Mission Planner's defaults leaves `ARMING_CHECK` at 1 — the
+full checks, not none — and refused for a reason of its own, printing it on the wire ("Arm: Gyros
+inconsistent", "Arm: Need Position Estimate"). Taking the check away does not make the vehicle arm at once: the
+run refused twenty times and accepted on the twenty-first, because the estimate the check reads is still the
+vehicle's decision, so the area polls rather than asserting a duration. What it asserts is that the answer
+arrives as the vehicle's own — acceptance, or a refusal with the reason the board gave, kept apart from a board
+that never answered — that the write is echoed, that a vehicle which accepts says it is armed in its heartbeat,
+that it answers the disarming, and that the parameter is put back as it was found. One of the checks cannot be
+fed at all: these binaries bind only the telemetry port of each instance (5760 + 10 × instance) and not the RC
+input port (5501 + 10 × instance), so nothing travels through the radio.
+
+What the **executor** reads back is the vehicle's result, and the live run recorded which commands answer which
+way. `MAV_CMD_DO_SET_HOME` (179) asked for the home the vehicle already holds is answered with acceptance by a
+disarmed board, so that answer is the executor's rather than a state the board happens to be in.
+`MAV_CMD_DO_CHANGE_SPEED` (178) was refused with `MAV_RESULT_FAILED` in every state it was tried in — disarmed
+and armed both answered the same way — so the area asserts how the refusal is read, kept apart from a board
+that never answered, rather than asserting an acceptance this build does not give.
+
 The **formation** is ported as far as this machine can verify it: the slots — which vehicle sits
 where relative to the one it follows, in metres across and along the direction of travel and up —
 and the places the slots put the vehicles, turned by the heading of the leader with the sign

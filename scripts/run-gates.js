@@ -105,15 +105,32 @@ const GATES = [
     name: "integration against SITL",
     layer: "any",
     /**
-     * A simulated vehicle written from the specification, independently of the Rust code, stands in
-     * for a live simulator on this machine, where the simulator image cannot be fetched. It covers
-     * the protocols; it does not cover timing, a radio, or a board, so what stands in is narrower
-     * than what it replaces.
+     * A live simulator answers this gate when MPCRAFT_SITL_LIVE names it, because what a live
+     * autopilot adds is what a script cannot imitate: its own values, its own encoding, its own
+     * streaming. Without one on the machine, a simulated vehicle written from the specification
+     * stands in; it covers the protocols but not timing, a radio, or a board, so what stands in is
+     * narrower than what it replaces.
      */
+    command: "cargo",
+    probe: [TOOLCHAIN, "--version"],
+    needs: ["gcc"],
+    args: [
+      TOOLCHAIN,
+      "test",
+      "-p",
+      "mpcraft-link",
+      "--features",
+      "sitl-tests",
+      "--",
+      "--test-threads=1",
+    ],
+    cwd: ROOT,
+    liveWhen: (env) => env.MPCRAFT_SITL_LIVE === "1",
     substitute:
       "scripts/simulated-vehicle.py, which answers the parameter, mission and command protocols",
     control:
       "the golden-file stream, which is a second implementation rather than a mirror of the parser",
+    proof: (text) => lineMatching(text, /\d+ passed/),
   },
   {
     name: "parity matrix",
@@ -244,7 +261,7 @@ function assess(gate) {
     return entry;
   }
 
-  if (gate.substitute) {
+  if (gate.substitute && !(gate.liveWhen?.(process.env) ?? false)) {
     entry.state = "SUSTITUIDA";
     entry.why = gate.substitute;
     return entry;
