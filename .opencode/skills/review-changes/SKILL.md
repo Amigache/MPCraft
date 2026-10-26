@@ -72,20 +72,53 @@ Review in this order. A violation early in the list invalidates everything after
 - [ ] No debug logging left behind; no commented-out code.
 - [ ] No unrelated reformatting mixed into the change.
 
+### 8. Verifying what is reported (before writing it down)
+
+A finding is a claim about behaviour, and a claim that could have been shown by running something is not a
+finding until it has been run.
+
+- [ ] Name what would show it: a test that fails, a byte on the wire, a value the vehicle answered, a box
+      measured at 1024×640 and 1920×1080 in the language chosen, an entry the catalogue does not have.
+- [ ] Run that thing. If it cannot be run on this machine, say so in the finding rather than presenting the
+      reading as the proof.
+- [ ] Golden values are worked out from the published dictionary, not copied from the code under test — a
+      mirror passes round-trip and corrupts every upload.
+- [ ] A gate's green is read with its control: a stand-in is named as a stand-in, and `NO-APLICA` is not
+      evidence for the layer it did not read.
+- [ ] What the code decides is kept apart from what the vehicle decides: a refusal, a clamped parameter, a
+      mode the board reports back, are the board's answers, not failures of this code.
+- [ ] Every finding cites a path and a line, and the line cited is read, not inferred from a name.
+
 ## Reporting format
 
-Group findings by severity. For each:
+Group findings by severity, and write for each one what showed it. The `verified by:` field is what makes a
+review a report rather than an opinion. For each:
 
 ```
 [blocking] crates/mpcraft-link/src/session.rs:142
   The transaction timeout path does not cancel the waiter registration, so
   a timed-out request leaks an entry in the waiter list.
 
+  verified by: two transactions sent over scripts/simulated-vehicle.py, the second matching a packet the
+             first had already consumed — the waiter list still holds the registration after the timeout.
+
   Fix: drop the registration guard on the timeout branch —
   `let _guard = self.register(...).await?;` so it deregisters on drop.
 ```
 
 Rank by severity: **blocking** → **should-fix** → **nit**.
+
+What could not be shown is written as unconfirmed, with the thing that would settle it, and is not ranked as
+blocking:
+
+```
+[unconfirmed] crates/mpcraft-log/src/tlog.rs:88
+  Looks like a buffer sized from a wire length without a ceiling. Nothing here could send a length that
+  large, so this is a suspicion rather than a finding.
+
+  What would settle it: a golden file whose record header names a length past the ring buffer, read against
+  the parser.
+```
 
 State clearly if something looks wrong but you could not confirm it — do not assert a bug you have
 not verified.
