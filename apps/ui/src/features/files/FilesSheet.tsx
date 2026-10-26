@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { pickSavePath } from "../../lib/ipc/dialog";
+import { formatCount } from "../../lib/format";
 import { ftpList, ftpRead, normaliseError } from "../../lib/ipc/bridge";
 import type { FtpEntry } from "../../lib/ipc/types";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
@@ -123,13 +124,23 @@ export function FilesSheet() {
 
       const file = await ftpRead(entry.path, picked.path);
 
+      // The numbers are made into strings here and nowhere else, with the separator the language the window is
+      // read in uses.
+      const given = formatCount(file.size);
+      const said = formatCount(file.announcedSize);
+
       setNotice(
-        t(
-          file.size === 1
-            ? "{count} byte of {name} was written to {path}."
-            : "{count} bytes of {name} were written to {path}.",
-          { count: file.size, name, path: picked.path },
-        ),
+        file.announcedSize === file.size
+          ? t(
+              file.size === 1
+                ? "{count} byte of {name} was written to {path}."
+                : "{count} bytes of {name} were written to {path}.",
+              { count: given, name, path: picked.path },
+            )
+          : t(
+              "{given} bytes of {name} were written to {path}. The vehicle said the file has {said} bytes, which is not what it gave.",
+              { given, name, path: picked.path, said },
+            ),
       );
     } catch (cause) {
       setError(normaliseError(cause).message);

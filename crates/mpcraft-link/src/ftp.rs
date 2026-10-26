@@ -187,6 +187,18 @@ pub fn refusal_of(answer: &FtpMessage) -> FtpRefusal {
     }
 }
 
+/// Whether a refusal says the end of what was asked for rather than that the command failed.
+///
+/// The code that names the end is not a refusal of what was asked: it is the vehicle saying that there is nothing
+/// more. A reader that counts to the number the open answered with keeps asking after the file is done, which is
+/// what happened on a real board with the files it generates when asked — those carry a size the file does not
+/// have — and a reader of a listing keeps asking after its last entry, because this build ends a listing with the
+/// same number. So both readers stop at the code, as every other decision in this crate does.
+#[must_use]
+pub fn says_the_end(refusal: &FtpRefusal) -> bool {
+    matches!(refusal.code, Some(FtpError::Eof))
+}
+
 impl FtpError {
     fn from_u8(value: u8) -> Option<Self> {
         match value {
@@ -223,6 +235,23 @@ pub struct FtpEntry {
     pub size: i64,
     /// Whether the entry is a folder.
     pub is_directory: bool,
+}
+
+/// A file the vehicle gave back, kept with the number the vehicle said for it.
+///
+/// The two numbers are kept apart on purpose. The size a listing or an open carries is what the vehicle says about
+/// the file, and for the files a vehicle generates when asked it is not what the file has: this board said 100000
+/// bytes for one of its text files and answered with 122. An interface that showed only the number would show a
+/// file that does not exist at that size, so what is shown is the number the vehicle said and the bytes it gave.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FtpFile {
+    /// The path the file was asked for.
+    pub path: String,
+    /// How many bytes the vehicle said the file has, which is what the open answered with.
+    pub announced_size: u32,
+    /// The bytes that came back, which is what the file actually has.
+    pub content: Vec<u8>,
 }
 
 /// A parsed FTP message.
@@ -359,6 +388,18 @@ fn parse_entries(data: &[u8], folder: &str, with_time: bool, entries: &mut Vec<F
 
     while index < data.len() {
         let kind = data[index];
+
+        if kind == 0 {
+            /*
+             * The format puts a zero after the name and the writer that builds the entry adds its own terminator on
+             * top of it, so two zeros separate the entries on this build. Only what carries a letter is an entry,
+             * and the number that the next ask has to say counts entries rather than separators — which is why the
+             * separator is skipped here without being counted.
+             */
+            index += 1;
+            continue;
+        }
+
         index += 1;
 
         let start = index;
@@ -571,6 +612,13 @@ impl FtpClient {
             let response = match result {
                 Ok(response) => response,
                 Err(LinkError::FtpRefused(refusal)) => {
+                    // The end of a listing is a code rather than a failure: the ask that follows the last entry is
+                    // answered with the number that says there are no more entries, so the reader stops there and
+                    // gives back what it read. Without this the folder that can be listed comes back as a refusal.
+                    if says_the_end(&refusal) {
+                        break;
+                    }
+
                     // Only the first answer can mean that the vehicle does not know this opcode: a refusal in the
                     // middle of a listing is a real error. The decision is made from the code the vehicle named,
                     // not from the words the message renders — a message is never read for meaning.
@@ -659,6 +707,46 @@ impl FtpClient {
             .await?;
 
         Ok(response.data)
+    }
+
+    /// Reads a file whole, stopping where the vehicle says the file ends.
+    ///
+    /// The reader does not count to the number the open answered with: that number is what the vehicle says about
+    /// the file, and for a file it generates when asked it is not what the file has. What decides when the reading
+    /// stops is the code the vehicle names, which is data rather than a sentence, and the two numbers are kept
+    /// apart so that the difference can be shown rather than hidden.
+    pub async fn read_whole(&self, path: &str, block: u8) -> Result<FtpFile, LinkError> {
+        let (session_id, announced_size) = self.open_file_read(path).await?;
+
+        let mut content = Vec::new();
+        let mut offset: u32 = 0;
+
+        loop {
+            match self.read_file(session_id, offset, block).await {
+                Ok(bytes) => {
+                    if bytes.is_empty() {
+                        break;
+                    }
+
+                    offset += bytes.len() as u32;
+                    content.extend_from_slice(&bytes);
+                }
+                Err(LinkError::FtpRefused(refusal)) if says_the_end(&refusal) => break,
+                Err(error) => {
+                    let _ = self.terminate_session(session_id).await;
+
+                    return Err(error);
+                }
+            }
+        }
+
+        let _ = self.terminate_session(session_id).await;
+
+        Ok(FtpFile {
+            path: path.to_owned(),
+            announced_size,
+            content,
+        })
     }
 
     /// Terminates a session.
@@ -884,6 +972,33 @@ mod tests {
     }
 
     #[test]
+    fn the_second_zero_between_entries_is_a_separator_and_not_an_entry() {
+        /*
+         * This is the answer a real board gave for its root folder, byte for byte: every entry ends with the zero
+         * the format writes and the zero the writer adds for itself. Read as an entry, that second zero takes the
+         * letter of the next one into its name — which is what happened before this rule existed, and it also made
+         * the number the next ask carries wrong, because the vehicle counts entries, not separators.
+         */
+        let data = b"Droot\0\0Dlogs\0\0Fboot.txt\t2048\0";
+
+        let mut entries = Vec::new();
+        let read = parse_entries(data, "/", false, &mut entries);
+
+        assert_eq!(read, 3, "the separators are not counted");
+        assert_eq!(entries.len(), 3);
+
+        assert_eq!(entries[0].name, "root");
+        assert_eq!(
+            entries[1].name, "logs",
+            "the letter is not part of the name"
+        );
+        assert_eq!(entries[2].name, "boot.txt");
+
+        assert!(entries[0].is_directory && entries[1].is_directory);
+        assert!(!entries[2].is_directory);
+    }
+
+    #[test]
     fn a_plain_listing_gives_the_name_of_the_folder_whole() {
         // Without the times, a tab is part of the name.
         let data = b"Dodd\tname\0";
@@ -986,6 +1101,32 @@ mod tests {
         };
 
         assert_eq!(refusal_of(&answer).errno, None);
+    }
+
+    #[test]
+    fn the_code_that_names_the_end_is_read_as_the_end_and_not_as_a_failure() {
+        // The vehicle says the end with one number, and it uses it for a listing and for a file: the answer that
+        // follows the last entry, and the answer to a read past what the file has, both name it. A reader that
+        // treated it as a refusal would report a folder it had read and a file it had read as failures.
+        let answer = FtpMessage {
+            seq_number: 2,
+            session: 0,
+            opcode: Opcode::Nak,
+            size: 1,
+            req_opcode: Opcode::ListDirectory as u8,
+            burst_complete: 0,
+            padding: 0,
+            offset: 0,
+            data: vec![FtpError::Eof as u8],
+        };
+
+        let refusal = refusal_of(&answer);
+
+        assert!(says_the_end(&refusal));
+
+        // And it is not the case the fall-back is written for: nothing about an opcode is being refused here, so
+        // asking again with another command would say the same thing twice.
+        assert!(!falls_back_from(&refusal));
     }
 
     #[test]

@@ -2527,18 +2527,22 @@ async fn ftp_read(
     path: String,
     output: Option<String>,
 ) -> CommandResult<FtpFileEvent> {
-    let content = state.supervisor.ftp_read(&path).await?;
+    let file = state.supervisor.ftp_read(&path).await?;
 
     if let Some(output) = output {
-        std::fs::write(&output, &content).map_err(|error| {
+        std::fs::write(&output, &file.content).map_err(|error| {
             CommandError::internal(format!("the file could not be written: {error}"))
         })?;
     }
 
     Ok(FtpFileEvent {
         path,
-        size: content.len(),
-        content,
+        // The number the vehicle said for the file and the bytes it gave are sent apart, because a file the
+        // vehicle generates when asked carries a size it does not have, and an interface that showed only the
+        // number would show a file that is not there.
+        announced_size: file.announced_size,
+        size: file.content.len(),
+        content: file.content,
     })
 }
 
@@ -2548,7 +2552,9 @@ async fn ftp_read(
 struct FtpFileEvent {
     /// The name of the file.
     path: String,
-    /// How many bytes the file has.
+    /// How many bytes the vehicle said the file has.
+    announced_size: u32,
+    /// How many bytes the vehicle gave.
     size: usize,
     /// The bytes of the file.
     content: Vec<u8>,

@@ -413,11 +413,13 @@ export interface FtpEntry {
   readonly isDirectory: boolean;
 }
 
-/** A file the vehicle holds: its name, its size and its bytes. */
+/** A file the vehicle holds: its name, what the vehicle said it has, and what it gave. */
 export interface FtpFile {
   /** The path of the file. */
   readonly path: string;
-  /** How many bytes the file has. */
+  /** How many bytes the vehicle said the file has, which is not always what it gave. */
+  readonly announcedSize: number;
+  /** How many bytes the vehicle gave. */
   readonly size: number;
   /** The bytes of the file. */
   readonly content: readonly number[];

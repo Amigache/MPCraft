@@ -795,6 +795,8 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Se escribió {count} byte de {name} en {path}.",
     "{count} bytes of {name} were written to {path}.":
       "Se escribieron {count} bytes de {name} en {path}.",
+    "{given} bytes of {name} were written to {path}. The vehicle said the file has {said} bytes, which is not what it gave.":
+      "Se escribieron {given} bytes de {name} en {path}. El vehículo dijo que el archivo tiene {said} bytes, y eso no es lo que dio.",
 
     // The console of the messages the vehicle sends.
     Clear: "Vaciar",

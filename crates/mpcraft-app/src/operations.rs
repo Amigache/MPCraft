@@ -8,9 +8,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mpcraft_link::{
-    zoom_options, zoom_type_of, Calibration, CameraDevice, FtpClient, FtpEntry, GimbalDevice,
-    HomeRequest, LinkError, OsdSlot, OsdSlotConfig, PartialUpdate, PartialUpdatePolicy, Session,
-    VehicleId, VideoStream, ZoomOption, DEFAULT_COMMAND_TIMEOUT,
+    zoom_options, zoom_type_of, Calibration, CameraDevice, FtpClient, FtpEntry, FtpFile,
+    GimbalDevice, HomeRequest, LinkError, OsdSlot, OsdSlotConfig, PartialUpdate,
+    PartialUpdatePolicy, Session, VehicleId, VideoStream, ZoomOption, DEFAULT_COMMAND_TIMEOUT,
 };
 use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionItem, MissionType, Plan};
@@ -664,36 +664,21 @@ impl SessionSupervisor {
         Ok(())
     }
 
-    /// Reads a file the vehicle holds, over the file transfer protocol.    ///
+    /// Reads a file the vehicle holds, over the file transfer protocol.
+    ///
+    /// The number that comes back is the one the vehicle said for the file, and the bytes are what it gave, which
+    /// is not always the same thing: the files a vehicle generates when asked carry a size the file does not have.
+    ///
     /// # Errors
     ///
     /// Returns an error when there is no open link, when the vehicle refuses the request,
     /// or when the vehicle does not answer.
-    pub async fn ftp_read(&self, path: &str) -> CommandResult<Vec<u8>> {
+    pub async fn ftp_read(&self, path: &str) -> CommandResult<FtpFile> {
         let session = self.open_session()?;
 
         let client = FtpClient::new(session.clone());
 
-        let (session_id, size) = client.open_file_read(path).await?;
-
-        let mut content = Vec::new();
-        let mut offset: u32 = 0;
-
-        // The vehicle answers with at most 239 bytes at a time.
-        while offset < size {
-            let block = client.read_file(session_id, offset, FTP_BLOCK).await?;
-
-            if block.is_empty() {
-                break;
-            }
-
-            offset += block.len() as u32;
-            content.extend_from_slice(&block);
-        }
-
-        let _ = client.terminate_session(session_id).await;
-
-        Ok(content)
+        Ok(client.read_whole(path, FTP_BLOCK).await?)
     }
 
     /// Asks the camera of the vehicle what video streams it has.

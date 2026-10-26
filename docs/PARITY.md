@@ -355,10 +355,33 @@ an unknown opcode with a generic failure that names no number, so the rule accep
 is read from the answer rather than from the rendering. The number this board gives for every folder is the one
 ArduPilot's mapping gives a drive that cannot work, taken from the published source rather than copied from what
 the board answered, and it is the same fact the startup text gave for the card that failed to start, said in two
-channels by the same machine. What cannot be asserted here is said rather than assumed: no listing has ever come
-from a real card, so nothing has been parsed from a filesystem, and what the run against the board proves is that a
-refusal is read as numbers and that the fall-back ran — which is visible because the answer names the plain listing
-rather than the one with the times.
+channels by the same machine. A card that can work changes what this area can assert: with one inserted, the folder
+answers with the entries it holds rather than with a number, and the walk is read against those entries — five
+folders at the root, one inside `APM`, and an empty `LOGS` — so the fall-back and the number are still read, but as
+one of two states the card decides, and the run holds in both.
+
+The **end of a file is a code rather than a failure**: the byte the vehicle names when there is nothing more is not
+a refusal of what was asked, and both readers stop there — the reader of a file instead of counting to the number
+the open answered with, and the reader of a folder instead of turning the answer after its last entry into an error.
+That number is what the vehicle says about the file, and for the files it generates when asked it is not what the
+file has — this board said 100000 bytes for one of its text files and answered with 122 — so the two numbers are
+kept apart in what the reader gives back, and the interface says when they differ rather than showing a size that is
+not there. What the reader returns is the bytes the vehicle gave; the number is kept as the vehicle said it rather
+than overwritten by what arrived.
+
+The shape of an entry on this build is what decided what a reader has to skip: the format puts a zero after the name
+and the writer that builds the entry adds its own terminator on top of it, so two zeros separate the entries. Read
+as an entry, that second zero takes the letter of the next one into its name — the root of this card came back as
+"DAPM" rather than "APM" before the rule existed — and it makes the number the next ask carries wrong, because the
+vehicle counts entries rather than separators. The names are checked against what the same bytes say to a client
+built from the published format rather than from this crate: pymavlink's own reader gives the same five names, and
+the same code ends its listing.
+
+A refusal that was read once on the bench did not reproduce on a fresh connection: a read asked while nothing was
+open was refused with the code that says the file was not found, and the same ask answered with bytes on the next
+run. That is an observation about the state a previous process left on the port — the vehicle keeps one open file
+per channel and closes it after three seconds of nothing sent on it — rather than a rule, so nothing here depends on
+which of the two this build chooses.
 
 The address a request carries is the pair the link chose from the boards that answered, not the address a station
 would assume: on the bench this board answered nothing addressed to `1:1` and answered the pair it had chosen for

@@ -27,7 +27,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 
 use mpcraft_app::board::detect;
-use mpcraft_link::ftp::{falls_back_from, FtpClient, FtpError, FtpMessage, Opcode};
+use mpcraft_link::ftp::{falls_back_from, says_the_end, FtpClient, FtpError, FtpMessage, Opcode};
 use mpcraft_link::vehicle::VehicleKind;
 use mpcraft_link::{LinkError, Session, SessionOptions, VehicleId};
 use mpcraft_params::ParamEncoding;
@@ -299,10 +299,11 @@ async fn says_it_has_no_logs(session: &Session, vehicle: VehicleId) {
 
 /// The board's own filesystem, asked for through the transfer protocol.
 ///
-/// A simulator has no filesystem to reach, so this is the half that only hardware answers for. Three things are
-/// read apart here: the command the board answers without touching a filesystem at all, which is where the path
-/// is proved before anything is said about the card; the opcode this build of the firmware does not know; and the
-/// number the vehicle's file system gives when its drive cannot work.
+/// A simulator has no filesystem to reach, so this is the half that only hardware answers for. Four things are read
+/// apart here: the command the board answers without touching a filesystem at all, which is where the path is proved
+/// before anything is said about the card; the opcode this build of the firmware does not know; what the folder
+/// answers with, which the card decides — the entries it holds, or the number its file system gives for a drive that
+/// cannot work; and the code that names the end, which is what both readers stop at.
 async fn reaches_its_own_files(session: &Arc<Session>, vehicle: VehicleId) {
     let client = FtpClient::new(session.clone());
 
@@ -328,11 +329,10 @@ async fn reaches_its_own_files(session: &Arc<Session>, vehicle: VehicleId) {
      * divergence recorded in the parity matrix. It is read here rather than assumed, because the fall-back is
      * written for a shape this board does not produce.
      */
-    let unknown = client
+    let first_answer = match client
         .exchange(ftp_message(Opcode::ListDirectoryWithTime, "/"))
-        .await;
-
-    match unknown {
+        .await
+    {
         Err(LinkError::FtpRefused(refusal)) => {
             println!("opcode 16 answered: {refusal}");
 
@@ -342,66 +342,181 @@ async fn reaches_its_own_files(session: &Arc<Session>, vehicle: VehicleId) {
                 refusal.errno, None,
                 "a failure that names no code carries no number"
             );
+
+            refusal
         }
         other => panic!("the board answered opcode 16 with something else: {other:?}"),
-    }
+    };
 
     /*
-     * Each exchange takes its own sequence number, which is what keeps these two answers apart: the board re-sends
-     * the answer for a number it has already seen, and a probe on the bench that reused one read the same refusal
-     * four times.
+     * Each exchange takes its own sequence number, which is what keeps these answers apart: the board re-sends the
+     * answer for a number it has already seen, and a probe on the bench that reused one read the same refusal four
+     * times.
      */
     let listing = client.list_directory("/").await;
 
-    let refusal = match listing {
-        Err(LinkError::FtpRefused(refusal)) => refusal,
-        other => panic!("the board answered the listing with something else: {other:?}"),
-    };
-
-    println!("the listing read through the client: {refusal}");
-
-    assert_eq!(
-        refusal.req_opcode,
-        Opcode::ListDirectory,
-        "this is the answer to the second ask, so the fall-back ran",
-    );
-
-    assert_eq!(refusal.code, Some(FtpError::FailErrno));
-
-    assert_eq!(
-        refusal.errno,
-        Some(EBUSY),
-        "the number is the file system saying that its drive cannot work",
-    );
-
-    // The decision about what to do next reads the code rather than the words the message renders, and this
-    // refusal is the case where the two differ: its rendering contains the word "Fail" — which is what an earlier
-    // rule read — while the code names an error number, and a refusal that names a number is not asked again with
-    // another opcode.
-    assert!(format!("{refusal}").contains("Fail"));
-    assert!(!falls_back_from(&refusal));
-
-    // A refusal reaches the interface as a refusal, with its numbers kept apart from the sentence.
-    assert_eq!(LinkError::FtpRefused(refusal).code(), "rejected_by_vehicle");
-
     /*
-     * What the number means is said by the same board in another channel: the startup text keeps the line about
-     * the card it could not start, and the mapping ArduPilot's file system uses gives that state the number
-     * asserted above. Two channels saying one fact, and neither is read out of prose for meaning.
+     * The folder answers in one of two ways and the card decides which: with the entries it holds, or with the
+     * number its file system gives for a drive that cannot work. Both are read as data, and the rule that decides
+     * what to do next reads the code rather than the words the message renders — this refusal is where the two
+     * differ, because its rendering contains "Fail" while its code names an error number, and a refusal that names
+     * a number is not asked again with another opcode.
      */
-    let boot = include_str!("fixtures/pixhawk_startup.txt");
+    match listing {
+        Err(LinkError::FtpRefused(refusal)) => {
+            println!("the listing read through the client: {refusal}");
 
-    assert!(
-        boot.contains("SDCard failed to start"),
-        "the card the number says cannot work is the card the board said did not start",
-    );
+            assert_eq!(
+                refusal.req_opcode,
+                Opcode::ListDirectory,
+                "this is the answer to the second ask, so the fall-back ran",
+            );
+
+            assert_eq!(refusal.code, Some(FtpError::FailErrno));
+
+            assert_eq!(
+                refusal.errno,
+                Some(EBUSY),
+                "the number is the file system saying that its drive cannot work",
+            );
+
+            assert!(format!("{refusal}").contains("Fail"));
+            assert!(!falls_back_from(&refusal));
+
+            // A refusal reaches the interface as a refusal, with its numbers kept apart from the sentence.
+            assert_eq!(LinkError::FtpRefused(refusal).code(), "rejected_by_vehicle");
+
+            /*
+             * What the number means is said by the same machine in another channel: the startup text of the card
+             * that could not start keeps the line about it, and the mapping ArduPilot's file system uses gives that
+             * state the number asserted above. Two channels saying one fact, and neither is read out of prose for
+             * meaning. The fixture is what the port carried while that card booted, so it is read here rather than
+             * as something the run can capture — a board prints its banner only while it starts.
+             */
+            let boot = include_str!("fixtures/pixhawk_startup.txt");
+
+            assert!(
+                boot.contains("SDCard failed to start"),
+                "the card the number says cannot work is the card that was said not to start",
+            );
+        }
+        Ok(entries) => {
+            println!("the folder holds {} entries", entries.len());
+
+            assert!(!entries.is_empty(), "the card answers with what it holds");
+
+            for entry in entries {
+                println!("  entry: {} | {}", entry.name, entry.path);
+
+                assert!(!entry.name.is_empty(), "an entry says what it is called");
+
+                /*
+                 * The letter of an entry is not part of its name: before this rule existed the second zero between
+                 * entries was read as the entry, so the names came back with the letter inside them — "DAPM" rather
+                 * than "APM". The names are checked against what the vehicle said, which is what the interface shows.
+                 */
+                assert!(
+                    !entry.name.starts_with('D'),
+                    "the letter that says a folder is a folder is not part of its name",
+                );
+
+                assert!(entry.is_directory, "the root of this card holds folders");
+            }
+
+            /*
+             * That the folder came back as entries rather than as a refusal is what shows the rule firing against
+             * the board: the ask after the last entry is answered with the code that names the end, so a reader that
+             * read it as a failure would have thrown away a listing the vehicle had given. And the fall-back ran to
+             * get here, because opcode 16 was refused above — which is visible only through the answer read there,
+             * since the client does not say which opcode an entry came from.
+             */
+            assert!(
+                falls_back_from(&first_answer),
+                "the answer to the first ask is the case the fall-back is written for",
+            );
+        }
+        other => panic!("the board answered the listing with something else: {other:?}"),
+    }
 
     /*
-     * What this area cannot assert is a filesystem. Nothing can be listed, read or parsed while the drive cannot
-     * work, so what is proved here is the part that does not depend on a card: that a refusal travels as the
-     * numbers the vehicle named. The pair the request carries is proved by the answer arriving at all — this
-     * board said nothing on the bench to a request addressed to the reserved pair and answered the one addressed
-     * to the pair it chose for itself, which is what `encode_ftp` now writes rather than what it assumed.
+     * A file the vehicle generates when asked is the case that shows what a reader has to do: the number the open
+     * carries for it is not the length of the file — this board said 100000 bytes and answered with 122 — so the
+     * reading stops at the code the vehicle names rather than at a counter that reaches a number. The two numbers
+     * are kept apart in what comes back, because an interface that showed only the number would show a file that
+     * is not there.
+     */
+    let opened = client.open_file_read("/@SYS/memory.txt").await;
+
+    match opened {
+        Ok((session_id, announced)) => {
+            let first = client
+                .read_file(session_id, 0, 230)
+                .await
+                .expect("the board answers a read inside the file it opened");
+
+            println!("the board said {announced} bytes and gave {}", first.len());
+
+            assert!(
+                !first.is_empty(),
+                "the file the vehicle generates has bytes"
+            );
+
+            assert!(
+                first.len() < announced as usize,
+                "the number the vehicle says for a file it generates is not what it gives",
+            );
+
+            // Asked past what it gave, the board answers with the code that says there are no more bytes. That is
+            // where a reader has to stop, and it is why the end travels as data rather than as a failure.
+            let past = client.read_file(session_id, first.len() as u32, 230).await;
+
+            match past {
+                Err(LinkError::FtpRefused(refusal)) => {
+                    assert_eq!(refusal.code, Some(FtpError::Eof));
+                    assert!(
+                        says_the_end(&refusal),
+                        "the code that names the end is not a refusal",
+                    );
+                }
+                other => {
+                    panic!("the board answered a read past the end with something else: {other:?}")
+                }
+            }
+
+            let _ = client.terminate_session(session_id).await;
+
+            // The same file through the reader, which is the path the interface uses: it returns what the vehicle
+            // gave and keeps the number the vehicle said apart from it.
+            let file = client.read_whole("/@SYS/memory.txt", 230).await.unwrap();
+
+            assert_eq!(file.announced_size, announced);
+            assert_eq!(
+                file.content, first,
+                "the reader gives back the bytes the vehicle gave, no more and no less",
+            );
+        }
+        Err(LinkError::FtpRefused(refusal)) => {
+            println!("the open refused: {refusal}");
+
+            assert_eq!(refusal.code, Some(FtpError::FailErrno));
+            assert_eq!(
+                refusal.errno,
+                Some(EBUSY),
+                "a card that did not start has no filesystem to reach",
+            );
+
+            assert!(
+                !says_the_end(&refusal),
+                "a refusal is not the end of what was asked for"
+            );
+        }
+        other => panic!("the board answered the open with something else: {other:?}"),
+    }
+
+    /*
+     * The pair the request carries is proved by the answer arriving at all: this board said nothing on the bench to
+     * a request addressed to the reserved pair and answered the one addressed to the pair it chose for itself,
+     * which is what `encode_ftp` now writes rather than what it assumed.
      */
     assert_eq!(
         session.state().selected,
