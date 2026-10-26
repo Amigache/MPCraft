@@ -25,6 +25,7 @@ import type {
   SampleValue,
   VehicleLog,
 } from "../../lib/ipc/types";
+import { formatCount, formatNumber } from "../../lib/format";
 import { alignSeries, planChart } from "../../lib/graphs/plan";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
@@ -597,17 +598,29 @@ export function LogsScreen() {
                   summary.records === 1
                     ? "{records} record"
                     : "{records} records",
-                  { records: summary.records },
+                  { records: formatCount(summary.records) },
                 ),
                 t(duration === 1 ? "{seconds} second" : "{seconds} seconds", {
-                  seconds: duration.toFixed(1),
+                  seconds: formatNumber(duration),
                 }),
                 t(
                   summary.messages.length === 1
                     ? "{kinds} kind of message"
                     : "{kinds} kinds of message",
-                  { kinds: summary.messages.length },
+                  { kinds: formatCount(summary.messages.length) },
                 ),
+                // A log that holds something the reader could not read is not a whole log, so the
+                // count is said when there is one. A zero says nothing was dropped, and is not said.
+                ...(summary.broken > 0
+                  ? [
+                      t(
+                        summary.broken === 1
+                          ? "{broken} record holds something the reader could not read"
+                          : "{broken} records hold something the reader could not read",
+                        { broken: formatCount(summary.broken) },
+                      ),
+                    ]
+                  : []),
               ].join(", ")}
             </p>
 

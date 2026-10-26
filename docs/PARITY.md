@@ -510,9 +510,15 @@ head is cut in the middle of its sixty-fourth declaration, which is what a parti
 gives: sixty-three declarations and sixty-three messages are read, and the place where the
 bytes that could not be read begin is said — 8 209. A count that leaves a gap out is a count
 that says the log is whole when it is not, so the number of records that could not be read is
-filled from the reader instead of being written as zero, and what the interface does with it is
-said rather than pretended: the summary carries it and the screen of the logs does not show it
-yet. A declaration whose types do not fill its own length is the same kind of gap: the bytes
+filled from the reader instead of being written as zero, and the screen of the logs says it in
+its summary line: the counts there are written with the separator of the language the window is
+read in, because a count read as a word is not the same number to somebody who reads the other
+language, and the sentence about what could not be read only appears when there is something to
+say — a zero says nothing was dropped. What cannot be measured at the two sizes is the line with
+a count on it, because the browser run has no backend to open a log; the screen was measured as
+it stands without one, and the sentence is checked against the catalogue.
+
+A declaration whose types do not fill its own length is the same kind of gap: the bytes
 that would be read as values of that message belong to the next one, so the message is passed
 over and what disagrees is written down rather than read as if it made sense.
 

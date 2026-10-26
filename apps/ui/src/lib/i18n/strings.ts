@@ -1352,6 +1352,12 @@ const bundles: Record<Locale, Record<string, string>> = {
     "{seconds} seconds": "{seconds} segundos",
     "{kinds} kind of message": "{kinds} tipo de mensaje",
     "{kinds} kinds of message": "{kinds} tipos de mensaje",
+    // What the summary says about the records the reader could not read with the type they were
+    // declared with. The count is written with the separator of the language the window is read in.
+    "{broken} record holds something the reader could not read":
+      "{broken} registro contiene algo que el lector no pudo leer",
+    "{broken} records hold something the reader could not read":
+      "{broken} registros contienen algo que el lector no pudo leer",
     "The logs of the vehicle": "Los registros del vehículo",
     "Ask the vehicle for the logs it holds in its own memory":
       "Pedir al vehículo los registros que tiene en su propia memoria",
