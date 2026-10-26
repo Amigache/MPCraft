@@ -622,21 +622,8 @@ impl Session {
                 continue;
             }
 
-            self.command_long(
-                vehicle,
-                MavCmd::MAV_CMD_SET_MESSAGE_INTERVAL,
-                [
-                    message_id as f32,
-                    interval_us as f32,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                ],
-                timeout,
-            )
-            .await?;
+            self.set_message_interval(vehicle, message_id, interval_us as f32, timeout)
+                .await?;
         }
 
         Ok(())

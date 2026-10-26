@@ -865,6 +865,19 @@ export interface CommandAnswer {
   readonly result: string;
 }
 
+/**
+ * What the vehicle answered to one of the asks for a stream.
+ *
+ * The name is the one the dialect gives the message — data, not a word of the interface — and the
+ * answer is what the vehicle said, or that it never said anything.
+ */
+export interface StreamAnswer {
+  /** The message that was asked for, named the way the dialect names it. */
+  readonly name: string;
+  /** What the vehicle answered to the ask. */
+  readonly answer: string;
+}
+
 /** A warning about an item of a plan. */
 export interface PlanWarning {
   /** The position of the item in the plan, when the warning is about one. */

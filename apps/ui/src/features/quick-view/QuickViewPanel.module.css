@@ -20,6 +20,16 @@
   font-size: var(--font-2xs);
 }
 
+/* The names are what the vehicle or the dialect says, and a list of fourteen of them is longer
+   than the column at the small size: the line is allowed to wrap rather than be cut off. */
+.note {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  margin: 0;
+  overflow-wrap: anywhere;
+  padding: var(--space-1) var(--space-2);
+}
+
 .config {
   background: var(--colour-bg);
   border-bottom: 1px solid var(--colour-border);

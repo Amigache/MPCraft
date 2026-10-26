@@ -14,9 +14,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mpcraft_link::{CommandError, LinkError, Session, SessionOptions, VehicleId};
-use mpcraft_mavlink::dialect::messages::COMMAND_ACK_DATA;
+use mpcraft_mavlink::dialect::messages::{AUTOPILOT_VERSION_DATA, COMMAND_ACK_DATA};
 use mpcraft_mavlink::frame::{encode_v2, FrameParser, MavHeader};
-use mpcraft_mavlink::{MavCmd, MavMessage, MavModeFlag, MavResult, Message};
+use mpcraft_mavlink::{MavCmd, MavMessage, MavModeFlag, MavProtocolCapability, MavResult, Message};
 
 /// The frames the vehicle received, so the test can assert on the bytes.
 type Received = Arc<Mutex<Vec<MavMessage>>>;
@@ -123,6 +123,30 @@ impl Vehicle {
             }),
         )
         .await;
+
+        // A vehicle that is asked what it is capable of says so after the acknowledgement, when it can do
+        // the asking at all. The report is what decides how the items of a plan travel, and a station that
+        // never asks for it cannot know. A board that refuses the command does not then produce a report.
+        if command == MavCmd::MAV_CMD_REQUEST_MESSAGE
+            && self.result == MavResult::MAV_RESULT_ACCEPTED
+        {
+            let wanted = match request {
+                MavMessage::COMMAND_LONG(c) => c.param1,
+                MavMessage::COMMAND_INT(c) => c.param1,
+                _ => 0.0,
+            };
+
+            if wanted == mpcraft_link::commands::AUTOPILOT_VERSION_ID as f32 {
+                self.send(
+                    peer,
+                    MavMessage::AUTOPILOT_VERSION(AUTOPILOT_VERSION_DATA {
+                        capabilities: MavProtocolCapability::MAV_PROTOCOL_CAPABILITY_MISSION_INT,
+                        ..Default::default()
+                    }),
+                )
+                .await;
+            }
+        }
     }
 
     async fn send(&mut self, peer: SocketAddr, message: MavMessage) {
@@ -549,6 +573,95 @@ async fn the_message_ids_are_the_ones_the_protocol_says() {
     assert_eq!(
         mpcraft_mavlink::dialect::message_id("RELAY_STATUS"),
         Some(mpcraft_link::commands::RELAY_STATUS_ID)
+    );
+}
+
+#[tokio::test]
+async fn the_capability_ask_carries_the_number_of_the_report_and_fills_the_state() {
+    let (address, received) = Vehicle::start(MavResult::MAV_RESULT_ACCEPTED).await;
+    let session = session_to(address).await;
+
+    // Before the ask the station cannot know which encoding a vehicle wants: nothing was reported, so the
+    // plan path falls back to the float form, where a place the operator typed does not survive single
+    // precision. This is what the run against a live simulator showed before the ask existed.
+    assert!(
+        !session.uses_mission_int(),
+        "a station that has not asked knows nothing about the vehicle"
+    );
+
+    session
+        .request_capabilities(vehicle(), Duration::from_secs(5))
+        .await
+        .expect("the vehicle answers the ask");
+
+    assert!(wait_for_messages(&received, 1).await);
+
+    let sent = received.lock().map(|log| log.clone()).unwrap_or_default();
+    let Some(MavMessage::COMMAND_LONG(command)) = sent.first() else {
+        panic!("the ask did not reach the wire as a COMMAND_LONG");
+    };
+
+    assert_eq!(command.command, MavCmd::MAV_CMD_REQUEST_MESSAGE);
+
+    // The number in the first slot is read from the published dictionary rather than compared with the
+    // constant the code under test uses: the ask names the report by its dictionary number, and the
+    // dialect agrees with it.
+    assert_eq!(
+        command.param1, 148.0,
+        "the ask carries the number the dictionary gives AUTOPILOT_VERSION"
+    );
+    assert_eq!(
+        mpcraft_mavlink::dialect::message_id("AUTOPILOT_VERSION"),
+        Some(mpcraft_link::commands::AUTOPILOT_VERSION_ID),
+        "the number written down is the one the dialect gives the message"
+    );
+
+    // What the plan editor uses afterwards is this state, not the answer of the call.
+    assert!(
+        session.uses_mission_int(),
+        "the report fills the state the plan editor reads"
+    );
+}
+
+#[tokio::test]
+async fn a_refused_capability_ask_is_kept_apart_from_a_silent_one() {
+    let (address, _) = Vehicle::start(MavResult::MAV_RESULT_DENIED).await;
+    let session = session_to(address).await;
+
+    let error = session
+        .request_capabilities(vehicle(), Duration::from_secs(5))
+        .await
+        .expect_err("the vehicle refused the ask");
+
+    match error {
+        LinkError::Command(CommandError::Refused { command, result }) => {
+            assert_eq!(command, MavCmd::MAV_CMD_REQUEST_MESSAGE);
+            assert_eq!(result, MavResult::MAV_RESULT_DENIED);
+        }
+        other => panic!("the refusal was not reported as one: {other:?}"),
+    }
+
+    // A board that says it cannot do this is not a board that never answered, and the state stays as it
+    // was: nothing was reported, so the plan path keeps the encoding it would have used anyway.
+    assert!(
+        !session.uses_mission_int(),
+        "a refusal does not fill the state with anything"
+    );
+}
+
+#[tokio::test]
+async fn a_capability_ask_the_vehicle_never_answers_is_a_timeout() {
+    let (address, _) = Vehicle::start_with(MavResult::MAV_RESULT_ACCEPTED, true).await;
+    let session = session_to(address).await;
+
+    let error = session
+        .request_capabilities(vehicle(), Duration::from_millis(400))
+        .await
+        .expect_err("the vehicle never answered");
+
+    assert!(
+        matches!(error, LinkError::Timeout(_)),
+        "the silence was not reported as a timeout: {error:?}"
     );
 }
 

@@ -674,6 +674,39 @@ and the smooth path, the curve the vehicle follows when it is told to follow a s
 The plan draws the path as a straight line from one place to the next, and the smooth
 one when the operator asks for it.
 
+The **station asks for what its screens read**, because a vehicle sends by the rates configured on
+the port it is talking on, and against a live simulator every one of those rates is zero: before the
+ask the run counted six packets, every one of them a heartbeat, and after it a hundred and twenty-one.
+The policy of what to ask lives in `mpcraft-app` as the table with its rates, and the wire helper stays
+in `mpcraft-link`, because a table of rates is a decision about what the interface shows rather than a
+rule of the protocol; the station asks once when the link opens, which is the pattern the tab of the
+outputs already had for the relays. The rates follow upstream's categories — attitude at ten hertz,
+position at four, sensors at two, state at one — and the wire carries microseconds between two sends,
+where zero means stop. A refusal is kept per message rather than stopping the ask at the first, and is
+kept apart from silence: a board that refuses one message is not a board that refuses all of them, and
+the operator has to see which screens will stay empty. The number of the command is 511 rather than 52,
+which is the number of the command this ask replaced, and the dialect is checked against the dictionary
+rather than trusted. What the table reads for the EKF status is not the dictionary this project uses but
+the ArduPilot one, which is said in the module rather than passed over.
+
+The **home** is in the table because the map draws it and the distance bar reads it, and a live vehicle
+sends it only once the station asks: before the ask the run had no home to draw, and after it the board
+answered with acceptance and put the home on the wire at the rate it was given. What the console reads is
+not in the table, because the words the board prints arrive as they are said rather than on a rate — and an
+ask for that message was answered `MAV_RESULT_DENIED` in one run and accepted in another, so nothing here
+depends on which of the two this build chooses.
+
+The **station asks for the capabilities** too, because they decide which encoding the items of a plan
+travel in. Upstream asks for the autopilot version when the link opens, through the command that
+requests a message with the number 148 as its first slot; MPCraft decoded that report without ever
+asking for it, so against a live vehicle the plan path used the legacy float form and lost the precision
+of a place the operator typed. The plan editor now asks once when the link is open, the way the tab of
+the outputs asks for the relays, and what it uses afterwards is the state the answer filled rather than
+the answer of the call. The two waits are kept apart — the acknowledgement first and the report
+afterwards — so a board that says it cannot do this is not reported as a board that never answered, and
+the matcher for the report is registered before the ask goes out, because a vehicle answers the two in
+the same breath and an answer that arrives before anybody is listening is lost.
+
 The **formation** is ported as far as this machine can verify it: the slots — which vehicle sits
 where relative to the one it follows, in metres across and along the direction of travel and up —
 and the places the slots put the vehicles, turned by the heading of the leader with the sign

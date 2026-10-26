@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 
 import { LiveValue } from "../../components/LiveValue";
+import { normaliseError, requestTelemetryStreams } from "../../lib/ipc/bridge";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import {
   formatAltitude,
+  formatCount,
   formatCurrent,
   formatDistance,
   formatHeading,
@@ -14,6 +16,8 @@ import {
   formatYesNo,
 } from "../../lib/format";
 import type { Telemetry } from "../../lib/ipc/types";
+import { useLinkStore } from "../../lib/link/linkStore";
+import { useActivityStore } from "../../lib/ui/activityStore";
 import styles from "./QuickViewPanel.module.css";
 
 /**
@@ -172,12 +176,40 @@ function writeChoice(ids: readonly string[]): void {
 export function QuickViewPanel() {
   const [chosen, setChosen] = useState<string[]>(readChoice);
   const [configuring, setConfiguring] = useState(false);
+  const [refused, setRefused] = useState<string[]>([]);
 
   const t = useLocaleStore((state) => state.t);
+  const report = useActivityStore((state) => state.report);
 
   useEffect(() => {
     writeChoice(chosen);
   }, [chosen]);
+
+  // A vehicle sends by the rates configured on its port, and those rates can all be zero, so a
+  // station that does not ask sees nothing. The panel asks once when the link is open — a vehicle
+  // that is asked keeps streaming, and asking every second would put fourteen commands on the wire
+  // for nothing — and shows what the vehicle answered, because an operator has to know which of
+  // the tiles will stay empty. What the tiles draw afterwards is what the event carries.
+  const status = useLinkStore((state) => state.status);
+  const open = status === "connected";
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    void requestTelemetryStreams()
+      .then((answers) => {
+        setRefused(
+          answers
+            .filter((answer) => answer.answer !== "MAV_RESULT_ACCEPTED")
+            .map((answer) => answer.name),
+        );
+      })
+      .catch((cause) => {
+        report(normaliseError(cause), null);
+      });
+  }, [open, report]);
 
   const toggle = (id: string) => {
     setChosen((current) =>
@@ -206,6 +238,17 @@ export function QuickViewPanel() {
           {configuring ? t("Done") : t("Configure")}
         </button>
       </div>
+
+      {refused.length > 0 ? (
+        <p className={styles.note}>
+          {t(
+            refused.length === 1
+              ? "{count} of the messages the tiles read was refused by the vehicle, or did not answer: {names}"
+              : "{count} of the messages the tiles read were refused by the vehicle, or did not answer: {names}",
+            { count: formatCount(refused.length), names: refused.join(", ") },
+          )}
+        </p>
+      ) : null}
 
       {configuring ? (
         <ul className={styles.config}>

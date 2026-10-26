@@ -61,6 +61,7 @@ pub mod ntrip;
 pub mod operations;
 pub mod plugins;
 pub mod signing;
+pub mod streams;
 pub mod supervisor;
 pub mod swarm;
 pub mod terrain;
@@ -76,6 +77,7 @@ pub use mpcraft_link::SessionState;
 pub use mpcraft_settings::ConnectionProfile;
 pub use operations::CommandAnswer;
 pub use operations::OutputFunction;
+pub use operations::StreamAnswer;
 pub use operations::{flight_modes, ModeInfo, PlanInfo, PlanItem, PlanKind, VehicleLog};
 pub use supervisor::{
     ConnectionStatus, Connector, LinkSnapshot, ReconnectPolicy, SessionSupervisor, Sleeper,

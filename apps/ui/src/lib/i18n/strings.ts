@@ -813,6 +813,10 @@ const bundles: Record<Locale, Record<string, string>> = {
     // The quick view: the tiles, one value at a glance.
     "{count} tile": "{count} ficha",
     "{count} tiles": "{count} fichas",
+    "{count} of the messages the tiles read was refused by the vehicle, or did not answer: {names}":
+      "{count} de los mensajes que leen las fichas fue rechazado por el vehículo o no respondió: {names}",
+    "{count} of the messages the tiles read were refused by the vehicle, or did not answer: {names}":
+      "{count} de los mensajes que leen las fichas fueron rechazados por el vehículo o no respondieron: {names}",
     Done: "Terminado",
     Configure: "Elegir las fichas",
     Altitude: "Altitud",

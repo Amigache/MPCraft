@@ -49,6 +49,7 @@ import type {
   SerialPort,
   SigningKeyEntry,
   SigningStatus,
+  StreamAnswer,
   Telemetry,
   TerrainPathPoint,
   TerrainPoint,
@@ -936,6 +937,32 @@ export async function setRelay(
  */
 export async function requestRelayStatus(vehicle?: VehicleKey): Promise<void> {
   await call<void>("request_relay_status", vehicleRequest(vehicle));
+}
+
+/**
+ * Asks the vehicle what it is capable of.
+ *
+ * The capabilities decide which encoding the items of a plan use, so the plan editor asks once when the
+ * link is open; what it uses afterwards is the state of the link rather than the answer of this call.
+ */
+export async function readCapabilities(vehicle?: VehicleKey): Promise<void> {
+  await call<void>("read_capabilities", vehicleRequest(vehicle));
+}
+
+/**
+ * Asks the vehicle to stream what the flight-data window reads.
+ *
+ * A vehicle sends by the rates configured on its port, and those rates can all be zero, so a
+ * station that does not ask sees nothing. The panel asks once when the link is open; the answers
+ * are what the vehicle said to each of the asks, and this function does not decide what they mean.
+ */
+export async function requestTelemetryStreams(
+  vehicle?: VehicleKey,
+): Promise<StreamAnswer[]> {
+  return call<StreamAnswer[]>(
+    "request_telemetry_streams",
+    vehicleRequest(vehicle),
+  );
 }
 
 /** Asks the vehicle to restart. */

@@ -78,6 +78,9 @@ pub const MANUAL_CONTROL_ID: u32 = 69;
 /// The message id of `RELAY_STATUS`, the report of the relays.
 pub const RELAY_STATUS_ID: u32 = 376;
 
+/// The message id of `AUTOPILOT_VERSION`, the report of what the vehicle is capable of.
+pub const AUTOPILOT_VERSION_ID: u32 = 148;
+
 /// How long to wait for the acknowledgement of a command.
 ///
 /// Upstream waits two seconds for a command to be acknowledged.
@@ -958,6 +961,77 @@ impl Session {
         }
 
         Ok(())
+    }
+
+    /// Asks the vehicle what it is capable of.
+    ///
+    /// The capability bits are not something a station can assume: they decide how the items of a plan
+    /// travel — a vehicle that advertises `MISSION_INT` wants the integer form, where a place keeps the
+    /// precision the operator typed, and a station that never asks sends and receives the float form and
+    /// loses it. So the station asks, the way upstream does when the link opens, and what the plan editor
+    /// uses afterwards is the state the answer filled.
+    ///
+    /// The refusal and the silence are kept apart here as they are in the generic executor: the command
+    /// is answered first, and the report itself afterwards, so a board that says it cannot do this is not
+    /// reported as a board that never answered.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command, or when it does not answer in time.
+    pub async fn request_capabilities(
+        &self,
+        vehicle: VehicleId,
+        timeout: Duration,
+    ) -> Result<(), LinkError> {
+        // The matcher for the report is registered before the ask goes out: a vehicle can answer the
+        // acknowledgement and the report in the same breath, and an answer that arrives before anybody
+        // is listening is lost.
+        let mut report = self
+            .begin_request(move |received| {
+                received.message_id == AUTOPILOT_VERSION_ID
+                    && received.system_id == vehicle.system_id
+                    && received.component_id == vehicle.component_id
+            })
+            .await?;
+
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_REQUEST_MESSAGE,
+            [AUTOPILOT_VERSION_ID as f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            timeout,
+        )
+        .await?;
+
+        report.wait_for(timeout).await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle to send one message at a given rate.
+    ///
+    /// A vehicle decides what it streams by the rates configured on the port it is talking on, and those
+    /// rates can all be zero — a station that reads a screen then waits for something that will not come.
+    /// So the station asks for what it reads, the way upstream does through this command or through its
+    /// data-stream request. The answer is what the vehicle said to the ask, which is what the caller has
+    /// to show when the vehicle refuses.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command or does not answer in time.
+    pub async fn set_message_interval(
+        &self,
+        vehicle: VehicleId,
+        message_id: u32,
+        interval_us: f32,
+        timeout: Duration,
+    ) -> Result<MavResult, LinkError> {
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_SET_MESSAGE_INTERVAL,
+            [message_id as f32, interval_us, 0.0, 0.0, 0.0, 0.0, 0.0],
+            timeout,
+        )
+        .await
     }
 
     /// Executes a command with integer parameters.

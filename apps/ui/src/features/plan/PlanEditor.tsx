@@ -17,6 +17,9 @@ import {
   usePlanEditorStore,
 } from "../../lib/plan/planEditorStore";
 import { usePlanStore } from "../../lib/plan/planStore";
+import { useLinkStore } from "../../lib/link/linkStore";
+import { useActivityStore } from "../../lib/ui/activityStore";
+import { normaliseError, readCapabilities } from "../../lib/ipc/bridge";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { PlanGrid } from "./PlanGrid";
 import { TerrainProfile } from "./TerrainProfile";
@@ -157,6 +160,25 @@ export function PlanEditor() {
   }, [undo, redo]);
   const commands = useCommandStore((state) => state.commands);
   const loadCommands = useCommandStore((state) => state.load);
+
+  // The vehicle decides how the items of a plan travel: the integer form keeps the precision of a place
+  // the operator typed, and the float form does not. That decision comes from what the vehicle says it is
+  // capable of, so the editor asks once when the link is open — a station that never asks reads the plan
+  // in an encoding the vehicle did not advertise, and a place comes back rounded to what single precision
+  // can carry. What the editor uses afterwards is the state the answer filled, not this call.
+  const status = useLinkStore((state) => state.status);
+  const linked = status === "connected";
+  const report = useActivityStore((state) => state.report);
+
+  useEffect(() => {
+    if (!linked) {
+      return;
+    }
+
+    void readCapabilities().catch((cause) => {
+      report(normaliseError(cause), null);
+    });
+  }, [linked, report]);
 
   const [fileMode, setFileMode] = useState<FileMode>(null);
   /** Whether the profile of the terrain is shown. */

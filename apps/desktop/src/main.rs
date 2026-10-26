@@ -14,7 +14,8 @@ use mpcraft_app::swarm::{SwarmRequest, SwarmStatus};
 use mpcraft_app::{
     flight_modes, plugins::PluginInfo, AppState, CommandAnswer, CommandError, CommandResult,
     ConnectRequest, ConnectResponse, ConnectionProfile, ConnectionStatus, LinkSnapshot, ModeInfo,
-    OutputFunction, PlanInfo, PlanKind, PresetInfo, SeriesData, SessionState, VehicleKey,
+    OutputFunction, PlanInfo, PlanKind, PresetInfo, SeriesData, SessionState, StreamAnswer,
+    VehicleKey,
 };
 use mpcraft_link::{Calibration, OsdSlot, OsdSlotConfig, VehicleId};
 use mpcraft_mission::{MissionType, Plan};
@@ -494,6 +495,44 @@ async fn request_relay_status(
     let vehicle = resolve_vehicle(&state, &req)?;
 
     state.supervisor.relay_status(vehicle).await
+}
+
+/// Asks the vehicle what it is capable of.
+///
+/// The command does not answer with the capabilities: they reach the interface through the state of the
+/// link, where the answer is kept. Asking is what makes the plan editor use the encoding the vehicle
+/// advertises, because a station that never asks sends and receives the float form.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the vehicle refuses the
+/// command or does not answer in time.
+#[tauri::command]
+async fn read_capabilities(state: State<'_, AppState>, req: VehicleRequest) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.read_capabilities(vehicle).await
+}
+
+/// Asks the vehicle to stream what the flight-data window reads.
+///
+/// A vehicle sends by the rates configured on its port, and those rates can all be zero, so a
+/// station that does not ask sees nothing. The command answers with what the vehicle said to each
+/// of the asks — which is what the interface shows, because a board that refuses one message is
+/// not a board that refuses all of them.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link cannot
+/// carry an ask.
+#[tauri::command]
+async fn request_telemetry_streams(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<Vec<StreamAnswer>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.request_telemetry_streams(vehicle).await
 }
 
 /// Takes the radio channels over, one at a time.
@@ -4341,6 +4380,8 @@ fn main() {
             calibrate,
             set_relay,
             request_relay_status,
+            read_capabilities,
+            request_telemetry_streams,
             rc_override,
             rc_override_release,
             manual_control,

@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use mpcraft_link::{
     zoom_options, zoom_type_of, Calibration, CameraDevice, FtpClient, FtpEntry, GimbalDevice,
-    HomeRequest, OsdSlot, OsdSlotConfig, PartialUpdate, PartialUpdatePolicy, Session, VehicleId,
-    VideoStream, ZoomOption,
+    HomeRequest, LinkError, OsdSlot, OsdSlotConfig, PartialUpdate, PartialUpdatePolicy, Session,
+    VehicleId, VideoStream, ZoomOption, DEFAULT_COMMAND_TIMEOUT,
 };
 use mpcraft_mavlink::MavCmd;
 use mpcraft_mission::{MissionItem, MissionType, Plan};
@@ -341,6 +341,85 @@ impl SessionSupervisor {
             .await?;
 
         Ok(())
+    }
+
+    /// Asks the vehicle what it is capable of.
+    ///
+    /// The answer is not shown: what it decides is how the items of a plan travel, and the plan editor
+    /// reads that from the state of the link. A station that never asks uses the float form against a
+    /// live vehicle, and a place the operator typed does not survive single precision — which is what
+    /// the run against a simulator found before this ask existed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, or when the vehicle refuses the command or does not
+    /// answer in time.
+    pub async fn read_capabilities(&self, vehicle: VehicleId) -> CommandResult<()> {
+        let session = self.open_session()?;
+
+        session
+            .request_capabilities(vehicle, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Asks the vehicle to stream what the flight-data window reads.
+    ///
+    /// The ask is made once for the link: a vehicle that is asked keeps streaming, so asking every
+    /// second would put fourteen commands on the wire for nothing. What each message was asked at is
+    /// the rate the table says, and the answer of the vehicle is kept for each one rather than
+    /// stopped at the first refusal — a board that refuses one message is not a board that refuses
+    /// all of them, and an operator has to see which of the screens will stay empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link: a station that is not connected asks nothing.
+    pub async fn request_telemetry_streams(
+        &self,
+        vehicle: VehicleId,
+    ) -> CommandResult<Vec<StreamAnswer>> {
+        let session = self.open_session()?;
+
+        let mut answers = Vec::new();
+
+        for stream in crate::streams::table() {
+            match session
+                .set_message_interval(
+                    vehicle,
+                    stream.id,
+                    stream.interval_us(),
+                    DEFAULT_COMMAND_TIMEOUT,
+                )
+                .await
+            {
+                Ok(result) => answers.push(StreamAnswer {
+                    name: stream.name.to_owned(),
+                    answer: format!("{result:?}"),
+                }),
+                // A board that never answered is kept apart from a board that refused, the way the
+                // generic executor keeps them apart: the two say different things about the link. And the
+                // answer is kept per ask rather than stopped at the first refusal — a board that refuses one
+                // message is not a board that refuses all of them, and the operator has to see which screens
+                // will stay empty.
+                // `CommandError` here is the serialisable one this crate converts link errors into, so the
+                // link's own error is named by its full path: the two are different things and the frontend
+                // switches on the code of the first, never on the shape of the second.
+                Err(LinkError::Command(mpcraft_link::CommandError::Refused { result, .. })) => {
+                    answers.push(StreamAnswer {
+                        name: stream.name.to_owned(),
+                        answer: format!("{result:?}"),
+                    })
+                }
+                Err(LinkError::Timeout(_)) => answers.push(StreamAnswer {
+                    name: stream.name.to_owned(),
+                    answer: "TIMEOUT".to_owned(),
+                }),
+                Err(error) => return Err(error.into()),
+            }
+        }
+
+        Ok(answers)
     }
 
     /// The logs the vehicle holds in its own memory.
@@ -1418,6 +1497,20 @@ pub struct CommandAnswer {
     pub command: String,
     /// The result the vehicle reported, named the way the protocol names it.
     pub result: String,
+}
+
+/// What the vehicle answered to one of the asks for a stream.
+///
+/// The name is the one the dialect gives the message — which is data, not a word of the interface —
+/// and the answer is what the vehicle said, or that it never said anything. Both are shown as the
+/// vehicle said them, because an operator has to know which of the screens will stay empty.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamAnswer {
+    /// The message that was asked for, named the way the dialect names it.
+    pub name: String,
+    /// What the vehicle answered to the ask.
+    pub answer: String,
 }
 
 /// What the outputs of the vehicle are for.
