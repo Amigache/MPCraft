@@ -411,7 +411,10 @@ pub fn binary_summary(path: &Path) -> CommandResult<LogSummary> {
         start: 0,
         end: 0,
         records: total,
-        broken: 0,
+        // What the reader could not read is said here rather than left out of the count: a log
+        // that ends in the middle of a record keeps what came before it, and the place where it
+        // stopped is with the reader.
+        broken: reader.damage().len() as u64,
     })
 }
 
@@ -964,6 +967,32 @@ mod tests {
         let error = summarise(Path::new("there-is-no-such-log.tlog")).unwrap_err();
 
         assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
+    }
+
+    #[test]
+    fn the_summary_of_a_cut_binary_log_says_where_it_stopped() {
+        let path = std::env::temp_dir().join("mpcraft-test-cut-bin.bin");
+
+        // The declaration of MODE — the record itself is eighty-nine bytes, and it says that a
+        // MODE message is eight — and one whole record; then a record that begins and does not
+        // finish.
+        let mut bytes = vec![0xA3, 0x95, 0x80, 0x81, 8];
+        bytes.extend_from_slice(b"MODE");
+        bytes.extend_from_slice(b"IB");
+        bytes.extend_from_slice(&[0_u8; 14]);
+        bytes.extend_from_slice(b"Mode,Reason");
+        bytes.extend_from_slice(&[0_u8; 53]);
+        bytes.extend_from_slice(&[0xA3, 0x95, 0x81, 5, 0, 0, 0, 2]);
+        bytes.extend_from_slice(&[0xA3, 0x95, 0x81, 5]);
+
+        std::fs::write(&path, bytes).expect("the log is written");
+
+        let summary = summarise(&path).expect("the log is read");
+
+        assert_eq!(summary.records, 1);
+        assert_eq!(summary.messages[0].name, "MODE");
+        assert_eq!(summary.messages[0].count, 1);
+        assert_eq!(summary.broken, 1);
     }
 
     #[test]

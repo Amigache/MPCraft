@@ -508,7 +508,11 @@ named by the declaration rather than shifting the values that come after it; a m
 such a field cannot be read at all, because its field has no size, and is passed over. The
 head is cut in the middle of its sixty-fourth declaration, which is what a partial fetch
 gives: sixty-three declarations and sixty-three messages are read, and the place where the
-bytes that could not be read begin is said — 8 209.
+bytes that could not be read begin is said — 8 209. A count that leaves a gap out is a count
+that says the log is whole when it is not, so the number of records that could not be read is
+filled from the reader instead of being written as zero, and what the interface does with it is
+said rather than pretended: the summary carries it and the screen of the logs does not show it
+yet.
 
 The block was asked for without letting the channel go quiet, which is what the same rule
 about an open file says when it is followed: fifteen seconds between the open and the read
