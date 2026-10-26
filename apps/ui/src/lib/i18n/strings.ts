@@ -755,6 +755,12 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The file is fetched to the disk. It can then be written to a board that is in its bootloader: the board answers the questions of the bootloader instead of the MAVLink of a flight, and the file is written to it block by block.":
       "El archivo se trae al disco. Después se puede escribir en una placa que esté en su cargador de arranque: la placa responde a las preguntas del cargador en lugar del MAVLink de un vuelo, y el archivo se escribe en ella bloque a bloque.",
     "Writing it to a board": "Escribirlo en una placa",
+    "Write the bootloader the vehicle carries in itself into the sector of its flash":
+      "Escribir el cargador de arranque que el vehículo lleva en sí mismo en el sector de su memoria",
+    "Write the bootloader to the vehicle":
+      "Escribir el cargador de arranque al vehículo",
+    "These are two different things. The first writes the sector of the loader that the vehicle carries in itself, and the board goes on speaking as a vehicle after answering. The second asks the board to restart and stay in its loader, and from there the port carries the questions of the loader rather than the MAVLink of a flight, which is what writing a file needs.":
+      "Son dos cosas distintas. La primera escribe el sector del cargador que el vehículo lleva en sí mismo, y la placa sigue hablando como vehículo después de responder. La segunda pide a la placa que vuelva a empezar y se quede en su cargador, y desde ahí el puerto lleva las preguntas del cargador en lugar del MAVLink de un vuelo, que es lo que hace falta para escribir un archivo.",
     "Ask the vehicle to restart into its bootloader":
       "Pedir al vehículo que vuelva a empezar en su cargador de arranque",
     "Restart the vehicle into its bootloader":
@@ -782,8 +788,8 @@ const bundles: Record<Locale, Record<string, string>> = {
     "there is no file to write.": "no hay archivo que escribir.",
     "The board was written and told to start again.":
       "La placa se escribió y se le dijo que volviera a empezar.",
-    "The vehicle was told to restart into its bootloader. The link is closed when the board stops answering.":
-      "Se pidió al vehículo que volviera a empezar en su cargador de arranque. El enlace se cierra cuando la placa deja de responder.",
+    "The vehicle wrote the bootloader it carries in itself into the sector of its flash. It did not restart, and it is still speaking as a vehicle.":
+      "El vehículo escribió el cargador de arranque que lleva en sí mismo en el sector de su memoria. No volvió a empezar, y sigue hablando como vehículo.",
 
     // The sheet of the files of the vehicle.
     "The files of the vehicle": "Los archivos del vehículo",

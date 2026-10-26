@@ -9,6 +9,7 @@ import {
   flashBootloader,
   listSerialPorts,
   normaliseError,
+  rebootIntoBootloader,
 } from "../../lib/ipc/bridge";
 import type {
   BoardInfo,
@@ -72,8 +73,8 @@ export function FirmwareSheet() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // The bootloader is reached by asking the vehicle to restart into it, and that needs
-  // a link to a vehicle.
+  // Both of these need a link to a vehicle: one writes a sector of the board's flash, the other asks
+  // the board to restart and stay in its loader.
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
 
@@ -249,7 +250,7 @@ export function FirmwareSheet() {
     }
   };
 
-  const restartIntoBootloader = async () => {
+  const writeBootloaderSector = async () => {
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -258,8 +259,31 @@ export function FirmwareSheet() {
       await flashBootloader();
       setNotice(
         t(
-          "The vehicle was told to restart into its bootloader. The link is closed when the board stops answering.",
+          "The vehicle wrote the bootloader it carries in itself into the sector of its flash. It did not restart, and it is still speaking as a vehicle.",
         ),
+      );
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restartIntoBootloader = async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      // What is read is what the vehicle answered, as the vehicle said it. The answer may not arrive:
+      // the device goes away at the moment of the restart, and the port then carries the protocol of the
+      // loader rather than the MAVLink of a flight.
+      const answer = await rebootIntoBootloader();
+      setNotice(
+        t("the vehicle answered {result} to {command}", {
+          result: answer.result,
+          command: answer.command,
+        }),
       );
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -386,6 +410,20 @@ export function FirmwareSheet() {
               type="button"
               className="button"
               disabled={busy || !linked}
+              title={t(
+                "Write the bootloader the vehicle carries in itself into the sector of its flash",
+              )}
+              onClick={() => {
+                void writeBootloaderSector();
+              }}
+            >
+              {t("Write the bootloader to the vehicle")}
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={busy || !linked}
               title={t("Ask the vehicle to restart into its bootloader")}
               onClick={() => {
                 void restartIntoBootloader();
@@ -394,6 +432,12 @@ export function FirmwareSheet() {
               {t("Restart the vehicle into its bootloader")}
             </button>
           </div>
+
+          <p className={styles.text}>
+            {t(
+              "These are two different things. The first writes the sector of the loader that the vehicle carries in itself, and the board goes on speaking as a vehicle after answering. The second asks the board to restart and stay in its loader, and from there the port carries the questions of the loader rather than the MAVLink of a flight, which is what writing a file needs.",
+            )}
+          </p>
 
           <p className={styles.text}>
             {t(

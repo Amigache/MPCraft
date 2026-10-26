@@ -592,11 +592,13 @@ impl SessionSupervisor {
         Ok(())
     }
 
-    /// Reboots the vehicle into its bootloader, so that a firmware can be written to it.
+    /// Writes the sector of the bootloader that the vehicle carries in itself.
     ///
     /// The command is one ArduPilot gives to itself — `MAV_CMD_FLASH_BOOTLOADER`, whose
     /// number is larger than the commands the protocol library knows — so it travels the
-    /// raw way.
+    /// raw way. It is a write, not a restart: the board answers and keeps speaking as a
+    /// vehicle, so the operator has to put it into its bootloader before the file can be
+    /// written over the port.
     ///
     /// # Errors
     ///
@@ -608,6 +610,37 @@ impl SessionSupervisor {
         session.flash_bootloader(vehicle, COMMAND_TIMEOUT).await?;
 
         Ok(())
+    }
+
+    /// Asks the vehicle to restart and stay in its bootloader.
+    ///
+    /// This is the half that decides which protocol the board speaks: with the action that holds it
+    /// there, the board stops answering as a vehicle and answers as its own bootloader, which is what
+    /// the writing of a file needs. On a board with no button this is the only way from this machine,
+    /// because the flag it sets is read by the bootloader on the next boot and the restart does not take
+    /// the power away.
+    ///
+    /// The answer is the vehicle's, kept apart from a board that never answered. It may not be read at
+    /// all: the device goes away at the moment of the restart, and what can be read afterwards is the
+    /// board answering as its bootloader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when there is no open link, when the vehicle refuses the command, or when it
+    /// does not answer.
+    pub async fn reboot_into_bootloader(&self, vehicle: VehicleId) -> CommandResult<CommandAnswer> {
+        let session = self.open_session()?;
+
+        let result = session
+            .reboot_into_bootloader(vehicle, COMMAND_TIMEOUT)
+            .await?;
+
+        Ok(CommandAnswer {
+            command: mpcraft_mission::mavcmd::command_name(
+                MavCmd::MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+            ),
+            result: format!("{result:?}"),
+        })
     }
 
     /// Lists the files the vehicle holds, over the file transfer protocol.

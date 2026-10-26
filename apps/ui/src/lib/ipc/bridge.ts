@@ -1211,13 +1211,26 @@ export async function firmwareEraseBoard(port: string): Promise<BoardInfo> {
 }
 
 /**
- * Reboots the vehicle into its bootloader, so that a firmware can be written to it.
+ * Writes the sector of the bootloader that the vehicle carries in itself.
  *
- * The vehicle is told to restart in the bootloader. The link stops carrying MAVLink
- * afterwards, because the board is then waiting for the protocol of the bootloader.
+ * This is a write rather than a restart: the vehicle answers and keeps speaking as a vehicle, so the
+ * board has to be put into its bootloader before a file can be written over the port.
  */
 export async function flashBootloader(): Promise<void> {
   await call<void>("flash_bootloader", { req: {} });
+}
+
+/**
+ * Asks the vehicle to restart and stay in its bootloader.
+ *
+ * The answer is what the vehicle said, named the way the protocol names it, kept apart from a board
+ * that never answered. When the board is there the link stops carrying MAVLink afterwards, because the
+ * board is then waiting for the protocol of the bootloader.
+ */
+export async function rebootIntoBootloader(
+  vehicle?: VehicleKey,
+): Promise<CommandAnswer> {
+  return call<CommandAnswer>("reboot_into_bootloader", vehicleRequest(vehicle));
 }
 
 /**

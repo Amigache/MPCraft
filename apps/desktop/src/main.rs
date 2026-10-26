@@ -1786,11 +1786,10 @@ async fn http_server_stop(state: State<'_, AppState>) -> CommandResult<()> {
     Ok(())
 }
 
-/// Reboots the vehicle into its bootloader, so that a firmware can be written to it.
+/// Writes the sector of the bootloader that the vehicle carries in itself.
 ///
-/// The vehicle is told to restart in the bootloader. The link is closed afterwards: the
-/// board stops talking MAVLink when it is in the bootloader, and the port is then opened
-/// again in the manner of the bootloader.
+/// This is a write, not a restart: the vehicle answers and keeps speaking as a vehicle, so the board
+/// has to be put into its bootloader before a file can be written over the port.
 ///
 /// # Errors
 ///
@@ -1801,6 +1800,27 @@ async fn flash_bootloader(state: State<'_, AppState>, req: VehicleRequest) -> Co
     let vehicle = resolve_vehicle(&state, &req)?;
 
     state.supervisor.flash_bootloader(vehicle).await
+}
+
+/// Asks the vehicle to restart and stay in its bootloader.
+///
+/// The answer is what the vehicle said, named the way the protocol names it, kept apart from a board
+/// that never answered. The device may go away at the moment of the restart, and the answer is then not
+/// read; what the port carries afterwards is the protocol of the bootloader rather than the MAVLink of a
+/// flight.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the vehicle refuses the
+/// command, or when it does not answer.
+#[tauri::command]
+async fn reboot_into_bootloader(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<CommandAnswer> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    state.supervisor.reboot_into_bootloader(vehicle).await
 }
 
 /// Starts sending the corrections of a base station to the vehicle.
@@ -4442,6 +4462,7 @@ fn main() {
             firmware_write_to_board,
             firmware_erase_board,
             flash_bootloader,
+            reboot_into_bootloader,
             ftp_list,
             ftp_read,
             osd_slots,

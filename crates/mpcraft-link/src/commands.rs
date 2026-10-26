@@ -51,8 +51,29 @@ use crate::vehicle::VehicleId;
 /// The message id of `COMMAND_LONG`.
 pub const COMMAND_LONG_ID: u32 = 76;
 
-/// The command to reboot into the bootloader.
+/// The command that writes the sector of the bootloader.
+///
+/// It is not the command that puts a board in its bootloader: what this one does is a write, and the
+/// board does not change which protocol it speaks because of it. The board is put there by the reboot
+/// command, below.
 pub const MAV_CMD_FLASH_BOOTLOADER: u16 = 42650;
+
+/// The number the published dictionary gives `MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN`.
+///
+/// It is written down from the dictionary rather than taken from the dialect, so that a test can
+/// compare the two. That comparison is what caught an earlier probe sending 42760 — a number the
+/// dictionary does not have — and reading the answer as a refusal of the action, when it was an answer
+/// about a number the board did not know.
+pub const PREFLIGHT_REBOOT_SHUTDOWN_ID: u32 = 246;
+
+/// What the first slot of the reboot command says, as the published dictionary numbers it: the
+/// component is restarted and comes back as it was.
+pub const REBOOT_ACTION_REBOOT: f32 = 1.0;
+
+/// What the first slot of the reboot command says when the board is to stay in its bootloader after
+/// the restart, which is the only way to reach the protocol of the bytes without a button on a board
+/// that has none.
+pub const REBOOT_ACTION_REBOOT_TO_BOOTLOADER: f32 = 3.0;
 
 /// The message id of `COMMAND_INT`.
 pub const COMMAND_INT_ID: u32 = 75;
@@ -760,14 +781,15 @@ impl Session {
     /// answer it would give is the answer of a vehicle that is no longer there. The link
     /// notices that the vehicle is gone on its own.
     ///
-    /// The first parameter says what is restarted: one is the autopilot.
+    /// The first parameter says what is restarted, and this one carries the action that
+    /// restarts the component and brings it back as it was.
     ///
     /// # Errors
     ///
     /// Returns an error when the link cannot carry the command.
     pub async fn reboot(&self, vehicle: VehicleId) -> Result<(), LinkError> {
         let message = MavMessage::COMMAND_LONG(COMMAND_LONG_DATA {
-            param1: 1.0,
+            param1: REBOOT_ACTION_REBOOT,
             param2: 0.0,
             param3: 0.0,
             param4: 0.0,
@@ -781,6 +803,45 @@ impl Session {
         });
 
         self.write_message(&message).await
+    }
+
+    /// Asks the vehicle to restart and stay in its bootloader.
+    ///
+    /// This is the other half of the same command: the first slot carries the action, and the action
+    /// that keeps the board in the bootloader is three. It is not the command that writes the sector —
+    /// that is [`Session::flash_bootloader`], and what that one does is a write.
+    ///
+    /// The published handler denies a restart addressed to any component other than all components or
+    /// the system's own, so this goes to the pair the link chose for the vehicle rather than to an
+    /// address somebody assumes.
+    ///
+    /// What is read is the answer as the vehicle gives it, kept apart from a board that never
+    /// answered. On the bench the answer was not read: the device went away at the moment of the
+    /// restart, and what could be read afterwards was the board answering as its own bootloader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vehicle refuses the command, or when it does not answer in time.
+    pub async fn reboot_into_bootloader(
+        &self,
+        vehicle: VehicleId,
+        timeout: Duration,
+    ) -> Result<MavResult, LinkError> {
+        self.command_long(
+            vehicle,
+            MavCmd::MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+            [
+                REBOOT_ACTION_REBOOT_TO_BOOTLOADER,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ],
+            timeout,
+        )
+        .await
     }
 
     /// Asks the vehicle to calibrate one of its sensors.
@@ -842,7 +903,7 @@ impl Session {
         .await
     }
 
-    /// Reboots a vehicle into the bootloader so it can be flashed.
+    /// Writes the sector of the bootloader that the vehicle carries in itself.
     ///
     /// The command is sent as a raw `COMMAND_LONG`: the number travels as it was written, rather
     /// than as a variant of the enumeration. That is what a command the metadata table does not
@@ -852,12 +913,13 @@ impl Session {
     ///
     /// Slot five is the number the published dictionary says the vehicle looks at before it does
     /// anything, so it travels as `FLASH_BOOTLOADER_MAGIC` rather than as an empty slot. What the
-    /// vehicle answers is not what happens afterwards: against the board on the bench, the command with
-    /// the slots empty was answered and the board kept speaking as a vehicle, and the one with the
-    /// number was answered without the board taking over the port. On these boards the decision is read
-    /// when the board boots, so the board has to be restarted by hand — which is what upstream tells the
-    /// operator at the same moment ("Please ignore the unplug and plug back in when uploading flight
-    /// firmware").
+    /// published handler does with it is a write: it compares the copy the vehicle carries in its own
+    /// filesystem with the first page of the flash and writes it when they differ, and counts a sector
+    /// that already matches as a success. It is not a decision about the next boot — nothing is left
+    /// behind for the board to read when it boots — so the board keeps speaking as a vehicle after
+    /// answering, which is what the run on the bench saw. Putting a board in its bootloader is the
+    /// reboot command with the action that holds it there, above; upstream warns the operator about
+    /// this one at the same moment ("This can brick your board").
     ///
     /// # Errors
     ///
@@ -1255,6 +1317,43 @@ mod tests {
         let payload = encode_command_long(1, 1, 42650, 0, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         assert_eq!(payload[28], (42650 & 0xFF) as u8);
         assert_eq!(payload[29], ((42650 >> 8) & 0xFF) as u8);
+    }
+
+    #[test]
+    fn the_reboot_command_carries_the_action_that_keeps_the_board_in_its_bootloader() {
+        // Slot one is the first group of four bytes of the payload — the seven slots come before the
+        // command in the wire order — and what travels is the float form, so the action read back from
+        // those bytes is the number the dictionary gives it.
+        let payload = encode_command_long(
+            2,
+            1,
+            PREFLIGHT_REBOOT_SHUTDOWN_ID,
+            0,
+            [
+                REBOOT_ACTION_REBOOT_TO_BOOTLOADER,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ],
+        );
+
+        assert_eq!(
+            f32::from_le_bytes(payload[0..4].try_into().unwrap()),
+            REBOOT_ACTION_REBOOT_TO_BOOTLOADER,
+            "the helper sends the action that holds the board in its bootloader"
+        );
+
+        // The number of the command is checked against the dictionary rather than trusted to the
+        // dialect: that comparison is what caught an earlier probe sending 42760, a number the
+        // dictionary does not have, and reading the answer as a refusal of the action.
+        assert_eq!(
+            MavCmd::MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN as u32,
+            PREFLIGHT_REBOOT_SHUTDOWN_ID,
+            "the dialect names the command the number the published dictionary gives it"
+        );
     }
 
     #[test]

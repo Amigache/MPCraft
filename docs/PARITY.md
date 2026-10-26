@@ -350,31 +350,48 @@ board says about itself rather than assumed from the file. Both refusals happen 
 because the erase is the half that cannot be taken back, and a file for another board would leave
 this one with nothing on it.
 
-The command that asks the vehicle to restart into its bootloader carries **290876 in slot five**,
-which is what the published dictionary says the slot is for — "Magic number - set to 290876 to
-actually flash" — and the code was sending zeros there. On the board on the bench the difference
-showed: the command with the slots empty was answered `MAV_RESULT_IN_PROGRESS` and the board kept
-speaking as a vehicle, and the one with the number was answered `ACCEPTED`. What an answer is not
-is what happens afterwards: the board did not take over the port, because on these boards the flag
-is read when the board boots, so the board has to be restarted by hand — which is what upstream
-tells the operator at the same moment ("Please ignore the unplug and plug back in when uploading
-flight firmware"). The half that erases is therefore not asserted here, and it is said rather than
-assumed: the gate that reads `GET_DEVICE` and `GET_CRC` can only run against a board someone put
-into its bootloader. What the bench did say is that two sources agree on this board without being
-built from each other — the number the published manifest gives for it (9) and the number the
-vehicle reports for itself (`board_version` 589824, which is `0x09 << 16`), and the git hash the
-vehicle reports is the one the published entry for `Plane/stable-4.7.1/fmuv3` carries, so the board
-holds the published image byte for byte.
+The command that writes the sector of the bootloader carries **290876 in slot five**, which is what
+the published dictionary says the slot is for — "Magic number - set to 290876 to actually flash" —
+and the code was sending zeros there. What the published handler does with the number is a write: it
+compares the copy the vehicle carries in its own filesystem with the first page of the flash and
+writes it when they differ, and counts a sector that already matches as a success, which is why
+upstream warns the operator at the same moment ("This can brick your board"). It leaves nothing
+behind for the next boot, so the board goes on speaking as a vehicle after answering, and that is
+what the bench showed: the command with the slots empty was answered `MAV_RESULT_IN_PROGRESS` — which
+is the acknowledgement of a long operation rather than a statement about the number — and the one with
+the number was answered `ACCEPTED` without the board taking over the port. The half that erases is
+therefore not asserted here, and it is said rather than assumed: the gate that reads `GET_DEVICE` and
+`GET_CRC` can only run against a board that is on the bootloader side.
 
-The board can also be **restarted into its bootloader** from the same sheet: the vehicle
-is asked to do it, and it does. The message that carries the command (`MAV_CMD_FLASH_BOOTLOADER`,
-42650) is built byte by byte rather than through the enumeration of commands of the protocol
-library, so the number travels as it was written and the answer of the vehicle is read as an
-answer is read. That is what a command the metadata table does not describe needs, because the
-generic executor cannot say what its slots mean and does not offer them — and the dialect this
-project uses does name 42650, so the raw path is kept for the numbers it does not. The link stops
-carrying MAVLink when the board is in the bootloader, because the board is then waiting for the
-protocol of the bootloader.
+Which side of the protocol a board speaks is decided by another command, and the two are kept apart
+now: `MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN` with the action that holds the board in its bootloader
+(three), which on this board is the only way from this machine because it has no button and taking the
+power away does not carry the flag the loader reads. The number of the command is **246**, read from
+the published dictionary rather than trusted to the dialect, and that comparison is what caught an
+earlier probe sending 42760 — a number the dictionary does not have — and reading the answer as a
+refusal of the action when it was an answer about a number the board did not know. The handler denies
+a restart addressed to any component other than all components or the system's own, so the command
+goes to the pair the link chose for the board rather than to an address somebody assumes. With 246 and
+the action that holds it there this board answered `MAV_RESULT_ACCEPTED` and then answered as its own
+bootloader, and the numbers it gave are the ones the rule and the published document give without
+being built from each other: revision 5, board 9, flash 2 080 768, crc `b690e491` read from the board,
+and the number the published manifest gives for it (9) against the number the vehicle reports for
+itself (`board_version` 589824, which is `0x09 << 16`), and the git hash the vehicle reports is the one
+the published entry for `Plane/stable-4.7.1/fmuv3` carries, so the board holds the published image byte
+for byte. What the live area asserts is the agreement between the two readers and the bytes the helper
+puts on the wire; what it records is the answer kept apart from silence, and it sends only when someone
+says so, because a board that answers this stays on the bootloader side until somebody tells it to
+start again or takes the power away, and the other live areas read this same board as a vehicle.
+
+The message that carries the command (`MAV_CMD_FLASH_BOOTLOADER`, 42650) is built byte by byte rather
+than through the enumeration of commands of the protocol library, so the number travels as it was
+written and the answer of the vehicle is read as an answer is read. That is what a command the metadata
+table does not describe needs, because the generic executor cannot say what its slots mean and does not
+offer them — and the dialect this project uses does name 42650, so the raw path is kept for the numbers
+it does not. The link stops carrying MAVLink when the board is in the bootloader, because the board is
+then waiting for the protocol of the bootloader. The sheet says what each of its two buttons does,
+because they are two different things: one writes a sector of the flash and the board keeps speaking as
+a vehicle after answering, and the other decides which protocol the board speaks from there on.
 
 The flash of a board can also be **erased**, from the same sheet: the board is asked
 what it is and its memory is left clean, which is what the operator wants when the
