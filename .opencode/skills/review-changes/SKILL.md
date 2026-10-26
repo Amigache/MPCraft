@@ -71,6 +71,8 @@ Review in this order. A violation early in the list invalidates everything after
 - [ ] `docs/PARITY.md` updated in the same change.
 - [ ] No debug logging left behind; no commented-out code.
 - [ ] No unrelated reformatting mixed into the change.
+- [ ] A skill that disagrees with the script it describes is reported as a divergence, with the change that
+      resolves it (`docs/SKILLS.md`, point 5) — a skill held to the same standard as the code.
 
 ### 8. Verifying what is reported (before writing it down)
 
