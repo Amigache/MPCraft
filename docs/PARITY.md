@@ -1261,6 +1261,38 @@ look at; the five documents are also shown passing untouched. What it cannot see
 assumed: the window itself, the compiler, whether an install is present in either folder, and a port set
 through a variable or an environment override.
 
+The **contract** is read from both sides now, because one document was spoken two ways and nothing read the
+two against each other. The pair that identifies a vehicle was written with underscores by the structs that
+carry it — the key in the application and the id in the vehicle state — while the interface read it with the
+camel humps every other field of the boundary uses, so the value the interface asked for was not the value
+that arrived; and the same pair was declared twice on the frontend side, once as the document the contract
+declares and once as a `NodeKey` carrying the underscore spellings, which is a document that can fall out of
+step with the struct that writes it. The events were read as more than one document: the state of the link
+was read as a partial shape by the hook that shows the connection and as a wider one by the store that keeps
+the state, and the play-back payload was declared inside the store rather than read from the contract, and one
+hook listened to an event nothing emits — a subscription to a channel that will never answer, which is why it
+was taken away rather than left as something that might be wired later. Each event is now read through one
+document, declared by the contract, and each field that crosses the boundary is compared through the words it
+says rather than through its casing, so `system_id` and `systemId` are read as the same field and then
+required to agree; and the rule that the boundary speaks camelCase is read in both directions, because a
+command reads a document as well as answers with one. What the reading covers is 108 documents reachable from
+the boundary and 228 fields across the 47 named on both sides, and what it does not cover is said rather than
+pretended otherwise: a rename applied through a macro or a manual `Serialize` implementation, documents paired
+only by name (so `TelemetryEvent` and `Telemetry` are not compared), fields the frontend does not read, and
+what the boundary does not reach — the settings file and the log formats keep their own spellings and are not
+read here. The gate (`scripts/check-contract.js`) is shown firing on each thing it claims to catch — a
+listener for a name nothing emits, a listener holding a shape of its own, one event read as two documents, a
+contract field with an underscore in it, a struct the boundary reaches writing the pair with underscores on
+both crates, and a file declaring its own copy of a document the contract already declares — and the sources
+as they stand are shown passing. The runner scopes this gate with a folder, because the documents that cross
+the boundary are reached through types the crates declare, and the control shows a file inside that folder
+being read as touched rather than the gate saying it had nothing to say. Both sides carry a test written down
+before the rule was called: the crates assert the keys they write for the pair, and the store updates from a
+payload read as bytes with those spellings — which is what a reader holding its own shape could not do — while
+the play-back is read through the same document the contract declares, so a tick of the link during a
+play-back does not take the window back from the flight being shown. Whether an event reaches a window is
+outside of what a reading of two source files can say, and that is said rather than assumed.
+
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native
 graphing and analysis in 6.7–6.8, which is a strictly better outcome.

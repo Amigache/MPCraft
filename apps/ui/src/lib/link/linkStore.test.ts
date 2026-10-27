@@ -1,7 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import type { BoardOutput, VehicleEvent } from "../ipc/types";
-import { chosenVehicle, sameOutput } from "./linkStore";
+import type {
+  BoardOutput,
+  PlaybackState,
+  StateEvent,
+  VehicleEvent,
+} from "../ipc/types";
+import { liveTelemetry } from "./liveTelemetry";
+import {
+  applyPlayback,
+  applyState,
+  chosenVehicle,
+  initialState,
+  sameOutput,
+  useLinkStore,
+} from "./linkStore";
 
 /**
  * The vehicle the interface shows as the one it is reading.
@@ -96,5 +109,85 @@ describe("the words the board printed", () => {
     };
 
     expect(sameOutput(before, decided)).toBe(false);
+  });
+});
+
+describe("the documents the boundary speaks", () => {
+  /**
+   * The payload as the backend writes it, read from the bytes rather than from an object written in the
+   * contract's own names. The point of reading it this way is that a reader holding its own shape — which
+   * is what the store had — updates nothing when the two disagree, and nothing on either side could say
+   * which of them was wrong: the pair arrived as `system_id` while the interface read `systemId`.
+   */
+  function tick(document: string): StateEvent {
+    return JSON.parse(document) as StateEvent;
+  }
+
+  /** A tick of a link that has heard one board, written the way the boundary writes it. */
+  const LIVE_TICK =
+    '{"status":"connected","vehicles":[],"telemetry":{"mode":"RTL"},"loss":{"received":1,"lost":0},' +
+    '"messages":[],"board":null,"output":{"lines":[],"dropped":0,"looksLikeCanBus":false},' +
+    '"adsb":[],"gimbals":[],"cameras":[]}';
+
+  beforeEach(() => {
+    useLinkStore.setState(initialState);
+    liveTelemetry.reset();
+  });
+
+  it("updates the store from the spellings the struct writes", () => {
+    applyState(
+      tick(
+        '{"status":"connected",' +
+          '"vehicles":[{"systemId":2,"componentId":1,"kind":"ArduPlane","name":"ArduPlane","chosen":true}],' +
+          '"telemetry":{"mode":"AUTO","armed":true},"loss":{"received":121,"lost":0},"messages":[],' +
+          '"board":"Detected Pixhawk","output":{"lines":["BOOT"],"dropped":0,"looksLikeCanBus":false},' +
+          '"adsb":[],"gimbals":[],"cameras":[]}',
+      ),
+    );
+
+    const state = useLinkStore.getState();
+
+    expect(state.status).toBe("connected");
+    // The pair is what the store keys a vehicle by, so a spelling that does not arrive is a list that
+    // looks empty while a board is answering.
+    expect(chosenVehicle(state.vehicles)?.systemId).toBe(2);
+    expect(chosenVehicle(state.vehicles)?.name).toBe("ArduPlane");
+    expect(state.board).toBe("Detected Pixhawk");
+    expect(state.output.lines).toEqual(["BOOT"]);
+    expect(state.telemetry.mode).toBe("AUTO");
+  });
+
+  it("keeps the flight that is being played back rather than taking the window back", () => {
+    applyPlayback(
+      JSON.parse(
+        '{"open":true,"position":12.5,"duration":60,"telemetry":{"mode":"AUTO"}}',
+      ) as PlaybackState,
+    );
+
+    // The drawing reads the published snapshot, so the play-back is what it shows.
+    expect(liveTelemetry.value.mode).toBe("AUTO");
+
+    // A tick of the link arrives while the play-back is open: the window stays with the file, because
+    // the operator is looking at a flight that has already happened.
+    applyState(tick(LIVE_TICK));
+
+    const state = useLinkStore.getState();
+
+    expect(state.playback).toBe(true);
+    expect(state.playbackPosition).toBe(12.5);
+    expect(liveTelemetry.value.mode).toBe("AUTO");
+
+    // And closing the log gives the window back to the wire, so the next tick is drawn again.
+    applyPlayback(
+      JSON.parse(
+        '{"open":false,"position":0,"duration":60,"telemetry":{}}',
+      ) as PlaybackState,
+    );
+
+    expect(useLinkStore.getState().playback).toBe(false);
+
+    applyState(tick(LIVE_TICK));
+
+    expect(liveTelemetry.value.mode).toBe("RTL");
   });
 });

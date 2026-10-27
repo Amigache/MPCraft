@@ -389,21 +389,10 @@ export interface AdsbRelayStatus {
   };
 }
 
-/**
- * The pair that identifies one node of a DroneCAN bus.
- *
- * The pair keeps the names the Rust type gives it: the camelCase of a payload renames its own
- * fields, not the struct it holds, so this is what the backend writes.
- */
-export interface NodeKey {
-  readonly system_id: number;
-  readonly component_id: number;
-}
-
 /** One node the bus has reported. */
 export interface DronecanNode {
   /** The pair that identifies the node, which is what upstream keeps it under. */
-  readonly vehicle: NodeKey;
+  readonly vehicle: VehicleKey;
   /** How many seconds the node has been up, the last time it said. */
   readonly uptimeSec: number;
   /** What the node says about itself, as the dictionary numbers it. */
@@ -1287,12 +1276,43 @@ export interface BoardOutput {
   readonly looksLikeCanBus: boolean;
 }
 
+/**
+ * What the link publishes about itself, in one piece.
+ *
+ * This is the document the `link-state` event carries, and it is what both readers of that event read —
+ * the store that keeps the state and the hook that shows the connection. They were reading two shapes of
+ * one event: the store named fields the hook did not, and the hook named a shape the store had written
+ * separately, so the same tick was read as two documents. A field is only there for a reader that names
+ * it, and a document declared twice can fall out of step with the struct that writes it.
+ */
+export interface StateEvent {
+  /** The connection state. */
+  readonly status: ConnectionStatus;
+  /** The vehicles seen on the link. */
+  readonly vehicles: readonly VehicleEvent[];
+  /** The telemetry of the primary vehicle. */
+  readonly telemetry: Telemetry;
+  /** The loss statistics of the link. */
+  readonly loss: LossStats;
+  /** The messages the vehicle has sent, most recent last. */
+  readonly messages: readonly VehicleMessage[];
+  /** The board that is on the other end, when the vehicle has said which one it is. */
+  readonly board: string | null;
+  /** What the board printed on the wire outside of MAVLink frames. */
+  readonly output: BoardOutput;
+  /** The traffic that the vehicle has heard. */
+  readonly adsb: readonly AdsbVehicle[];
+  /** The gimbals the vehicle has reported. */
+  readonly gimbals: readonly GimbalDevice[];
+  /** The cameras the vehicle has reported. */
+  readonly cameras: readonly CameraDevice[];
+}
+
 /** The result of a command that changed the connection state. */
 export interface ConnectResponse {
   readonly status: ConnectionStatus;
   readonly vehicle: VehicleKey | null;
 }
-
 /**
  * A picture, with the place it says it was taken and the place the log says the vehicle was
  * when it was made.

@@ -8,7 +8,8 @@
  *     it names what did not run, and does not read it as green   a layer that was not touched, a
  *                          tool that is not there, and a gate something else stands in for
  *     it can be scoped by what it reads   one of the documents a gate names is put in front of it, and a
- *                          change that touches none of them
+ *                          change that touches none of them; the same reading, with a folder among the
+ *                          documents, is shown answering for a file inside it
  *     which count it reads   a report where the unit tests passed and the live areas failed is read as
  *                          the live areas, because those are the ones a vehicle answered
  *
@@ -147,6 +148,43 @@ checks.push({
     verdict: launchUntouched.verdict,
     gate: stateOf(launchUntouched, launchGate),
     why: launchUntouched.gates?.[0]?.why,
+  },
+});
+
+/* The folder form of the same scoping, which is what a gate that reads a whole layer uses: a file inside a
+ * listed folder is read as touched, so a change to one crate does not make the gate say it had nothing to say. */
+const contractGate = "the contract, read from both sides";
+
+const contractTouched = run(
+  ["crates/mpcraft-vehicle/src/lib.rs"],
+  [contractGate],
+);
+
+checks.push({
+  claim:
+    "a gate scoped with a folder runs for a file inside it, and names which file it read the change through",
+  ok:
+    stateOf(contractTouched, contractGate) === "PASS" &&
+    (contractTouched.gates?.[0]?.scope ?? []).includes(
+      "crates/mpcraft-vehicle/src/lib.rs",
+    ),
+  saw: {
+    verdict: contractTouched.verdict,
+    gate: stateOf(contractTouched, contractGate),
+    scope: contractTouched.gates?.[0]?.scope,
+  },
+});
+
+const contractUntouched = run(["docs/PLAN.md"], [contractGate]);
+
+checks.push({
+  claim:
+    "the same gate says NO-APLICA when neither its documents nor its folder were touched",
+  ok: stateOf(contractUntouched, contractGate) === "NO-APLICA",
+  saw: {
+    verdict: contractUntouched.verdict,
+    gate: stateOf(contractUntouched, contractGate),
+    why: contractUntouched.gates?.[0]?.why,
   },
 });
 

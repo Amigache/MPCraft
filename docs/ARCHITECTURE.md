@@ -139,6 +139,9 @@ keyed by `(system_id, component_id)` — mirroring upstream's `MAVList`, but typ
 pub struct VehicleId { pub system_id: u8, pub component_id: u8 }
 ```
 
+The pair crosses the boundary as `systemId` and `componentId`: the Rust names keep the underscores, and
+the JSON carries the casing the contract reads (§5.2).
+
 ---
 
 ## 3. MAVLink layer
@@ -257,19 +260,36 @@ a stable `code` string. The frontend switches on `code`, never on message text.
 
 ### 5.2 Event shape
 
-Telemetry is pushed as **batched snapshots**, not per-field events.
+Telemetry is pushed as **batched snapshots**, not per-field events. The desktop publishes two
+events: `link-state` carries the state of the link as one document (`StateEvent`), and
+`playback-state` carries the telemetry of an instant of a log that is being played back
+(`PlaybackState`).
 
 ```rust
 #[derive(Clone, Serialize)]
-pub struct TelemetryEvent {
-    pub vehicle: VehicleKey,
-    pub seq: u64,
-    pub t: Telemetry,
+#[serde(rename_all = "camelCase")]
+pub struct StateEvent {
+    pub status: ConnectionStatus,
+    pub vehicles: Vec<VehicleEvent>,   // keyed by (system_id, component_id)
+    pub telemetry: TelemetryEvent,      // the primary vehicle's snapshot
+    pub loss: LossEvent,
+    pub messages: Vec<MessageEvent>,
+    pub board: Option<String>,
+    pub output: BoardOutput,
+    pub adsb: Vec<AdsbEvent>,
+    pub gimbals: Vec<GimbalDevice>,
+    pub cameras: Vec<CameraDevice>,
 }
 ```
 
 Batching matters: at 20 Hz with 40 fields, per-field events would mean 800 IPC messages/second.
 MPCraft emits one batched event per UI frame tick (default 20 Hz, configurable).
+
+The boundary speaks **one casing**: every struct whose JSON reaches the frontend writes its fields in
+camelCase, and the contract (`apps/ui/src/lib/ipc/types.ts`) declares each event as one document that
+every reader of that event reads through. A field spelled two ways is a value the interface never gets,
+and `scripts/check-contract.js` reads both sides against each other — the events listened to against the
+events emitted, and the documents named on both sides field by field.
 
 ### 5.3 Frontend state
 

@@ -88,6 +88,7 @@ pub use supervisor::{
 
 /// Identifies a vehicle on a link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleKey {
     /// The system id of the vehicle.
     pub system_id: u8,
@@ -1044,6 +1045,17 @@ mod tests {
         assert_eq!(CommandError::CODE_NO_VEHICLE, "no_vehicle");
         assert_eq!(CommandError::CODE_NOT_CONNECTED, "not_connected");
         assert_eq!(CommandError::CODE_SETTINGS, "settings_error");
+    }
+
+    #[test]
+    fn the_pair_crosses_the_boundary_with_the_spelling_the_interface_reads() {
+        // The same rule as the vehicle crate, read from the side that answers the commands: the contract
+        // reads `systemId` and `componentId`, so the document the shell writes for a request that names a
+        // vehicle has to write them that way. What the interface declares and what the boundary writes were
+        // two spellings of one field, and the disagreement could only be found by reading both sides.
+        let json = serde_json::to_string(&VehicleKey::new(2, 1)).unwrap();
+
+        assert_eq!(json, r#"{"systemId":2,"componentId":1}"#);
     }
 
     #[test]

@@ -138,7 +138,7 @@ export function DronecanSheet() {
             <ul className={styles.list}>
               {nodes.map((node) => (
                 <li
-                  key={`${node.vehicle.system_id}:${node.vehicle.component_id}`}
+                  key={`${node.vehicle.systemId}:${node.vehicle.componentId}`}
                   className={styles.item}
                 >
                   <div className={styles.headline}>
@@ -146,7 +146,7 @@ export function DronecanSheet() {
                       {node.name ?? t("the node has not said what it is")}
                     </span>
                     <span className={styles.pair}>
-                      {node.vehicle.system_id}:{node.vehicle.component_id}
+                      {node.vehicle.systemId}:{node.vehicle.componentId}
                     </span>
                   </div>
 

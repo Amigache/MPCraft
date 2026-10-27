@@ -30,7 +30,6 @@ import type {
   LogSummary,
   PlaybackInfo,
   LogTrackPoint,
-  LossStats,
   MapProvider,
   MessageSamples,
   MavCommand,
@@ -50,16 +49,14 @@ import type {
   SerialPort,
   SigningKeyEntry,
   SigningStatus,
+  StateEvent,
   StreamAnswer,
-  Telemetry,
   TerrainPathPoint,
   TerrainPoint,
   TileBounds,
   TransponderStatus,
-  VehicleEvent,
   VehicleKey,
   VehicleLog,
-  VehicleMessage,
   VehicleRequest,
   VideoStream,
   ZoomOption,
@@ -1581,12 +1578,13 @@ export function useConnection(): ConnectionState {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<{ status: ConnectionStatus }>(
-      "link-state",
-      (event) => {
-        setStatus(event.payload.status);
-      },
-    );
+    // The state arrives as one document, so this reads the document the contract declares rather than a
+    // shape of its own: only the connection status is shown here, but reading it through a private shape
+    // is what made the same tick mean two things to two readers.
+    const unlisten = listen<StateEvent>("link-state", (event) => {
+      setStatus(event.payload.status);
+    });
+
     return () => {
       void unlisten.then((off) => off());
     };
@@ -1595,50 +1593,8 @@ export function useConnection(): ConnectionState {
   return { status, error, connect, disconnect };
 }
 
-/**
- * Subscribes to the batched telemetry stream.
- *
- * Telemetry arrives as one snapshot per tick, not one event per field. At 20 Hz with forty
- * fields, per-field events would mean eight hundred IPC messages per second.
- */
-export function useTelemetry(
-  vehicle: VehicleKey | null,
-  onTelemetry: (telemetry: Telemetry) => void,
-): void {
-  useEffect(() => {
-    if (!vehicle) {
-      return;
-    }
-
-    const unlisten = listen<{ vehicle: VehicleKey; t: Telemetry }>(
-      "telemetry",
-      (event) => {
-        if (
-          event.payload.vehicle.systemId === vehicle.systemId &&
-          event.payload.vehicle.componentId === vehicle.componentId
-        ) {
-          onTelemetry(event.payload.t);
-        }
-      },
-    );
-
-    return () => {
-      void unlisten.then((off) => off());
-    };
-  }, [vehicle, onTelemetry]);
-}
-
-/** The whole state the backend publishes, in one piece. */
-export interface LinkState {
-  readonly status: ConnectionStatus;
-  readonly vehicles: readonly VehicleEvent[];
-  readonly telemetry: Telemetry;
-  readonly loss: LossStats;
-  readonly messages: readonly VehicleMessage[];
-}
-
 /** The state of a link that is not open. */
-const EMPTY_STATE: LinkState = {
+const EMPTY_STATE: StateEvent = {
   status: "disconnected",
   vehicles: [],
   telemetry: {
@@ -1671,6 +1627,11 @@ const EMPTY_STATE: LinkState = {
   },
   loss: { received: 0, lost: 0 },
   messages: [],
+  board: null,
+  output: { lines: [], dropped: 0, looksLikeCanBus: false },
+  adsb: [],
+  gimbals: [],
+  cameras: [],
 };
 
 /**
@@ -1679,11 +1640,11 @@ const EMPTY_STATE: LinkState = {
  * The backend publishes the whole state in one event, so the components that show it
  * share one subscription rather than each opening their own.
  */
-export function useLinkState(): LinkState {
-  const [state, setState] = useState<LinkState>(EMPTY_STATE);
+export function useLinkState(): StateEvent {
+  const [state, setState] = useState<StateEvent>(EMPTY_STATE);
 
   useEffect(() => {
-    const unlisten = listen<LinkState>("link-state", (event) => {
+    const unlisten = listen<StateEvent>("link-state", (event) => {
       setState(event.payload);
     });
 

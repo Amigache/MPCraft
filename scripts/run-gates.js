@@ -257,6 +257,29 @@ const GATES = [
     proof: (text) => lineMatching(text, /"verdict": "PASS"/),
   },
   {
+    name: "the contract, read from both sides",
+    layer: "any",
+    /**
+     * The boundary is one document spoken two ways, so this gate is scoped by what it reads rather than by a
+     * layer: the Rust side writes the JSON and the TypeScript side declares what it reads, and the documents
+     * that cross it are reached through types the crates declare — which is why one of its entries is a folder.
+     */
+    command: "node",
+    probe: ["--version"],
+    args: ["scripts/check-contract.js"],
+    cwd: ROOT,
+    reads: [
+      "apps/desktop/src/main.rs",
+      "apps/ui/src/lib/ipc/types.ts",
+      "apps/ui/src/lib/ipc/bridge.ts",
+      "apps/ui/src/lib/link/linkStore.ts",
+      "crates/",
+    ],
+    control:
+      "scripts/check-contract-controls.js, which shows each rule firing on a known-bad source and the sources passing untouched",
+    proof: (text) => lineMatching(text, /"verdict": "PASS"/),
+  },
+  {
     name: "rust formatting",
     layer: "rust",
     command: "cargo",
@@ -370,7 +393,12 @@ function assess(gate) {
 
   if (gate.reads) {
     /* A gate scoped by what it reads says so when none of those documents was touched. */
-    const touched = (files ?? []).filter((path) => gate.reads.includes(path));
+    const touched = (files ?? []).filter((path) =>
+      gate.reads.some((entry) =>
+        // An entry may be a folder, which is how a gate that reads a whole layer is scoped.
+        entry.endsWith("/") ? path.startsWith(entry) : path === entry,
+      ),
+    );
 
     if (touched.length === 0) {
       entry.state = "NO-APLICA";

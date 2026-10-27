@@ -34,6 +34,7 @@ use mpcraft_mavlink::MavGpsFixType;
 
 /// Identifies a vehicle on a link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleId {
     /// The system id of the vehicle.
     pub system_id: u8,
@@ -941,6 +942,16 @@ mod tests {
     #[test]
     fn vehicle_id_displays_system_and_component() {
         assert_eq!(VehicleId::new(1, 1).to_string(), "1/1");
+    }
+
+    #[test]
+    fn the_pair_crosses_the_boundary_with_the_spelling_the_interface_reads() {
+        // The contract reads the pair as `systemId` and `componentId`, so the document that carries it
+        // has to write them that way: a field that arrives spelled another way is a value the interface
+        // never gets, and nothing on either side could say which of the two was wrong.
+        let json = serde_json::to_string(&VehicleId::new(2, 40)).unwrap();
+
+        assert_eq!(json, r#"{"systemId":2,"componentId":40}"#);
     }
 
     #[test]

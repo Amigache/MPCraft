@@ -9,6 +9,8 @@ import type {
   GimbalAttitude,
   GimbalDevice,
   LossStats,
+  PlaybackState,
+  StateEvent,
   Telemetry,
   VehicleEvent,
   VehicleMessage,
@@ -24,35 +26,6 @@ import { EMPTY_TELEMETRY, liveTelemetry } from "./liveTelemetry";
  * slice it draws — so a tick that only moves the vehicle does not touch the message
  * console.
  */
-
-/** The payload of the `link-state` event. */
-interface LinkStatePayload {
-  readonly status: ConnectionStatus;
-  readonly vehicles: readonly VehicleEvent[];
-  readonly telemetry: Telemetry;
-  readonly loss: LossStats;
-  readonly messages: readonly VehicleMessage[];
-  readonly board?: string | null;
-  /**
-   * What the board printed outside of MAVLink frames.
-   *
-   * While a link is open this is what its reader is capturing; for an attempt that never heard
-   * a vehicle it is what that attempt left behind, which is why the words are still there when
-   * the failure is read.
-   */
-  readonly output?: BoardOutput | null;
-  readonly adsb?: readonly AdsbVehicle[];
-  readonly gimbals?: readonly GimbalDevice[];
-  readonly cameras?: readonly CameraDevice[];
-}
-
-/** The payload of the `playback-state` event. */
-interface PlaybackStatePayload {
-  readonly open: boolean;
-  readonly position: number;
-  readonly duration: number;
-  readonly telemetry: Telemetry;
-}
 
 /** The state of the link. */
 export interface LinkStore {
@@ -365,75 +338,91 @@ let started = false;
  * There is exactly one subscription, however many components read the store: the event
  * arrives once and is fanned out from here.
  */
+/**
+ * Reads one tick of the link into the store.
+ *
+ * The payload is what the boundary wrote, so its fields are read with the spellings the struct gives them:
+ * reading them through a shape of the store's own is what let the same tick mean two things to two readers,
+ * and a field is only there for a reader that names it.
+ */
+export function applyState(payload: StateEvent): void {
+  // A log that is being played back is drawn instead of the vehicle on the
+  // link, and the link does not take the window back while it is shown.
+  if (useLinkStore.getState().playback) {
+    return;
+  }
+
+  const telemetry = normaliseTelemetry(payload.telemetry);
+
+  // The drawing components read the snapshot directly, so that a tick does not have to
+  // re-render the tree.
+  liveTelemetry.publish(telemetry);
+
+  useLinkStore.setState((state) => {
+    const messages = payload.messages ?? [];
+    const loss = payload.loss ?? { received: 0, lost: 0 };
+
+    // The state arrives several times a second, and most of it does not change. The
+    // references are kept when the content is the same, so that a component that shows
+    // one of them is not re-rendered for nothing.
+    return {
+      status: payload.status,
+      vehicles: sameVehicles(state.vehicles, payload.vehicles ?? [])
+        ? state.vehicles
+        : (payload.vehicles ?? []),
+      loss: sameLoss(state.loss, loss) ? state.loss : loss,
+      messages: sameMessages(state.messages, messages)
+        ? state.messages
+        : messages,
+      board: payload.board ?? null,
+      output: sameOutput(state.output, payload.output ?? EMPTY_OUTPUT)
+        ? state.output
+        : (payload.output ?? EMPTY_OUTPUT),
+      adsb: sameAdsb(state.adsb, payload.adsb ?? [])
+        ? state.adsb
+        : (payload.adsb ?? []),
+      gimbals: sameGimbals(state.gimbals, payload.gimbals ?? [])
+        ? state.gimbals
+        : (payload.gimbals ?? []),
+      cameras: sameCameras(state.cameras, payload.cameras ?? [])
+        ? state.cameras
+        : (payload.cameras ?? []),
+      telemetry,
+    };
+  });
+}
+
+/** Reads the play-back of a log into the store. */
+export function applyPlayback(payload: PlaybackState): void {
+  // A log that is played back is drawn as if the flight were happening: the telemetry
+  // of the log is published, and the window shows the vehicle where it was.
+  if (!payload.open) {
+    useLinkStore.setState({ playback: false, playbackPosition: 0 });
+    return;
+  }
+
+  liveTelemetry.publish(normaliseTelemetry(payload.telemetry));
+  useLinkStore.setState({
+    playback: true,
+    playbackPosition: payload.position,
+  });
+}
+
+/** The state of a link that is not open, which is what a test starts from. */
+export const initialState: LinkStore = INITIAL;
+
 export function startLinkBridge(): void {
   if (started) {
     return;
   }
   started = true;
 
-  void listen<LinkStatePayload>("link-state", (event) => {
-    // A log that is being played back is drawn instead of the vehicle on the
-    // link, and the link does not take the window back while it is shown.
-    if (useLinkStore.getState().playback) {
-      return;
-    }
-
-    const payload = event.payload;
-    const telemetry = normaliseTelemetry(payload.telemetry);
-
-    // The drawing components read the snapshot directly, so that a tick does not have to
-    // re-render the tree.
-    liveTelemetry.publish(telemetry);
-
-    useLinkStore.setState((state) => {
-      const messages = payload.messages ?? [];
-      const loss = payload.loss ?? { received: 0, lost: 0 };
-
-      // The state arrives several times a second, and most of it does not change. The
-      // references are kept when the content is the same, so that a component that shows
-      // one of them is not re-rendered for nothing.
-      return {
-        status: payload.status,
-        vehicles: sameVehicles(state.vehicles, payload.vehicles ?? [])
-          ? state.vehicles
-          : (payload.vehicles ?? []),
-        loss: sameLoss(state.loss, loss) ? state.loss : loss,
-        messages: sameMessages(state.messages, messages)
-          ? state.messages
-          : messages,
-        board: payload.board ?? null,
-        output: sameOutput(state.output, payload.output ?? EMPTY_OUTPUT)
-          ? state.output
-          : (payload.output ?? EMPTY_OUTPUT),
-        adsb: sameAdsb(state.adsb, payload.adsb ?? [])
-          ? state.adsb
-          : (payload.adsb ?? []),
-        gimbals: sameGimbals(state.gimbals, payload.gimbals ?? [])
-          ? state.gimbals
-          : (payload.gimbals ?? []),
-        cameras: sameCameras(state.cameras, payload.cameras ?? [])
-          ? state.cameras
-          : (payload.cameras ?? []),
-        telemetry,
-      };
-    });
+  void listen<StateEvent>("link-state", (event) => {
+    applyState(event.payload);
   });
 
-  // A log that is played back is drawn as if the flight were happening: the telemetry
-  // of the log is published, and the window shows the vehicle where it was.
-  void listen<PlaybackStatePayload>("playback-state", (event) => {
-    const payload = event.payload;
-
-    if (!payload.open) {
-      useLinkStore.setState({ playback: false, playbackPosition: 0 });
-      return;
-    }
-
-    liveTelemetry.publish(normaliseTelemetry(payload.telemetry));
-    useLinkStore.setState({
-      playback: true,
-      playbackPosition: payload.position,
-    });
+  void listen<PlaybackState>("playback-state", (event) => {
+    applyPlayback(event.payload);
   });
 }
 /**
