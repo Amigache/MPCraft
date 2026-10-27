@@ -32,10 +32,10 @@
  * What this cannot see, and is said rather than pretended otherwise. It reads sources as text, so a
  * rename applied through a helper macro or a field written by a manual `Serialize` implementation is not
  * seen; a pairing only exists where a field names a document on both sides, so a document the contract
- * declares and no field names is not compared, and a shape written inside a document has no name at all, so
- * there is no struct it can be read against and the places where the contract writes one are listed rather
- * than compared; and whether an event actually reaches a window is outside of what a reading of two source
- * files can say.
+ * declares and no field names is not compared — which is the case for the documents read through a command's
+ * answer rather than through a field; a shape written inside a document is refused, because nothing names it,
+ * and that is the whole of what can be said about it without a name; and whether an event actually reaches a
+ * window is outside of what a reading of two source files can say.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -378,21 +378,26 @@ export function check(docs) {
   while (walk.length > 0) {
     const [document, struct] = walk.shift();
     const declared = contract.get(document);
+    const value = structs.get(struct);
 
     for (const field of declared.fields) {
       const key = words(field.name).join(".");
-      const written = structs
-        .get(struct)
-        .fields.find((other) => words(other.name).join(".") === key);
+      const written = value.fields.find(
+        (other) => words(other.name).join(".") === key,
+      );
 
       if (written === undefined) {
         continue;
       }
 
-      /* A shape written inside a document has no name, so there is no struct it can be read against: the
-         fields of that shape are not compared, and that is said rather than left as a green. */
+      /* A shape written inside a document has no name, so there is no struct it can be read against. That is
+         refused rather than skipped: an anonymous shape is a document one side holds and the other cannot be
+         checked against, which is how a field of it can be read without ever arriving. */
       if (field.inline) {
-        inlineShapes.push(`${document}.${field.name}`);
+        inlineShapes.push(`${pair(document, struct)}.${field.name}`);
+        faults.push(
+          `${pair(document, struct)}.${field.name} is a shape written inside the document, which nothing names, so its fields cannot be read against the struct that writes them (${value.path})`,
+        );
         continue;
       }
 
@@ -560,7 +565,7 @@ if (
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         faults: result.faults,
         limit:
-          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides, so a document the contract declares and no field names is not compared, and a shape written inside a document has no name to be read against; a field the writer carries and the interface does not read is said as a fact rather than a fault; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
+          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides, so a document the contract declares and no field names — the ones read through a command's answer rather than through a field — is not compared; a shape written inside a document is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact rather than a fault; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
       },
       null,
       2,

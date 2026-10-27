@@ -1289,7 +1289,7 @@ document, declared by the contract, and each field that crosses the boundary is 
 says rather than through its casing, so `system_id` and `systemId` are read as the same field and then
 required to agree; and the rule that the boundary speaks camelCase is read in both directions, because a
 command reads a document as well as answers with one. What the reading covers is 108 documents reachable from
-the boundary, 72 of them paired and 362 fields across those pairs, and what it does not cover is said rather
+the boundary, 76 of them paired and 373 fields across those pairs, and what it does not cover is said rather
 than pretended otherwise: a rename applied through a macro or a manual `Serialize` implementation, a document
 the contract declares and no field names, and what the boundary does not reach — the settings file and the log
 formats keep their own spellings and are not read here. The gate (`scripts/check-contract.js`) is shown firing
@@ -1307,7 +1307,7 @@ the play-back is read through the same document the contract declares, so a tick
 play-back does not take the window back from the flight being shown. Whether an event reaches a window is
 outside of what a reading of two source files can say, and that is said rather than assumed.
 
-The **pairs** are read now, which is what the first version of this gate could not do: 47 documents are named
+The **pairs** are read now, which is what the first version of this gate could not do: 51 documents are named
 the same on both sides and 25 are named differently, so `Telemetry` is read against `TelemetryEvent`,
 `LossStats` against `LossEvent`, `VehicleMessage` against `MessageEvent`, `SigningKeyEntry` against
 `SigningKeyView` and `DtedCell` against `DtedCellInfo`. The pairing is not a table somebody writes: it is what
@@ -1316,13 +1316,14 @@ the same field says on both sides — `StateEvent.telemetry` is declared as `Tel
 sends through it, and that is one of the known-bad cases shown firing. A field the contract declares and the
 struct behind the pair does not write is a finding, because that is a value the interface cannot get; a field
 the struct writes and the contract does not declare is said as a fact, because JSON carries what the interface
-does not ask for, and nothing today is on that side. Four places are listed rather than compared, and that is
-the honest limit of the rule: the contract writes them as shapes inside a document, so nothing names them and
-there is no struct to read them against — `AdsbRelayStatus.settings`, `TransponderStatus.settings`,
-`LogSummary.messages` and `LogSummary.unread` — which is why the control for this rule shows that it names them
-and does not turn a field inside one into a field of the document, which is what it did before the body of an
-interface was read to its own closing brace. Naming those four is the next change; until then the gate reports
-them as what it cannot read.
+does not ask for, and nothing today is on that side. Four places that were shapes inside a document are named
+now — `AdsbRelaySettings`, `MessageCount`, `TransponderSettings` and `UnreadPlace` — because an anonymous shape
+has no struct to be read against, and the rule refuses one rather than skipping it: the control shows
+`TransponderStatus.settings` refused when it is put back as a shape, and the sources are shown naming what they
+declare. What the rule still cannot see is said rather than pretended otherwise: of the 101 documents the
+contract declares, 76 are paired with 373 fields compared and the 25 left are the ones nothing names, which are
+the documents read through a command's answer rather than through a field; the gate reads events from both sides
+today, and a call is not yet one of those sides.
 
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read

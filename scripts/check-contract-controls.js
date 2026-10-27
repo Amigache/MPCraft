@@ -11,10 +11,8 @@
  *
  * The rule that pairs documents by what a field says on both sides has two controls: a field the contract
  * declares and the struct behind the pair does not write is a finding, and a shape written inside a document
- * is named as a shape rather than compared, because nothing names it. The second cannot fail, so what its
- * control shows is that it names the shapes that exist today and does not turn a field inside one into a
- * field of the document — which is the false finding this rule used to make before the body of an interface
- * was read to its own closing brace.
+ * is refused because nothing names it — which is the whole of what can be said about an anonymous shape, so the
+ * sources are shown naming what they declare rather than holding it as a shape.
  */
 
 import { check, readDocuments } from "./check-contract.js";
@@ -184,6 +182,20 @@ const cases = [
     },
     expect: /LossStats↔TelemetryEvent/,
   },
+  {
+    claim:
+      "a shape written inside a document is refused rather than skipped: nothing names it, so there is no struct its fields can be read against",
+    mutated: {
+      ...docs,
+      [CONTRACT]: mutate(
+        docs[CONTRACT],
+        /^  readonly settings: TransponderSettings;$/,
+        "  readonly settings: { readonly icaoAddress: number; };",
+      ),
+    },
+    expect:
+      /TransponderStatus\.settings is a shape written inside the document, which nothing names/,
+  },
 ];
 
 for (const entry of cases) {
@@ -209,26 +221,30 @@ for (const entry of cases) {
   });
 }
 
-/* The pairing rule reports which side carries a field the other does not, so its control is that a field read
-   by the contract and never written is a finding, and that a shape inside a document is named as a shape
-   rather than read as fields of the document — an inner field the writer does not send must not become a fault
-   the gate cannot support. */
-const shape = check({
-  ...docs,
-  [CONTRACT]: mutate(
-    docs[CONTRACT],
-    /^    readonly radiusNm: number;$/,
-    "    readonly nothingTheWriterSends: boolean;",
-  ),
-});
-
+/* The rule refuses an anonymous shape, so its green rests on the contract having named what it declares: the
+   four places that were shapes inside a document are documents now, and each is read against the struct that
+   writes it. */
 checks.push({
   claim:
-    "a shape written inside a document is named as a shape, and a field inside it is not read as a field of the document",
+    "the contract names every document it declares as its own, so the four shapes that used to sit inside one are compared as documents",
   ok:
-    shape.faults.length === 0 &&
-    shape.facts.inlineShapes.includes("AdsbRelayStatus.settings"),
-  saw: { faults: shape.faults, inlineShapes: shape.facts.inlineShapes },
+    good.facts.inlineShapes.length === 0 &&
+    [
+      "AdsbRelaySettings",
+      "MessageCount",
+      "TransponderSettings",
+      "UnreadPlace",
+    ].every((name) => good.facts.pairedDocuments.includes(name)),
+  saw: {
+    inlineShapes: good.facts.inlineShapes,
+    named: [
+      "AdsbRelaySettings",
+      "MessageCount",
+      "TransponderSettings",
+      "UnreadPlace",
+    ],
+    fields: good.facts.comparedFields,
+  },
 });
 
 const fails = checks.filter((entry) => !entry.ok);
@@ -240,7 +256,7 @@ console.log(
       verdict: fails.length === 0 ? "PASS" : "FAIL",
       fails,
       limit:
-        "these prove each rule can fire and that the sources satisfy them as written. They do not show an event reaching a window, and a rename applied through a macro rather than an attribute is outside of what a reading of text can see. The pairing rule cannot see a document that no field names, and a shape written inside a document has no name to be read against, so its control shows what it names rather than what it refuses.",
+        "these prove each rule can fire and that the sources satisfy them as written. They do not show an event reaching a window, and a rename applied through a macro rather than an attribute is outside of what a reading of text can see. The pairing rule cannot see a document that no field names — the ones read through a command's answer — and an anonymous shape is refused without being compared, because there is nothing to compare it with until it is named.",
     },
     null,
     2,

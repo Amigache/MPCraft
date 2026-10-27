@@ -107,6 +107,16 @@ export interface PluginInfo {
 }
 
 /** What the transponder is doing. */
+/** What the transponder says. */
+export interface TransponderSettings {
+  /** The address of the aircraft. */
+  readonly icaoAddress: number;
+  /** The name of the flight, the one the aircraft says. */
+  readonly flightId: string;
+  /** The code the operator chose, in octal. */
+  readonly squawk: number;
+}
+
 export interface TransponderStatus {
   /** Whether the transponder is being told what to say. */
   readonly running: boolean;
@@ -115,11 +125,7 @@ export interface TransponderStatus {
   /** The last failure, when there was one. */
   readonly error: string | null;
   /** What the transponder says. */
-  readonly settings: {
-    readonly icaoAddress: number;
-    readonly flightId: string;
-    readonly squawk: number;
-  };
+  readonly settings: TransponderSettings;
 }
 
 /** One key of the signed link, as the operator wrote it. */
@@ -369,6 +375,15 @@ export interface AdsbVehicle {
 }
 
 /** What the relay of the traffic is doing. */
+/** Where the relay reads from and how far it looks. */
+export interface AdsbRelaySettings {
+  /** The address of the source, as an `http` or `https` URL. */
+  readonly server: string;
+  /** How far round the vehicle the list is asked for, in nautical miles. */
+  readonly radiusNm: number;
+}
+
+/** What the relay keeps, which is what the sheet of the traffic draws. */
 export interface AdsbRelayStatus {
   /** Whether the relay is sending. */
   readonly running: boolean;
@@ -383,10 +398,7 @@ export interface AdsbRelayStatus {
   /** Where the vehicle is, because the list is asked around it. */
   readonly position: GeoPoint | null;
   /** What the relay reads from and how far it looks. */
-  readonly settings: {
-    readonly server: string;
-    readonly radiusNm: number;
-  };
+  readonly settings: AdsbRelaySettings;
 }
 
 /** One node the bus has reported. */
@@ -973,17 +985,32 @@ export interface OutputFunction {
   readonly motor: number | null;
 }
 
+/** One message the log holds, and how many of them there are. */
+export interface MessageCount {
+  /** The name of the message. */
+  readonly name: string;
+  /** How many of them the log holds. */
+  readonly count: number;
+}
+
+/** One place where a value is not the type its declaration says it is. */
+export interface UnreadPlace {
+  /** The line it was on. */
+  readonly line: number;
+  /** The message it belongs to, named as the file names it. */
+  readonly message: string;
+  /** The field, named as the declaration names it. */
+  readonly field: string;
+  /** What the line said, kept as it was written. */
+  readonly text: string;
+}
+
 /**
  * What a log of a flight holds.
  */
 export interface LogSummary {
   /** The messages the log holds, and how many of each there are. */
-  readonly messages: readonly {
-    /** The name of the message. */
-    readonly name: string;
-    /** How many of them the log holds. */
-    readonly count: number;
-  }[];
+  readonly messages: readonly MessageCount[];
   /** The instant the log starts at, in microseconds since the epoch. */
   readonly start: number;
   /** The instant the log ends at, in microseconds since the epoch. */
@@ -996,16 +1023,7 @@ export interface LogSummary {
    * The places the reader names, up to the ceiling it keeps. A count without its places is a count
    * the interface knows and does not show, so they travel with it.
    */
-  readonly unread: readonly {
-    /** The line it was on. */
-    readonly line: number;
-    /** The message it belongs to, named as the file names it. */
-    readonly message: string;
-    /** The field, named as the declaration names it. */
-    readonly field: string;
-    /** What the line said, kept as it was written. */
-    readonly text: string;
-  }[];
+  readonly unread: readonly UnreadPlace[];
   /** How many of them the bounded list did not name. */
   readonly unreadLeft: number;
 }
