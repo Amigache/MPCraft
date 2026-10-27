@@ -1249,6 +1249,18 @@ giving the number back through the stage, so the test sees the number the surfac
 that a call happened; and the item shown is the one the vehicle reported, taken from the same report the plan
 count comes from.
 
+The **surface is fed by a scripted peer** rather than by a hand-written one, which is what says where its
+numbers come from: the tests that read a surface written by the test prove the shape crosses the boundary but
+not the source of the value. The peer puts four things on a real socket, and they are written down before the
+test calls anything — item three of twelve, from `MISSION_CURRENT`; `FENCE_ALT_MAX` as 61.5, from the answer the
+vehicle gives about itself; 584.0 metres, from the position message; and fourteen satellites, from the
+positioning message. Before anything arrives the surface has nothing to give, so the plugin sees the number that
+says *nothing was said* rather than zero, and the first reading fails for that reason; after the wire answers,
+the same plugin agrees with what it reads through its imports, which is the value crossing the boundary as the
+wire gave it. What cannot be asserted here is said rather than assumed: there is no physical board on this
+machine, so what the run proves is the path from the frames to the surface, not that a vehicle reports these
+numbers.
+
 The **application is launched** from an entry that names the folder holding the configuration, because the
 CLI takes the project from the folder it runs in or a subfolder of it: run from `apps/ui` it says nothing
 about the application and `tauri dev` panics ("Couldn't recognize the current folder as a Tauri project",
