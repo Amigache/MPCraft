@@ -223,6 +223,39 @@ const GATES = [
     proof: (text) => resultForSection(text, "hardware_live"),
   },
   {
+    name: "the surface read against a live vehicle",
+    layer: "rust",
+    /**
+     * The numbers a plugin reads are only worth something when an autopilot reports them. Without an
+     * instance of its own named by the environment, the scripted peer in tests/plugins_wire.rs stands in:
+     * it answers the shapes, but it was written to carry the numbers, so it cannot show that a vehicle
+     * decides its own — which is the whole of what this area adds over the scripted half.
+     */
+    command: "cargo",
+    probe: [TOOLCHAIN, "--version"],
+    needs: ["gcc"],
+    args: [
+      TOOLCHAIN,
+      "test",
+      "-p",
+      "mpcraft-app",
+      "--features",
+      "sitl-tests",
+      "--test",
+      "plugins_live",
+      "--",
+      "--test-threads=1",
+    ],
+    cwd: ROOT,
+    liveWhen: (env) =>
+      env.MPCRAFT_SITL_LIVE === "1" && Boolean(env.MPCRAFT_SITL_PLUGINS_TARGET),
+    substitute:
+      "the scripted peer in crates/mpcraft-app/tests/plugins_wire.rs, which puts numbers on a socket but does not decide them",
+    control:
+      "scripts/run-gates-controls.js for the report line this gate reads, shown against a transcript where the scripted half passed and the live half failed",
+    proof: (text) => resultForSection(text, "plugins_live"),
+  },
+  {
     name: "parity matrix",
     layer: "documentation",
     command: "node",

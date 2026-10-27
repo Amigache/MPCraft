@@ -1261,6 +1261,22 @@ wire gave it. What cannot be asserted here is said rather than assumed: there is
 machine, so what the run proves is the path from the frames to the surface, not that a vehicle reports these
 numbers.
 
+The **same surface is read against a live vehicle** as well, behind the same flag
+(`crates/mpcraft-app/tests/plugins_live.rs`), because a scripted peer was written to carry the numbers it answers
+with, while a vehicle decides them for itself. Three numbers can still be written down before the run, and they are
+the three this area puts on the wire: the plan of three items it uploads, the item it asks the vehicle to be on, and
+the value it writes to `FENCE_ALT_MAX`, which is read back as the number the vehicle stored rather than as the
+number that was asked for. The other two readings cannot be predicted, because a simulator chooses its own height and
+its own satellite count, so they are watched until the vehicle says them, and the comparison afterwards is said for
+what it is: the surface holds a copy of the snapshot the aggregator filled from the frames, so what this proves is
+that the number crossed the boundary through the import, not that a second reader would have got the same one from
+somewhere else. The first reading still fails with the code that says nothing was said, which is what keeps the
+second half an assertion rather than a restatement. What cannot be asserted here is said rather than assumed: the
+image the gate names cannot be pulled anonymously on this machine — the registry answers *unauthorized* — and nothing
+is listening on the port the simulator reserves, so the area compiles and reports the stand-in rather than answering;
+the runner names the scripted peer as what stands in for it, and the control shows both halves read as their own
+reports, so a scripted peer passing does not stand for an area no vehicle answered.
+
 The **application is launched** from an entry that names the folder holding the configuration, because the
 CLI takes the project from the folder it runs in or a subfolder of it: run from `apps/ui` it says nothing
 about the application and `tauri dev` panics ("Couldn't recognize the current folder as a Tauri project",

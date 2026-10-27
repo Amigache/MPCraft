@@ -395,6 +395,47 @@ checks.push({
   },
 });
 
+/* The live half of the plugin surface is fed by a vehicle that decides its own numbers. With no instance of
+ * its own named, the scripted peer stands in — it answers the shapes but was written to carry the numbers, so
+ * it cannot show a vehicle deciding them. */
+const pluginGate = run(
+  ["crates/mpcraft-app/tests/plugins_live.rs"],
+  ["the surface read against a live vehicle"],
+  { MPCRAFT_SITL_LIVE: "", MPCRAFT_SITL_PLUGINS_TARGET: "" },
+);
+
+checks.push({
+  claim:
+    "the plugin area names what stands in for it when no instance of its own is named, rather than reading the scripted peer as if a vehicle had answered",
+  ok:
+    stateOf(pluginGate, "the surface read against a live vehicle") ===
+    "SUSTITUIDA",
+  saw: {
+    gate: stateOf(pluginGate, "the surface read against a live vehicle"),
+    why: pluginGate.gates?.[0]?.why,
+  },
+});
+
+/* A transcript where the scripted half passed and the live half failed. The two are one crate and one run, so
+ * a count taken from the whole run would read the pass as covering both. */
+const pluginTranscript =
+  "test result: ok. 1 passed; 0 failed; finished in 0.02s\n" +
+  "test result: FAILED. 0 passed; 1 failed; finished in 31.40s\n" +
+  "     Running tests\\plugins_wire.rs (target/debug/deps/plugins_wire-1)\n" +
+  "     Running tests\\plugins_live.rs (target/debug/deps/plugins_live-2)\n";
+
+checks.push({
+  claim:
+    "the plugin area reads the report of its own binary, so a scripted peer passing does not stand for an area no vehicle answered",
+  ok:
+    resultForSection(pluginTranscript, "plugins_live").includes("FAILED") &&
+    resultForSection(pluginTranscript, "plugins_wire").includes("1 passed"),
+  saw: {
+    live: resultForSection(pluginTranscript, "plugins_live"),
+    scripted: resultForSection(pluginTranscript, "plugins_wire"),
+  },
+});
+
 const fails = checks.filter((check) => !check.ok);
 
 console.log(
