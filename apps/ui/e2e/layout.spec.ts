@@ -13,8 +13,26 @@
  */
 
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
 
 import { expect, test } from "@playwright/test";
+
+/** The rule the format gives for a chunk, written here rather than taken from the writer. */
+function chunkCheck(bytes) {
+  let crc = 0xffffffff;
+
+  for (const byte of bytes) {
+    let value = crc ^ byte;
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+
+    crc = value;
+  }
+
+  return ~crc >>> 0;
+}
 
 const CHECKER = readFileSync(
   new URL("../../../scripts/check-overlaps.js", import.meta.url),
@@ -37,6 +55,11 @@ const SHEETS = [
     name: "keys",
     entry: "Las claves del enlace firmado…",
     title: "Las claves del enlace firmado",
+  },
+  {
+    name: "video",
+    entry: "Los canales de vídeo…",
+    title: "Los canales de vídeo del vehículo",
   },
 ];
 
@@ -246,6 +269,220 @@ for (const [width, height] of SIZES) {
       clipped: [],
       overflowing: [],
     });
+  });
+}
+
+/**
+ * The picture, drawn from an address the operator typed.
+ *
+ * A real camera cannot be asserted here, so the picture is served by a stream of one frame from a
+ * fixture written by `scripts/write-test-picture.js` — an independent implementation of the format,
+ * not a mirror of the reader. What this asserts is that the picture is drawn at the size the fixture
+ * declares, that a click says a place **in the picture**, and that a click in the band the box leaves
+ * over is refused rather than read as the nearest edge, which is where upstream clamps.
+ *
+ * The place is read against numbers written down before the mapping was called: the fixture declares
+ * 1280 × 720, and for a box of 640 × 480 those proportions cannot be held without a band, so the
+ * middle of the box is the middle of the picture — which is `0, 0` — while a point inside the band is
+ * not a place at all.
+ */
+for (const [width, height] of SIZES) {
+  test(`the picture drawn on the video sheet at ${width}x${height} in Spanish`, async ({
+    page,
+  }) => {
+    const fixture = readFileSync(
+      new URL("fixtures/picture-1280x720.png", import.meta.url),
+    );
+
+    // The declaration read from the fixture's own header, not taken from the name of the file.
+    const declared = {
+      width: fixture.readUInt32BE(16),
+      height: fixture.readUInt32BE(20),
+    };
+
+    expect(declared, "the fixture declares the size its name says").toEqual({
+      width: 1280,
+      height: 720,
+    });
+
+    // The checks the file carries, read with the rule the format gives and compared with what an
+    // independent implementation (Python's `zlib.crc32`) gives for the same bytes. This caught a
+    // writer that started its run at zero without the final inversion: every chunk it wrote disagreed
+    // with a PNG written by another tool, and a writer checked only against itself proves nothing.
+    const chunks = [];
+    let position = 8;
+
+    while (position < fixture.length) {
+      const length = fixture.readUInt32BE(position);
+      const name = fixture
+        .subarray(position + 4, position + 8)
+        .toString("ascii");
+      const body = fixture.subarray(position + 8, position + 8 + length);
+      const stored = fixture.readUInt32BE(position + 8 + length);
+
+      chunks.push({
+        name,
+        stored,
+        recomputed: chunkCheck(
+          Buffer.concat([Buffer.from(name, "ascii"), body]),
+        ),
+      });
+
+      position += 12 + length;
+    }
+
+    expect(
+      chunks.map(
+        (chunk) =>
+          `${chunk.name} ${chunk.recomputed.toString(16).padStart(8, "0")}`,
+      ),
+    ).toEqual(["IHDR 401f4a01", "IDAT 5f2ed914", "IEND ae426082"]);
+
+    for (const chunk of chunks) {
+      expect(chunk.stored, `the check the file carries for ${chunk.name}`).toBe(
+        chunk.recomputed,
+      );
+    }
+
+    const server = createServer((request, response) => {
+      response.writeHead(200, {
+        "Content-Type": "multipart/x-mixed-replace; boundary=frame",
+      });
+
+      response.write(
+        `--frame\r\nContent-Type: image/png\r\nContent-Length: ${fixture.length}\r\n\r\n`,
+      );
+      response.write(fixture);
+      response.end();
+    });
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as { port: number }).port;
+
+    try {
+      await page.setViewportSize({ width, height });
+      await openInSpanish(page, "setup");
+
+      await page.locator('button[data-menu="setup"]').click();
+      await page
+        .getByRole("menuitem", { name: "Los canales de vídeo…" })
+        .click();
+
+      const sheet = page.getByRole("dialog", {
+        name: "Los canales de vídeo del vehículo",
+      });
+
+      await expect(sheet).toBeVisible();
+
+      // The address is typed by hand, which is the only way the drawing can be reached without a
+      // camera that has described a stream.
+      await page
+        .getByLabel("La dirección de la imagen")
+        .fill(`http://127.0.0.1:${port}/stream`);
+      await page.getByRole("button", { name: "Dibujar la imagen" }).click();
+
+      // `exact` because the button that starts the drawing says "Dibujar la imagen", which contains
+      // the name of the area.
+      const area = page.getByRole("button", { name: "la imagen", exact: true });
+      const picture = area.locator("img");
+
+      await expect(picture).toBeVisible();
+
+      const size = await picture.evaluate((element) => ({
+        width: element.naturalWidth,
+        height: element.naturalHeight,
+      }));
+
+      expect(
+        size,
+        "the picture that arrived is the size the fixture declares",
+      ).toEqual({ width: 1280, height: 720 });
+
+      // The box is read as the component reads it. It has no border, so the box the element reports is
+      // the box a click is measured from — which is what makes the numbers below exact rather than a
+      // pixel apart.
+      const box = await area.evaluate((element) => {
+        const style = getComputedStyle(element);
+
+        return {
+          width: element.clientWidth,
+          height: element.clientHeight,
+          borderX: Number.parseFloat(style.borderLeftWidth) || 0,
+          borderY: Number.parseFloat(style.borderTopWidth) || 0,
+        };
+      });
+
+      expect(
+        { borderX: box.borderX, borderY: box.borderY },
+        "the edge is drawn inside the box, not on it",
+      ).toEqual({ borderX: 0, borderY: 0 });
+
+      // The proportions are 16:9 and the box is not, so there is a band on one axis — which is what
+      // makes the two readings differ, and what the clicks below are read against.
+      const drawn = {
+        width: Math.min(box.width, (box.height * 1280) / 720),
+        height: Math.min(box.height, (box.width * 720) / 1280),
+      };
+
+      expect(
+        drawn.width < box.width || drawn.height < box.height,
+        "the box cannot hold these proportions without a band",
+      ).toBe(true);
+
+      // The middle of the picture is the middle of the box, because the letterboxing is symmetric, so a
+      // click there says `0, 0` whatever the shape of the box is.
+      await area.click({ position: { x: box.width / 2, y: box.height / 2 } });
+
+      await expect(sheet.locator("dd").nth(2)).toHaveText("0.00, 0.00");
+      await expect(sheet.locator("dd").nth(3)).toHaveText(
+        "El lugar se muestra como lo dijo el clic, pero no hay cámara detrás de una dirección escrita a mano, así que no se mandó nada.",
+      );
+
+      // A point inside the band: not part of the picture, so it says no place. Upstream clamps the
+      // same point to the nearest edge and sends it, which for these numbers would say the top of the
+      // picture — and that is the disagreement the last assertion records rather than papers over.
+      const band =
+        drawn.height < box.height
+          ? { x: box.width / 2, y: (box.height - drawn.height) / 4 }
+          : { x: (box.width - drawn.width) / 4, y: box.height / 2 };
+
+      await area.click({ position: { x: band.x, y: band.y } });
+
+      await expect(sheet.locator("dd").nth(3)).toHaveText(
+        "El clic cayó fuera de la imagen, así que no dice ningún lugar y no se mandó nada.",
+      );
+
+      // The place the last click said is still the one the centre said, which is what a refusal means:
+      // nothing was read, so nothing was changed.
+      await expect(sheet.locator("dd").nth(2)).toHaveText("0.00, 0.00");
+
+      // Read against the box, the way upstream does (`GimbalVideoControl.getMousePosition`, lines
+      // 686-691): the same point is clamped to the nearest edge, so it says an edge of the picture and
+      // is sent. Here it says no place at all, which is the difference recorded in the matrix.
+      const upstream = (value, drawnOnAxis, boxOnAxis) => {
+        let read = value;
+
+        if (drawnOnAxis < boxOnAxis) {
+          read -= (boxOnAxis - drawnOnAxis) / 2;
+          read *= boxOnAxis / drawnOnAxis;
+          read = Math.max(0, Math.min(drawnOnAxis, read));
+        }
+
+        return (2 * read) / drawnOnAxis - 1;
+      };
+
+      const upstreamForBand =
+        drawn.height < box.height
+          ? upstream(band.y, drawn.height, box.height)
+          : upstream(band.x, drawn.width, box.width);
+
+      expect(
+        upstreamForBand,
+        "the same point read against the box says an edge, which is what upstream sends",
+      ).toBeCloseTo(-1, 6);
+    } finally {
+      server.close();
+    }
   });
 }
 

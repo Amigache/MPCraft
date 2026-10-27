@@ -1,31 +1,55 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   normaliseError,
+  trackPoint,
   videoStreamStart,
   videoStreams,
   videoStreamStop,
 } from "../../lib/ipc/bridge";
 import type { VideoStream } from "../../lib/ipc/types";
+import { DASH, formatCount, formatNumber } from "../../lib/format";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
+import {
+  canDraw,
+  placeFromClick,
+  type PicturePlace,
+} from "../../lib/video/picture";
 import styles from "./VideoSheet.module.css";
 
 /**
  * The sheet of video streams the vehicle's camera describes.
  *
- * The camera says which streams it has, where they can be reached, and how big and how
- * fast they are. The ground station can ask the camera to start or stop one. The stream
- * itself travels outside MAVLink; MPCraft does not claim to decode it or draw it.
+ * The camera says which streams it has, where they can be reached, and how big and how fast they
+ * are. The ground station can ask the camera to start or stop one, and it can draw the picture of
+ * a stream that is drawn as an image — what a picture element renders, which is an MJPEG stream or
+ * a single picture over `http` or `https`. A stream that speaks another way is said as one that
+ * cannot be drawn, because MPCraft does not carry a player for it.
  *
- * Upstream has the same protocol in `CameraProtocol` and `Camera.cs`.
+ * Drawing is something the operator decides: the application makes no network call that nobody
+ * chose, so a stream is not fetched until the operator says to draw it. Upstream draws as soon as a
+ * stream is picked (`GimbalVideoControl`), which is the difference recorded here.
+ *
+ * A click on the drawn picture says a place in the picture, and that place is sent to the camera
+ * that described the stream. For an address typed by hand there is no camera behind it, so the
+ * place is shown as what the click says and nothing is sent — a place cannot be asked of a device
+ * that was never described.
+ *
+ * Upstream has the same protocols (`CameraProtocol.cs`, `GimbalVideoControl.cs`). What it also does
+ * — finding cameras by service discovery on the local network, and drawing an RTSP stream through a
+ * media runtime — is not ported here.
  */
+
+/** What a string means in the language the window is read in. */
+type Say = (source: string, values?: Record<string, string | number>) => string;
+
 export function VideoSheet() {
   const open = useUiStore((state) => state.videoOpen);
   const hide = useUiStore((state) => state.hideVideo);
 
-  const t = useLocaleStore((state) => state.t);
+  const t: Say = useLocaleStore((state) => state.t);
 
   const status = useLinkStore((state) => state.status);
   const linked = status === "connected" || status === "reconnecting";
@@ -34,6 +58,22 @@ export function VideoSheet() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // The address the picture is drawn from, and the stream that described it, when there is one.
+  const [address, setAddress] = useState("");
+  const [drawingKey, setDrawingKey] = useState<string | null>(null);
+  const [drawing, setDrawing] = useState(false);
+
+  // The size that arrived is what the bytes say, and it is kept apart from the size the camera
+  // said: for a stream the two are not the same thing.
+  const [arrived, setArrived] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const [place, setPlace] = useState<PicturePlace | null>(null);
+  const [report, setReport] = useState<string | null>(null);
+
+  const areaRef = useRef<HTMLDivElement>(null);
 
   const read = useCallback(async () => {
     setBusy(true);
@@ -59,6 +99,9 @@ export function VideoSheet() {
     return null;
   }
 
+  const drawnStream =
+    streams.find((stream) => keyOf(stream) === drawingKey) ?? null;
+
   const toggle = async (stream: VideoStream) => {
     const name = stream.name || String(stream.streamId);
 
@@ -83,6 +126,74 @@ export function VideoSheet() {
     }
   };
 
+  const drawFrom = (stream: VideoStream) => {
+    setAddress(stream.uri);
+    setDrawingKey(keyOf(stream));
+    setArrived(null);
+    setPlace(null);
+    setReport(null);
+    setDrawing(true);
+  };
+
+  const clickPicture = async (event: React.MouseEvent<HTMLDivElement>) => {
+    const area = areaRef.current;
+
+    if (area === null || arrived === null) {
+      return;
+    }
+
+    // The picture is fitted inside the content box, so the click is read against that box and not
+    // against the border box the event is measured from: with a border the two are a pixel apart on
+    // each side, which is enough to move a place by a hundredth.
+    const style = getComputedStyle(area);
+    const border = {
+      x: Number.parseFloat(style.borderLeftWidth) || 0,
+      y: Number.parseFloat(style.borderTopWidth) || 0,
+    };
+    const rect = area.getBoundingClientRect();
+    const box = { width: area.clientWidth, height: area.clientHeight };
+
+    const said = placeFromClick(box, arrived, {
+      x: event.clientX - rect.left - border.x,
+      y: event.clientY - rect.top - border.y,
+    });
+
+    if (said === null) {
+      // The band is not part of the picture, so a click there does not say a place. Upstream
+      // clamps it to the nearest edge and sends that; here it is refused before anything is sent.
+      setReport(
+        t(
+          "The click fell outside the picture, so it says no place and nothing was sent.",
+        ),
+      );
+      return;
+    }
+
+    setPlace(said);
+
+    if (!linked || drawnStream === null) {
+      setReport(
+        drawnStream === null
+          ? t(
+              "The place is shown as the click says it, but there is no camera behind an address typed by hand, so nothing was sent.",
+            )
+          : t(
+              "The place is shown as the click says it, and nothing was sent because there is no link.",
+            ),
+      );
+      return;
+    }
+
+    try {
+      await trackPoint(drawnStream.componentId, said.x, said.y);
+      setReport(t("The camera was asked to follow that place."));
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    }
+  };
+
+  const drawable = canDraw(address);
+
   return (
     <div className={styles.backdrop} role="presentation" onClick={hide}>
       <div
@@ -104,7 +215,7 @@ export function VideoSheet() {
         <section className={styles.block}>
           <p className={styles.text}>
             {t(
-              "The camera describes its streams with a URI, their resolution and frame rate. The stream travels outside MAVLink: use the URI with a video player.",
+              "The camera describes its streams with a URI, their resolution and frame rate. The stream itself travels outside MAVLink; MPCraft does not claim to decode it or draw it.",
             )}
           </p>
 
@@ -124,6 +235,110 @@ export function VideoSheet() {
         </section>
 
         <section className={styles.block}>
+          <p className={styles.text}>
+            {t(
+              "A picture element renders what it is given as an image — an MJPEG stream or a single picture over http or https. What speaks another way is said as one that cannot be drawn rather than tried, and the picture is fetched only when the operator says so, because the application makes no network call that nobody chose.",
+            )}
+          </p>
+
+          <div className="field">
+            <label htmlFor="video-address">
+              {t("The address of the picture")}
+            </label>
+            <input
+              id="video-address"
+              type="text"
+              value={address}
+              onChange={(event) => {
+                setAddress(event.target.value);
+              }}
+            />
+          </div>
+
+          <div className={styles.row}>
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={!drawable}
+              onClick={() => {
+                setArrived(null);
+                setPlace(null);
+                setReport(null);
+                setDrawing(true);
+              }}
+            >
+              {t("Draw the picture")}
+            </button>
+            {!drawable ? (
+              <span className={styles.text}>
+                {t("This address is not one a picture element can render.")}
+              </span>
+            ) : null}
+          </div>
+
+          {drawing && drawable ? (
+            <div
+              className={styles.picture}
+              role="button"
+              tabIndex={0}
+              aria-label={t("the picture")}
+              ref={areaRef}
+              onClick={(event) => {
+                void clickPicture(event);
+              }}
+            >
+              <img
+                src={address}
+                alt=""
+                onLoad={(event) => {
+                  const picture = event.currentTarget;
+                  setArrived({
+                    width: picture.naturalWidth,
+                    height: picture.naturalHeight,
+                  });
+                }}
+                onError={() => {
+                  setReport(t("Nothing arrived from this address."));
+                }}
+              />
+            </div>
+          ) : null}
+
+          <dl className={styles.facts}>
+            <dt>{t("The size the camera said")}</dt>
+            <dd>
+              {drawnStream === null
+                ? t("nothing was said for this address")
+                : `${formatCount(drawnStream.width)} × ${formatCount(drawnStream.height)}`}
+            </dd>
+            <dt>{t("The size that arrived")}</dt>
+            <dd>
+              {arrived === null
+                ? DASH
+                : `${formatCount(arrived.width)} × ${formatCount(arrived.height)}`}
+            </dd>
+            <dt>{t("The place the last click said")}</dt>
+            <dd>
+              {place === null
+                ? DASH
+                : `${formatNumber(place.x, 2)}, ${formatNumber(place.y, 2)}`}
+            </dd>
+            <dt>{t("What the last click did")}</dt>
+            <dd>{report ?? DASH}</dd>
+          </dl>
+
+          {drawnStream !== null &&
+          arrived !== null &&
+          differs(drawnStream, arrived) ? (
+            <p className={styles.text}>
+              {t(
+                "The size the camera said is not the size that arrived, and both are shown rather than one of them.",
+              )}
+            </p>
+          ) : null}
+        </section>
+
+        <section className={styles.block}>
           {streams.length === 0 ? (
             <p className={styles.text}>
               {busy
@@ -133,10 +348,7 @@ export function VideoSheet() {
           ) : (
             <ul className={styles.list}>
               {streams.map((stream) => (
-                <li
-                  className={styles.stream}
-                  key={`${stream.componentId}-${stream.streamId}`}
-                >
+                <li className={styles.stream} key={keyOf(stream)}>
                   <div className={styles.streamHead}>
                     <h3 className={styles.streamName}>
                       {stream.name || t("Stream {id}", { id: stream.streamId })}
@@ -153,24 +365,38 @@ export function VideoSheet() {
                     </dd>
                     <dt>{t("Picture")}</dt>
                     <dd>
-                      {stream.width} × {stream.height}
+                      {formatCount(stream.width)} × {formatCount(stream.height)}
                     </dd>
                     <dt>{t("Frame rate")}</dt>
-                    <dd>{stream.framesPerSecond.toFixed(1)} fps</dd>
+                    <dd>{formatNumber(stream.framesPerSecond, 1)} fps</dd>
                     <dt>{t("Bit rate")}</dt>
-                    <dd>{stream.bitrate} bit/s</dd>
+                    <dd>{formatCount(stream.bitrate)} bit/s</dd>
                   </dl>
 
-                  <button
-                    type="button"
-                    className="button"
-                    disabled={busy}
-                    onClick={() => void toggle(stream)}
-                  >
-                    {stream.running
-                      ? t("Stop the stream")
-                      : t("Start the stream")}
-                  </button>
+                  <div className={styles.row}>
+                    <button
+                      type="button"
+                      className="button"
+                      disabled={busy}
+                      onClick={() => void toggle(stream)}
+                    >
+                      {stream.running
+                        ? t("Stop the stream")
+                        : t("Start the stream")}
+                    </button>
+
+                    {canDraw(stream.uri) ? (
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() => {
+                          drawFrom(stream);
+                        }}
+                      >
+                        {t("Draw this picture")}
+                      </button>
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -191,4 +417,17 @@ export function VideoSheet() {
       </div>
     </div>
   );
+}
+
+/** What a stream is kept under, which is the pair the camera and its id make. */
+function keyOf(stream: VideoStream): string {
+  return `${stream.componentId}-${stream.streamId}`;
+}
+
+/** Whether the size that arrived is a different size than the one the camera said. */
+function differs(
+  said: { width: number; height: number },
+  arrived: { width: number; height: number },
+): boolean {
+  return said.width !== arrived.width || said.height !== arrived.height;
 }

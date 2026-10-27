@@ -6,7 +6,8 @@
   display: flex;
   inset: 0;
   justify-content: center;
-  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3) var(--space-3);
+  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3)
+    var(--space-3);
   position: fixed;
   z-index: 60;
 }
@@ -124,6 +125,27 @@
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
   user-select: text;
+}
+
+/* The box the picture is drawn in. The image is fitted inside it keeping its proportions, so the
+   band that is left over is part of this box and not part of the picture — which is why a click is
+   read against the box and refused when it falls in the band. The edge is drawn inside the box rather
+   than on it, because a border would make the box the element reports and the box a click is measured
+   from two boxes a pixel apart, and that is enough to move a place by a hundredth. */
+.picture {
+  background: var(--colour-surface-raised);
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 1px var(--colour-border-strong);
+  cursor: crosshair;
+  height: min(320px, 45vh);
+  width: 100%;
+}
+
+.picture img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
 }
 
 .notice {

@@ -501,8 +501,8 @@ const bundles: Record<Locale, Record<string, string>> = {
 
     // The sheet of the video streams.
     "The video streams of the vehicle": "Los canales de vídeo del vehículo",
-    "The camera describes its streams with a URI, their resolution and frame rate. The stream travels outside MAVLink: use the URI with a video player.":
-      "La cámara describe sus canales con la URI, su resolución y su velocidad de imagen. El canal viaja fuera de MAVLink: usa la URI con un reproductor de vídeo.",
+    "The camera describes its streams with a URI, their resolution and frame rate. What a picture element can render is drawn when the operator says so; what it cannot render is said as one that cannot be drawn, and no stream is decoded.":
+      "La cámara describe sus canales con la URI, su resolución y su velocidad de imagen. Lo que un elemento de imagen puede dibujar se dibuja cuando el operador lo dice; lo que no puede dibujarse se dice como algo que no se puede dibujar, y ningún canal se descodifica.",
     "Ask the camera": "Preguntar a la cámara",
     "There is no link.": "No hay enlace.",
     "The camera is being asked.": "Se está preguntando a la cámara.",
@@ -520,6 +520,32 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Stop the stream": "Parar el canal",
     "The stream {name} has stopped.": "El canal {name} se ha parado.",
     "The stream {name} has started.": "El canal {name} ha empezado.",
+
+    // Drawing the picture, and the place a click on it says.
+    "A picture element renders what it is given as an image — an MJPEG stream or a single picture over http or https. What speaks another way is said as one that cannot be drawn rather than tried, and the picture is fetched only when the operator says so, because the application makes no network call that nobody chose.":
+      "Un elemento de imagen dibuja lo que se le da como imagen - un canal MJPEG o una sola imagen por http o https-. Lo que habla de otra manera se dice como algo que no se puede dibujar en lugar de intentarlo, y la imagen se pide solo cuando el operador lo dice, porque la aplicación no hace ninguna llamada de red que nadie haya elegido.",
+    "The address of the picture": "La dirección de la imagen",
+    "Draw the picture": "Dibujar la imagen",
+    "This address is not one a picture element can render.":
+      "Esta dirección no es una que un elemento de imagen pueda dibujar.",
+    "the picture": "la imagen",
+    "The size the camera said": "El tamaño que dijo la cámara",
+    "nothing was said for this address": "no se dijo nada para esta dirección",
+    "The size that arrived": "El tamaño que llegó",
+    "The place the last click said": "El lugar que dijo el último clic",
+    "What the last click did": "Lo que hizo el último clic",
+    "The click fell outside the picture, so it says no place and nothing was sent.":
+      "El clic cayó fuera de la imagen, así que no dice ningún lugar y no se mandó nada.",
+    "The place is shown as the click says it, but there is no camera behind an address typed by hand, so nothing was sent.":
+      "El lugar se muestra como lo dijo el clic, pero no hay cámara detrás de una dirección escrita a mano, así que no se mandó nada.",
+    "The place is shown as the click says it, and nothing was sent because there is no link.":
+      "El lugar se muestra como lo dijo el clic, y no se mandó nada porque no hay enlace.",
+    "The camera was asked to follow that place.":
+      "Se pidió a la cámara que siguiera ese lugar.",
+    "Nothing arrived from this address.": "No llegó nada de esta dirección.",
+    "The size the camera said is not the size that arrived, and both are shown rather than one of them.":
+      "El tamaño que dijo la cámara no es el tamaño que llegó, y los dos se muestran en lugar de uno de ellos.",
+    "Draw this picture": "Dibujar esta imagen",
 
     // The sheet of the camera and the gimbal.
     "The camera and the gimbal": "La cámara y la montura móvil",

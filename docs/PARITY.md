@@ -741,7 +741,36 @@ The operator gives the address of the aircraft, the name of the flight and the c
 The **video streams** of the camera are described in a sheet of their own: the camera
 says the URI, the resolution and the frame rate of each stream, and the operator can
 start or stop it. The stream travels outside MAVLink, so the URI is what a separate video
-player connects to. Drawing that video inside MPCraft is not done yet.
+player connects to.
+
+What is drawn inside MPCraft is what a picture element can render — an MJPEG stream or a single
+picture over `http` or `https` — and what speaks another way is said as one that cannot be drawn
+rather than tried, because there is no media runtime here. Upstream draws through GStreamer, which
+carries `rtsp`, and finds cameras by service discovery on the local network; neither is ported, so
+the row stays partial. And the picture is fetched only when the operator says so, because the
+application makes no network call that nobody chose, while upstream draws as soon as a stream is
+picked. The sheet opens without a link for the same reason: an address typed by hand needs no camera
+behind it, and asking the camera still needs one, which the button there says.
+
+A place is read against the picture that is drawn, not against the box it is drawn in, and a click
+that falls in the band the letterboxing leaves over is refused rather than read as the nearest edge —
+upstream clamps (`GimbalVideoControl.getMousePosition`, line 684), so a click on the band there sends
+a place the operator did not mean. Upstream's divisor is also wrong on an axis that has a band: for a
+box of 640 × 480 and a picture of 1280 × 720 the picture is drawn at 640 × 360, and a click at its
+middle comes back as 0.333 rather than 0, which is asserted against numbers written down before the
+rule was called. For an address typed by hand the place is shown as the click says it and nothing is
+sent, because no device was described behind it, and the size the camera said is kept apart from the
+size that arrived: for a stream they are not the same thing, and both are shown when they differ.
+
+The picture the flow is read against is a fixture written by a second implementation of the format
+(`scripts/write-test-picture.js`), which builds the chunks by hand and works the check out with the
+rule the format gives rather than taking bytes from a decoder. That comparison caught this writer
+starting its run at zero without the final inversion, which is not the rule: every chunk it wrote
+disagreed with a PNG written by another tool, and the numbers the two readers agree on — `401f4a01`
+for the declaration, `5f2ed914` for the pixels, `ae426082` for the end — are recorded as what an
+independent reader gives. A real camera cannot be asserted here, so what the drawing proves is the
+mapping and the refusal, read against a stream of one frame served for the run; the sheet is measured
+at 1920x1080 and at 1024x640 in Spanish.
 
 The **pictures** of a flight are read from a folder, from Setup: a picture carries the place it
 was taken inside itself, and the instant its own camera says it was made. The clock of a camera
@@ -770,9 +799,10 @@ at another vehicle; the yaw is read in the frame the device says it uses, and th
 interest is held until it is taken off. A camera answers on its own component, so a command
 for a camera goes to that component rather than to the autopilot. Both devices keep saying
 what they are doing once a second, so the sheet shows what the vehicle says rather than what
-was last asked for. Picking a place to follow from the picture itself waits on drawing the
-video, so the place is typed: that is the one thing upstream's sheet does which this one
-cannot do yet.
+was last asked for. A place to follow can be picked from the picture when a stream has been
+described and drawn, and the place a click says is read against the picture rather than against the
+box; for an address typed by hand the place is shown as the click says it and nothing is sent,
+because there is no device behind it to be asked.
 
 The **theme** of the interface is chosen in the View menu: the dark one, the light one
 for the sun and the one of the contrast for the eyes that need it. The theme is a set of
@@ -886,8 +916,9 @@ before any wire is touched — are tested against scripted transports.
 
 The transponder, the generator telemetry and the folder of the operator's own map are
 available elsewhere in the application: in Setup, the vehicle state and the tile
-settings respectively. The video sheet describes and controls the stream, but does not
-draw the video inside MPCraft.
+settings respectively. The video sheet describes and controls the stream and draws what a
+picture element can render, which is an MJPEG stream or a single picture over `http` or `https`;
+what speaks another way is said as one that cannot be drawn, because no media runtime is carried.
 
 The **generators of a survey** are three: the circle, the reticle of a field — the
 strips the vehicle flies one after the other, apart by the distance its sensor sweeps —

@@ -899,10 +899,13 @@ export function MenuBar() {
             close();
             showVideo();
           },
-          disabled: !linked,
+          // The sheet draws a picture from an address the operator typed, and that needs no camera
+          // behind it, so the sheet is open without a vehicle on the wire; asking the camera still
+          // needs one, and the button there says so.
+          disabled: false,
           checked: undefined,
           separator: false,
-          hint: linked ? "" : t("no link"),
+          hint: "",
         },
         {
           id: "setup-camera",
