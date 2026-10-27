@@ -289,7 +289,8 @@ The boundary speaks **one casing**: every struct whose JSON reaches the frontend
 camelCase, and the contract (`apps/ui/src/lib/ipc/types.ts`) declares each event as one document that
 every reader of that event reads through. A field spelled two ways is a value the interface never gets,
 and `scripts/check-contract.js` reads both sides against each other — the events listened to against the
-events emitted, and the documents named on both sides field by field.
+events emitted, and the documents field by field, including the ones that reach the frontend under another
+name, where the pair is what the same field says on both sides (`Telemetry` read against `TelemetryEvent`).
 
 ### 5.3 Frontend state
 

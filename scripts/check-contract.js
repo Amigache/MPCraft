@@ -7,7 +7,7 @@
  * said the same thing, and the drift that this gate found was not a style disagreement — it was a field
  * that arrives spelled one way and is read another, which is a value the interface never gets.
  *
- * What it reads, and the four things it asserts:
+ * What it reads, and the six things it asserts:
  *
  *   - Every event the frontend listens to is one the backend emits. A listener for a name nothing
  *     emits is a subscription to a channel that will never answer.
@@ -21,13 +21,21 @@
  *     commands the desktop answers and the events it emits, through the types their fields name — writes
  *     its fields in the casing the contract reads, and the contract declares no field with an underscore
  *     in it.
+ *   - A document that reaches the frontend under another name is paired by what the same field says on
+ *     both sides — `StateEvent.telemetry` is read as `Telemetry` and written as `TelemetryEvent` — and the
+ *     fields of that pair are compared like the fields of any other, which is what the first version of
+ *     this gate could not do. A field the contract declares and the struct does not write is a value the
+ *     interface cannot get, and that is a finding whether the pair shares a name or not; a field the struct
+ *     writes and the contract does not declare is said as a fact, because JSON carries what the interface
+ *     does not ask for.
  *
  * What this cannot see, and is said rather than pretended otherwise. It reads sources as text, so a
  * rename applied through a helper macro or a field written by a manual `Serialize` implementation is not
- * seen; documents are paired by name, so a struct named `TelemetryEvent` and an interface named
- * `Telemetry` are not compared even when one carries the other, and a field the frontend does not read is
- * not compared either; and whether an event actually reaches a window is outside of what a reading of two
- * source files can say.
+ * seen; a pairing only exists where a field names a document on both sides, so a document the contract
+ * declares and no field names is not compared, and a shape written inside a document has no name at all, so
+ * there is no struct it can be read against and the places where the contract writes one are listed rather
+ * than compared; and whether an event actually reaches a window is outside of what a reading of two source
+ * files can say.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -42,6 +50,11 @@ const FILES = {
   bridge: "apps/ui/src/lib/ipc/bridge.ts",
   store: "apps/ui/src/lib/link/linkStore.ts",
 };
+
+/** How a pair is named: one name when both sides spell it the same way, and both when they do not. */
+function pair(document, struct) {
+  return document === struct ? document : `${document}↔${struct}`;
+}
 
 /** Splits a field into the words it says, whichever way it is spelled. */
 function words(name) {
@@ -90,21 +103,67 @@ function rustStructs(text, path) {
   return out;
 }
 
-/** Every document the TypeScript side declares. */
+/** Every document the TypeScript side declares, with the type each field is read as. */
 function tsInterfaces(text, path) {
   const out = new Map();
 
-  for (const match of text.matchAll(
-    /(?:export )?interface (\w+) \{([\s\S]*?)\n\}/g,
-  )) {
-    const fields = [
-      ...match[2].matchAll(/^[\t ]*readonly ([A-Za-z0-9_]+):/gm),
-    ].map((field) => field[1]);
+  for (const match of text.matchAll(/(?:export )?interface (\w+) \{/g)) {
+    /* The body is read to its own closing brace, so a field of a nested shape is not taken as a field of
+       the document — and a shape written inside the document is named by nothing, which is said below. */
+    const start = match.index + match[0].length;
+    let depth = 1;
+    let end = -1;
+
+    for (let i = start; i < text.length; i += 1) {
+      if (text[i] === "{") {
+        depth += 1;
+      } else if (text[i] === "}") {
+        depth -= 1;
+
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+
+    const fields = [];
+    depth = 0;
+
+    for (const line of text.slice(start, end).split("\n")) {
+      if (depth === 0) {
+        const field = /^\s*readonly ([A-Za-z0-9_]+)\??\s*:\s*(.+?)\s*$/.exec(
+          line,
+        );
+
+        if (field !== null) {
+          fields.push({
+            name: field[1],
+            type: field[2],
+            inline: field[2].includes("{"),
+          });
+        }
+      }
+
+      depth +=
+        (line.match(/\{/g) ?? []).length - (line.match(/\}/g) ?? []).length;
+    }
 
     out.set(match[1], { path, fields });
   }
 
   return out;
+}
+
+/** The document a type names, or nothing when the type is not a document. */
+function firstDocument(type, documents) {
+  for (const token of type.match(/[A-Za-z0-9_]+/g) ?? []) {
+    if (documents.has(token)) {
+      return token;
+    }
+  }
+
+  return null;
 }
 
 /** The events the backend names, and the document each one carries. */
@@ -301,28 +360,80 @@ export function check(docs) {
     value.spelling = spelling;
   }
 
-  for (const [name, declared] of contract) {
-    if (!reachable.has(name)) {
-      unpaired.push(name);
+  /* Rule 6: a document that reaches the frontend under another name is paired by what its field says.
+     `StateEvent.telemetry` is read as `Telemetry` and written as `TelemetryEvent`, so the pair is not a
+     guess — it is what the same field says on both sides — and the fields of that pair are compared like
+     the fields of any other. */
+  const pairs = new Map();
+  const inlineShapes = [];
 
-      /* A document only the frontend declares still has to be spelled the way the boundary speaks. */
-      for (const field of declared.fields) {
-        if (field.includes("_")) {
-          faults.push(
-            `the contract declares ${name}.${field}, which is not the casing the boundary speaks`,
-          );
-        }
-      }
-
-      continue;
+  for (const name of contract.keys()) {
+    if (reachable.has(name)) {
+      pairs.set(name, name);
     }
+  }
 
-    const value = structs.get(name);
+  const walk = [...pairs.entries()];
+
+  while (walk.length > 0) {
+    const [document, struct] = walk.shift();
+    const declared = contract.get(document);
 
     for (const field of declared.fields) {
-      const key = words(field).join(".");
+      const key = words(field.name).join(".");
+      const written = structs
+        .get(struct)
+        .fields.find((other) => words(other.name).join(".") === key);
+
+      if (written === undefined) {
+        continue;
+      }
+
+      /* A shape written inside a document has no name, so there is no struct it can be read against: the
+         fields of that shape are not compared, and that is said rather than left as a green. */
+      if (field.inline) {
+        inlineShapes.push(`${document}.${field.name}`);
+        continue;
+      }
+
+      const tsDocument = firstDocument(field.type, contract);
+      const rustDocument = firstDocument(written.type, structs);
+
+      if (tsDocument === null || rustDocument === null) {
+        continue;
+      }
+
+      if (!pairs.has(tsDocument)) {
+        pairs.set(tsDocument, rustDocument);
+        walk.push([tsDocument, rustDocument]);
+      }
+    }
+  }
+
+  const gaps = [];
+
+  for (const [document, struct] of pairs) {
+    const declared = contract.get(document);
+    const value = structs.get(struct);
+
+    for (const field of declared.fields) {
+      if (field.name.includes("_")) {
+        faults.push(
+          `the contract declares ${document}.${field.name}, which is not the casing the boundary speaks`,
+        );
+        /* The same field is not said twice: the casing is the finding, and the comparison against the struct
+           would say it again with the other spelling. */
+        continue;
+      }
+
+      const key = words(field.name).join(".");
 
       if (!value.spelling.has(key)) {
+        /* The reader asks for something the writer never sends: that is a value the interface cannot get,
+           whether the pair is named the same on both sides or read through another name. */
+        faults.push(
+          `${pair(document, struct)}.${field.name} is read by the contract and never written by ${struct} (${value.path})`,
+        );
         continue;
       }
 
@@ -330,19 +441,60 @@ export function check(docs) {
       const written = value.spelling.get(key);
 
       /* The same field is not said twice: a struct that does not speak camelCase is one finding. */
-      if (written !== field && !reported.has(`${name}.${key}`)) {
+      if (written !== field.name && !reported.has(`${struct}.${key}`)) {
         faults.push(
-          `${name}.${field} is read as ${field} and written as ${written} (${value.path})`,
+          `${document}.${field.name} is read as ${field.name} and written as ${written} (${value.path})`,
         );
+      }
+    }
+
+    for (const field of value.fields) {
+      const key = words(field.name).join(".");
+
+      /* A field the interface does not read is not a fault: JSON carries what the interface does not ask for.
+         It is said as a fact, so a document read in part is not read as a document read whole. */
+      if (
+        ![...declared.fields].some(
+          (other) => words(other.name).join(".") === key,
+        )
+      ) {
+        gaps.push({
+          pair: pair(document, struct),
+          side: "written but not declared",
+          field: field.name,
+        });
       }
     }
   }
 
+  for (const name of contract.keys()) {
+    if (pairs.has(name)) {
+      continue;
+    }
+
+    /* A document only the frontend declares still has to be spelled the way the boundary speaks. */
+    for (const field of contract.get(name).fields) {
+      if (field.name.includes("_")) {
+        faults.push(
+          `the contract declares ${name}.${field.name}, which is not the casing the boundary speaks`,
+        );
+      }
+    }
+
+    unpaired.push(name);
+  }
+
   facts.comparedFields = compared;
-  facts.pairedDocuments = [...contract.keys()]
-    .filter((name) => reachable.has(name))
+  facts.pairings = [...pairs.entries()]
+    .filter(([document, struct]) => document !== struct)
+    .map(([document, struct]) => pair(document, struct))
     .sort();
+  facts.pairedDocuments = [...pairs.keys()].sort();
   facts.unpairedDocuments = unpaired.sort();
+  facts.inlineShapes = inlineShapes.sort();
+  facts.gaps = gaps.sort((a, b) =>
+    `${a.pair}.${a.field}`.localeCompare(`${b.pair}.${b.field}`),
+  );
 
   /* Rule 5: a document is declared once, by the contract. */
   for (const [path, text] of Object.entries(docs)) {
@@ -352,13 +504,13 @@ export function check(docs) {
 
     for (const [name, declared] of tsInterfaces(text, path)) {
       const keys = new Set(
-        declared.fields.map((field) => words(field).join(".")),
+        declared.fields.map((field) => words(field.name).join(".")),
       );
 
       for (const other of contract.values()) {
         if (
           other.fields.length === keys.size &&
-          other.fields.every((f) => keys.has(words(f).join(".")))
+          other.fields.every((f) => keys.has(words(f.name).join(".")))
         ) {
           faults.push(
             `${path} declares its own ${name} for what the contract already declares as ${[...contract.keys()].find((key) => contract.get(key) === other)}`,
@@ -408,7 +560,7 @@ if (
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         faults: result.faults,
         limit:
-          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; documents are paired by name, so TelemetryEvent and Telemetry are not compared, and a field the frontend does not read is not compared; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
+          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides, so a document the contract declares and no field names is not compared, and a shape written inside a document has no name to be read against; a field the writer carries and the interface does not read is said as a fact rather than a fault; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
       },
       null,
       2,

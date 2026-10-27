@@ -1289,15 +1289,16 @@ document, declared by the contract, and each field that crosses the boundary is 
 says rather than through its casing, so `system_id` and `systemId` are read as the same field and then
 required to agree; and the rule that the boundary speaks camelCase is read in both directions, because a
 command reads a document as well as answers with one. What the reading covers is 108 documents reachable from
-the boundary and 228 fields across the 47 named on both sides, and what it does not cover is said rather than
-pretended otherwise: a rename applied through a macro or a manual `Serialize` implementation, documents paired
-only by name (so `TelemetryEvent` and `Telemetry` are not compared), fields the frontend does not read, and
-what the boundary does not reach — the settings file and the log formats keep their own spellings and are not
-read here. The gate (`scripts/check-contract.js`) is shown firing on each thing it claims to catch — a
-listener for a name nothing emits, a listener holding a shape of its own, one event read as two documents, a
-contract field with an underscore in it, a struct the boundary reaches writing the pair with underscores on
-both crates, and a file declaring its own copy of a document the contract already declares — and the sources
-as they stand are shown passing. The runner scopes this gate with a folder, because the documents that cross
+the boundary, 72 of them paired and 362 fields across those pairs, and what it does not cover is said rather
+than pretended otherwise: a rename applied through a macro or a manual `Serialize` implementation, a document
+the contract declares and no field names, and what the boundary does not reach — the settings file and the log
+formats keep their own spellings and are not read here. The gate (`scripts/check-contract.js`) is shown firing
+on each thing it claims to catch — a listener for a name nothing emits, a listener holding a shape of its
+own, one event read as two documents, a contract field with an underscore in it, a struct the boundary reaches
+writing the pair with underscores on both crates, a file declaring its own copy of a document the contract
+already declares, and a pair where the document the reader declares for a field is not the one the writer sends
+through it — and the sources as they stand are shown passing. The runner scopes this gate with a folder,
+because the documents that cross
 the boundary are reached through types the crates declare, and the control shows a file inside that folder
 being read as touched rather than the gate saying it had nothing to say. Both sides carry a test written down
 before the rule was called: the crates assert the keys they write for the pair, and the store updates from a
@@ -1305,6 +1306,23 @@ payload read as bytes with those spellings — which is what a reader holding it
 the play-back is read through the same document the contract declares, so a tick of the link during a
 play-back does not take the window back from the flight being shown. Whether an event reaches a window is
 outside of what a reading of two source files can say, and that is said rather than assumed.
+
+The **pairs** are read now, which is what the first version of this gate could not do: 47 documents are named
+the same on both sides and 25 are named differently, so `Telemetry` is read against `TelemetryEvent`,
+`LossStats` against `LossEvent`, `VehicleMessage` against `MessageEvent`, `SigningKeyEntry` against
+`SigningKeyView` and `DtedCell` against `DtedCellInfo`. The pairing is not a table somebody writes: it is what
+the same field says on both sides — `StateEvent.telemetry` is declared as `Telemetry` and written as
+`TelemetryEvent` — so a reader that declares another document for that field is read against what the writer
+sends through it, and that is one of the known-bad cases shown firing. A field the contract declares and the
+struct behind the pair does not write is a finding, because that is a value the interface cannot get; a field
+the struct writes and the contract does not declare is said as a fact, because JSON carries what the interface
+does not ask for, and nothing today is on that side. Four places are listed rather than compared, and that is
+the honest limit of the rule: the contract writes them as shapes inside a document, so nothing names them and
+there is no struct to read them against — `AdsbRelayStatus.settings`, `TransponderStatus.settings`,
+`LogSummary.messages` and `LogSummary.unread` — which is why the control for this rule shows that it names them
+and does not turn a field inside one into a field of the document, which is what it did before the body of an
+interface was read to its own closing brace. Naming those four is the next change; until then the gate reports
+them as what it cannot read.
 
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read
