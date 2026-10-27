@@ -14,6 +14,9 @@
  *                          the live areas, because those are the ones a vehicle answered
  *     a busy artifact      one file is held by a separate process with no sharing at all, so the gate could
  *                          run and did not; the same file is measured again once the handle is let go
+ *     what the run cannot see   the runner names its reach inside what it reports, and the reading is shown
+ *                          firing on two copies of itself: one that names no limit, and one whose limit says
+ *                          only how the states are read
  *
  * What these prove, and what they do not: they prove the states are reachable and that the exit
  * code follows them. They do not prove that a gate that runs is strong — a gate whose green rests
@@ -28,6 +31,7 @@ import {
   closeSync,
   existsSync,
   openSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -542,6 +546,63 @@ checks.push({
   },
 });
 
+/*
+ * The runner names its own reach inside what it reports. A limit that is not there, and a limit that names only
+ * how the states are read without saying what the run cannot see, are both findings; each is put in front of the
+ * reading as a copy of the runner, so the runner as it stands is never disturbed.
+ */
+function readsItsOwnLimit(source) {
+  const said = source.match(/const LIMIT =\s*\n?\s*"([^"]*)"/);
+
+  if (said === null) {
+    return "names no limit";
+  }
+
+  return /does not see/.test(said[1])
+    ? null
+    : `names a limit that does not say what the run cannot see: ${said[1]}`;
+}
+
+const runnerSource = readFileSync(runner, "utf8");
+const runnerSentence = runnerSource.match(/const LIMIT =\s*\n?\s*"[^"]*"/)?.[0];
+
+checks.push({
+  claim:
+    "the runner names what the whole run cannot see inside what it reports",
+  ok: readsItsOwnLimit(runnerSource) === null && runnerSentence !== undefined,
+  saw: { limit: readsItsOwnLimit(runnerSource) },
+});
+
+checks.push({
+  claim: "the reading fires on a runner that names no limit at all",
+  ok:
+    readsItsOwnLimit(
+      runnerSource.replace(runnerSentence, "const LIMIT = null;"),
+    ) === "names no limit",
+  saw: readsItsOwnLimit(
+    runnerSource.replace(runnerSentence, "const LIMIT = null;"),
+  ),
+});
+
+checks.push({
+  claim:
+    "and on a limit that names how the states are read but not what the run cannot see",
+  ok:
+    readsItsOwnLimit(
+      runnerSource.replace(
+        runnerSentence,
+        'const LIMIT =\n  "NO-APLICA is honest but is not evidence.";',
+      ),
+    ) ===
+    "names a limit that does not say what the run cannot see: NO-APLICA is honest but is not evidence.",
+  saw: readsItsOwnLimit(
+    runnerSource.replace(
+      runnerSentence,
+      'const LIMIT =\n  "NO-APLICA is honest but is not evidence.";',
+    ),
+  ),
+});
+
 const fails = checks.filter((check) => !check.ok);
 
 console.log(
@@ -551,7 +612,7 @@ console.log(
       verdict: fails.length === 0 ? "PASS" : "FAIL",
       fails,
       limit:
-        "these prove the states are reachable and the exit code follows them. They do not prove any gate is strong. The busy artifact is a real sharing violation held by a separate process, because Node cannot choose the share mode of a handle, so what it exercises is the rule that reads a busy artifact as a gap rather than as green — not a file locked by the running application, which is not running here.",
+        "these prove the states are reachable and the exit code follows them. They do not prove any gate is strong. The busy artifact is a real sharing violation held by a separate process, because Node cannot choose the share mode of a handle, so what it exercises is the rule that reads a busy artifact as a gap rather than as green — not a file locked by the running application, which is not running here. The last three checks read the runner as a document rather than run it, so they show the rule firing on copies of the runner and not on what a run measures.",
     },
     null,
     2,

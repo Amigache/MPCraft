@@ -1437,6 +1437,8 @@ The control column is read as a document now (`scripts/check-tool-controls.js`),
 
 The parity checker names what it cannot reach inside what it reports, not only in its header, because the gate reads that report through its verdict field and would not see the sentence otherwise (`scripts/check-parity.js`). The rule is shown firing on two copies of the checker — one that names no limit, and one whose limit says only what the table can be compared against — with the checker as it stands passing, and it is said what the reading does not do: it reads the sentence as text, so nothing of the checker is executed with its limit taken out.
 
+The runner carries the same rule for itself (`scripts/run-gates-controls.js`): what the whole run cannot see is named inside what it reports — no window, no vehicle, no board, and no tool reaching beyond the file it was shown — and the reading fires on two copies of the runner, one that names no limit and one whose limit says only how the states are read, with the runner as it stands passing.
+
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read
 against `Script.cs` as published (220 lines), and nothing here says anything about a running engine: the

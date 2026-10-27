@@ -408,6 +408,14 @@ const gaps = report.filter((entry) =>
   ["FAIL", "BLOQUEADO", "HERRAMIENTA-AUSENTE"].includes(entry.state),
 );
 
+/**
+ * What the whole run cannot see, said in what it reports rather than only in its header: a run sees what each
+ * tool answers on the files it reaches, and nothing else — no window, no vehicle, no board. A layer that was not
+ * touched is named as such, and a gate something stands in for covers less than what it replaces.
+ */
+const LIMIT =
+  "what the run sees is what each tool answers on the files it reaches. It does not see a window, a vehicle, or a board: a layer that was not touched is said as NO-APLICA rather than counted as evidence, a gate something stands in for covers less than what it replaces, and a tool gate shows the state turning rather than the finding whenever the tool opens with something other than the finding.";
+
 console.log(
   JSON.stringify(
     {
@@ -416,6 +424,7 @@ console.log(
       gates: report,
       verdict: gaps.length === 0 ? "PASS" : "FAIL",
       gaps,
+      limit: LIMIT,
       note: "NO-APLICA is honest but is not evidence: the layer it would have read was not touched. A gate that cannot fail is not trusted, and the control column says which gates have a known-bad case.",
     },
     null,
