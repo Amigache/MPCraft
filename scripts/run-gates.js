@@ -234,6 +234,29 @@ const GATES = [
     proof: (text) => lineMatching(text, /"verdict": "PASS"/),
   },
   {
+    name: "the launch, read as the documents say it is",
+    layer: "any",
+    /**
+     * The launch is written across five documents that do not belong to one layer — the entry, the two
+     * commands the CLI runs, the port the dev server binds, and where the build writes — so this gate is
+     * scoped by what it reads rather than by a layer, and says so when none of them was touched.
+     */
+    command: "node",
+    probe: ["--version"],
+    args: ["scripts/check-launch.js"],
+    cwd: ROOT,
+    reads: [
+      "apps/ui/package.json",
+      "apps/desktop/package.json",
+      "apps/desktop/tauri.conf.json",
+      "apps/ui/vite.config.ts",
+      "apps/ui/playwright.config.ts",
+    ],
+    control:
+      "scripts/check-launch-controls.js, which shows each rule firing on a known-bad document and the five documents passing untouched",
+    proof: (text) => lineMatching(text, /"verdict": "PASS"/),
+  },
+  {
     name: "rust formatting",
     layer: "rust",
     command: "cargo",
@@ -345,7 +368,18 @@ process.exit(gaps.length === 0 ? 0 : 1);
 function assess(gate) {
   const entry = { gate: gate.name, control: gate.control };
 
-  if (gate.layer !== "any" && !layers.has(gate.layer)) {
+  if (gate.reads) {
+    /* A gate scoped by what it reads says so when none of those documents was touched. */
+    const touched = (files ?? []).filter((path) => gate.reads.includes(path));
+
+    if (touched.length === 0) {
+      entry.state = "NO-APLICA";
+      entry.why = "none of the documents this gate reads was touched";
+      return entry;
+    }
+
+    entry.scope = touched;
+  } else if (gate.layer !== "any" && !layers.has(gate.layer)) {
     entry.state = "NO-APLICA";
     entry.why = `nothing in the ${gate.layer} layer was touched`;
     return entry;

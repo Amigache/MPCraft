@@ -1236,6 +1236,31 @@ for is kept with a ceiling and run afterwards, outside the sandbox, because a ca
 never wait for the wire; what a plugin said is kept with the ceiling the console has, and the sheet shows
 both, the asking and the saying.
 
+The **application is launched** from an entry that names the folder holding the configuration, because the
+CLI takes the project from the folder it runs in or a subfolder of it: run from `apps/ui` it says nothing
+about the application and `tauri dev` panics ("Couldn't recognize the current folder as a Tauri project",
+`crates/tauri-cli/src/helpers/app_paths.rs:140`), while run from `apps/desktop` the same project resolves
+and prints where the frontend is built and what address the window is given. The commands run before the
+build are read by npm from wherever npm finds its package.json, and with none anywhere between the app
+folder and the root the launch failed with ENOENT on `apps/package.json`; a probe printing its own cwd
+showed the CLI running its command from `apps` in that state and from `apps/desktop` once a package.json
+sits next to the configuration, so that folder now holds one whose scripts delegate to the frontend
+through `--prefix`, which is the form that puts a script's cwd at the folder it names. The entry stays
+where the CLI is declared as a dependency, because that is the folder npm can find the binary from, and it
+moves to the app folder rather than being written in two places.
+
+What the launch gate asserts is the chain rather than a window: the entry names the CLI as something npm
+can find, the folder it moves to holds the configuration, each command names a script that exists in the
+package.json npm reads from where it runs, the port the configuration expects is the port the dev server
+binds — insisted on, not asked for — and the port the browser run connects to, and the built frontend is
+written where the configuration looks for it. Its known-bad cases are an entry that runs the CLI from the
+folder whose package.json holds it, an entry naming the CLI without declaring it, a folder holding the
+configuration with no package.json, a command naming a script nobody wrote, a delegation that comes back to
+itself, a port that disagrees on each of the three places, and a build output the configuration does not
+look at; the five documents are also shown passing untouched. What it cannot see is said rather than
+assumed: the window itself, the compiler, whether an install is present in either folder, and a port set
+through a variable or an environment override.
+
 The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
 Python 2 toolchain that is no longer maintainable. Its capability is covered by the native
 graphing and analysis in 6.7–6.8, which is a strictly better outcome.

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "launch": "cd ../desktop && tauri dev"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",

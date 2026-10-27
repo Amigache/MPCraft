@@ -7,6 +7,8 @@
  *     it can pass          the same run without the scratch file
  *     it names what did not run, and does not read it as green   a layer that was not touched, a
  *                          tool that is not there, and a gate something else stands in for
+ *     it can be scoped by what it reads   one of the documents a gate names is put in front of it, and a
+ *                          change that touches none of them
  *     which count it reads   a report where the unit tests passed and the live areas failed is read as
  *                          the live areas, because those are the ones a vehicle answered
  *
@@ -115,8 +117,40 @@ checks.push({
   },
 });
 
-const substituted = run(["docs/PLAN.md"], ["integration against SITL"]);
+/* A gate scoped by what it reads, shown both ways: one of its documents touched, and none. */
+const launchGate = "the launch, read as the documents say it is";
 
+const launchTouched = run(["apps/desktop/tauri.conf.json"], [launchGate]);
+
+checks.push({
+  claim:
+    "a gate scoped by the documents it reads runs when one is touched, and names which",
+  ok:
+    stateOf(launchTouched, launchGate) === "PASS" &&
+    (launchTouched.gates?.[0]?.scope ?? []).includes(
+      "apps/desktop/tauri.conf.json",
+    ),
+  saw: {
+    verdict: launchTouched.verdict,
+    gate: stateOf(launchTouched, launchGate),
+    scope: launchTouched.gates?.[0]?.scope,
+  },
+});
+
+const launchUntouched = run(["docs/PLAN.md"], [launchGate]);
+
+checks.push({
+  claim:
+    "a gate scoped by the documents it reads says NO-APLICA when none was touched",
+  ok: stateOf(launchUntouched, launchGate) === "NO-APLICA",
+  saw: {
+    verdict: launchUntouched.verdict,
+    gate: stateOf(launchUntouched, launchGate),
+    why: launchUntouched.gates?.[0]?.why,
+  },
+});
+
+const substituted = run(["docs/PLAN.md"], ["integration against SITL"]);
 checks.push({
   claim: "what stands in for a gate is named, and is not read as a pass",
   ok:
