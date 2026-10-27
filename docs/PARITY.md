@@ -1236,6 +1236,19 @@ for is kept with a ceiling and run afterwards, outside the sandbox, because a ca
 never wait for the wire; what a plugin said is kept with the ceiling the console has, and the sheet shows
 both, the asking and the saying.
 
+The **shapes a plugin is given** are numbers and names, never protocol messages, and each one answers with what
+the vehicle said rather than with what the reader expects. The shape of the plan now answers with two things:
+how many items the vehicle holds, and which item the vehicle says it is on — before this change the capability
+named `mission_access` answered only with the count, which is less than the name promises. A vehicle that has
+not said where it is in the plan gets nothing rather than item zero, because "nothing was said" is not a place
+in the plan, and the known-bad case is shown firing: a module that imports the plan shape under a manifest that
+grants only the way of saying something is never built, and the failure names the capability it belongs to,
+which means the import name has to be read as belonging to a capability — otherwise the operator would see the
+runtime's own words instead of the name of what was refused. That the value crosses the boundary is read by
+giving the number back through the stage, so the test sees the number the surface answered with rather than
+that a call happened; and the item shown is the one the vehicle reported, taken from the same report the plan
+count comes from.
+
 The **application is launched** from an entry that names the folder holding the configuration, because the
 CLI takes the project from the folder it runs in or a subfolder of it: run from `apps/ui` it says nothing
 about the application and `tauri dev` panics ("Couldn't recognize the current folder as a Tauri project",

@@ -25,8 +25,9 @@ pub enum Capability {
     /// so a plugin cannot hold the link while it waits for an answer.
     SendCommands,
 
-    /// Reading the plan the vehicle holds. Writing to it is not a capability: a plugin that wants
-    /// to change a plan has to say so to the operator, who decides.
+    /// Reading the plan the vehicle holds: how many items it has and which one the vehicle is on.
+    /// Writing to it is not a capability: a plugin that wants to change a plan has to say so to the
+    /// operator, who decides.
     MissionAccess,
 
     /// The parameters the vehicle has reported. Reading them and changing one are two names, because

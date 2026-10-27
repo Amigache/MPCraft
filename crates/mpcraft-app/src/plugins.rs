@@ -133,6 +133,9 @@ struct Inner {
     /// How many items the plan on the vehicle holds.
     mission_count: u32,
 
+    /// The item the vehicle says it is on, or nothing when the vehicle has not said where it is.
+    mission_current: Option<u32>,
+
     /// What the vehicle said about its parameters, name to number, in the order the names fall in.
     ///
     /// The numbers are kept as the vehicle said them, so that a read shows what the vehicle has rather
@@ -172,12 +175,16 @@ impl PluginSurface {
         if let Ok(mut inner) = self.inner.lock() {
             inner.telemetry = session.telemetry.clone();
 
-            // The plan the vehicle holds is counted from what the vehicle reported.
+            // The plan the vehicle holds is counted from what the vehicle reported, and the item the
+            // vehicle is on comes from the same report rather than from what somebody assumes.
             inner.mission_count = session
                 .telemetry
                 .mission
-                .map(|progress| u32::from(progress.total))
-                .unwrap_or(0);
+                .map_or(0, |progress| u32::from(progress.total));
+            inner.mission_current = session
+                .telemetry
+                .mission
+                .map(|progress| u32::from(progress.seq));
 
             inner.parameters = session
                 .parameters
@@ -290,6 +297,13 @@ impl HostApi for PluginSurface {
         match self.inner.lock() {
             Ok(inner) => inner.mission_count,
             Err(_) => 0,
+        }
+    }
+
+    fn mission_current(&self) -> Option<u32> {
+        match self.inner.lock() {
+            Ok(inner) => inner.mission_current,
+            Err(_) => None,
         }
     }
 
@@ -1360,6 +1374,35 @@ mod tests {
         let empty = Telemetry::default();
 
         assert_eq!(value_of(&empty, TelemetryField::DistanceToHome), None);
+    }
+
+    #[test]
+    fn the_plan_shape_is_what_the_link_published_and_nothing_before_it_said() {
+        let surface = PluginSurface::new();
+
+        // Before the link said anything there is no item to read, which is not the same as item zero.
+        assert_eq!(surface.mission_current(), None);
+
+        let mut state = SessionState::disconnected();
+
+        state.telemetry.mission = Some(mpcraft_vehicle::MissionProgress {
+            seq: 12,
+            total: 40,
+            state: mpcraft_vehicle::PlanState::Active,
+            in_mission_mode: true,
+            mission_id: 1,
+            fence_id: 0,
+            rally_id: 0,
+        });
+
+        surface.record(&state);
+
+        assert_eq!(surface.mission_count(), 40);
+        assert_eq!(
+            surface.mission_current(),
+            Some(12),
+            "the item shown is the one the vehicle said it is on"
+        );
     }
 
     #[test]

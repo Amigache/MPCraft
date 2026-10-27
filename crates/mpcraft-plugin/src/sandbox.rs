@@ -146,6 +146,7 @@ impl Sandbox {
                         "telemetry",
                         "command",
                         "mission_count",
+                        "mission_current",
                         "note",
                         "set_param",
                         "param",
@@ -257,6 +258,21 @@ impl Sandbox {
                     "mission_count",
                     |caller: Caller<'_, HostData>| -> i32 {
                         caller.data().api.mission_count() as i32
+                    },
+                )
+                .map_err(error)?;
+
+            // A plan the vehicle has not reported is not a plan with nothing in it: the plugin sees the
+            // number that says "nothing was said", which is not a place in the plan.
+            linker
+                .func_wrap(
+                    "host",
+                    "mission_current",
+                    |caller: Caller<'_, HostData>| -> i32 {
+                        match caller.data().api.mission_current() {
+                            Some(sequence) => i32::try_from(sequence).unwrap_or(-1),
+                            None => -1,
+                        }
                     },
                 )
                 .map_err(error)?;
@@ -465,6 +481,7 @@ fn capability_of(name: &str) -> Capability {
         "telemetry" => Capability::ReadTelemetry,
         "command" => Capability::SendCommands,
         "mission_count" => Capability::MissionAccess,
+        "mission_current" => Capability::MissionAccess,
         "set_param" => Capability::WriteParams,
         "param" => Capability::ReadParams,
         _ => Capability::Notify,
@@ -509,6 +526,9 @@ mod tests {
 
         /// What the vehicle said about a parameter, which is what a read answers with.
         values: HashMap<String, f64>,
+
+        /// Where the vehicle says it is in the plan, which is what the plan shape answers with.
+        current: Option<u32>,
     }
 
     impl FakeApi {
@@ -520,6 +540,7 @@ mod tests {
                 writes: Mutex::new(Vec::new()),
                 notes: Mutex::new(Vec::new()),
                 values: HashMap::from([("FENCE_ALT_MAX".to_string(), 61.5)]),
+                current: Some(12),
             }
         }
     }
@@ -537,6 +558,10 @@ mod tests {
 
         fn mission_count(&self) -> u32 {
             4
+        }
+
+        fn mission_current(&self) -> Option<u32> {
+            self.current
         }
 
         fn param(&self, name: &str) -> Option<f64> {
@@ -738,6 +763,69 @@ mod tests {
             }],
             "the name and the number the plugin supplied are what the surface holds"
         );
+    }
+
+    #[test]
+    fn the_plan_shape_answers_with_the_item_the_vehicle_says_it_is_on() {
+        let sandbox = Sandbox::new(Limits::default()).unwrap();
+        let api = Arc::new(FakeApi::new());
+
+        // The stage gives back what it read, so the number that comes through the stage failing is the
+        // number the surface answered with — which is what proves the value crossed the boundary rather
+        // than that a call was made.
+        let wat = r#"
+            (module
+                (import "host" "mission_current" (func $current (result i32)))
+                (func (export "init") (result i32)
+                    call $current)
+            )
+        "#;
+
+        let mut plugin = sandbox
+            .load(
+                &manifest(&[Capability::MissionAccess]),
+                wat.as_bytes(),
+                api.clone(),
+            )
+            .unwrap();
+
+        let error = plugin
+            .run(Stage::Init)
+            .expect_err("the stage returns what it read");
+
+        assert!(
+            matches!(error, PluginError::StageFailed { code: 12, .. }),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn a_plan_shape_that_was_not_granted_fails_before_any_code_runs() {
+        let sandbox = Sandbox::new(Limits::default()).unwrap();
+        let api = Arc::new(FakeApi::new());
+
+        // The manifest gives the plugin a way to say something, not the plan. The import it was not given
+        // is named by the capability it belongs to, which is what the operator sees.
+        let wat = r#"
+            (module
+                (import "host" "mission_current" (func $current (result i32)))
+                (func (export "init") (result i32)
+                    call $current
+                    drop
+                    i32.const 0)
+            )
+        "#;
+
+        let error = sandbox
+            .load(
+                &manifest(&[Capability::Notify]),
+                wat.as_bytes(),
+                api.clone(),
+            )
+            .unwrap_err();
+
+        assert_eq!(error.code(), "plugin_not_granted", "{error}");
+        assert!(error.to_string().contains("mission_access"), "{error}");
     }
 
     #[test]

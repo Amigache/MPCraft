@@ -134,6 +134,11 @@ pub trait HostApi: Debug + Send + Sync {
     /// How many items the plan on the vehicle holds, when the plugin was given the plan.
     fn mission_count(&self) -> u32;
 
+    /// The sequence number of the item the vehicle is executing, or nothing when the vehicle has not
+    /// said where it is in the plan — a place in the plan the reader invents is not a place the vehicle
+    /// is at.
+    fn mission_current(&self) -> Option<u32>;
+
     /// What the vehicle last said about a parameter, or nothing when it has not reported one with
     /// that name — a value the plugin invents is not a value the vehicle has.
     fn param(&self, name: &str) -> Option<f64>;
