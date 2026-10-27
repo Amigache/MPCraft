@@ -2317,14 +2317,14 @@ async fn camera_zoom_options(
 async fn capture_photo(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     camera_index: u8,
 ) -> CommandResult<()> {
     let vehicle = resolve_vehicle(&state, &req)?;
 
     state
         .supervisor
-        .capture_photo(vehicle, camera_component, camera_index)
+        .capture_photo(vehicle, camera_component_id, camera_index)
         .await
 }
 
@@ -2339,7 +2339,7 @@ async fn capture_photo(
 async fn start_interval_capture(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     camera_index: u8,
     interval_seconds: f64,
 ) -> CommandResult<()> {
@@ -2347,7 +2347,7 @@ async fn start_interval_capture(
 
     state
         .supervisor
-        .start_interval_capture(vehicle, camera_component, camera_index, interval_seconds)
+        .start_interval_capture(vehicle, camera_component_id, camera_index, interval_seconds)
         .await
 }
 
@@ -2361,14 +2361,14 @@ async fn start_interval_capture(
 async fn stop_interval_capture(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     camera_index: u8,
 ) -> CommandResult<()> {
     let vehicle = resolve_vehicle(&state, &req)?;
 
     state
         .supervisor
-        .stop_interval_capture(vehicle, camera_component, camera_index)
+        .stop_interval_capture(vehicle, camera_component_id, camera_index)
         .await
 }
 
@@ -2382,14 +2382,14 @@ async fn stop_interval_capture(
 async fn start_recording(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     stream_id: u8,
 ) -> CommandResult<()> {
     let vehicle = resolve_vehicle(&state, &req)?;
 
     state
         .supervisor
-        .start_recording(vehicle, camera_component, stream_id)
+        .start_recording(vehicle, camera_component_id, stream_id)
         .await
 }
 
@@ -2403,14 +2403,14 @@ async fn start_recording(
 async fn stop_recording(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     stream_id: u8,
 ) -> CommandResult<()> {
     let vehicle = resolve_vehicle(&state, &req)?;
 
     state
         .supervisor
-        .stop_recording(vehicle, camera_component, stream_id)
+        .stop_recording(vehicle, camera_component_id, stream_id)
         .await
 }
 
@@ -2425,7 +2425,7 @@ async fn stop_recording(
 async fn set_camera_zoom(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     level: f64,
     zoom_type: u32,
 ) -> CommandResult<()> {
@@ -2433,7 +2433,7 @@ async fn set_camera_zoom(
 
     state
         .supervisor
-        .set_camera_zoom(vehicle, camera_component, level, zoom_type)
+        .set_camera_zoom(vehicle, camera_component_id, level, zoom_type)
         .await
 }
 
@@ -2448,7 +2448,7 @@ async fn set_camera_zoom(
 async fn track_point(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     x: f64,
     y: f64,
 ) -> CommandResult<()> {
@@ -2456,7 +2456,7 @@ async fn track_point(
 
     state
         .supervisor
-        .track_point(vehicle, camera_component, x, y)
+        .track_point(vehicle, camera_component_id, x, y)
         .await
 }
 
@@ -2471,7 +2471,7 @@ async fn track_point(
 async fn track_rectangle(
     state: State<'_, AppState>,
     req: VehicleRequest,
-    camera_component: u8,
+    camera_component_id: u8,
     x1: f64,
     y1: f64,
     x2: f64,
@@ -2481,7 +2481,7 @@ async fn track_rectangle(
 
     state
         .supervisor
-        .track_rectangle(vehicle, camera_component, x1, y1, x2, y2)
+        .track_rectangle(vehicle, camera_component_id, x1, y1, x2, y2)
         .await
 }
 

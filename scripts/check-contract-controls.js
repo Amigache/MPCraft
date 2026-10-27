@@ -16,7 +16,9 @@
  * three: a call to a name nothing answers, a shape written at the call site, and the pair the call makes
  * compared field by field against the command that answers it. The rule that reads arguments has two, and both
  * are the direction: a field the struct expects and the contract does not declare, and the same rule read from
- * the other side, where a field the contract declares is something the interface sends.
+ * the other side, where a field the contract declares is something the interface sends. The rule that reads what
+ * a call puts on the wire has two as well: a key the command needs and the call never sends, and a key the call
+ * sends that no argument reads — the same pair seen at the payload instead of inside a document.
  */
 
 import { check, readDocuments } from "./check-contract.js";
@@ -272,6 +274,34 @@ const cases = [
     expect:
       /VehicleRequest\.nothingTheStructNeverReads is declared by the contract as what the interface sends and never read by VehicleRequest/,
   },
+  {
+    claim:
+      "what a call puts on the wire is read against every key its command reads: a key the command needs and the call never sends is caught — which is what the flash write was, an empty payload with no key under the request the command reads",
+    mutated: {
+      ...docs,
+      [BRIDGE]: mutate(
+        docs[BRIDGE],
+        /^\s*await call<void>\("write_parameters_to_flash", vehicleRequest\(\)\);$/,
+        '  await call<void>("write_parameters_to_flash", {});',
+      ),
+    },
+    expect:
+      /calls "write_parameters_to_flash" without sending req, which the command reads as req \(VehicleRequest\), so the boundary has nothing to read it as/,
+  },
+  {
+    claim:
+      "the other half of the same rule: a key the call sends that no argument of that command reads is caught, which is how the camera commands were — the interface wrote cameraComponentId while the command read camera_component, the same word list with one word more",
+    mutated: {
+      ...docs,
+      [BRIDGE]: mutate(
+        docs[BRIDGE],
+        /^\s*return call<number>\("dted_elevation", \{ latitude, longitude \}\);$/,
+        '  return call<number>("dted_elevation", { latitude, longitude, nothingTheCommandReads });',
+      ),
+    },
+    expect:
+      /calls "dted_elevation" with nothingTheCommandReads, which no argument of that command reads/,
+  },
 ];
 
 for (const entry of cases) {
@@ -323,6 +353,29 @@ checks.push({
   },
 });
 
+/* Rule 9 reads the call sites as far as their keys go, so its green rests on the helper being read through the
+   keys its declared shape carries: a helper shape is named by nothing, so it is not a document, and a payload the
+   call holds under a name would be said as a fact rather than compared — none is today, and nothing leaves an
+   optional key out. */
+checks.push({
+  claim:
+    "a call whose payload comes from a helper is still read against the command that answers it, through the keys the helper declares",
+  ok:
+    good.facts.helperShapesRead.length === 1 &&
+    good.facts.callArgumentKeys.some((entry) =>
+      entry.includes("through vehicleRequest(...)"),
+    ) &&
+    good.facts.keysHeldUnderNames.length === 0 &&
+    good.facts.optionalKeysLeftOut.length === 0,
+  saw: {
+    helperShapes: good.facts.helperShapesRead,
+    heldUnderNames: good.facts.keysHeldUnderNames,
+    optionalKeysLeftOut: good.facts.optionalKeysLeftOut,
+    wireKeys: good.facts.wireKeys,
+    keysAtCallSites: good.facts.callArgumentKeys.length,
+  },
+});
+
 const fails = checks.filter((entry) => !entry.ok);
 
 console.log(
@@ -332,7 +385,7 @@ console.log(
       verdict: fails.length === 0 ? "PASS" : "FAIL",
       fails,
       limit:
-        "these prove each rule can fire and that the sources satisfy them as written. They do not show an event reaching a window, and a rename applied through a macro rather than an attribute is outside of what a reading of text can see. The pairing rule cannot see a document that no field names — the ones read through a command's answer or an argument — and an anonymous shape is refused without being compared, because there is nothing to compare it with until it is named. The way in is shown firing on both halves of its finding; what it cannot show is which fields the interface actually puts on the wire, because the call sites pass object literals built by a helper, so a field a call adds outside a document is not read here.",
+        "these prove each rule can fire and that the sources satisfy them as written. They do not show an event reaching a window, and a rename applied through a macro rather than an attribute is outside of what a reading of text can see. The pairing rule cannot see a document that no field names — the ones read through a command's answer or an argument — and an anonymous shape is refused without being compared, because there is nothing to compare it with until it is named. The way in is shown firing on both halves of its finding. The call sites are read as far as their keys go: what these controls cannot show is the value that sits under a key or the type it is read as, and a helper shape is read through the keys it declares rather than as a document, because nothing names it.",
     },
     null,
     2,

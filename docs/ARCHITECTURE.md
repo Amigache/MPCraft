@@ -300,6 +300,13 @@ than assumed, since one document can be answered by one command and read by anot
 comes from what its name says — the contract's own name, or the pair its field says — never from a table written by
 the gate.
 
+A command takes its arguments by the **key** the message carries: Tauri reads the argument name as camelCase, and the
+handles it supplies itself (`State<…>` and `AppHandle`) are not keys the interface ever sends. So the same gate reads
+what each call puts on the wire against every key its command reads — through the keys a helper declares, and through
+a shorthand property, which says its own name. A key the command needs and the call never sends is a call the
+boundary refuses; a key the call sends that no argument reads is a value that travels and is never looked at. An
+optional parameter left out is said as a fact, because a missing key is what an `Option` reads as.
+
 ### 5.3 Frontend state
 
 The React app keeps a normalised store:

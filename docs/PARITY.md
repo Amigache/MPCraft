@@ -1370,20 +1370,43 @@ carries and the contract does not declare is only a fact, because JSON carries w
 and on the way in it is a finding, because the backend expects a value the interface never sends — the same class as
 a field the reader asks for and the writer never sends, seen from the other side. That is the eighth thing the gate
 asserts, and the side is kept as its own fact rather than assumed, because the same document can be answered by one
-command and read by another. Of the 148 typed arguments of the 136 commands, 66 are read through a document, and the
-pair is not a table written here: either the argument names a name the contract declares (`ConnectRequest` and
-`VehicleRequest`, which together carry most of them) or a field says the pair for it — `ConnectionProfile↔ProfileEvent`
-through `set_connection_profiles`, and `GeoPoint↔PositionEvent` through `set_home_position` and `dted_path`. The other
-82 are said as facts: 63 are primitives or the application handle, nine carry `PlanKind` (which the contract declares
-as a union of words rather than an interface), and ten are read through a struct the contract has no name for —
-`PlanItemRequest`, `OsdSlotRequest`, `SwarmRequest`, `SigningKeyEvent` and `ParamChange` — where the interface sends a
-shape a call site decided, so there is nothing to compare it against. What the reading cannot see is said rather than
-pretended otherwise: which fields the interface actually puts on the wire at a call site is not read here, because the
-calls pass object literals built by a helper, so a field a call adds outside a document is not compared. Both halves of
-the way in are shown firing — `VehicleRequest.nothingTheInterfaceSends`, expected by the struct and never declared, and
-`VehicleRequest.nothingTheStructNeverReads`, declared as what the interface sends and never read — and the sources are
-shown passing with the same 99 paired documents and 470 fields, which says that this rule found nothing to complain
-about today: it is the rule that would say it if a request grew a field nobody sends.
+command and read by another. Of the 239 keys the 136 commands read — the 116 arguments that are the state or the
+application handle are not keys, because Tauri gives them to the command and the interface never sends them — 66 are
+read through a document, and the pair is not a table written here: either the argument names a name the contract
+declares (`ConnectRequest` and `VehicleRequest`, which together carry most of them) or a field says the pair for it —
+`ConnectionProfile↔ProfileEvent` through `set_connection_profiles`, and `GeoPoint↔PositionEvent` through
+`set_home_position` and `dted_path`. The other 173 are said as facts: 154 are primitives, nine carry `PlanKind`
+(which the contract declares as a union of words rather than an interface), and ten are read through a struct the
+contract has no name for — `PlanItemRequest`, `OsdSlotRequest`, `SwarmRequest`, `SigningKeyEvent` and `ParamChange` —
+where the interface sends a shape a call site decided, so there is nothing to compare it against. What was said
+before about this count is corrected now: it named 148 arguments, which are only the ones whose type is a document,
+because a Rust primitive begins with a lowercase letter and the reading skipped it — that is why `manual_control`
+looked like a call that sent keys nobody read. What the reading cannot see is said rather than pretended otherwise:
+the values that sit under a key and the type each value is read as are not compared, and a payload the call holds
+under a name rather than writing as a literal would be said as a fact because nothing declares its shape, which none
+is today. Both halves of the way in are shown firing — `VehicleRequest.nothingTheInterfaceSends`, expected by the
+struct and never declared, and `VehicleRequest.nothingTheStructNeverReads`, declared as what the interface sends and
+never read — and the sources are shown passing with the same 99 paired documents and 470 fields, which says that this
+rule found nothing to complain about today: it is the rule that would say it if a request grew a field nobody sends.
+
+The **ninth thing** the gate reads is what each call actually puts on the wire, against every key its command reads.
+Tauri takes an argument by the key the message carries, so a key the command needs and the call never sends is a call
+the boundary refuses, and a key the call sends that no argument reads is a value that travels and is never looked at:
+both are findings, and an optional parameter left out is said as a fact, because a missing key is what an `Option`
+reads as. The 135 calls cover 135 of the 136 commands, and every key those commands read arrives at its call site
+now; no call leaves an optional key out, so the two that looked like that before were read wrong rather than counted
+wrong — the shorthand property was not read, and `{ kind }` says its own name. What the rule found were two calls the
+boundary refused, not two spelling disagreements. Eight camera commands — `capture_photo`, the two that carry the
+interval, the two that carry the recording, `set_camera_zoom`, `track_point` and `track_rectangle` — read
+`camera_component`, which Tauri reads as `cameraComponent`, while the interface wrote `cameraComponentId`: the same
+word list with one word more, so the component the operator picked never reached the vehicle. And
+`write_parameters_to_flash` read `req` while the call sent an empty payload with no key under it, which is what the
+boundary answers as a key that is missing. The eight names now say `camera_component_id`, which is the key the
+interface already wrote, and the flash write sends the request through the helper the other parameter calls use, so
+the key is there rather than assumed. Both halves are shown firing — the flash write with no key under the request,
+and a key at a call site that no argument reads — and the helper is read through the keys its declared shape carries,
+because nothing names that shape, which is what lets a call built by it still be compared with the command that
+answers it.
 
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read

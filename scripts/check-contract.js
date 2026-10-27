@@ -7,7 +7,7 @@
  * said the same thing, and the drift that this gate found was not a style disagreement — it was a field
  * that arrives spelled one way and is read another, which is a value the interface never gets.
  *
- * What it reads, and the eight things it asserts:
+ * What it reads, and the nine things it asserts:
  *
  *   - Every event the frontend listens to is one the backend emits. A listener for a name nothing
  *     emits is a subscription to a channel that will never answer.
@@ -38,6 +38,13 @@
  *     class as a field the reader asks for and the writer never sends, seen from the other side. The
  *     argument's own name is what pairs it with the contract: either the contract declares that name, or a
  *     field says the pair for it, and nothing here writes a table of names.
+ *   - What each call actually puts on the wire is read against every key its command reads. Tauri takes an
+ *     argument by the key the message carries, so a key the command needs and the call never sends is a call the
+ *     boundary refuses, and a key the call sends that no argument reads is a value that travels and is never
+ *     looked at: both are findings. An optional parameter left out is said as a fact, because a missing key is
+ *     what an `Option` reads as, and the handles are not keys at all — Tauri gives them to the command and the
+ *     interface never sends them. A helper is read through the keys its declared shape carries, and a shorthand
+ *     property says its own name, so `{ kind }` sends the key `kind`.
  *
  * What this cannot see, and is said rather than pretended otherwise. It reads sources as text, so a
  * rename applied through a helper macro or a field written by a manual `Serialize` implementation is not
@@ -46,9 +53,10 @@
  * the error shape, read as `CommandError` while the wire carries it inside a result rather than as an answer
  * of its own; a shape written inside a document is refused, because nothing names it, and that is the whole
  * of what can be said about an anonymous shape without a name; an argument typed with a struct the contract
- * has no name for cannot be compared, and which fields the interface actually puts on the wire at a call site
- * is outside of what this reads, because the call sites pass object literals built by a helper; and whether an
- * event actually reaches a window is outside of what a reading of two source files can say.
+ * has no name for cannot be compared; the call sites are read as far as their keys go, so the values that sit
+ * under those keys and the type each value is read as are not compared here, and a payload the call holds under
+ * a name rather than writing as a literal is said as a fact because nothing declares its shape — none today;
+ * and whether an event actually reaches a window is outside of what a reading of two source files can say.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -215,7 +223,7 @@ function emittedEvents(main, structs) {
   return { events, constants };
 }
 
-/** The commands the backend answers: what each one answers with, and what it reads as its argument. */
+/** The commands the backend answers: what each one answers with, and the keys it reads its arguments under. */
 function answeredCommands(main, documents) {
   const out = new Map();
 
@@ -224,21 +232,49 @@ function answeredCommands(main, documents) {
   )) {
     const read = [];
 
-    for (const argument of match[2].split(",")) {
-      const parts = argument.split(":");
+    /* The signature is split at the commas that are not inside a generic, so a type like
+       `State<'_, AppState>` is one argument rather than two — and every typed parameter counts as a key,
+       because rule 9 compares what a call sends against what its command reads. */
+    const args = [];
+    let depth = 0;
+    let current = "";
 
-      if (parts.length !== 2) {
+    for (const character of match[2]) {
+      if (character === "<") {
+        depth += 1;
+      } else if (character === ">") {
+        depth -= 1;
+      }
+
+      if (character === "," && depth === 0) {
+        args.push(current);
+        current = "";
+      } else {
+        current += character;
+      }
+    }
+
+    args.push(current);
+
+    for (const argument of args) {
+      if (!argument.includes(":")) {
         continue;
       }
 
-      /* The state handle is not a document: it is the application, and it never crosses the boundary. */
-      const type = parts[1].trim();
+      const name = argument.split(":")[0].trim();
+      const type = argument.slice(argument.indexOf(":") + 1).trim();
 
-      if (!/^[A-Z]/.test(type) || type.startsWith("State")) {
+      /* The handles are not keys: Tauri gives them to the command, and the interface never sends them. */
+      if (type.startsWith("State") || type === "AppHandle") {
         continue;
       }
 
-      read.push({ name: parts[0].trim(), type, path: FILES.boundary });
+      read.push({
+        name,
+        type,
+        optional: /^Option</.test(type),
+        path: FILES.boundary,
+      });
     }
 
     out.set(match[1], {
@@ -250,7 +286,120 @@ function answeredCommands(main, documents) {
   return out;
 }
 
-/** The commands the frontend calls, and the document each call reads the answer as. */
+/** The helpers that build a payload, with the keys their declared shape carries. */
+function helperShapes(text) {
+  const out = new Map();
+
+  for (const match of text.matchAll(
+    /function (\w+)\([^)]*\)\s*:\s*\{([^}]*)\}/g,
+  )) {
+    out.set(
+      match[1],
+      [...match[2].matchAll(/([A-Za-z0-9_]+)\s*:\s*([^;]+)/g)].map((entry) => ({
+        key: entry[1],
+        type: entry[2].trim().replace(/\?$/, ""),
+      })),
+    );
+  }
+
+  return out;
+}
+
+/** The arguments of one call site, read between balanced parentheses. */
+function callArguments(text, open) {
+  let depth = 0;
+
+  for (let i = open; i < text.length; i += 1) {
+    if (text[i] === "(") {
+      depth += 1;
+    } else if (text[i] === ")") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return text.slice(open + 1, i);
+      }
+    }
+  }
+
+  return "";
+}
+
+/**
+ * The keys one call puts on the wire. A helper is read through the keys its declared shape carries, an object
+ * literal through its own keys — a shorthand property says its own name — and what a spread brings in is read
+ * through the helper it names. A value the call holds under a name, or a spread of something the call site built
+ * somewhere else, is said as a fact rather than read as a key, because nothing here declares it.
+ */
+function sentKeys(expression, helpers) {
+  const sent = [];
+  const held = [];
+  const expressionText = expression.trim();
+
+  if (expressionText === "") {
+    return { sent, held };
+  }
+
+  const helperCall = /^(\w+)\(/.exec(expressionText);
+
+  if (helperCall !== null) {
+    for (const key of helpers.get(helperCall[1]) ?? []) {
+      sent.push({
+        key: key.key,
+        type: key.type,
+        through: `${helperCall[1]}(...)`,
+      });
+    }
+
+    return { sent, held };
+  }
+
+  if (!expressionText.startsWith("{")) {
+    held.push(expressionText);
+    return { sent, held };
+  }
+
+  let depth = 0;
+
+  for (const part of expressionText.slice(1).split(",")) {
+    if (depth === 0) {
+      const named = /^\s*([A-Za-z0-9_]+)\s*:/.exec(part);
+      const spread = /^\s*\.\.\.\s*(\w+)(\()?/.exec(part);
+      const shorthand = /^\s*([A-Za-z0-9_]+)\s*[}\]]?$/.exec(part);
+
+      if (named !== null) {
+        sent.push({
+          key: named[1],
+          type: "what the call site puts there",
+          through: "the call site",
+        });
+      } else if (spread !== null && helpers.has(spread[1])) {
+        for (const key of helpers.get(spread[1]) ?? []) {
+          sent.push({
+            key: key.key,
+            type: key.type,
+            through: `${spread[1]}(...)`,
+          });
+        }
+      } else if (shorthand !== null) {
+        /* A shorthand property says its own name: `{ kind }` sends the key `kind`. */
+        sent.push({
+          key: shorthand[1],
+          type: "what the call site puts there",
+          through: "the call site",
+        });
+      } else if (spread !== null) {
+        held.push(`...${spread[1]}`);
+      }
+    }
+
+    depth +=
+      (part.match(/\{/g) ?? []).length - (part.match(/\}/g) ?? []).length;
+  }
+
+  return { sent, held };
+}
+
+/** The commands the frontend calls: the document each call reads the answer as, and the keys it sends. */
 function calledCommands(docs, contract) {
   const calls = [];
 
@@ -259,10 +408,29 @@ function calledCommands(docs, contract) {
       continue;
     }
 
-    for (const match of text.matchAll(
-      /(?:call|invoke)<([^>]+)>\(\s*\n?\s*"([a-z_]+)"/g,
-    )) {
-      calls.push({ path, type: match[1].trim(), command: match[2] });
+    const helpers = helperShapes(text);
+
+    for (const match of text.matchAll(/(?:call|invoke)<([^>]+)>\(/g)) {
+      const body = callArguments(text, match.index + match[0].length - 1);
+      const command = /^\s*"([a-z_]+)"/.exec(body)?.[1];
+
+      if (command === undefined) {
+        continue;
+      }
+
+      const comma = body.indexOf(",");
+      const read =
+        comma === -1
+          ? { sent: [], held: [] }
+          : sentKeys(body.slice(comma + 1), helpers);
+
+      calls.push({
+        path,
+        type: match[1].trim(),
+        command,
+        sent: read.sent,
+        held: read.held,
+      });
     }
   }
 
@@ -598,6 +766,84 @@ export function check(docs) {
   facts.argumentsThroughDocuments = argumentsThroughDocuments.sort();
   facts.argumentsNotDeclared = argumentsNotDeclared.sort();
 
+  /* Rule 9 reads what each call actually puts on the wire, against every key its command reads. Tauri takes an
+     argument by the key the message carries, so a key the command needs and the call never sends is a call the
+     boundary refuses — which is the same class as a field the interface asks for and the backend never writes,
+     seen at the call site instead of inside a document. A key the call sends that no argument reads is the other
+     half: a value that travels and is never looked at. An optional parameter left out is said as a fact, because
+     a missing key is what an `Option` reads as, and the handles are not keys at all. */
+  let wireKeys = 0;
+  const callArgumentKeys = [];
+  const helperShapesRead = [];
+  const keysHeldUnderNames = [];
+  const optionalKeysLeftOut = [];
+
+  for (const [path, text] of Object.entries(docs)) {
+    if (!path.startsWith("apps/ui/")) {
+      continue;
+    }
+
+    for (const [name, keys] of helperShapes(text)) {
+      helperShapesRead.push(
+        `${name} (${path}): ${keys.map((key) => key.key).join(", ")}`,
+      );
+    }
+  }
+
+  for (const [command, answered] of commands) {
+    const callsToCommand = calls.filter((call) => call.command === command);
+
+    if (callsToCommand.length === 0) {
+      continue;
+    }
+
+    wireKeys += answered.reads.length;
+
+    for (const call of callsToCommand) {
+      const keys = new Set(answered.reads.map((p) => words(p.name).join(".")));
+
+      for (const entry of call.sent) {
+        callArgumentKeys.push(
+          `${command}.${entry.key} (${call.path}, through ${entry.through})`,
+        );
+
+        if (!keys.has(words(entry.key).join("."))) {
+          faults.push(
+            `${call.path} calls "${command}" with ${entry.key}, which no argument of that command reads`,
+          );
+        }
+      }
+
+      for (const entry of call.held) {
+        keysHeldUnderNames.push(`${command} (${call.path}): ${entry}`);
+      }
+
+      for (const parameter of answered.reads) {
+        const key = words(parameter.name).join(".");
+
+        if (call.sent.some((entry) => words(entry.key).join(".") === key)) {
+          continue;
+        }
+
+        if (parameter.optional) {
+          optionalKeysLeftOut.push(
+            `${command}.${parameter.name} (${call.path})`,
+          );
+        } else {
+          faults.push(
+            `${call.path} calls "${command}" without sending ${camelCase(parameter.name)}, which the command reads as ${parameter.name} (${parameter.type}), so the boundary has nothing to read it as`,
+          );
+        }
+      }
+    }
+  }
+
+  facts.wireKeys = wireKeys;
+  facts.callArgumentKeys = callArgumentKeys.sort();
+  facts.helperShapesRead = helperShapesRead.sort();
+  facts.keysHeldUnderNames = keysHeldUnderNames.sort();
+  facts.optionalKeysLeftOut = optionalKeysLeftOut.sort();
+
   const gaps = [];
 
   for (const [document, struct] of pairList) {
@@ -763,7 +1009,7 @@ if (
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         faults: result.faults,
         limit:
-          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides or where a call or an argument names one, so a document the contract declares and nothing names is not compared — three are today: CommandError, reached as the error half of a result rather than as an answer of its own, and FormationRequest and TileBounds, which no call reads through them; a shape written inside a document or at a call site is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact on the way back and as a finding on the way in, so the side is kept as its own fact rather than assumed; an argument typed with a struct the contract has no name for cannot be compared, and which fields the interface actually puts on the wire at a call site is not read here, because the calls pass object literals built by a helper; a command nothing calls is said as a fact, because the rule reads calls from the frontend towards the backend and not the other way round; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
+          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides or where a call or an argument names one, so a document the contract declares and nothing names is not compared — three are today: CommandError, reached as the error half of a result rather than as an answer of its own, and FormationRequest and TileBounds, which no call reads through them; a shape written inside a document or at a call site is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact on the way back and as a finding on the way in, so the side is kept as its own fact rather than assumed; an argument typed with a struct the contract has no name for cannot be compared; the call sites are read as far as their keys go — the values under those keys and the type each value is read as are not compared, and a payload held under a name rather than written as a literal is said as a fact because nothing declares its shape, which none is today; a helper shape is named by nothing, so it is read through the keys it declares rather than as a document; the handles a command takes from Tauri are not keys the interface sends; a command nothing calls is said as a fact, because the rule reads calls from the frontend towards the backend and not the other way round; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
       },
       null,
       2,

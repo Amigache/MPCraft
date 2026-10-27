@@ -1463,7 +1463,7 @@ export async function compareParameters(
 
 /** Asks the vehicle to write its parameters to its own memory. */
 export async function writeParametersToFlash(): Promise<void> {
-  await call<void>("write_parameters_to_flash", {});
+  await call<void>("write_parameters_to_flash", vehicleRequest());
 }
 
 /** Where the vehicle is, in the systems an operator reads. */
