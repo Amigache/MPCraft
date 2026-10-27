@@ -30,6 +30,7 @@ const SCREENS = ["flightdata", "plan", "setup", "logs"];
 
 /** The sheets that lie over a screen, named by what the Setup menu says in Spanish. */
 const SHEETS = [
+  { name: "dronecan", entry: "Los nodos del bus…", title: "Los nodos del bus" },
   { name: "firmware", entry: "El firmware…", title: "El firmware" },
   { name: "formation", entry: "La formación…", title: "La formación" },
   {

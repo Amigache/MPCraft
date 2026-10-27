@@ -14,6 +14,7 @@ import type {
   ConnectResponse,
   ConnectionStatus,
   Coordinates,
+  DronecanReport,
   DtedLibraryInfo,
   FirmwareManifest,
   FlightMode,
@@ -322,6 +323,20 @@ export async function adsbRelayStop(): Promise<void> {
 /** What the relay of the traffic is doing. */
 export async function adsbRelayStatus(): Promise<AdsbRelayStatus> {
   return call<AdsbRelayStatus>("adsb_relay_status");
+}
+
+/**
+ * Reads the nodes of the DroneCAN bus.
+ *
+ * The call also applies the rule that says when the bus is asked for what its nodes are: once when
+ * the link opens, and once more for a node that has reported how it is without saying what it is.
+ * What comes back says whether this reading put the ask on the wire, so the sheet can show that
+ * rather than an operator guessing it.
+ */
+export async function dronecanScan(
+  req: VehicleRequest = {},
+): Promise<DronecanReport> {
+  return call<DronecanReport>("dronecan_scan", { req });
 }
 
 /** Asks the camera of the vehicle what video streams it has. */

@@ -1252,7 +1252,7 @@ fn acknowledgement_result(messages: &[ReceivedMessage], command: MavCmd) -> Opti
 ///
 /// The layout is the one of the protocol: seven parameters as little endian floats, the
 /// command as a 16-bit little endian number, and the vehicle the command is for.
-fn encode_command_long(
+pub(crate) fn encode_command_long(
     target_system: u8,
     target_component: u8,
     command: u32,

@@ -51,6 +51,7 @@ pub mod bootloader;
 pub mod checklist;
 pub mod coordinates;
 pub mod diagnostics;
+pub mod dronecan;
 pub mod error;
 pub mod firmware;
 pub mod georef;
@@ -224,6 +225,15 @@ pub struct AppState {
     /// rather than holding one, because a link that was restored after dropping is the link the
     /// orders have to go to.
     pub swarm: crate::swarm::SwarmService,
+
+    ///
+    /// The nodes of a DroneCAN bus, and what the station has asked for them.
+    ///
+    /// The link keeps what the bus reported; this holds the decision about when the ask goes out —
+    /// once at open, and once more for a node that reported how it is without saying what it is. The
+    /// count belongs to the link it was made on, because a link that was restored after dropping is a
+    /// new bus.
+    pub dronecan: crate::dronecan::DronecanService,
 }
 
 impl Default for AppState {
@@ -267,6 +277,7 @@ impl Default for AppState {
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
             swarm,
+            dronecan: crate::dronecan::DronecanService::new(),
         }
     }
 }
@@ -1058,6 +1069,7 @@ mod tests {
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
             swarm: crate::swarm::SwarmService::new(),
+            dronecan: crate::dronecan::DronecanService::new(),
         };
 
         assert!(state
@@ -1104,6 +1116,7 @@ mod tests {
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
             swarm: crate::swarm::SwarmService::new(),
+            dronecan: crate::dronecan::DronecanService::new(),
         };
 
         // The hand: sixty-four characters are thirty-two bytes, and `zz` is not a pair of the
@@ -1192,6 +1205,7 @@ mod tests {
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
             swarm: crate::swarm::SwarmService::new(),
+            dronecan: crate::dronecan::DronecanService::new(),
         };
 
         let request = crate::swarm::SwarmRequest {
@@ -1241,6 +1255,7 @@ mod tests {
                 crate::plugins::PluginRuntime::new(plugin_folder()),
             )),
             swarm: crate::swarm::SwarmService::new(),
+            dronecan: crate::dronecan::DronecanService::new(),
         };
 
         let error = state

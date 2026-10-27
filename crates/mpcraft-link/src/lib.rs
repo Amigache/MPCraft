@@ -16,6 +16,7 @@
 //! | [`mission`] | The mission protocol |
 //! | [`home`] | The home position of a vehicle |
 //! | [`commands`] | The command protocol: arming, taking off, changing the mode |
+//! | [`dronecan`] | The nodes of a DroneCAN bus, read from what they report |
 //!
 //! # The concurrency model
 //!
@@ -59,6 +60,7 @@
 pub mod adsb;
 pub mod camera;
 pub mod commands;
+pub mod dronecan;
 pub mod error;
 pub mod ftp;
 pub mod gimbal;
@@ -84,6 +86,10 @@ pub use camera::{
     VIDEO_STREAM_INFORMATION_ID,
 };
 pub use commands::{Calibration, CommandError, DEFAULT_ARM_TIMEOUT, DEFAULT_COMMAND_TIMEOUT};
+pub use dronecan::{
+    health_name, mode_name, DronecanNode, DronecanRegistry, NodeInfo as DronecanNodeInfo,
+    NodeStatus as DronecanNodeStatus, GET_NODE_INFO_COMMAND, NODE_INFO_ID, NODE_STATUS_ID,
+};
 pub use error::LinkError;
 pub use ftp::{
     falls_back_from, refusal_of, says_the_end, FtpClient, FtpEntry, FtpError, FtpFile, FtpMessage,

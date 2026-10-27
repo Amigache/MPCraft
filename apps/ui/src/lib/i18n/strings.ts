@@ -105,7 +105,7 @@ const bundles: Record<Locale, Record<string, string>> = {
     Radio: "Radio",
     "Fail safe": "Seguridad",
     Mount: "Montura",
-    DroneCAN: "DroneCAN",
+    "The nodes of the bus…": "Los nodos del bus…",
     "The folder of tiles…": "La carpeta de las fichas…",
     "The folder of tiles could not be kept.":
       "No se pudo guardar la carpeta de las fichas.",
@@ -476,6 +476,28 @@ const bundles: Record<Locale, Record<string, string>> = {
       "La dirección de la fuente no es una que se pueda usar. MPCraft lee el tráfico de una dirección HTTP; un receptor que habla por una conexión simple no se lee.",
     "The distance round the vehicle is not one that can be used.":
       "La distancia alrededor del vehículo no es una que se pueda usar.",
+
+    // The sheet of the nodes of a DroneCAN bus.
+    "The nodes of the bus": "Los nodos del bus",
+    "Each node says how long it has been up and how it is. The station asks once when the link opens, and once more for a node that reported how it is without saying what it is; a number the dictionary does not give is shown as the number.":
+      "Cada nodo dice cuánto tiempo lleva activo y cómo está. La estación pregunta una vez cuando el enlace se abre, y otra vez por un nodo que dijo cómo está sin decir qué es; un número que el diccionario no da se muestra como el número.",
+    "How many times this link has asked":
+      "Cuántas veces ha preguntado este enlace",
+    "What this reading did": "Lo que hizo esta lectura",
+    "It put the ask on the wire": "Puso la pregunta en el cable",
+    "It read the bus and sent nothing": "Leyó el bus y no mandó nada",
+    "Read the bus": "Leer el bus",
+    "The bus has reported nothing.": "El bus no ha dicho nada.",
+    "the node has not said what it is": "el nodo no ha dicho qué es",
+    "How it is": "Cómo está",
+    "(no information behind it)": "(sin información detrás)",
+    "How long it has been up": "Cuánto tiempo lleva activo",
+    "What the vendor says": "Lo que dice el fabricante",
+    "The hardware version": "La versión del hardware",
+    "The software version": "La versión del software",
+    "The number that identifies this board":
+      "El número que identifica esta placa",
+    "The commit the build came from": "El commit del que salió la versión",
 
     // The sheet of the video streams.
     "The video streams of the vehicle": "Los canales de vídeo del vehículo",

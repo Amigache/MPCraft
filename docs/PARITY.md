@@ -400,10 +400,15 @@ board does not start.
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are
 listed the way the vehicle says them, the operator walks into them, and a file is
-brought to the disk of the computer. The protocol is not one the library of the project
-carries — the message is the 110th, and its seed is not among the ones the library
-knows — so it is written by hand as well: the header of the transfer, the opcodes, and
-the payload of each answer.
+brought to the disk of the computer. The protocol is written by hand as well — the header of
+the transfer, the opcodes, and the payload of each answer — because the message is the 110th and
+the seed is worked out by the rule rather than copied from the generator. What was said before
+about this is corrected now: the compiled dialect does carry the 110th, the 310th and the 311th,
+because it is generated from the canonical XML at build time rather than from an older snapshot,
+so the table of seeds is not what the runtime uses — `extra_crc` takes the seed from the generator
+first and reaches the table only for an id it does not carry. The table is there for the comparison,
+and the tests say the two agree, which is what makes the order the fields are read in a fact rather
+than a guess: a different order would give a different number.
 
 A refusal from that protocol travels as the numbers the vehicle named rather than as a sentence: the opcode the
 answer is for, the code from the dictionary, and the file-system number when the code says one is present. That is
@@ -532,6 +537,39 @@ of the corrections. The operator gives the address of the caster and the port of
 GPS of the vehicle, and the corrections are given to it. The position of the vehicle
 travels with the request, as a GGA sentence, so that the caster knows which corrections
 are wanted.
+
+The **nodes of a DroneCAN bus** are a sheet of their own, opened from the Setup menu: a vehicle
+with a CAN bus has devices on it that are not the autopilot, and the bus says what they are — how
+long each one has been up and how it is, and, when the station asks, what it says about itself: its
+name, its hardware and software versions, and the number its build carries. The two messages are read
+from the bytes rather than through the dialect, and not because the dialect does not carry them: it
+does, but it turns their health and mode into enumerations and refuses a number the dictionary does
+not give, so a node that reported `health = 5` would never reach the sheet — the generator answers
+`Invalid enum value for enum type "UavcanNodeHealth", got 5`. Upstream reads the same payload as
+bytes, and the order used here is the order the seed is worked out over: the rule gives 28 for the
+status and 95 for the information, and those are the numbers pymavlink's own generator publishes, so
+the order is a fact rather than a guess. The words the sheet shows are the names the dictionary gives
+the numbers, checked against the enumerations the generator builds rather than written twice, and a
+number the dictionary does not give is shown as the number rather than as a word invented for it.
+
+The **ask** goes to the pair the link chose for the vehicle, and nothing is waited for, because the
+dictionary says these answers can be lost and that a station notices by seeing a status with no
+matching information. The command is the one the published dictionary reserves for UAVCAN (5200), and
+it travels as it was written, through the raw path, because the dictionary also marks it superseded —
+by `MAV_CMD_REQUEST_MESSAGE`, since 2026-05 — so the code cannot name it without turning the
+dictionary's own note into a warning; the test reads the name from the dictionary instead of writing
+it down. When the ask goes out is a decision about what the interface shows, so it lives in the
+application: once when the link opens, once more for a node that reported how it is without saying
+what it is, and then stop, because a bus that will not answer is not answered by asking again. The
+count belongs to the link it was made on, since a link that was restored after dropping is a new bus.
+What the sheet shows is what the bus said and what the station asked, not what was last clicked, and
+the counts are written by the formatting module, as they are everywhere else.
+
+What the scripted peer can answer is what is asserted here: two nodes report themselves, one answers
+with what it is and the other does not, so the second reading asks and the third puts nothing on the
+wire, and the count starts again on a second link. What cannot be asserted is said rather than
+assumed: there is no physical CAN bus on this machine, so nothing here proves that a real node
+answers, and the row stays partial. The sheet is measured at 1920x1080 and at 1024x640 in Spanish.
 
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the

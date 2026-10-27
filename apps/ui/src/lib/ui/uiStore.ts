@@ -442,6 +442,12 @@ export interface UiStore {
   readonly showAdsb: () => void;
   /** Closes the sheet of the traffic of the air. */
   readonly hideAdsb: () => void;
+  /** Whether the sheet of the nodes of the bus is open over the window. */
+  readonly dronecanOpen: boolean;
+  /** Opens the sheet of the nodes of the bus. */
+  readonly showDronecan: () => void;
+  /** Closes the sheet of the nodes of the bus. */
+  readonly hideDronecan: () => void;
   /** Whether the sheet of the video streams is open over the window. */
   readonly videoOpen: boolean;
   /** Opens the sheet of the video streams. */
@@ -533,6 +539,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   ntripOpen: false,
   transponderOpen: false,
   adsbOpen: false,
+  dronecanOpen: false,
   videoOpen: false,
   cameraOpen: false,
   picturesOpen: false,
@@ -652,6 +659,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   showNtrip: () => set({ ntripOpen: true }),
   showTransponder: () => set({ transponderOpen: true }),
   showAdsb: () => set({ adsbOpen: true }),
+  showDronecan: () => set({ dronecanOpen: true }),
   showVideo: () => set({ videoOpen: true }),
   showCamera: () => set({ cameraOpen: true }),
   showPictures: () => set({ picturesOpen: true }),
@@ -673,6 +681,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   hideNtrip: () => set({ ntripOpen: false }),
   hideTransponder: () => set({ transponderOpen: false }),
   hideAdsb: () => set({ adsbOpen: false }),
+  hideDronecan: () => set({ dronecanOpen: false }),
   hideVideo: () => set({ videoOpen: false }),
   hideCamera: () => set({ cameraOpen: false }),
   hidePictures: () => set({ picturesOpen: false }),

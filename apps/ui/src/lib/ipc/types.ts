@@ -389,6 +389,61 @@ export interface AdsbRelayStatus {
   };
 }
 
+/**
+ * The pair that identifies one node of a DroneCAN bus.
+ *
+ * The pair keeps the names the Rust type gives it: the camelCase of a payload renames its own
+ * fields, not the struct it holds, so this is what the backend writes.
+ */
+export interface NodeKey {
+  readonly system_id: number;
+  readonly component_id: number;
+}
+
+/** One node the bus has reported. */
+export interface DronecanNode {
+  /** The pair that identifies the node, which is what upstream keeps it under. */
+  readonly vehicle: NodeKey;
+  /** How many seconds the node has been up, the last time it said. */
+  readonly uptimeSec: number;
+  /** What the node says about itself, as the dictionary numbers it. */
+  readonly health: number;
+  /** The name the dictionary gives that number, when it gives one. */
+  readonly healthName: string | null;
+  /** What the node is doing, as the dictionary numbers it. */
+  readonly mode: number;
+  /** The name the dictionary gives that number, when it gives one. */
+  readonly modeName: string | null;
+  /** The sub-mode, which the dictionary does not define. */
+  readonly subMode: number;
+  /** What the vendor says, which is the node's own number. */
+  readonly vendorSpecificStatusCode: number;
+  /** What the node says about itself, when it has said. */
+  readonly name: string | null;
+  readonly hwVersionMajor: number | null;
+  readonly hwVersionMinor: number | null;
+  /** The number that identifies this board, as the bytes say it. */
+  readonly hwUniqueId: string | null;
+  readonly swVersionMajor: number | null;
+  readonly swVersionMinor: number | null;
+  /** The commit the build came from, when the node has said it. */
+  readonly swVcsCommit: string | null;
+  /** Whether the node has answered with what it is. */
+  readonly infoMissing: boolean;
+}
+
+/** What the bus holds, and what the station has asked for it. */
+export interface DronecanReport {
+  /** The nodes the bus has reported, in the order the pairs sort in. */
+  readonly nodes: readonly DronecanNode[];
+  /** How many times the ask went out on this link. */
+  readonly asked: number;
+  /** Whether this reading put the ask on the wire. */
+  readonly sentNow: boolean;
+  /** The last failure, when there was one. */
+  readonly error: string | null;
+}
+
 /** One slot of the on-screen display of the vehicle. */
 export interface OsdSlot {
   /** The screen the slot is on: five and six are the ones the operator chooses. */

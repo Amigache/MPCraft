@@ -272,6 +272,8 @@ pub struct SessionState {
     pub gimbals: Vec<crate::gimbal::GimbalDevice>,
     /// The cameras the vehicle has reported.
     pub cameras: Vec<crate::camera::CameraDevice>,
+    /// The nodes of the DroneCAN bus the vehicle has reported.
+    pub dronecan: Vec<crate::dronecan::DronecanNode>,
     /// The request of the terrain the vehicle has made, when it has made one.
     pub terrain_request: Option<crate::terrain::TerrainRequest>,
     /// Whether the link is still open.
@@ -308,6 +310,8 @@ struct SessionContext {
     gimbals: crate::gimbal::GimbalRegistry,
     /// The cameras the vehicle has reported.
     cameras: crate::camera::CameraRegistry,
+    /// The nodes of the DroneCAN bus the vehicle has reported.
+    dronecan: crate::dronecan::DronecanRegistry,
     /// The request of the terrain the vehicle has made.
     terrain_request: Option<crate::terrain::TerrainRequest>,
     accountants: HashMap<VehicleId, LossAccountant>,
@@ -368,6 +372,24 @@ impl SessionContext {
         accountant.observe(frame.sequence, since_previous);
         self.loss = accountant.stats();
         self.last_packet_at = Some(now);
+
+        // The two messages of a DroneCAN bus are read from the bytes, not through the dialect. The
+        // compiled dialect does carry them — it is generated from the canonical XML at build time —
+        // but it turns their health and mode into enumerations and *refuses* a number the dictionary
+        // does not give, so a node reporting a value outside the dictionary would never reach the
+        // sheet. Upstream reads the same payload as bytes (`ToStructure`), and the order used here is
+        // the order the seed is worked out over, which pymavlink's own generator agrees on (28 and 95).
+        if frame.message_id == crate::dronecan::NODE_STATUS_ID {
+            let status = crate::dronecan::NodeStatus::decode(&frame.payload);
+            self.dronecan.observe_status(id, &status);
+            return;
+        }
+
+        if frame.message_id == crate::dronecan::NODE_INFO_ID {
+            let info = crate::dronecan::NodeInfo::decode(&frame.payload);
+            self.dronecan.observe_info(id, &info);
+            return;
+        }
 
         let Ok(message) = Dialect::parse(frame.version, frame.message_id, &frame.payload) else {
             return;
@@ -552,6 +574,7 @@ impl SessionContext {
             adsb: self.adsb.vehicles(),
             gimbals: self.gimbals.devices(),
             cameras: self.cameras.cameras(),
+            dronecan: self.dronecan.nodes(),
             terrain_request: self.terrain_request,
             connected,
         }
@@ -575,6 +598,7 @@ impl SessionState {
             adsb: Vec::new(),
             gimbals: Vec::new(),
             cameras: Vec::new(),
+            dronecan: Vec::new(),
             terrain_request: None,
             connected: false,
         }

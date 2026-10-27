@@ -1,16 +1,14 @@
-//! The messages MPCraft speaks that the compiled dialect does not carry.
+//! The seeds MPCraft works out from the specification, checked against the values the generator
+//! publishes.
 //!
-//! The dialect comes from the `mavlink` crate, which is generated from a snapshot of the
-//! MAVLink definitions. That snapshot is older than the protocol: the messages of the
-//! file transfer (`FILE_TRANSFER_PROTOCOL`, id 110) are not in it, although ArduPilot has
-//! spoken them for years and Mission Planner uses them for everything from reading a log
-//! to writing a mission.
-//!
-//! Two things are needed to speak such a message: its **id**, so that the frame can be
-//! addressed, and its **CRC_EXTRA**, so that the checksum of the frame can be worked out
-//! and checked. Both are fixed by the specification, and the seed is *computed* from the
-//! name of the message and the types of its fields — which is what this module does, so
-//! that the constant in the table is checked rather than trusted.
+//! The dialect comes from the `mavlink` crate, which generates its message definitions from the
+//! canonical XML at build time. As it stands the generator carries every message in the table
+//! below, so the table is not what the runtime uses: `extra_crc` takes the seed from the generator
+//! first, and reaches the table only for an id it does not carry. What the table is for is the
+//! comparison — the seed written here is *computed* from the name of the message and the types of
+//! its fields, by a rule written from the specification rather than copied from the generator, and
+//! the tests say the two agree. That agreement is what makes the field order a fact rather than a
+//! guess, because the seed is worked out over the fields in the order the wire writes them.
 //!
 //! ```text
 //! crc = x25crc(name + " ")
@@ -23,7 +21,7 @@
 //! The wire order is the order the fields are written in a frame: the widest first, and
 //! the order of the definition kept between fields of the same width.
 
-/// The messages outside the compiled dialect that MPCraft speaks.
+/// The messages whose seeds MPCraft computes, with the values the generator publishes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ForeignMessage {
     /// The message id, which is what a frame carries.
@@ -34,12 +32,24 @@ pub struct ForeignMessage {
     pub crc_extra: u8,
 }
 
-/// The messages outside the compiled dialect.
-pub const FOREIGN_MESSAGES: &[ForeignMessage] = &[ForeignMessage {
-    id: 110,
-    name: "FILE_TRANSFER_PROTOCOL",
-    crc_extra: 84,
-}];
+/// The messages this module checks, in the order the ids sort in.
+pub const FOREIGN_MESSAGES: &[ForeignMessage] = &[
+    ForeignMessage {
+        id: 110,
+        name: "FILE_TRANSFER_PROTOCOL",
+        crc_extra: 84,
+    },
+    ForeignMessage {
+        id: 310,
+        name: "UAVCAN_NODE_STATUS",
+        crc_extra: 28,
+    },
+    ForeignMessage {
+        id: 311,
+        name: "UAVCAN_NODE_INFO",
+        crc_extra: 95,
+    },
+];
 
 /// The message of the given id, when it is one of the foreign ones.
 #[must_use]
@@ -202,6 +212,60 @@ mod tests {
 
         assert_eq!(seed, 84);
         assert_eq!(foreign(110).map(|message| message.crc_extra), Some(seed));
+    }
+
+    #[test]
+    fn the_seeds_of_the_dronecan_nodes_are_the_ones_the_rule_and_a_second_reader_give() {
+        // The rule, written from the specification, and pymavlink's own generator give the
+        // same two numbers without being built from each other. That agreement settles the
+        // order the fields are written in as well, because the seed is worked out over the
+        // fields in that order: a different order would give a different number.
+        let status = crc_extra_of(
+            "UAVCAN_NODE_STATUS",
+            &[
+                ("time_usec", FieldType::U64, 0),
+                ("uptime_sec", FieldType::U32, 0),
+                ("health", FieldType::U8, 0),
+                ("mode", FieldType::U8, 0),
+                ("sub_mode", FieldType::U8, 0),
+                ("vendor_specific_status_code", FieldType::U16, 0),
+            ],
+        );
+        assert_eq!(status, 28, "the node status keeps its seed of 28");
+        assert_eq!(foreign(310).map(|message| message.crc_extra), Some(status));
+
+        let info = crc_extra_of(
+            "UAVCAN_NODE_INFO",
+            &[
+                ("time_usec", FieldType::U64, 0),
+                ("uptime_sec", FieldType::U32, 0),
+                ("name", FieldType::Char, 80),
+                ("hw_version_major", FieldType::U8, 0),
+                ("hw_version_minor", FieldType::U8, 0),
+                ("hw_unique_id", FieldType::U8, 16),
+                ("sw_version_major", FieldType::U8, 0),
+                ("sw_version_minor", FieldType::U8, 0),
+                ("sw_vcs_commit", FieldType::U32, 0),
+            ],
+        );
+        assert_eq!(info, 95, "the node information keeps its seed of 95");
+        assert_eq!(foreign(311).map(|message| message.crc_extra), Some(info));
+    }
+
+    #[test]
+    fn the_generator_publishes_the_same_seeds_as_the_rule() {
+        // Two implementations that were not built from each other: the rule written from the
+        // specification, and the code generated from the canonical XML. They agree on every message
+        // in the table, which is what makes the order the fields are read in a fact — a different
+        // order would give a different number.
+        for message in FOREIGN_MESSAGES {
+            assert_eq!(
+                crate::dialect::extra_crc(message.id),
+                Some(message.crc_extra),
+                "the generator disagrees with the rule for {}",
+                message.name
+            );
+        }
     }
 
     #[test]

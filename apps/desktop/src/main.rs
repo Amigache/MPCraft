@@ -2002,6 +2002,33 @@ async fn adsb_relay_status(
     Ok(state.adsb_relay.status())
 }
 
+/// Reads the nodes of the DroneCAN bus, and asks for what they are when the rule says to.
+///
+/// The ask goes out once when the link opens — the command answers with one message per node that is
+/// online — and once more for a node that has reported how it is without saying what it is, which is
+/// the case the dictionary says has to be asked for again. It is not asked forever: the sheet shows
+/// which nodes are still missing their information rather than putting a command on the wire every
+/// time it is read.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the link cannot carry
+/// the command.
+#[tauri::command]
+async fn dronecan_scan(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+) -> CommandResult<mpcraft_app::dronecan::DronecanReport> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    state.dronecan.scan(&session, vehicle).await
+}
+
 /// Asks the camera of the vehicle what video streams it has.
 ///
 /// The camera answers with a URI, and the size and frame rate of each stream. The
@@ -4476,6 +4503,7 @@ fn main() {
             adsb_relay_start,
             adsb_relay_stop,
             adsb_relay_status,
+            dronecan_scan,
             video_streams,
             video_stream_start,
             video_stream_stop,

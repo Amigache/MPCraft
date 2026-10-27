@@ -134,6 +134,7 @@ export function MenuBar() {
   const showNtrip = useUiStore((state) => state.showNtrip);
   const showTransponder = useUiStore((state) => state.showTransponder);
   const showAdsb = useUiStore((state) => state.showAdsb);
+  const showDronecan = useUiStore((state) => state.showDronecan);
   const showVideo = useUiStore((state) => state.showVideo);
   const showCamera = useUiStore((state) => state.showCamera);
   const showPictures = useUiStore((state) => state.showPictures);
@@ -809,10 +810,10 @@ export function MenuBar() {
         },
         {
           id: "setup-dronecan",
-          label: t("DroneCAN"),
+          label: t("The nodes of the bus…"),
           onSelect: () => {
             close();
-            showParameterPrefix("CAN_");
+            showDronecan();
           },
           disabled: false,
           checked: undefined,
