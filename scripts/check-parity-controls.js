@@ -4,9 +4,9 @@
  * unmutated matrix is shown passing. Both directions, or neither.
  *
  * What these prove, and what they do not: they prove each rule can fire and that the matrix as it
- * stands satisfies them. They do not prove a row is right about what upstream does — the check
- * reads the table, not the code, so a row that claims a feature is done when it is not is outside
- * of what these controls buy.
+ * stands satisfies them, and they prove the checker names its own reach in what it reports. They do
+ * not prove a row is right about what upstream does — the check reads the table, not the code, so a
+ * row that claims a feature is done when it is not is outside of what these controls buy.
  */
 
 import { readFileSync } from "node:fs";
@@ -136,6 +136,63 @@ checks.push({
   saw: crlfResult.faults,
 });
 
+/*
+ * The checker's own report names what it cannot reach, which is the same rule the other readings carry: a gate
+ * that says nothing about its reach is a gate whose green is read as more than it buys. A limit that is not
+ * there, and a limit that names only what the table can be compared against, are both findings, and each is put
+ * in front of the reading as a copy of the checker so the checker as it stands is never disturbed.
+ */
+function readsItsOwnLimit(source) {
+  const said = source.match(/const LIMIT =\s*\n?\s*"([^"]*)"/);
+
+  if (said === null) {
+    return "names no limit";
+  }
+
+  return /judgement about the code/.test(said[1])
+    ? null
+    : `names a limit that does not say what it cannot reach: ${said[1]}`;
+}
+
+const checker = readFileSync(
+  new URL("./check-parity.js", import.meta.url),
+  "utf8",
+);
+const sentence = checker.match(/const LIMIT =\s*\n?\s*"[^"]*"/)?.[0];
+
+checks.push({
+  claim: "the parity checker names what it cannot reach in what it reports",
+  ok: readsItsOwnLimit(checker) === null && sentence !== undefined,
+  saw: { limit: readsItsOwnLimit(checker) },
+});
+
+checks.push({
+  claim: "the reading fires on a checker that names no limit at all",
+  ok:
+    readsItsOwnLimit(checker.replace(sentence, "const LIMIT = null;")) ===
+    "names no limit",
+  saw: readsItsOwnLimit(checker.replace(sentence, "const LIMIT = null;")),
+});
+
+checks.push({
+  claim:
+    "and on a limit that names only what the table can be compared against",
+  ok:
+    readsItsOwnLimit(
+      checker.replace(
+        sentence,
+        'const LIMIT =\n  "the counts are worked out from the rows.";',
+      ),
+    ) ===
+    "names a limit that does not say what it cannot reach: the counts are worked out from the rows.",
+  saw: readsItsOwnLimit(
+    checker.replace(
+      sentence,
+      'const LIMIT =\n  "the counts are worked out from the rows.";',
+    ),
+  ),
+});
+
 const fails = checks.filter((entry) => !entry.ok);
 
 console.log(
@@ -145,7 +202,7 @@ console.log(
       verdict: fails.length === 0 ? "PASS" : "FAIL",
       fails,
       limit:
-        "these prove each rule can fire and that the matrix satisfies them. They do not prove a row is right about what upstream does.",
+        "these prove each rule can fire and that the matrix satisfies them, and that the checker names its own reach in what it reports. They do not prove a row is right about what upstream does, and they do not read the limit sentence as anything but text: the known-bad copies are copies of the checker, so nothing of the checker as it stands is executed with its limit taken out.",
     },
     null,
     2,

@@ -132,6 +132,14 @@ function check(text) {
 }
 
 /**
+ * What the reading cannot reach, said in what it reports rather than only in its header: a row that is wrong
+ * about what upstream does is a judgement about the code, and a place named by the matrix cannot be checked
+ * against upstream here, because upstream is not on this machine.
+ */
+const LIMIT =
+  "the counts are worked out from the rows, so a summary that disagrees with them is a finding. What this cannot see is a row that is wrong about what upstream does, which is a judgement about the code, and a place the matrix names that is no longer there upstream, because upstream is not on this machine.";
+
+/**
  * Runs the check on a file when the script is run, so that the controls can call `check` on a
  * copy without writing anything to the disk.
  */
@@ -145,6 +153,7 @@ function main() {
         file: path,
         ...result,
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
+        limit: LIMIT,
       },
       null,
       2,
