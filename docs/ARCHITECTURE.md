@@ -291,6 +291,8 @@ every reader of that event reads through. A field spelled two ways is a value th
 and `scripts/check-contract.js` reads both sides against each other — the events listened to against the
 events emitted, and the documents field by field, including the ones that reach the frontend under another
 name, where the pair is what the same field says on both sides (`Telemetry` read against `TelemetryEvent`).
+A command crosses the boundary the same way, so the calls are read too: every call goes to a command that
+answers, and the document a call reads the answer as is compared with the document that command answers with.
 
 ### 5.3 Frontend state
 

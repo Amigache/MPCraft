@@ -7,7 +7,7 @@
  * said the same thing, and the drift that this gate found was not a style disagreement — it was a field
  * that arrives spelled one way and is read another, which is a value the interface never gets.
  *
- * What it reads, and the six things it asserts:
+ * What it reads, and the seven things it asserts:
  *
  *   - Every event the frontend listens to is one the backend emits. A listener for a name nothing
  *     emits is a subscription to a channel that will never answer.
@@ -28,14 +28,19 @@
  *     interface cannot get, and that is a finding whether the pair shares a name or not; a field the struct
  *     writes and the contract does not declare is said as a fact, because JSON carries what the interface
  *     does not ask for.
+ *   - A command crosses the boundary as well: it answers with a document and reads one. Every call the
+ *     frontend makes is to a command the backend answers, and the document the call reads the answer as is
+ *     compared with the document that command answers with. A shape written at the call site has no name, so
+ *     there is no answer to read it against, and that is refused rather than skipped.
  *
  * What this cannot see, and is said rather than pretended otherwise. It reads sources as text, so a
  * rename applied through a helper macro or a field written by a manual `Serialize` implementation is not
- * seen; a pairing only exists where a field names a document on both sides, so a document the contract
- * declares and no field names is not compared — which is the case for the documents read through a command's
- * answer rather than through a field; a shape written inside a document is refused, because nothing names it,
- * and that is the whole of what can be said about it without a name; and whether an event actually reaches a
- * window is outside of what a reading of two source files can say.
+ * seen; a pairing only exists where a field names a document on both sides or where a call reads one, so a
+ * document the contract declares and nothing names is not compared — which is the case for the error shape,
+ * read as `CommandError` while the wire carries it inside a result rather than as an answer of its own; a
+ * shape written inside a document is refused, because nothing names it, and that is the whole of what can be
+ * said about it without a name; and whether an event actually reaches a window is outside of what a reading of
+ * two source files can say.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -202,6 +207,38 @@ function emittedEvents(main, structs) {
   return { events, constants };
 }
 
+/** The commands the backend answers, and the document each one answers with. */
+function answeredCommands(main, documents) {
+  const out = new Map();
+
+  for (const match of main.matchAll(
+    /#\[tauri::command\]\n(?:pub )?async fn (\w+)\([^)]*\) -> ([^\n{]+)/g,
+  )) {
+    out.set(match[1], firstDocument(match[2], documents));
+  }
+
+  return out;
+}
+
+/** The commands the frontend calls, and the document each call reads the answer as. */
+function calledCommands(docs, contract) {
+  const calls = [];
+
+  for (const [path, text] of Object.entries(docs)) {
+    if (!path.startsWith("apps/ui/")) {
+      continue;
+    }
+
+    for (const match of text.matchAll(
+      /(?:call|invoke)<([^>]+)>\(\s*\n?\s*"([a-z_]+)"/g,
+    )) {
+      calls.push({ path, type: match[1].trim(), command: match[2] });
+    }
+  }
+
+  return calls;
+}
+
 /** The events the frontend listens to, and the shape each listener declares for them. */
 function listenedEvents(docs) {
   const listeners = [];
@@ -364,19 +401,73 @@ export function check(docs) {
      `StateEvent.telemetry` is read as `Telemetry` and written as `TelemetryEvent`, so the pair is not a
      guess — it is what the same field says on both sides — and the fields of that pair are compared like
      the fields of any other. */
-  const pairs = new Map();
+  const pairList = [];
+  const seenPairs = new Set();
   const inlineShapes = [];
+  const unpairedCalls = [];
+
+  function addPair(document, struct) {
+    const key = `${document}→${struct}`;
+
+    if (seenPairs.has(key)) {
+      return;
+    }
+
+    seenPairs.add(key);
+    pairList.push([document, struct]);
+  }
 
   for (const name of contract.keys()) {
     if (reachable.has(name)) {
-      pairs.set(name, name);
+      addPair(name, name);
     }
   }
 
-  const walk = [...pairs.entries()];
+  /* Rule 7: a command crosses the boundary as well — it answers with a document and reads one — so the pair a
+     call site makes is read the same way as the pair an event carries. A call to a name nothing answers is a
+     call that will never be answered, and a shape written at the call site has no name, so it is refused rather
+     than skipped. */
+  const commands = answeredCommands(docs[FILES.boundary], structs);
+  const calls = calledCommands(docs, contract);
 
-  while (walk.length > 0) {
-    const [document, struct] = walk.shift();
+  facts.commands = commands.size;
+  facts.calls = calls.length;
+  facts.commandsNotCalled = [...commands.keys()]
+    .filter((name) => !calls.some((call) => call.command === name))
+    .sort();
+
+  for (const call of calls) {
+    const answered = commands.get(call.command);
+
+    if (answered === undefined) {
+      faults.push(
+        `${call.path} calls "${call.command}", which nothing answers`,
+      );
+      continue;
+    }
+
+    if (call.type.includes("{")) {
+      inlineShapes.push(`"${call.command}" in ${call.path}`);
+      faults.push(
+        `${call.path} reads "${call.command}" as a shape written at the call site, which nothing names, so its fields cannot be read against the command that answers`,
+      );
+      continue;
+    }
+
+    const document = firstDocument(call.type, contract);
+
+    if (document === null || answered === null || !structs.has(answered)) {
+      /* The answer is not read as a document here: a primitive, or a command answered with one and read as
+         something else. That is said as a fact, not as a fault. */
+      unpairedCalls.push(`${call.command} (${call.path})`);
+      continue;
+    }
+
+    addPair(document, answered);
+  }
+
+  for (let index = 0; index < pairList.length; index += 1) {
+    const [document, struct] = pairList[index];
     const declared = contract.get(document);
     const value = structs.get(struct);
 
@@ -408,16 +499,13 @@ export function check(docs) {
         continue;
       }
 
-      if (!pairs.has(tsDocument)) {
-        pairs.set(tsDocument, rustDocument);
-        walk.push([tsDocument, rustDocument]);
-      }
+      addPair(tsDocument, rustDocument);
     }
   }
 
   const gaps = [];
 
-  for (const [document, struct] of pairs) {
+  for (const [document, struct] of pairList) {
     const declared = contract.get(document);
     const value = structs.get(struct);
 
@@ -472,8 +560,10 @@ export function check(docs) {
     }
   }
 
+  const pairedDocuments = new Set(pairList.map(([document]) => document));
+
   for (const name of contract.keys()) {
-    if (pairs.has(name)) {
+    if (pairedDocuments.has(name)) {
       continue;
     }
 
@@ -490,16 +580,17 @@ export function check(docs) {
   }
 
   facts.comparedFields = compared;
-  facts.pairings = [...pairs.entries()]
+  facts.pairings = pairList
     .filter(([document, struct]) => document !== struct)
     .map(([document, struct]) => pair(document, struct))
     .sort();
-  facts.pairedDocuments = [...pairs.keys()].sort();
+  facts.pairedDocuments = [...pairedDocuments].sort();
   facts.unpairedDocuments = unpaired.sort();
   facts.inlineShapes = inlineShapes.sort();
   facts.gaps = gaps.sort((a, b) =>
     `${a.pair}.${a.field}`.localeCompare(`${b.pair}.${b.field}`),
   );
+  facts.unpairedCalls = unpairedCalls.sort();
 
   /* Rule 5: a document is declared once, by the contract. */
   for (const [path, text] of Object.entries(docs)) {
@@ -565,7 +656,7 @@ if (
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         faults: result.faults,
         limit:
-          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides, so a document the contract declares and no field names — the ones read through a command's answer rather than through a field — is not compared; a shape written inside a document is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact rather than a fault; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
+          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides or where a call reads one, so a document the contract declares and nothing names is not compared — three are today: CommandError, reached as the error half of a result rather than as an answer of its own, and FormationRequest and TileBounds, which no call reads through them; a shape written inside a document or at a call site is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact rather than a fault; a command nothing calls is said as a fact, because the rule reads calls from the frontend towards the backend and not the other way round; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
       },
       null,
       2,

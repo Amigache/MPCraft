@@ -1289,19 +1289,22 @@ document, declared by the contract, and each field that crosses the boundary is 
 says rather than through its casing, so `system_id` and `systemId` are read as the same field and then
 required to agree; and the rule that the boundary speaks camelCase is read in both directions, because a
 command reads a document as well as answers with one. What the reading covers is 108 documents reachable from
-the boundary, 76 of them paired and 373 fields across those pairs, and what it does not cover is said rather
+the boundary, 99 of them paired and 470 fields across those pairs, and what it does not cover is said rather
 than pretended otherwise: a rename applied through a macro or a manual `Serialize` implementation, a document
-the contract declares and no field names, and what the boundary does not reach — the settings file and the log
-formats keep their own spellings and are not read here. The gate (`scripts/check-contract.js`) is shown firing
-on each thing it claims to catch — a listener for a name nothing emits, a listener holding a shape of its
-own, one event read as two documents, a contract field with an underscore in it, a struct the boundary reaches
-writing the pair with underscores on both crates, a file declaring its own copy of a document the contract
-already declares, and a pair where the document the reader declares for a field is not the one the writer sends
-through it — and the sources as they stand are shown passing. The runner scopes this gate with a folder,
-because the documents that cross
-the boundary are reached through types the crates declare, and the control shows a file inside that folder
-being read as touched rather than the gate saying it had nothing to say. Both sides carry a test written down
-before the rule was called: the crates assert the keys they write for the pair, and the store updates from a
+the contract declares and nothing names — `CommandError`, reached as the error half of a result rather than as an
+answer of its own, and `TileBounds`, which no call reads through it — and what the boundary does not reach — the
+settings file and the log formats keep their own spellings and are not read here. The gate
+(`scripts/check-contract.js`) is shown firing on each thing it claims to catch — a listener for a name nothing
+emits, a listener holding a shape of its own, one event read as two documents, a contract field with an
+underscore in it, a struct the boundary reaches writing the pair with underscores on both crates, a file
+declaring its own copy of a document the contract already declares, a pair where the document the reader
+declares for a field is not the one the writer sends through it, an anonymous shape put back inside a document,
+a call to a name nothing answers, a shape written at a call site, and the pair a call makes compared against the
+command that answers it — and the sources as they stand are shown passing. The runner scopes this gate with a
+folder, because the documents that cross the boundary are reached through types the crates declare, and the
+control shows a file inside that folder being read as touched rather than the gate saying it had nothing to
+say. Both sides carry a test written down before the rule was called: the crates assert the keys they write for
+the pair, and the store updates from a
 payload read as bytes with those spellings — which is what a reader holding its own shape could not do — while
 the play-back is read through the same document the contract declares, so a tick of the link during a
 play-back does not take the window back from the flight being shown. Whether an event reaches a window is
@@ -1320,10 +1323,19 @@ does not ask for, and nothing today is on that side. Four places that were shape
 now — `AdsbRelaySettings`, `MessageCount`, `TransponderSettings` and `UnreadPlace` — because an anonymous shape
 has no struct to be read against, and the rule refuses one rather than skipping it: the control shows
 `TransponderStatus.settings` refused when it is put back as a shape, and the sources are shown naming what they
-declare. What the rule still cannot see is said rather than pretended otherwise: of the 101 documents the
-contract declares, 76 are paired with 373 fields compared and the 25 left are the ones nothing names, which are
-the documents read through a command's answer rather than through a field; the gate reads events from both sides
-today, and a call is not yet one of those sides.
+declare. A call crosses the boundary the same way an event does — it answers with a document and reads one — so
+the pair a call site makes is read like the pair an event carries, and that is the seventh thing the gate asserts:
+of the 136 commands the backend answers, 135 are called from the frontend and every call goes to a name that is
+answered; 99 documents are paired with 470 fields compared, and `PartialUpdateInfo` is named now because the call
+that reads the answer of `upload_mission_partial` held its shape at the call site rather than a name, which is the
+same class of drift as a listener holding a shape of its own and is refused rather than skipped. What is said as a
+fact rather than as a fault: `connection_status` is a command nothing in the frontend calls, because the rule reads
+calls from the interface towards the backend and not the other way round, and the two documents nothing names are
+`CommandError`, reached as the error half of a result rather than as an answer of its own, and `TileBounds`, which
+no call reads through it. Each of the three call controls is shown firing — a call to a name nothing answers, a
+shape written at the call site, and the pair the call makes compared field by field against the command that
+answers it (`Plan↔PlanInfo.items`) — and the sources are shown passing. The gate reads events from both sides, and
+now reads calls from both sides too.
 
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read

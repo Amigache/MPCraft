@@ -39,6 +39,7 @@ import type {
   Parameter,
   ParameterDifference,
   ParameterMetadata,
+  PartialUpdateInfo,
   PicturePlace,
   Plan,
   PlanItem,
@@ -708,8 +709,8 @@ export async function uploadMissionPartial(
   start: number,
   items: readonly PlanItem[],
   vehicle?: VehicleKey,
-): Promise<{ start: number; accepted: number[] }> {
-  return call<{ start: number; accepted: number[] }>("upload_mission_partial", {
+): Promise<PartialUpdateInfo> {
+  return call<PartialUpdateInfo>("upload_mission_partial", {
     ...vehicleRequest(vehicle),
     kind,
     start,

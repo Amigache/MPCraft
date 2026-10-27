@@ -1232,6 +1232,14 @@ export interface Plan {
   readonly items: readonly PlanItem[];
 }
 
+/** What a partial update of a plan was. */
+export interface PartialUpdateInfo {
+  /** The first item that was written. */
+  readonly start: number;
+  /** The items the vehicle took. */
+  readonly accepted: readonly number[];
+}
+
 /** The vehicle a command is for. */
 export interface VehicleRequest {
   /** The system id of the vehicle. Omit it for the primary one on the link. */
