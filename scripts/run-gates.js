@@ -11,8 +11,8 @@
  *                         touched that is a failure of evidence, not a pass.
  *     SUSTITUIDA          something else stands in for this gate; what stands in is named,
  *                         because a substitute covers less than the thing it replaces.
- *     BLOQUEADO           the gate could run and did not, because the thing it measures was busy
- *                         (an artifact locked by the running application). Not a fault in the code.
+ *     BLOQUEADO           the gate could run and did not, because the thing it measures was busy —
+ *                         an artifact held by another process, which is not a fault in the code.
  *
  * Two more things are said rather than assumed: what each gate has as its negative control — the
  * known-bad case that proves it can fail — and what its green actually rests on, which is a count
@@ -68,7 +68,8 @@ const GATES = [
     probe: ["--version"],
     args: ["run", "typecheck"],
     cwd: UI,
-    control: null,
+    control:
+      "scripts/check-tool-controls.js: a value that is not the type its declaration says, shown firing and the sources passing after it is put back",
   },
   {
     name: "frontend lint",
@@ -99,7 +100,8 @@ const GATES = [
     command: "npx",
     probe: ["prettier", "--version"],
     cwd: ROOT,
-    control: null,
+    control:
+      "scripts/check-tool-controls.js: a word written with the quotes prettier is asked not to use — its green rests on the exit code, so this case shows the exit code turning. scripts/run-gates-controls.js: a file held by another process, which turns the state to BLOQUEADO and is measured again once the handle is let go",
   },
   {
     name: "frontend tests",
@@ -319,7 +321,8 @@ const GATES = [
     probe: [TOOLCHAIN, "--version"],
     args: [TOOLCHAIN, "fmt", "--check"],
     cwd: ROOT,
-    control: null,
+    control:
+      "scripts/check-tool-controls.js: a line with one space too many, which rustfmt reads as a difference and clippy does not read at all — the file has to be one the crate already holds, because cargo fmt walks the module tree rather than a folder",
   },
   {
     name: "rust lints",
@@ -329,7 +332,8 @@ const GATES = [
     needs: ["gcc"],
     args: [TOOLCHAIN, "clippy", "--all-targets", "--", "-D", "warnings"],
     cwd: ROOT,
-    control: null,
+    control:
+      "scripts/check-tool-controls.js: a boolean expression that says itself twice, which -D warnings turns into a failure, on a file formatted as the formatting gate expects so that only the lint can speak",
   },
   {
     name: "rust tests",
@@ -339,7 +343,8 @@ const GATES = [
     needs: ["gcc"],
     args: [TOOLCHAIN, "test"],
     cwd: ROOT,
-    control: null,
+    control:
+      "scripts/check-tool-controls.js: a test that fails; the report is written behind the first line the runner keeps, so this case buys the flip rather than the finding",
     /** The count of test binaries that said ok, which is what its green means. */
     proof: (text) => (text.match(/test result: ok\./g) ?? []).length,
   },
@@ -521,14 +526,19 @@ function assess(gate) {
     return entry;
   }
 
-  /** An artifact locked by the running application says nothing about the code. */
+  /**
+   * An artifact that could not be read or written because something else holds it says nothing about
+   * the code. Both spellings of a busy artifact are read: the sharing violation a tool reports when it
+   * cannot open a file, and the one cargo reports when it cannot overwrite a build output.
+   */
   if (
-    /failed to run custom build command|being used by another process/i.test(
+    /failed to run custom build command|being used by another process|resource busy or locked/i.test(
       answer.failed,
     )
   ) {
     entry.state = "BLOQUEADO";
-    entry.why = "the build output was locked, so nothing was measured";
+    entry.why =
+      "the artifact was held by another process, so nothing was measured";
     entry.detail = firstLine(answer.failed);
     return entry;
   }

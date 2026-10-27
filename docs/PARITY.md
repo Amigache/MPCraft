@@ -1408,6 +1408,31 @@ and a key at a call site that no argument reads — and the helper is read throu
 because nothing names that shape, which is what lets a call built by it still be compared with the command that
 answers it.
 
+The **gates that read a tool** — typescript, prettier, the rust formatting, the lints, and the rust tests — had no
+known-bad case, and a gate whose green is its exit code alone is a gate that cannot fail. Each of the five now has
+one (`scripts/check-tool-controls.js`), and each is shown failing on its case and passing afterwards with the file as
+it was. A tool gate can only be shown failing on something the tool reaches, and that is what decides how each case
+is written: a Rust file that no module declares is neither compiled nor formatted, so the two Rust cases disturb a
+file the crate already holds — a line with one space too many, which rustfmt reads as a difference and clippy does
+not read at all, and a boolean expression that says itself twice, which `-D warnings` turns into a failure on a file
+formatted as the formatting gate expects, so only the lint can speak — while `tsc` takes everything under `src`,
+`cargo test` takes every file in a `tests` folder as its own target, and prettier takes whatever it is named. Only
+one of the five shows the finding itself, because the runner keeps the first line of what a tool says: npm answers
+before the compiler, prettier opens with its heading, cargo may open with what it compiled, and the report of the
+test that failed comes behind whatever cargo printed first, so those four buy the flip and nothing more. And a
+scratch file cannot be shown passing after it is gone, so the pass side names a file that is still there rather than
+the one that was written.
+
+BLOQUEADO is exercised too, and with a real lock rather than with a string that looks like one (`scripts/run-gates-controls.js`):
+one file the prettier gate reads is held by a separate process that opens it with no sharing at all, and the control
+waits until its own attempt to open the same file answers with the sharing violation — which is what makes the lock a
+fact before anything is asserted — and then the same gate is measured again on the same file once nothing holds it.
+The rule reads both spellings of a busy artifact, the sharing violation a tool reports when it cannot open a file and
+the one cargo reports when it cannot overwrite a build output, and the state is a gap rather than a pass. What this
+exercises is the rule that reads a busy artifact as a gap, not a file locked by MPCraft itself: Node cannot choose the
+share mode of a handle, so the process holding it is the control's own, and the application is not running here. The
+case shows the flip rather than the finding, because prettier opens with its heading.
+
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read
 against `Script.cs` as published (220 lines), and nothing here says anything about a running engine: the

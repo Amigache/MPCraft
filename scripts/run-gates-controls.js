@@ -12,15 +12,25 @@
  *                          documents, is shown answering for a file inside it
  *     which count it reads   a report where the unit tests passed and the live areas failed is read as
  *                          the live areas, because those are the ones a vehicle answered
+ *     a busy artifact      one file is held by a separate process with no sharing at all, so the gate could
+ *                          run and did not; the same file is measured again once the handle is let go
  *
  * What these prove, and what they do not: they prove the states are reachable and that the exit
  * code follows them. They do not prove that a gate that runs is strong — a gate whose green rests
- * on a count it cannot fail on is outside of what these cases buy, and BLOQUEADO is not exercised
- * here because it needs an artifact genuinely locked by the running application.
+ * on a count it cannot fail on is outside of what these cases buy. The lock is real, but the process
+ * holding it is the control's own rather than the running application, because Node cannot choose the
+ * share mode of a handle and the application is not running here; so what this exercises is the rule
+ * that reads a busy artifact as a gap rather than as green, not a file locked by MPCraft itself.
  */
 
-import { execFileSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { lineMatching, resultForSection } from "./gate-proof.js";
@@ -215,6 +225,102 @@ checks.push({
   saw: {
     verdict: missingTool.verdict,
     gate: stateOf(missingTool, "rust lints"),
+  },
+});
+
+/*
+ * BLOQUEADO, shown with a genuine lock rather than with a string that looks like one. Node cannot choose the
+ * share mode of a handle, so the artifact is held by a separate process that opens it with no sharing at all;
+ * the control waits until its own attempt to open the same file answers with the sharing violation, which is
+ * what proves the lock is real before anything is asserted. The file is prettier-clean on purpose, so the only
+ * thing the gate can say about it is that it could not be read.
+ */
+const lockedFile = "apps/ui/src/lib/i18n/__control_lock__.ts";
+const lockedPath = fileURLToPath(new URL(lockedFile, ROOT));
+
+writeFileSync(
+  lockedPath,
+  'export const say = "a word that is clean until something else holds the file";\n',
+  "utf8",
+);
+
+let blocked = null;
+let after = null;
+let held = null;
+let releasedTheLock = false;
+const holder = spawn(
+  "powershell",
+  [
+    "-NoProfile",
+    "-Command",
+    `[IO.File]::Open('${lockedPath}', 'Append', 'Write', 'None'); Start-Sleep -Seconds 30`,
+  ],
+  { stdio: "ignore" },
+);
+
+try {
+  /* The lock is only a fact once this process cannot open the file either. */
+  for (let attempt = 0; attempt < 40 && held === null; attempt += 1) {
+    try {
+      closeSync(openSync(lockedPath, "r"));
+    } catch (cause) {
+      if (cause.code === "EBUSY") {
+        held = cause.code;
+        break;
+      }
+    }
+
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+  }
+
+  blocked = run([lockedFile], ["prettier"]);
+
+  /* A file cannot be removed while something else holds it, so the handle is let go first and the control
+     waits until its own open answers normally again — the same reading that proved the lock, from the other
+     side. The gate runs on the file that is still there, because a file that is gone is not a file that was
+     measured again. */
+  holder.kill();
+
+  for (let attempt = 0; attempt < 40 && !releasedTheLock; attempt += 1) {
+    try {
+      closeSync(openSync(lockedPath, "r"));
+      releasedTheLock = true;
+    } catch {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+    }
+  }
+
+  after = run([lockedFile], ["prettier"]);
+} finally {
+  rmSync(lockedPath, { force: true });
+}
+
+checks.push({
+  claim:
+    "an artifact genuinely held by another process says BLOQUEADO, and that is a gap rather than a pass",
+  ok:
+    held === "EBUSY" &&
+    stateOf(blocked, "prettier") === "BLOQUEADO" &&
+    blocked.verdict === "FAIL",
+  saw: {
+    lock: held,
+    verdict: blocked?.verdict,
+    gate: stateOf(blocked, "prettier"),
+    detail: blocked?.gates?.[0]?.detail,
+  },
+});
+
+checks.push({
+  claim: "the same gate measures the file again once nothing holds it",
+  ok:
+    releasedTheLock &&
+    stateOf(after, "prettier") === "PASS" &&
+    !existsSync(lockedPath),
+  saw: {
+    lock: releasedTheLock ? "let go" : "still held",
+    verdict: after.verdict,
+    gate: stateOf(after, "prettier"),
+    leftBehind: existsSync(lockedPath) ? "still there" : "gone",
   },
 });
 
@@ -445,7 +551,7 @@ console.log(
       verdict: fails.length === 0 ? "PASS" : "FAIL",
       fails,
       limit:
-        "these prove the states are reachable and the exit code follows them. They do not prove any gate is strong, and BLOQUEADO is not exercised.",
+        "these prove the states are reachable and the exit code follows them. They do not prove any gate is strong. The busy artifact is a real sharing violation held by a separate process, because Node cannot choose the share mode of a handle, so what it exercises is the rule that reads a busy artifact as a gap rather than as green — not a file locked by the running application, which is not running here.",
     },
     null,
     2,
