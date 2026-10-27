@@ -1349,6 +1349,26 @@ shape written at the call site, and the pair the call makes compared field by fi
 answers it (`Plan↔PlanInfo.items`) — and the sources are shown passing. The gate reads events from both sides, and
 now reads calls from both sides too.
 
+The **way in** is read as well, and the direction changes what a field means: on the way back a field the struct
+carries and the contract does not declare is only a fact, because JSON carries what the interface does not ask for,
+and on the way in it is a finding, because the backend expects a value the interface never sends — the same class as
+a field the reader asks for and the writer never sends, seen from the other side. That is the eighth thing the gate
+asserts, and the side is kept as its own fact rather than assumed, because the same document can be answered by one
+command and read by another. Of the 148 typed arguments of the 136 commands, 66 are read through a document, and the
+pair is not a table written here: either the argument names a name the contract declares (`ConnectRequest` and
+`VehicleRequest`, which together carry most of them) or a field says the pair for it — `ConnectionProfile↔ProfileEvent`
+through `set_connection_profiles`, and `GeoPoint↔PositionEvent` through `set_home_position` and `dted_path`. The other
+82 are said as facts: 63 are primitives or the application handle, nine carry `PlanKind` (which the contract declares
+as a union of words rather than an interface), and ten are read through a struct the contract has no name for —
+`PlanItemRequest`, `OsdSlotRequest`, `SwarmRequest`, `SigningKeyEvent` and `ParamChange` — where the interface sends a
+shape a call site decided, so there is nothing to compare it against. What the reading cannot see is said rather than
+pretended otherwise: which fields the interface actually puts on the wire at a call site is not read here, because the
+calls pass object literals built by a helper, so a field a call adds outside a document is not compared. Both halves of
+the way in are shown firing — `VehicleRequest.nothingTheInterfaceSends`, expected by the struct and never declared, and
+`VehicleRequest.nothingTheStructNeverReads`, declared as what the interface sends and never read — and the sources are
+shown passing with the same 99 paired documents and 470 fields, which says that this rule found nothing to complain
+about today: it is the rule that would say it if a request grew a field nobody sends.
+
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read
 against `Script.cs` as published (220 lines), and nothing here says anything about a running engine: the

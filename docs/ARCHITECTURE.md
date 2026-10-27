@@ -293,6 +293,12 @@ events emitted, and the documents field by field, including the ones that reach 
 name, where the pair is what the same field says on both sides (`Telemetry` read against `TelemetryEvent`).
 A command crosses the boundary the same way, so the calls are read too: every call goes to a command that
 answers, and the document a call reads the answer as is compared with the document that command answers with.
+A command also *reads* a document through its argument, and the direction changes what a field means: a field the
+struct carries and the contract does not declare is a fact on the way back and a finding on the way in, because on
+the way in it is a value the backend expects and the interface never sends. The side is kept as its own fact rather
+than assumed, since one document can be answered by one command and read by another, and the pair an argument makes
+comes from what its name says — the contract's own name, or the pair its field says — never from a table written by
+the gate.
 
 ### 5.3 Frontend state
 

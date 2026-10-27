@@ -7,7 +7,7 @@
  * said the same thing, and the drift that this gate found was not a style disagreement — it was a field
  * that arrives spelled one way and is read another, which is a value the interface never gets.
  *
- * What it reads, and the seven things it asserts:
+ * What it reads, and the eight things it asserts:
  *
  *   - Every event the frontend listens to is one the backend emits. A listener for a name nothing
  *     emits is a subscription to a channel that will never answer.
@@ -32,15 +32,23 @@
  *     frontend makes is to a command the backend answers, and the document the call reads the answer as is
  *     compared with the document that command answers with. A shape written at the call site has no name, so
  *     there is no answer to read it against, and that is refused rather than skipped.
+ *   - The way in changes what a field means. On the way back a field the struct carries and the contract
+ *     does not declare is only a fact, because JSON carries what the interface does not ask for; on the way
+ *     in it is a finding, because the backend expects a value the interface never sends — which is the same
+ *     class as a field the reader asks for and the writer never sends, seen from the other side. The
+ *     argument's own name is what pairs it with the contract: either the contract declares that name, or a
+ *     field says the pair for it, and nothing here writes a table of names.
  *
  * What this cannot see, and is said rather than pretended otherwise. It reads sources as text, so a
  * rename applied through a helper macro or a field written by a manual `Serialize` implementation is not
- * seen; a pairing only exists where a field names a document on both sides or where a call reads one, so a
- * document the contract declares and nothing names is not compared — which is the case for the error shape,
- * read as `CommandError` while the wire carries it inside a result rather than as an answer of its own; a
- * shape written inside a document is refused, because nothing names it, and that is the whole of what can be
- * said about it without a name; and whether an event actually reaches a window is outside of what a reading of
- * two source files can say.
+ * seen; a pairing only exists where a field names a document on both sides or where a call or an argument
+ * names one, so a document the contract declares and nothing names is not compared — which is the case for
+ * the error shape, read as `CommandError` while the wire carries it inside a result rather than as an answer
+ * of its own; a shape written inside a document is refused, because nothing names it, and that is the whole
+ * of what can be said about an anonymous shape without a name; an argument typed with a struct the contract
+ * has no name for cannot be compared, and which fields the interface actually puts on the wire at a call site
+ * is outside of what this reads, because the call sites pass object literals built by a helper; and whether an
+ * event actually reaches a window is outside of what a reading of two source files can say.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -207,14 +215,36 @@ function emittedEvents(main, structs) {
   return { events, constants };
 }
 
-/** The commands the backend answers, and the document each one answers with. */
+/** The commands the backend answers: what each one answers with, and what it reads as its argument. */
 function answeredCommands(main, documents) {
   const out = new Map();
 
   for (const match of main.matchAll(
-    /#\[tauri::command\]\n(?:pub )?async fn (\w+)\([^)]*\) -> ([^\n{]+)/g,
+    /#\[tauri::command\]\n(?:pub )?async fn (\w+)\(([^)]*)\)\s*-> ([^\n{]+)/g,
   )) {
-    out.set(match[1], firstDocument(match[2], documents));
+    const read = [];
+
+    for (const argument of match[2].split(",")) {
+      const parts = argument.split(":");
+
+      if (parts.length !== 2) {
+        continue;
+      }
+
+      /* The state handle is not a document: it is the application, and it never crosses the boundary. */
+      const type = parts[1].trim();
+
+      if (!/^[A-Z]/.test(type) || type.startsWith("State")) {
+        continue;
+      }
+
+      read.push({ name: parts[0].trim(), type, path: FILES.boundary });
+    }
+
+    out.set(match[1], {
+      answers: firstDocument(match[3], documents),
+      reads: read,
+    });
   }
 
   return out;
@@ -405,8 +435,9 @@ export function check(docs) {
   const seenPairs = new Set();
   const inlineShapes = [];
   const unpairedCalls = [];
+  const readPairs = new Set();
 
-  function addPair(document, struct) {
+  function addPair(document, struct, parent = null) {
     const key = `${document}→${struct}`;
 
     if (seenPairs.has(key)) {
@@ -414,7 +445,7 @@ export function check(docs) {
     }
 
     seenPairs.add(key);
-    pairList.push([document, struct]);
+    pairList.push([document, struct, parent]);
   }
 
   for (const name of contract.keys()) {
@@ -456,18 +487,25 @@ export function check(docs) {
 
     const document = firstDocument(call.type, contract);
 
-    if (document === null || answered === null || !structs.has(answered)) {
+    if (
+      document === null ||
+      answered.answers === null ||
+      !structs.has(answered.answers)
+    ) {
       /* The answer is not read as a document here: a primitive, or a command answered with one and read as
          something else. That is said as a fact, not as a fault. */
       unpairedCalls.push(`${call.command} (${call.path})`);
       continue;
     }
 
-    addPair(document, answered);
+    addPair(document, answered.answers);
   }
 
+  /* Pass one builds every pair before anything is compared, because a pair grows the pairs its own fields name,
+     and a document read through another name can only be read against what the same field says on the other side.
+     The parent is kept so that the side a pair is read on travels to the pairs that grow out of it. */
   for (let index = 0; index < pairList.length; index += 1) {
-    const [document, struct] = pairList[index];
+    const [document, struct, parent] = pairList[index];
     const declared = contract.get(document);
     const value = structs.get(struct);
 
@@ -499,15 +537,73 @@ export function check(docs) {
         continue;
       }
 
-      addPair(tsDocument, rustDocument);
+      addPair(tsDocument, rustDocument, `${document}→${struct}`);
     }
   }
+
+  /* Rule 8 reads the way in. A command's argument names a document on the Rust side, and the contract's spelling
+     of it is either the same name or the pair its own field says — never a table written here. The direction
+     changes what a field means: on the way back a field the struct carries and the interface does not ask for is
+     only a fact, because JSON carries what the interface does not ask for; on the way in it is a finding, because
+     the backend expects a value the interface never sends, which is the same class as a field the reader asks for
+     and the writer never sends. */
+  const spellingOfStruct = new Map();
+
+  for (const [document, struct] of pairList) {
+    if (!spellingOfStruct.has(struct)) {
+      spellingOfStruct.set(struct, document);
+    }
+  }
+
+  let typedArguments = 0;
+  const argumentsNotDeclared = [];
+  const argumentsThroughDocuments = [];
+
+  for (const [command, answered] of commands) {
+    for (const argument of answered.reads) {
+      typedArguments += 1;
+
+      const read = firstDocument(argument.type, structs);
+
+      if (read === null) {
+        /* The argument is not read as a document here: a primitive, or a name the sources give as an enum or a
+           type alias rather than a struct. That is said as a fact, not as a fault. */
+        argumentsNotDeclared.push(`${command}(${argument.type})`);
+        continue;
+      }
+
+      const declared = contract.has(read) ? read : spellingOfStruct.get(read);
+
+      if (declared === undefined) {
+        /* The interface has no document named for what this command reads, so there is nothing to compare it
+           against: the call site sends a shape it decided for itself, and that is said as a fact. */
+        argumentsNotDeclared.push(`${command}(${argument.type})`);
+        continue;
+      }
+
+      readPairs.add(`${declared}→${read}`);
+      argumentsThroughDocuments.push(`${pair(declared, read)} (${command})`);
+    }
+  }
+
+  /* The side travels down: a field of a document the interface sends is sent as well, so every pair that grows
+     out of a read pair is read on the way in too. */
+  for (const [document, struct, parent] of pairList) {
+    if (parent !== null && readPairs.has(parent)) {
+      readPairs.add(`${document}→${struct}`);
+    }
+  }
+
+  facts.typedArguments = typedArguments;
+  facts.argumentsThroughDocuments = argumentsThroughDocuments.sort();
+  facts.argumentsNotDeclared = argumentsNotDeclared.sort();
 
   const gaps = [];
 
   for (const [document, struct] of pairList) {
     const declared = contract.get(document);
     const value = structs.get(struct);
+    const reads = readPairs.has(`${document}→${struct}`);
 
     for (const field of declared.fields) {
       if (field.name.includes("_")) {
@@ -523,9 +619,12 @@ export function check(docs) {
 
       if (!value.spelling.has(key)) {
         /* The reader asks for something the writer never sends: that is a value the interface cannot get,
-           whether the pair is named the same on both sides or read through another name. */
+           whether the pair is named the same on both sides or read through another name. On the way in the same
+           field is the other half of the same thing — the interface sends it and the backend never reads it. */
         faults.push(
-          `${pair(document, struct)}.${field.name} is read by the contract and never written by ${struct} (${value.path})`,
+          reads
+            ? `${pair(document, struct)}.${field.name} is declared by the contract as what the interface sends and never read by ${struct} (${value.path})`
+            : `${pair(document, struct)}.${field.name} is read by the contract and never written by ${struct} (${value.path})`,
         );
         continue;
       }
@@ -545,12 +644,20 @@ export function check(docs) {
       const key = words(field.name).join(".");
 
       /* A field the interface does not read is not a fault: JSON carries what the interface does not ask for.
-         It is said as a fact, so a document read in part is not read as a document read whole. */
+         It is said as a fact, so a document read in part is not read as a document read whole. On the way in
+         the same field is a finding, because the backend expects something the interface never sends. */
       if (
         ![...declared.fields].some(
           (other) => words(other.name).join(".") === key,
         )
       ) {
+        if (reads) {
+          faults.push(
+            `${pair(document, struct)}.${field.name} is expected by ${struct} (${value.path}) and never declared by the contract, so the backend reads a value the interface does not send`,
+          );
+          continue;
+        }
+
         gaps.push({
           pair: pair(document, struct),
           side: "written but not declared",
@@ -656,7 +763,7 @@ if (
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         faults: result.faults,
         limit:
-          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides or where a call reads one, so a document the contract declares and nothing names is not compared — three are today: CommandError, reached as the error half of a result rather than as an answer of its own, and FormationRequest and TileBounds, which no call reads through them; a shape written inside a document or at a call site is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact rather than a fault; a command nothing calls is said as a fact, because the rule reads calls from the frontend towards the backend and not the other way round; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
+          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides or where a call or an argument names one, so a document the contract declares and nothing names is not compared — three are today: CommandError, reached as the error half of a result rather than as an answer of its own, and FormationRequest and TileBounds, which no call reads through them; a shape written inside a document or at a call site is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact on the way back and as a finding on the way in, so the side is kept as its own fact rather than assumed; an argument typed with a struct the contract has no name for cannot be compared, and which fields the interface actually puts on the wire at a call site is not read here, because the calls pass object literals built by a helper; a command nothing calls is said as a fact, because the rule reads calls from the frontend towards the backend and not the other way round; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
       },
       null,
       2,

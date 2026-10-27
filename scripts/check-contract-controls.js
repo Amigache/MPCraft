@@ -14,7 +14,9 @@
  * is refused because nothing names it — which is the whole of what can be said about an anonymous shape, so the
  * sources are shown naming what they declare rather than holding it as a shape. The rule that reads calls has
  * three: a call to a name nothing answers, a shape written at the call site, and the pair the call makes
- * compared field by field against the command that answers it.
+ * compared field by field against the command that answers it. The rule that reads arguments has two, and both
+ * are the direction: a field the struct expects and the contract does not declare, and the same rule read from
+ * the other side, where a field the contract declares is something the interface sends.
  */
 
 import { check, readDocuments } from "./check-contract.js";
@@ -242,6 +244,34 @@ const cases = [
     expect:
       /Plan↔PlanInfo\.items is read by the contract and never written by PlanInfo/,
   },
+  {
+    claim:
+      "the way in is read as well, and the direction changes what a field means: on the way back a field the struct carries and the contract does not declare is only a fact, and on the way in it is a finding, because the backend expects a value the interface never sends",
+    mutated: {
+      ...docs,
+      [MAIN]: mutate(
+        docs[MAIN],
+        /^    component_id: Option<u8>,$/,
+        "    component_id: Option<u8>,\n    nothingTheInterfaceSends: Option<u8>,",
+      ),
+    },
+    expect:
+      /VehicleRequest\.nothingTheInterfaceSends is expected by VehicleRequest \(apps\/desktop\/src\/main\.rs\) and never declared by the contract/,
+  },
+  {
+    claim:
+      "the same rule read from the other side of the way in: a field the contract declares as what the interface sends, and the struct that reads the argument never reads, is a finding rather than the fact it would be on the way back",
+    mutated: {
+      ...docs,
+      [CONTRACT]: mutate(
+        docs[CONTRACT],
+        /^  readonly componentId\?: number;$/,
+        "  readonly componentId?: number;\n  readonly nothingTheStructNeverReads?: number;",
+      ),
+    },
+    expect:
+      /VehicleRequest\.nothingTheStructNeverReads is declared by the contract as what the interface sends and never read by VehicleRequest/,
+  },
 ];
 
 for (const entry of cases) {
@@ -302,7 +332,7 @@ console.log(
       verdict: fails.length === 0 ? "PASS" : "FAIL",
       fails,
       limit:
-        "these prove each rule can fire and that the sources satisfy them as written. They do not show an event reaching a window, and a rename applied through a macro rather than an attribute is outside of what a reading of text can see. The pairing rule cannot see a document that no field names — the ones read through a command's answer — and an anonymous shape is refused without being compared, because there is nothing to compare it with until it is named.",
+        "these prove each rule can fire and that the sources satisfy them as written. They do not show an event reaching a window, and a rename applied through a macro rather than an attribute is outside of what a reading of text can see. The pairing rule cannot see a document that no field names — the ones read through a command's answer or an argument — and an anonymous shape is refused without being compared, because there is nothing to compare it with until it is named. The way in is shown firing on both halves of its finding; what it cannot show is which fields the interface actually puts on the wire, because the call sites pass object literals built by a helper, so a field a call adds outside a document is not read here.",
     },
     null,
     2,
