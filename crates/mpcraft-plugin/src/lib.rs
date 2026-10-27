@@ -28,7 +28,7 @@ pub mod lifecycle;
 pub mod manifest;
 pub mod sandbox;
 
-pub use api::{CommandIntent, HostApi, TelemetryField};
+pub use api::{CommandIntent, HostApi, ParamIntent, TelemetryField};
 pub use capability::Capability;
 pub use error::PluginError;
 pub use lifecycle::Stage;

@@ -106,6 +106,18 @@ impl CommandIntent {
     }
 }
 
+/// A parameter the plugin asks to be changed, queued for the same reason a command is: the sandbox
+/// must not be able to hold the link while it waits for the vehicle to echo what it stored.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParamIntent {
+    /// The name the vehicle knows the parameter by.
+    pub name: String,
+
+    /// The value the plugin wants. What the vehicle stores can be another number, and the read
+    /// afterwards shows what the vehicle has rather than what was asked for.
+    pub value: f64,
+}
+
 /// What the sandbox can be given to talk to.
 ///
 /// The application implements this, and the plugin crate never knows what it is talking to. That is
@@ -121,6 +133,13 @@ pub trait HostApi: Debug + Send + Sync {
 
     /// How many items the plan on the vehicle holds, when the plugin was given the plan.
     fn mission_count(&self) -> u32;
+
+    /// What the vehicle last said about a parameter, or nothing when it has not reported one with
+    /// that name — a value the plugin invents is not a value the vehicle has.
+    fn param(&self, name: &str) -> Option<f64>;
+
+    /// A parameter change the plugin asks for, when it was given that as well.
+    fn ask_param(&self, intent: ParamIntent) -> Result<(), PluginError>;
 
     /// Something to show the operator, when the plugin was given that as well.
     fn note(&self, text: &str) -> Result<(), PluginError>;

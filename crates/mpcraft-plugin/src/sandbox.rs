@@ -22,7 +22,7 @@ use wasmtime::{
     StoreLimitsBuilder,
 };
 
-use crate::api::{CommandIntent, HostApi, TelemetryField};
+use crate::api::{CommandIntent, HostApi, ParamIntent, TelemetryField};
 use crate::capability::Capability;
 use crate::error::PluginError;
 use crate::lifecycle::Stage;
@@ -140,7 +140,16 @@ impl Sandbox {
                 // An import the manifest did not grant is named by what it was, so the operator can
                 // see which capability the plugin asked for rather than reading a runtime message.
                 if message.contains("unknown import") {
-                    for name in ["telemetry", "command", "mission_count", "note"] {
+                    // The longer name is read first: a message about `set_param` contains `param`, and
+                    // reading it as the read would name the wrong capability to the operator.
+                    for name in [
+                        "telemetry",
+                        "command",
+                        "mission_count",
+                        "note",
+                        "set_param",
+                        "param",
+                    ] {
                         if message.contains(name) {
                             return Err(PluginError::NotGranted {
                                 plugin: manifest.name.clone(),
@@ -253,33 +262,65 @@ impl Sandbox {
                 .map_err(error)?;
         }
 
+        if granted.contains(&Capability::ReadParams) {
+            linker
+                .func_wrap(
+                    "host",
+                    "param",
+                    |mut caller: Caller<'_, HostData>, offset: i32, length: i32| -> f64 {
+                        let name = match read_text(&mut caller, offset, length) {
+                            Some(name) => name,
+                            None => return f64::NAN,
+                        };
+
+                        // A parameter the vehicle has not reported is not guessed at: the plugin sees
+                        // the same nothing the window shows.
+                        caller.data().api.param(&name).unwrap_or(f64::NAN)
+                    },
+                )
+                .map_err(error)?;
+        }
+
+        if granted.contains(&Capability::WriteParams) {
+            linker
+                .func_wrap(
+                    "host",
+                    "set_param",
+                    |mut caller: Caller<'_, HostData>,
+                     offset: i32,
+                     length: i32,
+                     value: f64|
+                     -> i32 {
+                        let name = match read_text(&mut caller, offset, length) {
+                            Some(name) => name,
+                            None => return 1,
+                        };
+
+                        let intent = ParamIntent { name, value };
+
+                        // The same rule as a command: the asking is queued, and the plugin cannot know
+                        // why the application said no, only that it did.
+                        match caller.data().api.ask_param(intent) {
+                            Ok(()) => 0,
+                            Err(_) => 1,
+                        }
+                    },
+                )
+                .map_err(error)?;
+        }
+
         if granted.contains(&Capability::Notify) {
             linker
                 .func_wrap(
                     "host",
                     "note",
                     |mut caller: Caller<'_, HostData>, offset: i32, length: i32| -> i32 {
-                        // The memory is taken before the data because reading an export needs the
-                        // caller on its own, and the two cannot be borrowed at the same time.
-                        let memory = match caller.get_export("memory").and_then(Extern::into_memory)
-                        {
-                            Some(memory) => memory,
+                        let text = match read_text(&mut caller, offset, length) {
+                            Some(text) => text,
                             None => return 1,
                         };
 
-                        let data = caller.data();
-
-                        // A length the module supplies is capped before anything is read from it.
-                        let wanted = data
-                            .max_text_bytes
-                            .min(usize::try_from(length.max(0)).unwrap_or(data.max_text_bytes));
-                        let start = usize::try_from(offset.max(0)).unwrap_or(0);
-
-                        let bytes: Vec<u8> = (start..start + wanted)
-                            .filter_map(|place| memory.data(&caller).get(place).copied())
-                            .collect();
-
-                        match data.api.note(&String::from_utf8_lossy(&bytes)) {
+                        match caller.data().api.note(&text) {
                             Ok(()) => 0,
                             Err(_) => 1,
                         }
@@ -399,12 +440,33 @@ impl Plugin {
     }
 }
 
+/// A string the plugin supplies as bytes in its own memory, read with the ceiling one string has.
+///
+/// The ceiling is taken from the store before the bytes are read, because the same caller cannot be
+/// borrowed for the export and for the memory at the same time. A length the module supplies is capped
+/// before anything is read from it, because a plugin that names a length the size of its whole memory
+/// would otherwise read the whole of it.
+fn read_text(caller: &mut Caller<'_, HostData>, offset: i32, length: i32) -> Option<String> {
+    let memory = caller.get_export("memory").and_then(Extern::into_memory)?;
+    let cap = caller.data().max_text_bytes;
+
+    // A length the module supplies is capped before anything is read from it.
+    let wanted = cap.min(usize::try_from(length.max(0)).unwrap_or(cap));
+    let start = usize::try_from(offset.max(0)).unwrap_or(0);
+
+    let bytes = memory.data(caller).get(start..start + wanted)?.to_vec();
+
+    Some(String::from_utf8_lossy(&bytes).to_string())
+}
+
 /// The capability a host function belongs to, which is how an import that failed is named.
 fn capability_of(name: &str) -> Capability {
     match name {
         "telemetry" => Capability::ReadTelemetry,
         "command" => Capability::SendCommands,
         "mission_count" => Capability::MissionAccess,
+        "set_param" => Capability::WriteParams,
+        "param" => Capability::ReadParams,
         _ => Capability::Notify,
     }
 }
@@ -429,6 +491,7 @@ mod tests {
     use super::*;
 
     use parking_lot::Mutex;
+    use std::collections::HashMap;
     use std::sync::Arc;
 
     /// An application surface that keeps what a plugin asked for.
@@ -436,7 +499,16 @@ mod tests {
     struct FakeApi {
         telemetry: Mutex<Vec<TelemetryField>>,
         commands: Mutex<Vec<u32>>,
+
+        /// What the plugin read, in the order it read it.
+        reads: Mutex<Vec<String>>,
+
+        /// What the plugin asked to change.
+        writes: Mutex<Vec<ParamIntent>>,
         notes: Mutex<Vec<String>>,
+
+        /// What the vehicle said about a parameter, which is what a read answers with.
+        values: HashMap<String, f64>,
     }
 
     impl FakeApi {
@@ -444,7 +516,10 @@ mod tests {
             Self {
                 telemetry: Mutex::new(Vec::new()),
                 commands: Mutex::new(Vec::new()),
+                reads: Mutex::new(Vec::new()),
+                writes: Mutex::new(Vec::new()),
                 notes: Mutex::new(Vec::new()),
+                values: HashMap::from([("FENCE_ALT_MAX".to_string(), 61.5)]),
             }
         }
     }
@@ -462,6 +537,16 @@ mod tests {
 
         fn mission_count(&self) -> u32 {
             4
+        }
+
+        fn param(&self, name: &str) -> Option<f64> {
+            self.reads.lock().push(name.to_string());
+            self.values.get(name).copied()
+        }
+
+        fn ask_param(&self, intent: ParamIntent) -> Result<(), PluginError> {
+            self.writes.lock().push(intent);
+            Ok(())
         }
 
         fn note(&self, text: &str) -> Result<(), PluginError> {
@@ -541,6 +626,118 @@ mod tests {
 
         assert_eq!(error.code(), "plugin_not_granted", "{error}");
         assert!(api.commands.lock().is_empty());
+    }
+
+    #[test]
+    fn a_granted_parameter_read_reaches_the_values_the_vehicle_reported() {
+        let sandbox = Sandbox::new(Limits::default()).unwrap();
+        let api = Arc::new(FakeApi::new());
+
+        let wat = r#"
+            (module
+                (import "host" "param" (func $param (param i32 i32) (result f64)))
+                (memory (export "memory") 1)
+                (data (i32.const 0) "FENCE_ALT_MAX")
+                (func (export "init") (result i32)
+                    i32.const 0
+                    i32.const 13
+                    call $param
+                    drop
+                    i32.const 0)
+            )
+        "#;
+
+        let mut plugin = sandbox
+            .load(
+                &manifest(&[Capability::ReadParams]),
+                wat.as_bytes(),
+                api.clone(),
+            )
+            .unwrap();
+        plugin.run(Stage::Init).unwrap();
+
+        assert_eq!(
+            *api.reads.lock(),
+            vec!["FENCE_ALT_MAX".to_string()],
+            "the name the plugin wrote in its memory is what the surface was asked for"
+        );
+    }
+
+    #[test]
+    fn a_plugin_given_the_read_of_a_parameter_is_not_a_plugin_given_the_change_of_one() {
+        let sandbox = Sandbox::new(Limits::default()).unwrap();
+        let api = Arc::new(FakeApi::new());
+
+        // The manifest grants the read, and the module asks for the change. Nothing of the module runs,
+        // because the function it imports was never given to it.
+        let wat = r#"
+            (module
+                (import "host" "set_param" (func $set_param (param i32 i32 f64) (result i32)))
+                (memory (export "memory") 1)
+                (data (i32.const 0) "FENCE_ALT_MAX")
+                (func (export "init") (result i32)
+                    i32.const 0
+                    i32.const 13
+                    f64.const 61.5
+                    call $set_param
+                    drop
+                    i32.const 0)
+            )
+        "#;
+
+        let error = sandbox
+            .load(
+                &manifest(&[Capability::ReadParams]),
+                wat.as_bytes(),
+                api.clone(),
+            )
+            .unwrap_err();
+
+        assert_eq!(error.code(), "plugin_not_granted", "{error}");
+        assert!(
+            error.to_string().contains("write_params"),
+            "the failure names the capability that was not given: {error}"
+        );
+        assert!(api.writes.lock().is_empty(), "nothing ran");
+    }
+
+    #[test]
+    fn a_granted_parameter_write_reaches_the_surface_as_an_asking() {
+        let sandbox = Sandbox::new(Limits::default()).unwrap();
+        let api = Arc::new(FakeApi::new());
+
+        let wat = r#"
+            (module
+                (import "host" "set_param" (func $set_param (param i32 i32 f64) (result i32)))
+                (memory (export "memory") 1)
+                (data (i32.const 0) "FENCE_ALT_MAX")
+                (func (export "init") (result i32)
+                    i32.const 0
+                    i32.const 13
+                    f64.const 61.5
+                    call $set_param
+                    drop
+                    i32.const 0)
+            )
+        "#;
+
+        let mut plugin = sandbox
+            .load(
+                &manifest(&[Capability::WriteParams]),
+                wat.as_bytes(),
+                api.clone(),
+            )
+            .unwrap();
+        plugin.run(Stage::Init).unwrap();
+
+        assert_eq!(
+            *api.writes.lock(),
+            vec![ParamIntent {
+                name: "FENCE_ALT_MAX".to_string(),
+                value: 61.5,
+            }],
+            "the name and the number the plugin supplied are what the surface holds"
+        );
     }
 
     #[test]

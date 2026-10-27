@@ -29,6 +29,14 @@ pub enum Capability {
     /// to change a plan has to say so to the operator, who decides.
     MissionAccess,
 
+    /// The parameters the vehicle has reported. Reading them and changing one are two names, because
+    /// a plugin that can read a value is not a plugin that can change it.
+    ReadParams,
+
+    /// Changing a parameter. The asking is queued rather than sent from inside the sandbox, so that a
+    /// plugin cannot hold the link while it waits for the vehicle to echo what it stored.
+    WriteParams,
+
     /// Saying something to the operator, which shows up in the message console.
     Notify,
 }
@@ -41,6 +49,8 @@ impl Capability {
             Self::ReadTelemetry => "read_telemetry",
             Self::SendCommands => "send_commands",
             Self::MissionAccess => "mission_access",
+            Self::ReadParams => "read_params",
+            Self::WriteParams => "write_params",
             Self::Notify => "notify",
         }
     }
@@ -64,6 +74,8 @@ impl FromStr for Capability {
             "read_telemetry" | "telemetry_read" => Ok(Self::ReadTelemetry),
             "send_commands" | "command_send" => Ok(Self::SendCommands),
             "mission_access" => Ok(Self::MissionAccess),
+            "read_params" | "params_read" => Ok(Self::ReadParams),
+            "write_params" | "params_write" => Ok(Self::WriteParams),
             "notify" => Ok(Self::Notify),
             other => Err(PluginError::UnknownCapability {
                 name: other.to_string(),
@@ -83,6 +95,27 @@ mod tests {
             Capability::from_str("read_telemetry").unwrap(),
             Capability::ReadTelemetry
         );
+    }
+
+    #[test]
+    fn reading_a_parameter_and_changing_one_are_two_names() {
+        assert_eq!(Capability::ReadParams.name(), "read_params");
+        assert_eq!(
+            Capability::from_str("read_params").unwrap(),
+            Capability::ReadParams
+        );
+        assert_eq!(Capability::WriteParams.name(), "write_params");
+        assert_eq!(
+            Capability::from_str("write_params").unwrap(),
+            Capability::WriteParams
+        );
+
+        // A plugin given the read is not a plugin given the write, and the two are not one name with
+        // two spellings: `params` says nothing that the sandbox can grant.
+        assert!(matches!(
+            Capability::from_str("params").unwrap_err(),
+            PluginError::UnknownCapability { .. }
+        ));
     }
 
     #[test]

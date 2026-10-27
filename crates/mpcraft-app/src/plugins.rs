@@ -26,8 +26,8 @@ use serde::{Deserialize, Serialize};
 use mpcraft_link::SessionState;
 use mpcraft_mavlink::MavCmd;
 use mpcraft_plugin::{
-    CommandIntent, HostApi, Limits, Plugin, PluginError, PluginManifest, Sandbox, Stage,
-    TelemetryField,
+    CommandIntent, HostApi, Limits, ParamIntent, Plugin, PluginError, PluginManifest, Sandbox,
+    Stage, TelemetryField,
 };
 use mpcraft_settings::Settings;
 use mpcraft_vehicle::Telemetry;
@@ -45,6 +45,9 @@ pub const MAX_NOTES: usize = 100;
 
 /// How many commands a plugin may have waiting at one moment.
 pub const MAX_PENDING_COMMANDS: usize = 32;
+
+/// How many parameter changes a plugin may have waiting at one moment.
+pub const MAX_PENDING_PARAMS: usize = 32;
 
 /// Where a plugin stands, which is what the management sheet lists it under.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -130,8 +133,18 @@ struct Inner {
     /// How many items the plan on the vehicle holds.
     mission_count: u32,
 
+    /// What the vehicle said about its parameters, name to number, in the order the names fall in.
+    ///
+    /// The numbers are kept as the vehicle said them, so that a read shows what the vehicle has rather
+    /// than what a plugin wanted.
+    parameters: BTreeMap<String, f64>,
+
     /// What the plugins asked for, which is run afterwards, outside the sandbox.
     pending: VecDeque<CommandIntent>,
+
+    /// The parameter changes the plugins asked for, kept apart from the commands because the two are
+    /// run by different halves of the protocol.
+    pending_params: VecDeque<ParamIntent>,
 
     /// What the plugins said, most recent last.
     console: VecDeque<String>,
@@ -165,6 +178,19 @@ impl PluginSurface {
                 .mission
                 .map(|progress| u32::from(progress.total))
                 .unwrap_or(0);
+
+            inner.parameters = session
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.name.clone(), parameter.value))
+                .collect();
+        }
+    }
+
+    /// Records what the vehicle answered to a write, which is not always the number that was asked for.
+    pub fn record_param(&self, name: &str, value: f64) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.parameters.insert(name.to_string(), value);
         }
     }
 
@@ -172,6 +198,14 @@ impl PluginSurface {
     pub fn take_pending(&self) -> Vec<CommandIntent> {
         match self.inner.lock() {
             Ok(mut inner) => inner.pending.drain(..).collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Takes the parameter changes the plugins asked for, which are run outside the sandbox.
+    pub fn take_pending_params(&self) -> Vec<ParamIntent> {
+        match self.inner.lock() {
+            Ok(mut inner) => inner.pending_params.drain(..).collect(),
             Err(_) => Vec::new(),
         }
     }
@@ -215,7 +249,7 @@ impl PluginSurface {
     #[must_use]
     pub fn has_pending(&self) -> bool {
         match self.inner.lock() {
-            Ok(inner) => !inner.pending.is_empty(),
+            Ok(inner) => !inner.pending.is_empty() || !inner.pending_params.is_empty(),
             Err(_) => false,
         }
     }
@@ -257,6 +291,38 @@ impl HostApi for PluginSurface {
             Ok(inner) => inner.mission_count,
             Err(_) => 0,
         }
+    }
+
+    fn param(&self, name: &str) -> Option<f64> {
+        let inner = self.inner.lock().ok()?;
+
+        // A parameter the vehicle has never reported is not guessed at: the plugin gets nothing, and can
+        // see that it asked for something the vehicle has not said about itself.
+        inner.parameters.get(name).copied()
+    }
+
+    fn ask_param(&self, intent: ParamIntent) -> Result<(), PluginError> {
+        let mut inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(_) => {
+                return Err(PluginError::Instantiate {
+                    plugin: String::new(),
+                    message: "the surface of the plugins is locked".to_string(),
+                })
+            }
+        };
+
+        if inner.pending_params.len() >= MAX_PENDING_PARAMS {
+            return Err(PluginError::Denied {
+                plugin: String::new(),
+                resource: "parameters",
+                max: MAX_PENDING_PARAMS,
+            });
+        }
+
+        inner.pending_params.push_back(intent);
+
+        Ok(())
     }
 
     fn note(&self, text: &str) -> Result<(), PluginError> {
@@ -717,14 +783,18 @@ impl PluginRuntime {
 ///
 /// A plugin cannot reach the wire, so what it asked for is carried here, by the link the application
 /// has open. The asking is taken from the queue once, and each one goes out as the vehicle answered
-/// it; a command the protocol does not carry is refused rather than guessed at.
+/// it; a command the protocol does not carry is refused rather than guessed at, and a parameter goes
+/// through the parameter protocol rather than through a command, because that is where the echo of what
+/// the vehicle stored comes from.
 ///
 /// # Errors
 ///
 /// Returns an error when there is no open link or no vehicle on it.
 pub async fn run_pending(state: &crate::AppState) -> CommandResult<usize> {
-    let intents = match state.plugins.lock() {
-        Ok(runtime) => runtime.surface().take_pending(),
+    // The surface is taken as the shape rather than through the driver, because the answers have to be
+    // written back to it and the driver must not be held while the wire is waited for.
+    let surface = match state.plugins.lock() {
+        Ok(runtime) => runtime.surface().clone(),
         Err(_) => {
             return Err(CommandError::internal(
                 "the driver of the plugins is locked",
@@ -732,7 +802,10 @@ pub async fn run_pending(state: &crate::AppState) -> CommandResult<usize> {
         }
     };
 
-    if intents.is_empty() {
+    let intents = surface.take_pending();
+    let params = surface.take_pending_params();
+
+    if intents.is_empty() && params.is_empty() {
         return Ok(0);
     }
 
@@ -754,7 +827,7 @@ pub async fn run_pending(state: &crate::AppState) -> CommandResult<usize> {
         let Some(command) = MavCmd::from_u64(u64::from(intent.command)) else {
             // A number the protocol does not carry is not a command, and the operator has to see that
             // the plugin asked for one.
-            let _ = state.plugin_note(&format!(
+            let _ = surface.say(&format!(
                 "a plugin asked for command {}, which the protocol does not carry",
                 intent.command
             ));
@@ -792,9 +865,45 @@ pub async fn run_pending(state: &crate::AppState) -> CommandResult<usize> {
         match outcome {
             Ok(_) => sent += 1,
             Err(error) => {
-                let _ = state.plugin_note(&format!(
+                let _ = surface.say(&format!(
                     "a plugin asked for command {}: {error}",
                     intent.command
+                ));
+            }
+        }
+    }
+
+    for intent in params {
+        // A parameter is not a command: it goes through the parameter protocol, and the wait for the echo
+        // happens here rather than inside the sandbox, because a plugin that held the link while it waited
+        // would hold it for every other consumer.
+        match session
+            .write_parameter(
+                vehicle.id,
+                &intent.name,
+                intent.value,
+                PLUGIN_COMMAND_TIMEOUT,
+            )
+            .await
+        {
+            Ok(stored) => {
+                sent += 1;
+
+                // What a plugin reads afterwards is what the vehicle says it stored, which is not always
+                // the number that was asked for.
+                surface.record_param(&stored.name, stored.value);
+
+                // A change to the vehicle's configuration made by somebody else's code has to be visible
+                // where the operator reads what the vehicle said.
+                let _ = surface.say(&format!(
+                    "a plugin wrote {} as {}",
+                    intent.name, stored.value
+                ));
+            }
+            Err(error) => {
+                let _ = surface.say(&format!(
+                    "a plugin asked to change {}: {error}",
+                    intent.name
                 ));
             }
         }
@@ -1001,6 +1110,86 @@ mod tests {
     }
 
     #[test]
+    fn a_plugin_that_asks_to_change_a_parameter_is_queued_rather_than_run_inside_the_sandbox() {
+        let folder = PluginFolder::new("param");
+
+        folder.write(
+            "name = \"fence\"\nversion = \"1.0.0\"\nmodule = \"fence.wasm\"\ncapabilities = [\"write_params\"]\n",
+            r#"
+                (module
+                    (import "host" "set_param" (func $set_param (param i32 i32 f64) (result i32)))
+                    (memory (export "memory") 1)
+                    (data (i32.const 0) "FENCE_ALT_MAX")
+                    (func (export "init") (result i32)
+                        i32.const 0
+                        i32.const 13
+                        f64.const 61.5
+                        call $set_param
+                        drop
+                        i32.const 0))
+            "#,
+        );
+
+        let mut runtime = PluginRuntime::new(folder.path());
+        runtime.scan(&chosen(&["fence"])).unwrap();
+        runtime.open().unwrap();
+
+        // Nothing was written: the sandbox cannot reach the parameter protocol, so the asking waits for
+        // the application to carry it.
+        let pending = runtime.surface().take_pending_params();
+
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].name, "FENCE_ALT_MAX");
+        assert_eq!(pending[0].value, 61.5);
+    }
+
+    #[test]
+    fn a_plugin_reads_what_the_vehicle_stored_rather_than_what_it_asked_for() {
+        let surface = PluginSurface::new();
+
+        // The vehicle answered with a number of its own, which is what a clamped range does.
+        surface.record_param("FENCE_ALT_MAX", 42.5);
+
+        assert_eq!(surface.param("FENCE_ALT_MAX"), Some(42.5));
+
+        // A name the vehicle has not said about itself is not guessed at.
+        assert_eq!(surface.param("NOT_A_PARAMETER"), None);
+    }
+
+    #[test]
+    fn what_a_plugin_asks_to_change_is_kept_with_the_ceiling_the_queue_has() {
+        let surface = PluginSurface::new();
+
+        for index in 0..MAX_PENDING_PARAMS {
+            surface
+                .ask_param(ParamIntent {
+                    name: format!("P{index}"),
+                    value: 1.0,
+                })
+                .unwrap();
+        }
+
+        let error = surface
+            .ask_param(ParamIntent {
+                name: "P40".to_string(),
+                value: 1.0,
+            })
+            .expect_err("the queue is full");
+
+        assert!(matches!(error, PluginError::Denied { .. }), "{error}");
+
+        // The first ask is still there; the one that was refused never entered the queue.
+        let kept = surface.take_pending_params();
+
+        assert_eq!(kept.len(), MAX_PENDING_PARAMS);
+        assert_eq!(kept.first().unwrap().name, "P0");
+        assert_eq!(
+            kept.last().unwrap().name,
+            format!("P{}", MAX_PENDING_PARAMS - 1)
+        );
+    }
+
+    #[test]
     fn a_plugin_is_called_only_when_its_own_rate_is_due() {
         let folder = PluginFolder::new("rate");
 
@@ -1061,6 +1250,9 @@ mod tests {
     fn a_manifest_that_is_not_one_stands_failed_with_its_own_code() {
         let folder = PluginFolder::new("manifest");
 
+        // The name the design document used is not one of the granted names, so a manifest that promises
+        // it is still refused rather than guessed at: `write_params` is the name the sandbox can grant,
+        // and a manifest that says something else promises something the sandbox cannot give.
         std::fs::write(
             folder.path.join("broken.toml"),
             "name = \"broken\"\nversion = \"1.0.0\"\nmodule = \"broken.wasm\"\ncapabilities = [\"write_parameters\"]\n",

@@ -193,7 +193,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 9.1 | Plugin lifecycle (Init/Loaded/Loop/Exit) | `Plugin/Plugin.cs` | ✅ | 6 |
 | 9.2 | Plugin host API surface | `Plugin/Plugin.cs` (PluginHost) | ✅ | 6 |
 | 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | ✅ | 6 |
-| 9.4 | Scripting host | `Script.cs` (IronPython) | ⬜ | Dropped — a language engine that loads every assembly in the process; its surface is what the capability-scoped plugin host (9.1–9.3) replaces, except parameter access, which the sandbox does not grant yet |
+| 9.4 | Scripting host | `Script.cs` (IronPython) | ⬜ | Dropped — a language engine that loads every assembly in the process; what its API offers has an equivalent in the capability-scoped plugin host (9.1–9.3), while a text file the operator pastes is not a module with a manifest a person reads before running it |
 | 9.5 | Swarm / formation control | `Swarm/` | 🔽 | 6 |
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
 | 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🟡 | 5 |
@@ -1302,11 +1302,10 @@ into the language runtime and put the application itself into the scope — `Mai
 whatever the host holds, including the window and the socket, which is the ambient authority ADR-007 refuses
 for the extension surface and the reason rows 9.1–9.3 are the answer to this row. What its own API offers is
 six calls: read and write a parameter, change mode, send a radio override, wait for a word in the messages,
-sleep. Four have an equivalent in the plugin host — a value the vehicle last said is read through
-`read_telemetry`, mode and the override go out through `send_commands`, and a word in the messages is what
-`notify` says — while the two parameter calls do not, because the set the sandbox can grant today is those
-three plus `mission_access` and parameter access is not in it; that is said as far as the coverage reaches,
-and the missing name is an open item in phase 6 rather than a claim of coverage. Waiting has no equivalent by
+sleep. Each has an equivalent in the plugin host — a value the vehicle last said is read through
+`read_telemetry`, mode and the override go out through `send_commands`, a word in the messages is what
+`notify` says, and the two parameter calls are `read_params` and `write_params`, which is the paragraph
+below. Waiting has no equivalent by
 design, because a call inside the sandbox must never wait for the wire — upstream's waiting is `Thread.Sleep`
 on the calling thread, which is a plugin holding the link while a piece of somebody else's code sits on it.
 Two functions of the surface it advertises answer with nothing in the published source: `mavlink_connection`
@@ -1314,6 +1313,21 @@ and `recv_match` return null, so the pymavlink compatibility a reader would expe
 exist. And one thing is kept as a difference rather than written as a gap: upstream runs a text file the
 operator pastes, and MPCraft runs a module with a manifest a person reads before deciding to run it, so there
 is no paste-and-run automation here, which is what the sandbox costs.
+
+The **parameters** are part of what the sandbox can grant now, as two names rather than one: `read_params`
+and `write_params`, because a plugin that can read a number is not a plugin that can change one, and the
+known-bad case is what shows the difference firing — a module that imports `set_param` under a manifest that
+grants only the read is never instantiated, so nothing of its code runs. The read answers with what the vehicle
+said, and a name the vehicle has not said about itself gets nothing rather than a number the reader invented.
+The change is queued rather than sent from inside the sandbox, for the same reason a command is: a call inside
+the sandbox must never wait for the wire, and a parameter write is waited for, because the echo is what says
+what the vehicle stored. What a plugin reads afterwards is the number the vehicle answered with and not the
+number it asked for, and the writing is written in the message console, because a change to the configuration of
+the vehicle made by somebody else's code has to be visible where the operator reads what the vehicle said. The
+queue has its own ceiling of thirty-two askings, like the queue of commands, so a plugin that writes without
+stopping cannot grow the state of the application, and the spelling the design document used
+(`write_parameters`) is still refused rather than guessed at, which is what keeps a manifest from promising
+something the sandbox cannot give.
 
 The two dropped features are the Python LogAnalyzer integration (6.14) and the IronPython scripting host
 (9.4). The first depends on a Python 2 toolchain that is no longer maintainable, and its capability is
