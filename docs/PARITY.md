@@ -1433,6 +1433,8 @@ exercises is the rule that reads a busy artifact as a gap, not a file locked by 
 share mode of a handle, so the process holding it is the control's own, and the application is not running here. The
 case shows the flip rather than the finding, because prettier opens with its heading.
 
+The control column is read as a document now (`scripts/check-tool-controls.js`), because the runner's own note points at it and nothing read it: the fifteen gates name their known-bad case and the checker under `scripts/` they name is on the disk, since a claim that points at a file which is not there is a claim nobody can show. Both halves are shown firing — a gate that says nothing about its negative control, and a control that names a checker that does not exist — on a copy of the runner, so the runner as it stands is never disturbed, and the sources are shown passing. What the reading does not reach is said: a path named outside `scripts/` — the Playwright spec, a test file inside a crate — is not read as a path, because the reading cannot know which layer a sentence about a case belongs to.
+
 The **scripting host** is dropped, and the decision rests on what the published file does rather than on
 what its name suggests. The clone named at the top of this file is not on this machine, so the row was read
 against `Script.cs` as published (220 lines), and nothing here says anything about a running engine: the

@@ -19,6 +19,11 @@
  * first. Those four buy the flip and nothing more. BLOQUEADO is not exercised here: the lock case belongs to
  * the runner's own controls, where an artifact is genuinely held by another process rather than described by a
  * string that looks like one.
+ *
+ * The last three checks read the control column itself, which is the column the runner's note points at: every
+ * gate names its known-bad case, and the checker under `scripts/` that it names is on the disk. A gate that
+ * names nothing, and a control that points at a file which is not there, are both findings, and each is shown
+ * firing on a copy of the runner so the runner as it stands is never disturbed.
  */
 
 import { execFileSync } from "node:child_process";
@@ -159,27 +164,92 @@ show({
   note: ", and shows only the flip, because the report is written behind the first line",
 });
 
-/* What the runner says for these five gates now: each names its known-bad case in the control column, which
-   is the column the runner's note points at. This is a reading of the runner as a document, not a run. */
-const source = readFileSync(runner, "utf8");
+/*
+ * The control column, read as a document rather than remembered: every gate names its known-bad case, and
+ * the checker it names is on the disk. A claim that points at a file which is not there is a claim nothing
+ * can show, so both halves are read — a gate that says nothing about its negative control, and a gate that
+ * names a checker that does not exist. The known-bad cases are copies of the runner put in front of the
+ * reading, so the runner as it stands is never disturbed.
+ */
+function readControlColumn(text) {
+  const table = text.match(/const GATES = \[([\s\S]*?)\n\];/);
+  const rows = [];
+
+  for (const block of (table?.[1] ?? "").split("\n  {")) {
+    const name = block.match(/name: "([^"]+)"/)?.[1];
+
+    if (name === undefined) {
+      continue;
+    }
+
+    const said = block.match(/control:\s*(?:\n\s+)?"([^"]*)"/);
+    const control = said === null ? null : said[1];
+    const named = (control ?? "").match(/scripts\/[\w.\-]+\.js/);
+
+    rows.push({
+      name,
+      finding:
+        control === null
+          ? "names no known-bad case"
+          : named === null
+            ? "names no checker under scripts/"
+            : existsSync(new URL(named[0], ROOT))
+              ? null
+              : `names ${named[0]}, which is not on the disk`,
+    });
+  }
+
+  return rows;
+}
+
+/** Reads a copy of the runner, shows the reading firing on it, and leaves nothing behind. */
+function showReading({ wrote, expect }) {
+  const scratch = fileURLToPath(new URL("scripts/__control_column__.js", ROOT));
+  let fired = [];
+
+  try {
+    writeFileSync(scratch, wrote(readFileSync(runner, "utf8")), "utf8");
+
+    fired = readControlColumn(readFileSync(scratch, "utf8")).filter(
+      (row) => row.finding !== null,
+    );
+  } finally {
+    /* Nothing can be said about what is left behind until the copy is gone. */
+    rmSync(scratch, { force: true });
+  }
+
+  checks.push({
+    claim: `the control column fires on ${expect}`,
+    ok: fired.length === 1 && !existsSync(scratch),
+    saw: { gate: fired[0]?.name, finding: fired[0]?.finding },
+  });
+}
+
+const untouched = readControlColumn(readFileSync(runner, "utf8"));
 
 checks.push({
   claim:
-    "the runner names a known-bad case for every gate that reads a tool, rather than saying nothing",
-  ok: [
-    "typescript",
-    "prettier",
-    "rust formatting",
-    "rust lints",
-    "rust tests",
-  ].every((name) => {
-    const block = source.match(
-      new RegExp(`name: "${name}",[\\s\\S]*?(?=\\n  \\},)`),
-    );
+    "every gate names its known-bad case, and the checker it names is on the disk",
+  ok: untouched.every((row) => row.finding === null),
+  saw: { gates: untouched.length },
+});
 
-    return block !== undefined && /check-tool-controls\.js/.test(block[0]);
-  }),
-  saw: checks.filter((entry) => entry.claim.startsWith("the ")).length,
+showReading({
+  wrote: (text) =>
+    text.replace(
+      /control:\n      "scripts\/check-parity-controls\.js[^"]*"/,
+      "control: null,",
+    ),
+  expect: "a gate that says nothing about its negative control",
+});
+
+showReading({
+  wrote: (text) =>
+    text.replace(
+      "scripts/check-parity-controls.js",
+      "scripts/__control_missing__.js",
+    ),
+  expect: "a control that points at a checker which is not there",
 });
 
 const fails = checks.filter((check) => !check.ok);
@@ -191,7 +261,7 @@ console.log(
       verdict: fails.length === 0 ? "PASS" : "FAIL",
       fails,
       limit:
-        "these prove each tool gate can fail on what it claims to read and that the sources pass afterwards. They do not show the tool reading anything outside the file the control wrote; one of them shows the finding itself, because the runner keeps the first line of what a tool says, and the other four show only the state turning. The two Rust cases must disturb a file the crate already holds, because a file no module declares is neither compiled nor formatted, and a scratch file cannot be shown passing after it is gone, so the pass side names a file that is still there. BLOQUEADO is not exercised, because it needs an artifact genuinely locked by the running application.",
+        "these prove each tool gate can fail on what it claims to read and that the sources pass afterwards. They do not show the tool reading anything outside the file the control wrote; one of them shows the finding itself, because the runner keeps the first line of what a tool says, and the other four show only the state turning. The two Rust cases must disturb a file the crate already holds, because a file no module declares is neither compiled nor formatted, and a scratch file cannot be shown passing after it is gone, so the pass side names a file that is still there. The control column is read as a document: a gate that names nothing, and a checker under scripts/ that is not on the disk, are findings; a path named outside scripts/ — a spec file, a test file inside a crate — is not read as a path, because the reading does not know which layer a sentence about a case belongs to. BLOQUEADO is exercised by the runner's own controls, where an artifact is genuinely held by another process.",
     },
     null,
     2,
