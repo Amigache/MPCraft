@@ -9,9 +9,9 @@
  *
  * So the counts are worked out from the rows and compared with the summary. What it buys, and what
  * it does not: it catches a row whose status is not in the legend, a row that names no place in
- * upstream, a planned row with no phase, and a summary that disagrees with the rows. It cannot
- * catch a row that is wrong about what upstream does — that is a judgement about the code, not a
- * fact about the table.
+ * upstream, a planned row with no phase, a dropped row that does not say why, and a summary that
+ * disagrees with the rows. It cannot catch a row that is wrong about what upstream does — that is a
+ * judgement about the code, not a fact about the table.
  */
 
 import { readFileSync } from "node:fs";
@@ -50,7 +50,7 @@ function cellsOf(line) {
 }
 
 function check(text) {
-  const lines = text.split("\n");
+  const lines = text.split(/\r?\n/);
 
   const faults = [];
   const counted = {};
@@ -82,6 +82,12 @@ function check(text) {
 
     if (family === "Planned" && phase === "") {
       faults.push(`row ${id} is planned without a phase`);
+    }
+
+    /* A feature may be left out, but not quietly: the reason has to be written beside the mark, in
+       the same cell, because a row that says only "Dropped" is a decision nobody can read. */
+    if (family === "Dropped" && !/^Dropped\s+—\s+\S/.test(phase)) {
+      faults.push(`row ${id} is dropped without saying why`);
     }
   }
 

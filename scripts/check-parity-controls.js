@@ -18,9 +18,15 @@ const text = readFileSync(
   "utf8",
 );
 
-/** Replaces one line with another, and says so when the line to change is not there. */
+/**
+ * Replaces one line with another, and says so when the line to change is not there.
+ *
+ * The lines are read as the file writes them: git hands this machine text files with the carriage return
+ * before the line feed on checkout (`core.autocrlf=true`), so a rule anchored at the end of a line would
+ * find nothing in a file written that way.
+ */
 function mutate(source, pattern, replacement) {
-  const line = source.split("\n").find((row) => pattern.test(row));
+  const line = source.split(/\r?\n/).find((row) => pattern.test(row));
 
   if (line === undefined) {
     return { error: `nothing in the matrix looks like ${pattern}` };
@@ -73,6 +79,15 @@ const cases = [
     ),
     expect: /names no place in upstream/,
   },
+  {
+    claim: "a dropped row that does not say why is caught",
+    mutated: mutate(
+      text,
+      /^\| 6\.14 \|.*⬜.*\|$/,
+      "| 6.14 | Python LogAnalyzer integration | `LogAnalyzer/` | ⬜ | 7 |",
+    ),
+    expect: /dropped without saying why/,
+  },
 ];
 
 for (const entry of cases) {
@@ -99,6 +114,27 @@ for (const entry of cases) {
     saw: result.faults,
   });
 }
+
+/* The same rule, against a copy of the matrix whose lines end with the carriage return before the line feed,
+   which is what git hands this machine on checkout and what made these controls find nothing before the lines
+   were read that way. */
+const crlf = text.replace(/\r?\n/g, "\r\n");
+const knownBad = crlf
+  .split(/\r?\n/)
+  .find((row) => /^\| 6\.14 \|.*⬜.*\|$/.test(row));
+const crlfResult = check(
+  crlf.replace(
+    knownBad,
+    "| 6.14 | Python LogAnalyzer integration | `LogAnalyzer/` | ⬜ | 7 |",
+  ),
+);
+
+checks.push({
+  claim:
+    "the rules fire on a file that ends its lines with the pair, not only on one that ends them with a single byte",
+  ok: crlfResult.faults.some((line) => /dropped without saying why/.test(line)),
+  saw: crlfResult.faults,
+});
 
 const fails = checks.filter((entry) => !entry.ok);
 

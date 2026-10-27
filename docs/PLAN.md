@@ -232,8 +232,18 @@ map, and exported — matching upstream's `LogBrowse` capability.
 - [ ] WASM plugin sandbox: capability-scoped host API (telemetry read, commands, mission access)
 - [ ] Plugin lifecycle: `Init` → `Loaded` → `Loop@hz` → `Exit`
 - [ ] Plugin management UI with enable/disable persistence
-- [ ] Embedded scripting host (Rhai or Lua) for user automation
+- [ ] Parameter access as a capability (`read_params`, `write_params`), which is the one part of
+      upstream's script surface the granted set does not cover — see row 9.4
 - [ ] Headless swarm/formation control
+
+There is no embedded scripting engine, and that is the decision rather than an unfinished item: the host as
+upstream builds it loads every assembly in the process and puts the application objects into the scope, which
+is the ambient authority ADR-007 excludes, so what a user automation can be here is a module with a manifest a
+person reads before deciding to run it. The names the sandbox can grant today are `read_telemetry`,
+`send_commands`, `mission_access` and `notify`; parameter access is the gap that has to be closed before a
+plugin can do what upstream's scripts mostly did, which is change a parameter while a flight runs. A
+capability that is not one of these is refused rather than guessed at, so adding one is a change to the
+granted set that the manifest gate has to read.
 
 The sandbox needs a WASM runtime, which is the one dependency this phase is allowed to bring in:
 the rest of the workspace stays free of new crates. The runtime lives inside `mpcraft-plugin` and

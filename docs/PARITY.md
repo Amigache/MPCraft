@@ -193,7 +193,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 9.1 | Plugin lifecycle (Init/Loaded/Loop/Exit) | `Plugin/Plugin.cs` | ✅ | 6 |
 | 9.2 | Plugin host API surface | `Plugin/Plugin.cs` (PluginHost) | ✅ | 6 |
 | 9.3 | Plugin management UI | `Plugin/PluginUI.cs` | ✅ | 6 |
-| 9.4 | Scripting host | `Script.cs` (IronPython) | 🔜 | 6 |
+| 9.4 | Scripting host | `Script.cs` (IronPython) | ⬜ | Dropped — a language engine that loads every assembly in the process; its surface is what the capability-scoped plugin host (9.1–9.3) replaces, except parameter access, which the sandbox does not grant yet |
 | 9.5 | Swarm / formation control | `Swarm/` | 🔽 | 6 |
 | 9.6 | Joystick + RC override mapping | `Joystick/JoystickSetup.cs` | ✅ | 5 |
 | 9.7 | Video stream / camera integration | `Controls/Video.cs`, `GimbalVideoControl.cs` | 🟡 | 5 |
@@ -221,8 +221,8 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 143 |
-| 🔜 Planned | 8 |
-| ⬜ Dropped | 1 |
+| 🔜 Planned | 7 |
+| ⬜ Dropped | 2 |
 | Partial (🟡 / 🔽) | 3 |
 
 The 143 rows marked done are the connection, transport, parameter, mission, command and
@@ -1293,9 +1293,34 @@ the play-back is read through the same document the contract declares, so a tick
 play-back does not take the window back from the flight being shown. Whether an event reaches a window is
 outside of what a reading of two source files can say, and that is said rather than assumed.
 
-The single dropped feature is the Python LogAnalyzer integration (6.14) — it depends on a
-Python 2 toolchain that is no longer maintainable. Its capability is covered by the native
-graphing and analysis in 6.7–6.8, which is a strictly better outcome.
+The **scripting host** is dropped, and the decision rests on what the published file does rather than on
+what its name suggests. The clone named at the top of this file is not on this machine, so the row was read
+against `Script.cs` as published (220 lines), and nothing here says anything about a running engine: the
+reading is of the source. What that host does before it runs anything is load every assembly in the process
+into the language runtime and put the application itself into the scope — `MainV2`, `FlightPlanner`,
+`FlightData`, `Ports`, `MAV`, `Joystick` — so a script is not an automation but a program that can reach
+whatever the host holds, including the window and the socket, which is the ambient authority ADR-007 refuses
+for the extension surface and the reason rows 9.1–9.3 are the answer to this row. What its own API offers is
+six calls: read and write a parameter, change mode, send a radio override, wait for a word in the messages,
+sleep. Four have an equivalent in the plugin host — a value the vehicle last said is read through
+`read_telemetry`, mode and the override go out through `send_commands`, and a word in the messages is what
+`notify` says — while the two parameter calls do not, because the set the sandbox can grant today is those
+three plus `mission_access` and parameter access is not in it; that is said as far as the coverage reaches,
+and the missing name is an open item in phase 6 rather than a claim of coverage. Waiting has no equivalent by
+design, because a call inside the sandbox must never wait for the wire — upstream's waiting is `Thread.Sleep`
+on the calling thread, which is a plugin holding the link while a piece of somebody else's code sits on it.
+Two functions of the surface it advertises answer with nothing in the published source: `mavlink_connection`
+and `recv_match` return null, so the pymavlink compatibility a reader would expect from this row does not
+exist. And one thing is kept as a difference rather than written as a gap: upstream runs a text file the
+operator pastes, and MPCraft runs a module with a manifest a person reads before deciding to run it, so there
+is no paste-and-run automation here, which is what the sandbox costs.
+
+The two dropped features are the Python LogAnalyzer integration (6.14) and the IronPython scripting host
+(9.4). The first depends on a Python 2 toolchain that is no longer maintainable, and its capability is
+covered by the native graphing and analysis in 6.7–6.8, which is a strictly better outcome. The second is
+dropped for the reason the paragraph above gives, and the parity gate now reads that reason: a row marked
+⬜ has to carry why beside the mark, because a decision that says only "Dropped" is a feature left out
+without anything a reader can check.
 
 ---
 

@@ -128,7 +128,8 @@ notarisation and Linux packaging are real costs, scheduled in phase 7.
 
 ## ADR-007 — Capability-scoped WASM plugin model
 
-**Status:** Proposed
+**Status:** Accepted (the host is built; the capability list below is what was designed, and the set the
+sandbox can grant as it stands is `read_telemetry`, `send_commands`, `mission_access` and `notify`)
 
 **Context.** Upstream loads C# plugins by compiling `.cs` files at runtime with Roslyn, and hosts
 an IronPython scripting engine. Both are powerful and both are unsafe — a plugin has full process
@@ -145,6 +146,12 @@ that works across all three target platforms without a process boundary.
 **Consequences.** Plugins cannot be written in Rust and loaded natively without a separate ABI —
 WASM is the only interface. The host API must be designed carefully, since it is a public contract.
 This is a phase-6 decision and may need revision once the API is exercised.
+
+The IronPython host (row 9.4) is not ported for the same reason this decision exists: what that engine does
+before running anything is load every assembly in the process and put the application objects into its scope,
+which is a plugin with no capability grant. The two documents disagree in one place and both say so — the list
+above names parameter access, and the granted set as built does not have it, so a plugin cannot yet do what
+upstream's scripts mostly did. That is an open item in phase 6, not a coverage claim.
 
 ---
 
