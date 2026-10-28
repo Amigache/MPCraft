@@ -63,7 +63,7 @@ futures = "0.3"
 async-trait = "0.1"
 bytes = "1"
 dashmap = "6"
-parking_lot = "0.12"
+parking_lot = "0.13"
 rayon = "1"
 arc-swap = "1"
 
