@@ -32,9 +32,11 @@ export async function pickSavePath(
 ): Promise<PickedPath> {
   try {
     const path = await invoke<string | null>("plugin:dialog|save", {
-      defaultPath,
-      filters,
-      title: "Save the plan",
+      options: {
+        defaultPath,
+        filters,
+        title: "Save the plan",
+      },
     });
 
     return path === null
@@ -49,9 +51,11 @@ export async function pickSavePath(
 export async function pickFolder(): Promise<PickedPath> {
   try {
     const path = await invoke<string | null>("plugin:dialog|open", {
-      directory: true,
-      multiple: false,
-      title: "Open the folder",
+      options: {
+        directory: true,
+        multiple: false,
+        title: "Open the folder",
+      },
     });
 
     return path === null
@@ -68,10 +72,12 @@ export async function pickOpenPath(
 ): Promise<PickedPath> {
   try {
     const path = await invoke<string | null>("plugin:dialog|open", {
-      directory: false,
-      filters,
-      multiple: false,
-      title: "Open the plan",
+      options: {
+        directory: false,
+        filters,
+        multiple: false,
+        title: "Open the plan",
+      },
     });
 
     return path === null
@@ -85,15 +91,20 @@ export async function pickOpenPath(
 /**
  * Asks a yes-or-no question.
  *
- * A shell that cannot ask is said as a no: an update that nobody confirmed is not installed.
+ * The dialog plugin has one message command: the buttons it shows are the argument, and the answer
+ * is the label of the button that was pressed. A shell that cannot ask is said as a no, because an
+ * update that nobody confirmed is not installed.
  */
 export async function askQuestion(message: string): Promise<boolean> {
   try {
-    return await invoke<boolean>("plugin:dialog|ask", {
+    const answer = await invoke<string>("plugin:dialog|message", {
+      message,
       title: "MPCraft",
       kind: "info",
-      message,
+      buttons: "YesNo",
     });
+
+    return answer === "Yes";
   } catch {
     return false;
   }
