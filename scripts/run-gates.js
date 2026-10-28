@@ -315,6 +315,24 @@ const GATES = [
     proof: (text) => lineMatching(text, /"verdict": "PASS"/),
   },
   {
+    name: "the DFU numbers, worked out again",
+    layer: "any",
+    /**
+     * The golden literals live in one file and the writer that makes the bytes they are worked out over lives in
+     * another, so this gate is scoped by what it reads rather than by a layer: the literals are read as text and
+     * the numbers are worked out by a table written here from the polynomial, which is what says they did not
+     * come from the module that carries them.
+     */
+    command: "node",
+    probe: ["--version"],
+    args: ["scripts/check-dfu-crc.js"],
+    cwd: ROOT,
+    reads: ["crates/mpcraft-app/tests/dfu.rs", "crates/mpcraft-app/src/dfu.rs"],
+    control:
+      "scripts/check-dfu-crc-controls.js, which shows each rule firing on a known-bad copy — a literal that disagrees with its own table, a pair written as agreeing, a writer whose shapes disagree with the format — and the two files passing untouched",
+    proof: (text) => lineMatching(text, /"verdict": "PASS"/),
+  },
+  {
     name: "rust formatting",
     layer: "rust",
     command: "cargo",

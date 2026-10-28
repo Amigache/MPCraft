@@ -18,6 +18,11 @@
 //! interpret the contents of a file it replays. The log-format-aware replay lives in
 //! `mpcraft-log`, which implements the same trait.
 //!
+//! The device layer ([`device`]) is the counterpart of a transport for a medium that answers
+//! requests rather than carrying a stream: there is nothing to read until something is asked. It knows
+//! the shape of a request and the shape of the functional descriptor, and nothing about states, blocks
+//! or checksums — those are rules of the protocol and live above.
+//!
 //! # Example
 //!
 //! ```
@@ -37,12 +42,16 @@ use std::fmt;
 
 use async_trait::async_trait;
 
+pub mod device;
 pub mod file;
 pub mod serial;
 pub mod spec;
 pub mod tcp;
 pub mod udp;
 
+pub use device::{
+    read_string, Capability, Device, DeviceError, DeviceResult, FunctionalDescriptor,
+};
 pub use file::FileTransport;
 pub use serial::{SerialPortInfo, SerialTransport};
 pub use spec::{ConnectionOptions, ConnectionScheme, ConnectionSpec, SpecError};

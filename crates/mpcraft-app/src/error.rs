@@ -120,6 +120,12 @@ impl From<mpcraft_plugin::PluginError> for CommandError {
     }
 }
 
+impl From<mpcraft_transport::DeviceError> for CommandError {
+    fn from(error: mpcraft_transport::DeviceError) -> Self {
+        Self::new(error.code(), error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,5 +176,23 @@ mod tests {
         });
 
         assert_eq!(error.code, "plugin_capability");
+    }
+
+    #[test]
+    fn a_device_failure_keeps_its_code() {
+        // A stall and a refusal are two different things at the device layer, and the frontend has to be
+        // able to tell them apart without reading the message: a device that is not on the bus is not a
+        // device that answered badly.
+        assert_eq!(
+            CommandError::from(mpcraft_transport::DeviceError::Stalled { number: 0x01 }).code,
+            "device_stalled"
+        );
+        assert_eq!(
+            CommandError::from(mpcraft_transport::DeviceError::Unreachable(
+                "nothing on the bus".to_owned()
+            ))
+            .code,
+            "device_unreachable"
+        );
     }
 }

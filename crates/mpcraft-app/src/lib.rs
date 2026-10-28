@@ -50,6 +50,7 @@ pub mod board;
 pub mod bootloader;
 pub mod checklist;
 pub mod coordinates;
+pub mod dfu;
 pub mod diagnostics;
 pub mod dronecan;
 pub mod error;

@@ -181,7 +181,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 8.1 | Firmware manifest download | `GCSViews/ConfigurationView/ConfigFirmwareManifest.cs` | ✅ | 5 |
 | 8.2 | Firmware selection by board | `ConfigFirmware.cs` | ✅ | 5 |
 | 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | ✅ | 5 |
-| 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔜 | 5 |
+| 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔽 | 5 |
 | 8.5 | Board auto-detect | `BoardDetect.cs` | ✅ | 5 |
 | 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | ✅ | 5 |
 | 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔜 | 5 |
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 143 |
-| 🔜 Planned | 7 |
+| 🔜 Planned | 6 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 3 |
+| Partial (🟡 / 🔽) | 4 |
 
 The 143 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
@@ -396,6 +396,74 @@ a vehicle after answering, and the other decides which protocol the board speaks
 The flash of a board can also be **erased**, from the same sheet: the board is asked
 what it is and its memory is left clean, which is what the operator wants when the
 board does not start.
+
+La placa en su modo de recuperacion se alcanza por el protocolo DFU, y la capa que la
+alcanza es la del dispositivo: un rasgo que envia, recibe, pide una cadena y se describe,
+sin tipos del sistema operativo, porque lo que devuelve es el descriptor funcional y las
+cadenas que la interfaz ofrece — y el vinculo que llega a un bus real vive en
+`mpcraft-app`, detras de `hardware-tests`, porque una capa por debajo de la aplicacion no
+puede saber que WinUSB existe. El descriptor que esta placa pone en el cable es
+`09 21 0B FF 00 00 08 1A 01`, que es la forma que una lectura publicada escribe para un
+STM32, y los dos numeros que guarda — `0x0413` y `0x011a` — son los que
+STM32CubeProgrammer dice de la misma placa, asi que el acuerdo entre los dos caminos es
+un hecho y no una suposicion.
+
+Los numeros guardados vienen de una segunda implementacion del formato
+(`scripts/check-dfu-crc.js`), escrita desde la formula publicada y no desde la lectura que
+se comprueba: `bcebc9b4` para el cuerpo del fixture y `a02b6bff` para los mismos bytes
+leidos con la regla que el espectro describe. Los dos se conservan, porque el desacuerdo
+es un hecho sobre las dos lecturas y no algo que la mano pueda cerrar; lo que este
+proyecto lleva es la primera, que es la que cuatro implementaciones escritas por caminos
+distintos escriben igual — la tabla reflejada de `crc32_table` en `src/dfu_file.c` de
+dfu-util, `tools/pydfu.py`, `dfuse-pack.py` de betaflight y el `dfu.py` de tinyusb para el
+fomu —, acumulando desde `0xFFFFFFFF` sin inversion final, mientras que la redaccion del
+espectro, con un polinomio no reflejado y inversion al final, da otro numero para los
+mismos bytes. El numero se trabaja sobre todo lo que esta delante del campo del CRC, lo
+cual incluye los once bytes del prefijo, y las cinco muestras se comparan con las dos
+tablas, que es lo que hace que una fila escrita como si las dos lecturas coincidieran sea
+un hallazgo.
+
+La cadena de memoria se lee como la lee dfu-util: el numero hasta el primer caracter que
+no es digito, y la multiplicacion solo cuando la letra de unidad esta escrita. Lo que se
+habia dicho antes sobre las dos formas publicadas de la misma cadena — que su lectura da
+los mismos sectores para 1024K — era incorrecto y se corrige aqui: no lo da.
+`04*016Kg,01*064Kg,07*128Kg` hace los doce sectores que la geometria que el propio
+escritor de ArduPilot declara para esta familia (f405, 1024K) produce, 4 de 16K, 1 de 64K
+y 7 de 128K; `000016*1024,0001*64*1024,0007*128*1024`, leida con esa regla, reparte en 24
+tramos que suman 17 344 bytes. El desacuerdo se registra y no se cierra: la lectura de
+fwupd (`plugins/dfu/fu-dfu-target.c`) rechaza esos tokens porque pide una letra de unidad
+y un tamano entre 1 y 999, la expresion de pydfu no los lee porque pide unidad y permiso
+los dos, y aqui el token se lee y la letra que ninguno de los dos diccionarios da se
+conserva como dato, con el sector sin permiso, porque "no dicho" no es un permiso. El
+diccionario de permisos es el de las siete letras que dfu-util y fwupd escriben igual —
+`a` lee, `b` borra, `c` lee y borra, `d` escribe, `e` lee y escribe, `f` borra y escribe,
+`g` hace los tres — y las siete se comparan letra por letra contra las dos tablas
+publicadas, que es lo que permite afirmar el significado sin escribirlo dos veces. Un
+sector que no dice permiso no se borra, y esa negativa cae antes de que nada viaje por el
+cable, que es lo que el lector publicado hace con `find_segment` y `DFUSE_ERASABLE`.
+
+La orden de borrar todo es otro desacuerdo entre lecturas: dfu-util escribe el numero con
+longitud 1 para el borrado del dispositivo entero — su propio comentario dice "Mass erase
+command when length = 1" — y pydfu manda `"\x41"` solo, mientras que la lectura publicada
+de ArduPilot entiende solo la forma de cinco bytes y contesta la otra como una orden que
+no se entiende. Este codigo pone el byte solo en el cable, y el test afirma las dos
+mitades: el numero que escribe y lo que la otra lectura habria contestado con los mismos
+bytes. Lo que se afirma del estado es lo que el peer publicado implementa: la marca de
+ocupado se pone en cada peticion — no una sola vez por peer —, el primer GETSTATUS
+responde ocupado con el milimetro que esa lectura escribe y el segundo responde libre, y
+la transicion de MANIFEST_SYNC a MANIFEST ocurre al contestar y no al recibir.
+
+Lo que no se puede afirmar aqui se dice en lugar de suponerse: no hay un bus fisico en
+esta maquina, asi que lo que el test prueba es la forma — el descriptor, la cadena, la
+maquina de estados, la regla del bloque y las negativas antes de enviar — respondida por
+un peer escrito desde la lectura publicada, no que una placa real conteste esas peticiones;
+esa mitad vive detras de `hardware-tests`, donde la placa decide cual de las dos formas de
+la orden de borrado entiende. La puerta (`scripts/check-dfu-crc.js`) nombra su caso
+conocido-malo (`scripts/check-dfu-crc-controls.js`: un literal que no coincide con su
+propia tabla, una pareja escrita como si las dos lecturas coincidieran, un escritor cuyo
+tamano del objetivo va sin su prefijo) y lo que no alcanza: lee los literales como texto,
+no ejecuta el modulo, y la comparacion entre la regla del codigo y estas tablas es lo que
+el test del propio modulo lleva. Por eso la fila sigue parcial.
 
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are

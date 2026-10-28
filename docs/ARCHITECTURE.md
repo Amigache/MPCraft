@@ -212,6 +212,13 @@ Implementations:
 | `FileTransport` | Replays a recorded byte stream at a configurable rate - powers log playback and deterministic tests |
 | `NtripTransport` | RTCM correction source |
 
+A board in its bootloader is not a transport: it answers requests rather than moving bytes, so
+the device layer is its own trait — `send`, `receive`, `string`, `describe` — and it carries no
+operating-system types, because what it hands back is the functional descriptor and the strings the
+interface offers, with a stable code for a device that cannot be reached, stalls, or answers with
+something that is not a descriptor. The binding that reaches a physical bus lives in `mpcraft-app`,
+behind `hardware-tests`, because a crate below the application layer cannot know that WinUSB exists.
+
 Auto-reconnect is implemented **in the transport** as `reconnect()`, matching upstream's
 `TcpSerial.autoReconnect`. The *policy* - how many attempts, with what backoff, and whether
 to surface the failure - lives in the supervisor in `mpcraft-app`, where it can be tested
@@ -379,7 +386,7 @@ localised messages. **A message is never parsed for meaning.**
 | Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli`. In CI the half that needs no vehicle — the golden files — runs on the runner, and the live half is named as `HERRAMIENTA-AUSENTE` when no image can be pulled anonymously; it runs against a simulator started locally with `MPCRAFT_SITL_LIVE=1` |
 | Compatibility | Upstream's own test corpus: real `.tlog`, `.param`, `.waypoints` files |
 | Frontend | Vitest for stores and reducers; Playwright for the critical flows; eslint for what a reader would have to notice by hand — a name written and never used, a dependency list that does not match what the effect reads. It reads the sources this project can change and names what it leaves out: the vendored MapLibre worker under `public/`, and the React JSX rules, because the plugin for those cannot run on the version of eslint declared in `apps/ui/package.json`. A rule that is not carried cannot be switched off, so a source file that disables one is a finding |
-| Gates | `scripts/run-gates.js` runs them and says which layer it did not read (`NO-APLICA`, `HERRAMIENTA-AUSENTE`, `SUSTITUIDA`), so a green that rests on nothing is not read as a pass. A home-grown gate is shown failing on a known-bad case and passing on a known-good one before its green is trusted (`scripts/check-overlaps-controls.js`, `scripts/run-gates-controls.js`, `scripts/check-lint-controls.js`, `scripts/check-parity-controls.js`). The parity matrix is read rather than remembered: its counts are worked out from the rows (`scripts/check-parity.js`). And every gate that reads a tool rather than a document names its own known-bad case (`scripts/check-tool-controls.js`), because a gate whose green is its exit code alone cannot fail; only one of those five shows the finding itself, since the runner keeps the first line of what a tool says, and the other four show the state turning. A busy artifact is read as a gap rather than as green, and that reading is shown with a genuine sharing violation held by a separate process (`scripts/run-gates-controls.js`), not with a string that looks like one. The control column is read as a document too: every gate names its known-bad case and the checker under `scripts/` it names is on the disk, with both halves shown firing on a copy of the runner. And the parity checker names what it cannot reach inside its own report, not only in its header, which is read as a rule with two known-bad copies (`scripts/check-parity-controls.js`). The runner carries the same rule for itself: what the whole run cannot see — no window, no vehicle, no board, and no tool reading beyond the file it was shown — is named inside what it reports, and that reading is shown firing on two copies of the runner (`scripts/run-gates-controls.js`), not on the runner as it stands. |
+| Gates | `scripts/run-gates.js` runs them and says which layer it did not read (`NO-APLICA`, `HERRAMIENTA-AUSENTE`, `SUSTITUIDA`), so a green that rests on nothing is not read as a pass. A home-grown gate is shown failing on a known-bad case and passing on a known-good one before its green is trusted (`scripts/check-overlaps-controls.js`, `scripts/run-gates-controls.js`, `scripts/check-lint-controls.js`, `scripts/check-parity-controls.js`, `scripts/check-dfu-crc-controls.js`). The parity matrix is read rather than remembered: its counts are worked out from the rows (`scripts/check-parity.js`). And every gate that reads a tool rather than a document names its own known-bad case (`scripts/check-tool-controls.js`), because a gate whose green is its exit code alone cannot fail; only one of those five shows the finding itself, since the runner keeps the first line of what a tool says, and the other four show the state turning. A busy artifact is read as a gap rather than as green, and that reading is shown with a genuine sharing violation held by a separate process (`scripts/run-gates-controls.js`), not with a string that looks like one. The control column is read as a document too: every gate names its known-bad case and the checker under `scripts/` it names is on the disk, with both halves shown firing on a copy of the runner. And the parity checker names what it cannot reach inside its own report, not only in its header, which is read as a rule with two known-bad copies (`scripts/check-parity-controls.js`). The runner carries the same rule for itself: what the whole run cannot see — no window, no vehicle, no board, and no tool reading beyond the file it was shown — is named inside what it reports, and that reading is shown firing on two copies of the runner (`scripts/run-gates-controls.js`), not on the runner as it stands. |
 
 The SITL container is the linchpin: it lets the whole stack be tested without hardware, and the
 same harness serves the demo builds. It is not published anonymously, so on the runner the live half is
@@ -412,7 +419,9 @@ downsamples rather than replays raw samples.
   knows the runtime exists.
 - The app makes no unauthenticated network calls except tile/terrain fetches against configured
   providers, which the user can disable.
-- Arm/disarm, mission write, and firmware flash require explicit confirmation.
+- Arm/disarm, mission write, and firmware flash require explicit confirmation. The half that
+  erases a board or writes an image to it runs only when the operator names it with a flag in the
+  environment, because a board erased for nothing cannot be put back by anybody else.
 
 ---
 
