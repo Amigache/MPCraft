@@ -7,7 +7,7 @@ import {
   writeParameter,
   writeParametersBatch,
 } from "../ipc/bridge";
-import type { CommandError, Parameter } from "../ipc/types";
+import type { CommandError, ParamChange, Parameter } from "../ipc/types";
 
 /**
  * The parameters of the vehicle.
@@ -31,7 +31,11 @@ export interface KnownParameter {
 /** What happened the last time a parameter was written. */
 export type WriteOutcome =
   | { readonly kind: "written"; readonly parameter: KnownParameter }
-  | { readonly kind: "failed"; readonly code: string; readonly message: string };
+  | {
+      readonly kind: "failed";
+      readonly code: string;
+      readonly message: string;
+    };
 
 export interface ParamsStore {
   /** The parameters the vehicle has reported, by name. */
@@ -62,9 +66,7 @@ export interface ParamsStore {
    *
    * The order is the autopilots' knowledge and the backend applies it.
    */
-  readonly writeBatch: (
-    changes: readonly { name: string; value: number }[],
-  ) => Promise<void>;
+  readonly writeBatch: (changes: readonly ParamChange[]) => Promise<void>;
 }
 
 /**
@@ -87,7 +89,9 @@ function byName(parameters: readonly Parameter[]): readonly KnownParameter[] {
   return parameters
     .map(known)
     .slice()
-    .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+    .sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    );
 }
 
 /**
@@ -101,7 +105,9 @@ export function mergeParameters(
   previous: readonly KnownParameter[],
   incoming: readonly KnownParameter[],
 ): readonly KnownParameter[] {
-  const before = new Map(previous.map((parameter) => [parameter.name, parameter]));
+  const before = new Map(
+    previous.map((parameter) => [parameter.name, parameter]),
+  );
   let changed = previous.length !== incoming.length;
 
   const merged = incoming.map((parameter) => {

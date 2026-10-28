@@ -1588,7 +1588,7 @@ document, declared by the contract, and each field that crosses the boundary is 
 says rather than through its casing, so `system_id` and `systemId` are read as the same field and then
 required to agree; and the rule that the boundary speaks camelCase is read in both directions, because a
 command reads a document as well as answers with one. What the reading covers is 108 documents reachable from
-the boundary, 99 of them paired and 470 fields across those pairs, and what it does not cover is said rather
+the boundary, 103 of them paired and 495 fields across those pairs, and what it does not cover is said rather
 than pretended otherwise: a rename applied through a macro or a manual `Serialize` implementation, a document
 the contract declares and nothing names — `CommandError`, reached as the error half of a result rather than as an
 answer of its own, and `TileBounds`, which no call reads through it — and what the boundary does not reach — the
@@ -1609,9 +1609,9 @@ the play-back is read through the same document the contract declares, so a tick
 play-back does not take the window back from the flight being shown. Whether an event reaches a window is
 outside of what a reading of two source files can say, and that is said rather than assumed.
 
-The **pairs** are read now, which is what the first version of this gate could not do: 51 documents are named
-the same on both sides and 25 are named differently, so `Telemetry` is read against `TelemetryEvent`,
-`LossStats` against `LossEvent`, `VehicleMessage` against `MessageEvent`, `SigningKeyEntry` against
+The **pairs** are read now, which is what the first version of this gate could not do: 53 documents are named
+the same on both sides and 50 are named differently, so `Telemetry` is read against `TelemetryEvent`,
+`LossStats` against `LossEvent`, `VehicleMessage` against `MessageEvent`, `SigningKeyEvent` against
 `SigningKeyView` and `DtedCell` against `DtedCellInfo`. The pairing is not a table somebody writes: it is what
 the same field says on both sides — `StateEvent.telemetry` is declared as `Telemetry` and written as
 `TelemetryEvent` — so a reader that declares another document for that field is read against what the writer
@@ -1625,7 +1625,7 @@ has no struct to be read against, and the rule refuses one rather than skipping 
 declare. A call crosses the boundary the same way an event does — it answers with a document and reads one — so
 the pair a call site makes is read like the pair an event carries, and that is the seventh thing the gate asserts:
 of the 136 commands the backend answers, 135 are called from the frontend and every call goes to a name that is
-answered; 99 documents are paired with 470 fields compared, and `PartialUpdateInfo` is named now because the call
+answered; 103 documents are paired with 495 fields compared, and `PartialUpdateInfo` is named now because the call
 that reads the answer of `upload_mission_partial` held its shape at the call site rather than a name, which is the
 same class of drift as a listener holding a shape of its own and is refused rather than skipped. What is said as a
 fact rather than as a fault: `connection_status` is a command nothing in the frontend calls, because the rule reads
@@ -1642,23 +1642,38 @@ and on the way in it is a finding, because the backend expects a value the inter
 a field the reader asks for and the writer never sends, seen from the other side. That is the eighth thing the gate
 asserts, and the side is kept as its own fact rather than assumed, because the same document can be answered by one
 command and read by another. Of the 239 keys the 136 commands read — the 116 arguments that are the state or the
-application handle are not keys, because Tauri gives them to the command and the interface never sends them — 66 are
+application handle are not keys, because Tauri gives them to the command and the interface never sends them — 76 are
 read through a document, and the pair is not a table written here: either the argument names a name the contract
 declares (`ConnectRequest` and `VehicleRequest`, which together carry most of them) or a field says the pair for it —
 `ConnectionProfile↔ProfileEvent` through `set_connection_profiles`, and `GeoPoint↔PositionEvent` through
-`set_home_position` and `dted_path`. The other 173 are said as facts: 154 are primitives, nine carry `PlanKind`
-(which the contract declares as a union of words rather than an interface), and ten are read through a struct the
-contract has no name for — `PlanItemRequest`, `OsdSlotRequest`, `SwarmRequest`, `SigningKeyEvent` and `ParamChange` —
-where the interface sends a shape a call site decided, so there is nothing to compare it against. What was said
-before about this count is corrected now: it named 148 arguments, which are only the ones whose type is a document,
+`set_home_position` and `dted_path`. The other 163 are said as facts: 154 are primitives and nine carry `PlanKind`
+(which the contract declares as a union of words rather than an interface). What was said before about this count is
+corrected now: it named 148 arguments, which are only the ones whose type is a document,
 because a Rust primitive begins with a lowercase letter and the reading skipped it — that is why `manual_control`
 looked like a call that sent keys nobody read. What the reading cannot see is said rather than pretended otherwise:
 the values that sit under a key and the type each value is read as are not compared, and a payload the call holds
 under a name rather than writing as a literal would be said as a fact because nothing declares its shape, which none
 is today. Both halves of the way in are shown firing — `VehicleRequest.nothingTheInterfaceSends`, expected by the
 struct and never declared, and `VehicleRequest.nothingTheStructNeverReads`, declared as what the interface sends and
-never read — and the sources are shown passing with the same 99 paired documents and 470 fields, which says that this
+never read — and the sources are shown passing with the same 103 paired documents and 495 fields, which says that this
 rule found nothing to complain about today: it is the rule that would say it if a request grew a field nobody sends.
+
+The **five documents on the way in** were shapes the call sites decided for themselves, so the reading had no name to
+compare them against; they are declared by the contract now, and the ten arguments that read through them are read
+field by field: `ParamChange` through `write_parameters_batch`, `OsdSlotRequest` through `osd_slot_config`,
+`PlanItemRequest` through the six plan calls (`upload_mission`, its file-transfer and partial forms, `validate_mission`
+and `plan_terrain_profile`), `SigningKeyEvent` through `set_signing_keys` and `SwarmRequest` through
+`set_swarm_settings`. The names follow what the boundary calls them: `FormationRequest` became `SwarmRequest` because
+the argument of the command that reads it says so, and `SigningKeyEntry` became `SigningKeyEvent` because the same
+document is answered as `SigningKeyView` by one command and read through a field of another, so a name that only
+speaks the answer would say half of it. `FormationSlot` keeps the pair its field says (`FormationSlot↔SwarmSlot`) rather than
+being renamed, because the settings crate writes it under that name and nothing new is pulled across the boundary.
+The call sites send through the declared documents now — `osdSlotConfig` takes one, `paramsStore.writeBatch` and the
+bridge read through `ParamChange`, the plan calls read their items through `PlanItemRequest`, and the keys sheet read
+the keyring's answer through a shape it decided for itself, which is now `SigningStatus` — and what that changes is
+what the compiler enforces, not what this reading compares: the gate reads a call as far as its keys go, so the values
+under those keys are still not compared here, and a document that the contract declares and nothing reads through it
+remains unpaired, which today is only `CommandError` and `TileBounds`.
 
 The **ninth thing** the gate reads is what each call actually puts on the wire, against every key its command reads.
 Tauri takes an argument by the key the message carries, so a key the command needs and the call never sends is a call

@@ -5,7 +5,7 @@ import {
   setSigningKeys,
   signingStatus,
 } from "../../lib/ipc/bridge";
-import type { SigningKeyEntry } from "../../lib/ipc/types";
+import type { SigningKeyEvent, SigningStatus } from "../../lib/ipc/types";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import styles from "./SigningSheet.module.css";
@@ -28,24 +28,17 @@ export function SigningSheet() {
   const hide = useUiStore((state) => state.hideSigning);
   const t = useLocaleStore((state) => state.t);
 
-  const [keys, setKeys] = useState<SigningKeyEntry[]>([]);
+  const [keys, setKeys] = useState<SigningKeyEvent[]>([]);
   const [refused, setRefused] = useState<string[]>([]);
   const [signedWith, setSignedWith] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const show = useCallback(
-    (status: {
-      keys: readonly SigningKeyEntry[];
-      refused: readonly string[];
-      signedWith: string | null;
-    }) => {
-      setKeys([...status.keys]);
-      setRefused([...status.refused]);
-      setSignedWith(status.signedWith);
-    },
-    [],
-  );
+  const show = useCallback((status: SigningStatus) => {
+    setKeys([...status.keys]);
+    setRefused([...status.refused]);
+    setSignedWith(status.signedWith);
+  }, []);
 
   const read = useCallback(async () => {
     try {

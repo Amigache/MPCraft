@@ -106,14 +106,14 @@ export function OsdSheet() {
     const range = rangeOf(known?.minimum ?? "", known?.maximum ?? "");
 
     try {
-      await osdSlotConfig(
-        slot.screen,
-        slot.index,
+      await osdSlotConfig({
+        screen: slot.screen,
+        index: slot.index,
         name,
-        range.min,
-        range.max,
-        range.increment,
-      );
+        min: range.min,
+        max: range.max,
+        increment: range.increment,
+      });
 
       setSlots((before) =>
         before.map((entry) =>

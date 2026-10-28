@@ -18,7 +18,6 @@ import type {
   DtedLibraryInfo,
   FirmwareManifest,
   FlightMode,
-  FormationRequest,
   FormationStatus,
   FtpEntry,
   FtpFile,
@@ -36,6 +35,8 @@ import type {
   NtripStatus,
   OutputFunction,
   OsdSlot,
+  OsdSlotRequest,
+  ParamChange,
   Parameter,
   ParameterDifference,
   ParameterMetadata,
@@ -43,15 +44,17 @@ import type {
   PicturePlace,
   Plan,
   PlanItem,
+  PlanItemRequest,
   PlanKind,
   PlanWarning,
   PluginInfo,
   SelectedVehicle,
   SerialPort,
-  SigningKeyEntry,
+  SigningKeyEvent,
   SigningStatus,
   StateEvent,
   StreamAnswer,
+  SwarmRequest,
   TerrainPathPoint,
   TerrainPoint,
   TileBounds,
@@ -249,7 +252,7 @@ export async function signingStatus(): Promise<SigningStatus> {
  * opened next is signed with the first secret in it that can be read.
  */
 export async function setSigningKeys(
-  keys: readonly SigningKeyEntry[],
+  keys: readonly SigningKeyEvent[],
 ): Promise<SigningStatus> {
   return call<SigningStatus>("set_signing_keys", { keys });
 }
@@ -271,7 +274,7 @@ export async function formationStatus(): Promise<FormationStatus> {
  * answer says which of them the backend left out, and the file keeps what was actually written.
  */
 export async function setFormation(
-  req: FormationRequest,
+  req: SwarmRequest,
 ): Promise<FormationStatus> {
   return call<FormationStatus>("set_swarm_settings", { req });
 }
@@ -627,20 +630,12 @@ export async function osdSlots(): Promise<OsdSlot[]> {
 /**
  * Tells the vehicle what a slot of the on-screen display is to hold.
  *
- * The slot holds a parameter, and the range of the parameter is said with it.
+ * The slot holds a parameter, and the range of the parameter is said with it. The slot is
+ * sent as the document the contract declares for it, so that what travels is read against
+ * the command that reads it rather than against a shape this file decided.
  */
-export async function osdSlotConfig(
-  screen: number,
-  index: number,
-  name: string,
-  min: number,
-  max: number,
-  increment: number,
-): Promise<void> {
-  await call<void>("osd_slot_config", {
-    req: {},
-    slot: { screen, index, name, min, max, increment },
-  });
+export async function osdSlotConfig(slot: OsdSlotRequest): Promise<void> {
+  await call<void>("osd_slot_config", { req: {}, slot });
 }
 
 /** The sources of tiles the map can draw with. */
@@ -784,7 +779,7 @@ export async function graphSeries(
  * written last, so that what they turn on is already configured when it is turned on.
  */
 export async function writeParametersBatch(
-  changes: readonly { name: string; value: number }[],
+  changes: readonly ParamChange[],
 ): Promise<Parameter[]> {
   return call<Parameter[]>("write_parameters_batch", {
     req: {},
@@ -1479,7 +1474,7 @@ export async function vehicleCoordinates(): Promise<Coordinates> {
  */
 export async function planTerrainProfile(
   kind: PlanKind,
-  items: readonly PlanItem[],
+  items: readonly PlanItemRequest[],
 ): Promise<TerrainPoint[]> {
   return call<TerrainPoint[]>("plan_terrain_profile", { kind, items });
 }
@@ -1491,7 +1486,7 @@ export async function planTerrainProfile(
  * it says and does not know why.
  */
 export async function validateMission(
-  items: readonly PlanItem[],
+  items: readonly PlanItemRequest[],
   kind: PlanKind,
 ): Promise<PlanWarning[]> {
   return call<PlanWarning[]>("validate_mission", { kind, items });
@@ -1499,7 +1494,7 @@ export async function validateMission(
 
 /** Writes a plan to a file, in the format Mission Planner uses. */
 export async function exportPlan(
-  items: readonly PlanItem[],
+  items: readonly PlanItemRequest[],
   kind: PlanKind,
   format: string,
   path: string,

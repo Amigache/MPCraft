@@ -128,8 +128,8 @@ export interface TransponderStatus {
   readonly settings: TransponderSettings;
 }
 
-/** One key of the signed link, as the operator wrote it. */
-export interface SigningKeyEntry {
+/** One key of the signed link, as the interface names it on the way in and as the keyring answers it on the way back. */
+export interface SigningKeyEvent {
   /** The name the key is listed under. */
   readonly name: string;
   /** The secret, in hexadecimal. */
@@ -139,7 +139,7 @@ export interface SigningKeyEntry {
 /** What the keyring says about what the operator wrote. */
 export interface SigningStatus {
   /** The keys, in the order the file wrote them. */
-  readonly keys: readonly SigningKeyEntry[];
+  readonly keys: readonly SigningKeyEvent[];
   /** The names of the secrets that could not be read as thirty-two bytes. */
   readonly refused: readonly string[];
   /** The name of the key the frames are signed with, when there is one. */
@@ -177,7 +177,7 @@ export interface FormationStatus {
 }
 
 /** What the interface sends for the formation: what the operator wrote, and the decision. */
-export interface FormationRequest {
+export interface SwarmRequest {
   /** Who leads, named the way the file names it. */
   readonly leader: string | null;
   /** Whether the loop is run. */
@@ -455,6 +455,22 @@ export interface OsdSlot {
   readonly name: string | null;
   /** Whether the vehicle knows the slot. */
   readonly known: boolean;
+}
+
+/** What a slot of the on-screen display is to hold, as the interface sends it. */
+export interface OsdSlotRequest {
+  /** The screen the slot is on. */
+  readonly screen: number;
+  /** The number of the slot on that screen. */
+  readonly index: number;
+  /** The name of the parameter the slot is to hold. */
+  readonly name: string;
+  /** The lowest value the parameter takes. */
+  readonly min: number;
+  /** The highest value the parameter takes. */
+  readonly max: number;
+  /** The step the value moves by. */
+  readonly increment: number;
 }
 
 /** One file the vehicle holds, as the file transfer protocol describes it. */
@@ -830,6 +846,14 @@ export interface Parameter {
   readonly value: number;
   /** The type the vehicle reported, as the MAVLink enumeration. */
   readonly reportedType: number;
+}
+
+/** One change to a parameter, as the interface sends it: the value it is given. */
+export interface ParamChange {
+  /** The name of the parameter. */
+  readonly name: string;
+  /** The value it is given. */
+  readonly value: number;
 }
 
 /** How the value of a parameter differs between the vehicle and a file. */
@@ -1215,6 +1239,32 @@ export interface PlanItem {
   /** The latitude, for a command that carries a position. */
   readonly x: number;
   /** The longitude, for a command that carries a position. */
+  readonly y: number;
+  /** The altitude. */
+  readonly z: number;
+  /** Whether the item is the one being executed. */
+  readonly current: boolean;
+  /** Whether the vehicle continues to the next item automatically. */
+  readonly autocontinue: boolean;
+}
+
+/**
+ * One item of a plan as the backend reads it on the way in.
+ *
+ * This is not the item the screen holds: the position in the plan and the name of the
+ * command are what the interface shows, and the command that takes a plan reads the
+ * numbers, not them.
+ */
+export interface PlanItemRequest {
+  /** The numeric command value. */
+  readonly commandValue: number;
+  /** The coordinate frame the position is expressed in. */
+  readonly frame: number;
+  /** The four generic parameters. */
+  readonly params: readonly [number, number, number, number];
+  /** The latitude, for a command that carries a place. */
+  readonly x: number;
+  /** The longitude, for a command that carries a place. */
   readonly y: number;
   /** The altitude. */
   readonly z: number;

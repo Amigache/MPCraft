@@ -51,12 +51,15 @@
  * seen; a pairing only exists where a field names a document on both sides or where a call or an argument
  * names one, so a document the contract declares and nothing names is not compared — which is the case for
  * the error shape, read as `CommandError` while the wire carries it inside a result rather than as an answer
- * of its own; a shape written inside a document is refused, because nothing names it, and that is the whole
- * of what can be said about an anonymous shape without a name; an argument typed with a struct the contract
- * has no name for cannot be compared; the call sites are read as far as their keys go, so the values that sit
- * under those keys and the type each value is read as are not compared here, and a payload the call holds under
- * a name rather than writing as a literal is said as a fact because nothing declares its shape — none today;
- * and whether an event actually reaches a window is outside of what a reading of two source files can say.
+ * of its own, and for `TileBounds`, which no call reads through it; a shape written inside a document is
+ * refused, because nothing names it, and that is the whole of what can be said about an anonymous shape
+ * without a name; an argument typed with a struct the contract has no name for cannot be compared, which
+ * none is today, because the five shapes the interface used to decide at its own call sites are declared —
+ * `ParamChange`, `OsdSlotRequest`, `PlanItemRequest`, `SwarmRequest` and `SigningKeyEvent`; the call sites
+ * are read as far as their keys go, so the values that sit under those keys and the type each value is read
+ * as are not compared here, and a payload the call holds under a name rather than writing as a literal is
+ * said as a fact because nothing declares its shape — none today; and whether an event actually reaches a
+ * window is outside of what a reading of two source files can say.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -1009,7 +1012,7 @@ if (
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         faults: result.faults,
         limit:
-          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides or where a call or an argument names one, so a document the contract declares and nothing names is not compared — three are today: CommandError, reached as the error half of a result rather than as an answer of its own, and FormationRequest and TileBounds, which no call reads through them; a shape written inside a document or at a call site is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact on the way back and as a finding on the way in, so the side is kept as its own fact rather than assumed; an argument typed with a struct the contract has no name for cannot be compared; the call sites are read as far as their keys go — the values under those keys and the type each value is read as are not compared, and a payload held under a name rather than written as a literal is said as a fact because nothing declares its shape, which none is today; a helper shape is named by nothing, so it is read through the keys it declares rather than as a document; the handles a command takes from Tauri are not keys the interface sends; a command nothing calls is said as a fact, because the rule reads calls from the frontend towards the backend and not the other way round; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
+          "this reads sources as text. A rename applied through a macro or a manual Serialize implementation is not seen; a pairing exists only where a field names a document on both sides or where a call or an argument names one, so a document the contract declares and nothing names is not compared — two are today: CommandError, reached as the error half of a result rather than as an answer of its own, and TileBounds, which no call reads through it; a shape written inside a document or at a call site is refused because nothing names it; a field the writer carries and the interface does not read is said as a fact on the way back and as a finding on the way in, so the side is kept as its own fact rather than assumed; an argument typed with a struct the contract has no name for cannot be compared, and none is today: the five shapes the interface decided at its own call sites are declared now, so their fields are read against the command that reads them; the call sites are read as far as their keys go — the values under those keys and the type each value is read as are not compared, and a payload held under a name rather than written as a literal is said as a fact because nothing declares its shape, which none is today; a helper shape is named by nothing, so it is read through the keys it declares rather than as a document; the handles a command takes from Tauri are not keys the interface sends; a command nothing calls is said as a fact, because the rule reads calls from the frontend towards the backend and not the other way round; what the boundary does not reach — the settings file and the log formats — keeps its own spelling and is not read here; and whether an event reaches a window is outside of what two source files can say.",
       },
       null,
       2,

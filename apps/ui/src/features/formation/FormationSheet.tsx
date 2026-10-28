@@ -5,7 +5,7 @@ import {
   normaliseError,
   setFormation,
 } from "../../lib/ipc/bridge";
-import type { FormationRequest } from "../../lib/ipc/types";
+import type { SwarmRequest } from "../../lib/ipc/types";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -109,13 +109,13 @@ export function FormationSheet() {
     ]),
   ];
 
-  const request = (decision: boolean): FormationRequest => ({
+  const request = (decision: boolean): SwarmRequest => ({
     leader: leader === "" ? null : leader,
     enabled: decision,
     slots,
   });
 
-  const send = async (req: FormationRequest, message: string) => {
+  const send = async (req: SwarmRequest, message: string) => {
     setBusy(true);
     setNotice(null);
 
