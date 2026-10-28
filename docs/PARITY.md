@@ -1817,12 +1817,23 @@ is written: a Rust file that no module declares is neither compiled nor formatte
 file the crate already holds — a line with one space too many, which rustfmt reads as a difference and clippy does
 not read at all, and a boolean expression that says itself twice, which `-D warnings` turns into a failure on a file
 formatted as the formatting gate expects, so only the lint can speak — while `tsc` takes everything under `src`,
-`cargo test` takes every file in a `tests` folder as its own target, and prettier takes whatever it is named. Only
-one of the five shows the finding itself, because the runner keeps the first line of what a tool says: npm answers
-before the compiler, prettier opens with its heading, cargo may open with what it compiled, and the report of the
-test that failed comes behind whatever cargo printed first, so those four buy the flip and nothing more. And a
+`cargo test` takes every file in a `tests` folder as its own target, and prettier takes whatever it is named. Two
+of the five show the finding itself now: rustfmt names the file it reads as different, and the tests gate keeps the
+line that names the failing test (`^\s*test .* FAILED`), which is what its red rests on when a line names one. The
+other three buy the flip and nothing more, because npm answers before the compiler, prettier opens with its heading,
+and cargo may open with what it compiled. And a
 scratch file cannot be shown passing after it is gone, so the pass side names a file that is still there rather than
 the one that was written.
+
+What the rule for the tests gate adds is a reading the runner did not have, and it came from an event that is said as
+an event: one run answered `FAIL` while six runs afterwards answered green, so nothing here depends on which of the two
+this machine chose. What the first run could not say is exactly what the rule now says — it named no test and no binary,
+because the report keeps only the first line the tool printed, and the first line there was a compilation line rather
+than a finding. So what failed in that run is not known: the report did not carry it, and repeating the reading six
+times gave the same count of binaries that said ok. That failure is kept as an execution that did not reproduce and not
+as a defect. The control shows the new reading firing on a case whose report contains a failing test, which is where the
+line naming it comes from (`test control_case ... FAILED`) — and it says only that a run whose tool names nothing still
+shows just the flip.
 
 BLOQUEADO is exercised too, and with a real lock rather than with a string that looks like one (`scripts/run-gates-controls.js`):
 one file the prettier gate reads is held by a separate process that opens it with no sharing at all, and the control

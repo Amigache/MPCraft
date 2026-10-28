@@ -449,9 +449,11 @@ const GATES = [
     args: [TOOLCHAIN, "test"],
     cwd: ROOT,
     control:
-      "scripts/check-tool-controls.js: a test that fails; the report is written behind the first line the runner keeps, so this case buys the flip rather than the finding",
+      "scripts/check-tool-controls.js: a test that fails, and the line that names it is kept rather than whatever cargo printed first; the pass side names a file that is still there",
     /** The count of test binaries that said ok, which is what its green means. */
     proof: (text) => (text.match(/test result: ok\./g) ?? []).length,
+    /* A failing run must say which test answered it, not only that the exit code turned. */
+    finding: /^\s*test .* FAILED/,
   },
 ];
 
@@ -519,7 +521,7 @@ const gaps = report.filter((entry) =>
  * touched is named as such, and a gate something stands in for covers less than what it replaces.
  */
 const LIMIT =
-  "what the run sees is what each tool answers on the files it reaches. It does not see a window, a vehicle, or a board: a layer that was not touched is said as NO-APLICA rather than counted as evidence, a gate something stands in for covers less than what it replaces, and a tool gate shows the state turning rather than the finding whenever the tool opens with something other than the finding.";
+  "what the run sees is what each tool answers on the files it reaches. It does not see a window, a vehicle, or a board: a layer that was not touched is said as NO-APLICA rather than counted as evidence, a gate something stands in for covers less than what it replaces, and a tool gate keeps the line that names the finding when a line names one and shows only the state turning when the tool opens with something else.";
 
 console.log(
   JSON.stringify(
@@ -658,7 +660,26 @@ function assess(gate) {
   }
 
   entry.state = "FAIL";
-  entry.detail = firstLine(answer.failed);
+
+  /* When the tool names what it found, that line is kept rather than whatever the tool printed first;
+     when it does not, the first line is kept and the gap is named, because a red that rests on an exit
+     code says only that the state turned. A failing test run is the case this buys: cargo may open with
+     what it compiled, so the report of the test that failed comes behind the first line, and without this
+     reading a failure cannot say which binary answered it — which is what one of today's runs showed. */
+  const lines = plain(answer.failed).split("\n");
+  const naming = gate.finding
+    ? lines.find((row) => gate.finding.test(row))
+    : undefined;
+
+  if (naming !== undefined) {
+    entry.detail = naming.trim();
+    entry.why = "the tool named the finding itself";
+  } else {
+    entry.detail = firstLine(answer.failed);
+    entry.why =
+      "its red rests on the exit code: the state turned, and no line named the finding";
+  }
+
   return entry;
 }
 

@@ -13,10 +13,10 @@
  * whatever it is named, which is why the pass side of a scratch case names a file that is still there.
  *
  * What these prove, and what they do not. They prove each gate can fail on what it claims to read, and that
- * the sources pass untouched. Only one of them shows the finding itself: the runner keeps the first line of
- * what a tool says, and npm prints its banner before the compiler speaks, prettier opens with its heading,
- * cargo may open with what it compiled, and the failing test report comes behind whatever cargo printed
- * first. Those four buy the flip and nothing more. BLOQUEADO is not exercised here: the lock case belongs to
+ * the sources pass untouched. Two of them now show the finding itself: rustfmt names the file it reads as
+ * different, and the tests gate keeps the line that names the failing test. The other three buy the flip and
+ * nothing more, because npm prints its banner before the compiler speaks, prettier opens with its heading, and
+ * cargo may open with what it compiled. BLOQUEADO is not exercised here: the lock case belongs to
  * the runner's own controls, where an artifact is genuinely held by another process rather than described by a
  * string that looks like one.
  *
@@ -153,15 +153,16 @@ show({
   note: ", and shows only the flip, because cargo may open with what it compiled",
 });
 
-/* A test that fails. Its green normally rests on the count of binaries that said ok, and the failing report
-   comes behind whatever the runner kept as its first line, so this case buys the flip rather than the finding. */
+/* A test that fails. Its green normally rests on the count of binaries that said ok, and the report comes behind
+   whatever cargo printed first; now the runner keeps the line that names the failing test, so this case buys the
+   finding as well as the flip. */
 show({
   gate: "rust tests",
   path: "crates/mpcraft-app/tests/__control_test__.rs",
   goodPath: "crates/mpcraft-app/tests/plugins_wire.rs",
   wrote: () => "#[test]\nfn control_case() {\n    assert!(false);\n}\n",
-  expect: null,
-  note: ", and shows only the flip, because the report is written behind the first line",
+  expect: /control_case/,
+  note: ", which is what the runner keeps when a line names the finding",
 });
 
 /*
