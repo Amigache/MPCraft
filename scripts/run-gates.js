@@ -258,6 +258,42 @@ const GATES = [
     proof: (text) => resultForSection(text, "plugins_live"),
   },
   {
+    name: "the board on the bus, read as it answers",
+    layer: "rust",
+    /**
+     * A board in its bootloader answers this gate when MPCRAFT_DFU_TARGET names the pair it is on, because the
+     * things it says about itself are things a scripted peer cannot say: the nine bytes its interface puts on the
+     * cable, the memory string its own firmware writes, and which of the two published forms of the mass-erase
+     * order it understands. Without a present instance the scripted peer stands in — it answers the requests, but
+     * it was written to carry them, so what stands in is narrower than what it replaces. Two things the run
+     * cannot do are said rather than assumed: it cannot put the board on the bus, because a Matek F405-CTR gets to
+     * its bootloader by holding BOOT at power-on or by the command that holds it there, which is what the operator
+     * supplies; and one process holds the device at a time, so the area runs alone.
+     */
+    command: "cargo",
+    probe: [TOOLCHAIN, "--version"],
+    needs: ["gcc"],
+    args: [
+      TOOLCHAIN,
+      "test",
+      "-p",
+      "mpcraft-app",
+      "--features",
+      "hardware-tests",
+      "--test",
+      "dfu_live",
+      "--",
+      "--test-threads=1",
+    ],
+    cwd: ROOT,
+    liveWhen: (env) => Boolean(env.MPCRAFT_DFU_TARGET),
+    substitute:
+      "the scripted peer in crates/mpcraft-app/tests/dfu.rs, which answers the requests without being a board that decides them",
+    control:
+      "scripts/run-gates-controls.js for the report line this gate reads, shown against a transcript where the scripted half passed and the board area failed, and for the stand-in named when no pair is named",
+    proof: (text) => resultForSection(text, "dfu_live"),
+  },
+  {
     name: "parity matrix",
     layer: "documentation",
     command: "node",

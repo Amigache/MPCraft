@@ -546,6 +546,50 @@ checks.push({
   },
 });
 
+/* The board on the bus is answered by a device, not by a peer written to carry the requests it answers with.
+ * With no pair named the scripted peer stands in, and a run where the module's own tests passed cannot be read as
+ * covering an area that never reached a board — which is what today's state is, because the registry remembers the
+ * pair from a run when the board was in its bootloader and nothing present answers to it. */
+const dfuGate = run(
+  ["crates/mpcraft-app/tests/dfu_live.rs"],
+  ["the board on the bus, read as it answers"],
+  { MPCRAFT_DFU_TARGET: "" },
+);
+
+checks.push({
+  claim:
+    "the DFU area names what stands in for it when no pair is named, rather than reading the scripted peer as if a board answered",
+  ok:
+    stateOf(dfuGate, "the board on the bus, read as it answers") ===
+    "SUSTITUIDA",
+  saw: {
+    gate: stateOf(dfuGate, "the board on the bus, read as it answers"),
+    why: dfuGate.gates?.[0]?.why,
+  },
+});
+
+/* The same reading on a transcript where the scripted half passed and the board area failed. The two are one run,
+ * so a count taken from the whole of it would read the pass as covering both. */
+const dfuTranscript =
+  "test result: ok. 8 passed; 0 failed; finished in 0.01s\n" +
+  "test result: FAILED. 0 passed; 1 failed; finished in 12.30s\n" +
+  "     Running unittests src/lib.rs (target/debug/deps/mpcraft_winusb-1)\n" +
+  "     Running tests\\dfu_live.rs (target/debug/deps/dfu_live-2)\n";
+
+checks.push({
+  claim:
+    "the DFU area reads the report of its own binary, so the binding's own tests passing does not stand for an area that reached no board",
+  ok:
+    resultForSection(dfuTranscript, "dfu_live").includes("FAILED") &&
+    resultForSection(dfuTranscript, "dfu_live") !==
+      lineMatching(dfuTranscript, /test result: ok\./),
+  saw: {
+    live: resultForSection(dfuTranscript, "dfu_live"),
+    /** What reading the first count would have said for the same output — the bug this control holds. */
+    instead: lineMatching(dfuTranscript, /test result: ok\./),
+  },
+});
+
 /*
  * The runner names its own reach inside what it reports. A limit that is not there, and a limit that names only
  * how the states are read without saying what the run cannot see, are both findings; each is put in front of the

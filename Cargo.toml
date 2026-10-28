@@ -11,6 +11,7 @@ members = [
     "crates/mpcraft-log",
     "crates/mpcraft-settings",
     "crates/mpcraft-plugin",
+    "crates/mpcraft-winusb",
     "crates/mpcraft-app",
     "crates/mpcraft-cli",
     "apps/desktop",
@@ -35,6 +36,7 @@ mpcraft-params = { path = "crates/mpcraft-params" }
 mpcraft-log = { path = "crates/mpcraft-log" }
 mpcraft-settings = { path = "crates/mpcraft-settings" }
 mpcraft-plugin = { path = "crates/mpcraft-plugin" }
+mpcraft-winusb = { path = "crates/mpcraft-winusb" }
 mpcraft-app = { path = "crates/mpcraft-app" }
 mpcraft-cli = { path = "crates/mpcraft-cli" }
 
@@ -86,6 +88,20 @@ sha2 = "0.10"
 wasmtime = "50"
 dirs = "6"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+
+# The links of the system that reach a device on a USB bus. This is not a runtime dependency: what the crate
+# carries are import names resolved by the loader (`windows-link` writes them as `kind = "raw-dylib"`, which is
+# what makes it link with the toolchain the gates use), so nothing has to be installed for it to work. It is used
+# only behind `hardware-tests`, because the layer that reaches a physical bus is the application's, not one below
+# it, and the plugin sandbox stays the only place this project carries a runtime.
+windows = { version = "0.62.2", default-features = false, features = [
+    "Win32_Foundation",
+    "Win32_Devices_Usb",
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_System_IO",
+    "Win32_Storage_FileSystem",
+    "Win32_Security",
+] }
 
 geo = "0.31"
 geo-types = "0.7"

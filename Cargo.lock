@@ -2849,6 +2849,7 @@ dependencies = [
  "mpcraft-settings",
  "mpcraft-transport",
  "mpcraft-vehicle",
+ "mpcraft-winusb",
  "num-traits",
  "reqwest 0.12.28",
  "serde",
@@ -3036,6 +3037,15 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "mpcraft-winusb"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "mpcraft-transport",
+ "windows",
 ]
 
 [[package]]

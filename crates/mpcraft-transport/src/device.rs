@@ -44,6 +44,17 @@ pub enum DeviceError {
         /// What is wrong with the answer.
         reason: String,
     },
+    /// The device is on the bus and answers to that address, but this program cannot use it: the interface
+    /// is bound to another driver, or its handle is held by another process. That is a different fact from
+    /// "nothing is there", and the operator does a different thing with each one — one closes the program
+    /// that has the board, the other puts power to a board that is not answering.
+    #[error("the device at {address} is there but is not ours: {reason}")]
+    NotOurs {
+        /// What the bus says about the device.
+        address: String,
+        /// Why it cannot be used, said as the reading found it.
+        reason: String,
+    },
 }
 
 impl DeviceError {
@@ -54,6 +65,7 @@ impl DeviceError {
             Self::Unreachable(_) => "device_unreachable",
             Self::Stalled { .. } => "device_stalled",
             Self::BadAnswer { .. } => "device_bad_answer",
+            Self::NotOurs { .. } => "device_not_ours",
         }
     }
 }
@@ -309,6 +321,18 @@ mod tests {
             }
             .code(),
             "device_bad_answer"
+        );
+
+        // The fourth is what a binding can say that the first cannot: a board that is on the bus and answers
+        // to the address is not a board that this program may open. A code that covered both would tell the
+        // operator to look for a board that is already there.
+        assert_eq!(
+            DeviceError::NotOurs {
+                address: "0483:df11".to_owned(),
+                reason: "the handle is held by another process".to_owned()
+            }
+            .code(),
+            "device_not_ours"
         );
     }
 }

@@ -30,6 +30,7 @@
 │ mpcraft-mavlink   Framing, CRC, signing, dialect re-exports          │
 ├───────────────────────────────────────────────────────────────────────┤
 │ mpcraft-transport Transport trait: serial · UDP · TCP · file · NTRIP │
+│ mpcraft-winusb    OS binding for a board in its bootloader            │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -216,8 +217,17 @@ A board in its bootloader is not a transport: it answers requests rather than mo
 the device layer is its own trait — `send`, `receive`, `string`, `describe` — and it carries no
 operating-system types, because what it hands back is the functional descriptor and the strings the
 interface offers, with a stable code for a device that cannot be reached, stalls, or answers with
-something that is not a descriptor. The binding that reaches a physical bus lives in `mpcraft-app`,
-behind `hardware-tests`, because a crate below the application layer cannot know that WinUSB exists.
+something that is not a descriptor, and a fourth code for a device that is there and cannot be
+opened, which is a different fact from a device that is not there. The binding that reaches a
+physical bus lives in `crates/mpcraft-winusb`: it is the one place outside the plugin sandbox where
+a system dependency is carried, and it has its own crate because `mpcraft-app` forbids unsafe code
+while these are unsafe functions. What can be read without a bus stays outside `cfg(windows)` — the
+pair as the environment writes it, the classification of an opening failure, the driver name that
+makes an interface ours, and the pair a published reader uses to call an interface one of this kind,
+which is a second rule and not the same one; the calls themselves are behind `cfg(windows)`. Whether
+the application reaches a board is decided in `mpcraft-app`, behind `hardware-tests`, and the live
+area says what the bus answers rather than what the registry remembers, because remembering an
+instance is not being there.
 
 Auto-reconnect is implemented **in the transport** as `reconnect()`, matching upstream's
 `TcpSerial.autoReconnect`. The *policy* - how many attempts, with what backoff, and whether
@@ -383,7 +393,7 @@ localised messages. **A message is never parsed for meaning.**
 | Pure logic | Unit tests next to the code; `proptest` for the framer and parsers |
 | Wire format | Golden files: real captured frames → expected decoded values |
 | Round-trip | `serialise → parse → serialise` byte equality |
-| Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli`. In CI the half that needs no vehicle — the golden files — runs on the runner, and the live half is named as `HERRAMIENTA-AUSENTE` when no image can be pulled anonymously; it runs against a simulator started locally with `MPCRAFT_SITL_LIVE=1` |
+| Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli`. In CI the half that needs no vehicle — the golden files — runs on the runner, and the live half is named as `HERRAMIENTA-AUSENTE` when no image can be pulled anonymously; it runs against a simulator started locally with `MPCRAFT_SITL_LIVE=1`. A live area that reaches a board names the scripted peer that stands in for it, and its green is read from the report of its own test binary, because the reports of the tests that ran before it say nothing about a device that was never there |
 | Compatibility | Upstream's own test corpus: real `.tlog`, `.param`, `.waypoints` files |
 | Frontend | Vitest for stores and reducers; Playwright for the critical flows; eslint for what a reader would have to notice by hand — a name written and never used, a dependency list that does not match what the effect reads. It reads the sources this project can change and names what it leaves out: the vendored MapLibre worker under `public/`, and the React JSX rules, because the plugin for those cannot run on the version of eslint declared in `apps/ui/package.json`. A rule that is not carried cannot be switched off, so a source file that disables one is a finding |
 | Gates | `scripts/run-gates.js` runs them and says which layer it did not read (`NO-APLICA`, `HERRAMIENTA-AUSENTE`, `SUSTITUIDA`), so a green that rests on nothing is not read as a pass. A home-grown gate is shown failing on a known-bad case and passing on a known-good one before its green is trusted (`scripts/check-overlaps-controls.js`, `scripts/run-gates-controls.js`, `scripts/check-lint-controls.js`, `scripts/check-parity-controls.js`, `scripts/check-dfu-crc-controls.js`). The parity matrix is read rather than remembered: its counts are worked out from the rows (`scripts/check-parity.js`). And every gate that reads a tool rather than a document names its own known-bad case (`scripts/check-tool-controls.js`), because a gate whose green is its exit code alone cannot fail; only one of those five shows the finding itself, since the runner keeps the first line of what a tool says, and the other four show the state turning. A busy artifact is read as a gap rather than as green, and that reading is shown with a genuine sharing violation held by a separate process (`scripts/run-gates-controls.js`), not with a string that looks like one. The control column is read as a document too: every gate names its known-bad case and the checker under `scripts/` it names is on the disk, with both halves shown firing on a copy of the runner. And the parity checker names what it cannot reach inside its own report, not only in its header, which is read as a rule with two known-bad copies (`scripts/check-parity-controls.js`). The runner carries the same rule for itself: what the whole run cannot see — no window, no vehicle, no board, and no tool reading beyond the file it was shown — is named inside what it reports, and that reading is shown firing on two copies of the runner (`scripts/run-gates-controls.js`), not on the runner as it stands. |
@@ -417,6 +427,16 @@ downsamples rather than replays raw samples.
 - The WASM plugin sandbox (phase 6) grants capabilities explicitly, never ambient authority. It is
   the one place a runtime dependency is allowed, and the crate that holds it is the only one that
   knows the runtime exists.
+- A system dependency is not the same thing as a runtime dependency. `mpcraft-winusb` resolves its
+  import names through the loader (`raw-dylib`), so nothing is loaded while the program runs, and it
+  is the only crate that knows WinUSB exists; the unsafe surface stops at that crate, because the
+  device trait below it carries no operating-system types.
+- A board in its bootloader is named by the environment as the pair the bus writes it
+  (`MPCRAFT_DFU_TARGET`), not as a connection specification, because it answers requests rather than
+  moving bytes. The half that erases runs only when the operator names it with a flag
+  (`MPCRAFT_DFU_ALLOW_ERASE`), and getting the board into its bootloader is something the operator
+  does — holding BOOT at power-on, or the command that holds it there — which the gate says rather
+  than assumes, because a live area cannot do it.
 - The app makes no unauthenticated network calls except tile/terrain fetches against configured
   providers, which the user can disable.
 - Arm/disarm, mission write, and firmware flash require explicit confirmation. The half that

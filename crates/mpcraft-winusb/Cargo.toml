@@ -1,0 +1,14 @@
+[package]
+name = "mpcraft-winusb"
+description = "The binding that reaches a device on a USB bus and answers the device trait."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+mpcraft-transport = { workspace = true }
+windows = { workspace = true }

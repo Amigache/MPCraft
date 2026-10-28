@@ -401,8 +401,11 @@ La placa en su modo de recuperacion se alcanza por el protocolo DFU, y la capa q
 alcanza es la del dispositivo: un rasgo que envia, recibe, pide una cadena y se describe,
 sin tipos del sistema operativo, porque lo que devuelve es el descriptor funcional y las
 cadenas que la interfaz ofrece — y el vinculo que llega a un bus real vive en
-`mpcraft-app`, detras de `hardware-tests`, porque una capa por debajo de la aplicacion no
-puede saber que WinUSB existe. El descriptor que esta placa pone en el cable es
+`crates/mpcraft-winusb`, alcanzado desde la aplicacion detras de `hardware-tests`,
+porque una capa por debajo de la aplicacion no puede saber que WinUSB existe y porque
+`mpcraft-app` declara `forbid(unsafe_code)` mientras que las llamadas del sistema son
+funciones unsafe, lo que le da al vinculo su propio crate. El descriptor que esta placa
+pone en el cable es
 `09 21 0B FF 00 00 08 1A 01`, que es la forma que una lectura publicada escribe para un
 STM32, y los dos numeros que guarda — `0x0413` y `0x011a` — son los que
 STM32CubeProgrammer dice de la misma placa, asi que el acuerdo entre los dos caminos es
@@ -453,6 +456,55 @@ ocupado se pone en cada peticion — no una sola vez por peer —, el primer GET
 responde ocupado con el milimetro que esa lectura escribe y el segundo responde libre, y
 la transicion de MANIFEST_SYNC a MANIFEST ocurre al contestar y no al recibir.
 
+Lo que se lee sin placa son las reglas, y las llamadas estan separadas de ellas: el crate
+lleva el rasgo del dispositivo contestado con las llamadas del sistema detras de
+`cfg(windows)`, y lo que se afirma sin bus es como se lee la pareja (`0483:df11`, escrita
+por el entorno como el bus la escribe, porque una placa en su cargador no es una
+especificacion de conexion), como se clasifica una negativa al abrir, y el nombre del
+controlador que hace que una interfaz sea nuestra. El cuarto codigo es `device_not_ours`:
+la placa esta y no se puede abrir, que es otra cosa que `device_unreachable`, y las dos se
+leen por caminos distintos — la segunda cae cuando nada presente responde, la primera
+cuando el controlador no es el nuestro o cuando el asa no se puede tomar. Un paro y otra
+negativa se parecen por este camino, asi que el vinculo dice que la interfaz rechazo la
+peticion y dice que no puede decir cual de las dos fue; el numero con que el sistema
+contesto no tiene donde viajar dentro de ese codigo, y es lo que el area viva escribe
+cuando una placa contesta. El numero de la interfaz y el indice de la cadena de memoria se
+leen de la interfaz, que es lo que pydfu hace por `intf.iInterface` y no por un numero que
+el lector elige. Y la regla que decide que una interfaz es de esta clase es otra lectura
+que la del vinculo: pydfu pide el par 0xFE y 1, aqui se decide por el nombre del
+controlador, y las dos se comparan contra la misma placa en lugar de tratarse como una.
+
+El area viva (`crates/mpcraft-app/tests/dfu_live.rs`, detras de `hardware-tests` y
+`windows`) dice hoy lo que el bus contesta: el registro conserva cinco filas para
+`USB\VID_0483&PID_DF11` y cada una responde `CR_NO_SUCH_DEVNODE` (13), porque recordar no
+es estar — `CM_Get_Device_ID_ListW` da las filas que el registro tiene y la presencia se
+decide con `CM_Locate_DevNodeW`, que es lo que separa las dos lecturas y lo que hoy se
+afirma. Una lectura distinta del mismo registro — la interfaz que Windows expone por WMI —
+da las mismas cinco filas y el mismo estado para todas, asi que el conteo no depende del
+camino por el que se lee. La placa si esta, pero como
+`USB\VID_1209&PID_5741\3C0026000D47363530313133` en la clase de los puertos, con el
+controlador `{4d36e978-e325-11ce-bfc1-08002be10318}\0035`, que no es `winusb` y que una
+segunda lectura del registro (la propiedad que Windows expone por WMI para ese dispositivo)
+dice igual, asi que hoy el area afirma la negativa que separa los dos codigos y no el
+descriptor. Lo que la placa
+podria decir cuando este en su cargador es lo que el area compara con las dos lecturas
+publicadas: los nueve bytes del descriptor, el numero `0x011a` que STM32CubeProgrammer da
+para esta placa, y los doce sectores de la geometria que el propio escritor de ArduPilot
+declara para esta familia (4 de 16K, 1 de 64K, 7 de 128K, un megabyte entero). Poner la
+placa alli no depende de esta maquina: se alcanza sosteniendo BOOT al encender o con la
+orden que la sostiene, y la puerta nombra eso como lo que el operador pone; y un solo
+proceso tiene el dispositivo a la vez, por eso el area corre sola y las comparaciones
+con STM32CubeProgrammer van de una en una. El entorno nombra la pareja
+(`MPCRAFT_DFU_TARGET`) y la mitad que borra esta detras de `MPCRAFT_DFU_ALLOW_ERASE`, que
+es la regla que ya estaba para la mitad que borra una placa.
+
+La fila de la puerta para ese area nombra su sustituto — el peer escrito desde la lectura
+publicada en `crates/mpcraft-app/tests/dfu.rs`, que contesta las peticiones sin ser una
+placa que las decida — y el control lo lee con un transcripto donde la mitad de las pruebas
+del vinculo paso y el area de la placa fallo, con las dos mitades leidas como sus propios
+informes, que es lo que hace que un verde del vinculo no valga por un area que no alcanzo
+ninguna placa.
+
 Lo que no se puede afirmar aqui se dice en lugar de suponerse: no hay un bus fisico en
 esta maquina, asi que lo que el test prueba es la forma — el descriptor, la cadena, la
 maquina de estados, la regla del bloque y las negativas antes de enviar — respondida por
@@ -463,7 +515,10 @@ conocido-malo (`scripts/check-dfu-crc-controls.js`: un literal que no coincide c
 propia tabla, una pareja escrita como si las dos lecturas coincidieran, un escritor cuyo
 tamano del objetivo va sin su prefijo) y lo que no alcanza: lee los literales como texto,
 no ejecuta el modulo, y la comparacion entre la regla del codigo y estas tablas es lo que
-el test del propio modulo lleva. Por eso la fila sigue parcial.
+el test del propio modulo lleva. Y la copia de la forma que el area viva lleva no la lee
+esa puerta, que lee los literales de `tests/dfu.rs`: lo que el area compara es lo que la
+placa pone en el cable contra lo que la lectura publicada escribe, y eso se sabe solo
+cuando una placa contesta. Por eso la fila sigue parcial.
 
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are

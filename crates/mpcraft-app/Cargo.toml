@@ -33,6 +33,7 @@ mpcraft-plugin = { workspace = true }
 mpcraft-settings = { workspace = true }
 mpcraft-transport = { workspace = true }
 mpcraft-vehicle = { workspace = true }
+mpcraft-winusb = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
