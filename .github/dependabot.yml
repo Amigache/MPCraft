@@ -1,0 +1,34 @@
+version: 2
+
+# Updates arrive as pull requests against the integration branch, so they go through the same
+# checks as a change of ours. The limit keeps a week's worth of upgrades reviewable.
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+
+  - package-ecosystem: npm
+    directory: "/apps/ui"
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    groups:
+      actions:
+        patterns: ["*"]

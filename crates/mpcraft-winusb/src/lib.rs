@@ -361,6 +361,10 @@ pub const fn detail_room() -> usize {
 }
 
 /// Reads a wide value as the text it says, stopping at the terminator rather than at the end of the buffer.
+///
+/// The Windows binding is the only caller outside the tests, so on another system the function is
+/// kept for the rules the tests read and not reported as unused.
+#[cfg_attr(not(windows), allow(dead_code))]
 fn as_text(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
         .chunks(2)

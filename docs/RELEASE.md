@@ -25,13 +25,14 @@ it means anybody can sign one. Neither is recoverable from the repository.
 
 ## Making a release
 
-1. Set the same version in `apps/desktop/tauri.conf.json` and in the workspace (`Cargo.toml`), for
-   example `0.2.0`.
-2. Commit, tag `v0.2.0` and push the tag.
-3. The `bundle` job builds Windows, Linux and macOS with `tauri.updater.conf.json`, which turns the
+1. On `develop`, set the same version in `apps/desktop/tauri.conf.json` and in the workspace
+   (`Cargo.toml`), for example `0.2.0`.
+2. Open a pull request from `develop` to `main` and merge it once the checks pass.
+3. On `main`, tag `v0.2.0` and push the tag.
+4. The `bundle` job builds Windows, Linux and macOS with `tauri.updater.conf.json`, which turns the
    update archives on; it signs them, publishes the assets, and leaves one fragment of the manifest
    per platform. `publish-manifest` merges the fragments and attaches `latest.json`.
-4. Check the release page: it carries the installers, the update bundles (the NSIS `.exe` or the
+5. Check the release page: it carries the installers, the update bundles (the NSIS `.exe` or the
    MSI on Windows, the `.AppImage` on Linux, the `.app.tar.gz` on macOS), their `.sig` files and
    `latest.json`.
 
