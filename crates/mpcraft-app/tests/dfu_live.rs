@@ -16,7 +16,12 @@
 //! time, so this area runs alone, and the comparisons with STM32CubeProgrammer are sequential for the same reason.
 //!
 //! What this area cannot do is put the board on the bus: a Matek F405-CTR gets to its bootloader by holding BOOT
-//! at power-on, or by the command that holds it there, and the gate names that as what the operator supplies.
+//! at power-on, or by the command that holds it there, and the gate names that as what the operator supplies. It
+//! cannot write the value that decides whether a row exists for an instance either: reading the device key needs no
+//! elevation, so the area reads it here, while writing it is something the operator does from an elevated prompt,
+//! which the gate names beside BOOT as what the operator supplies. Today this board answers with nothing written on
+//! that key, and the second reader (`reg query`) answers with nothing for the same instance, so the two readings
+//! agree and the refusal is what this run can assert.
 //!
 //! Each half asserts its own facts, and both states are held as data rather than as one expected outcome. The
 //! registry can remember rows that the bus does not answer for; a row that is there can publish no interface to
@@ -33,7 +38,7 @@ use mpcraft_winusb::bus::Handle;
 use mpcraft_winusb::{
     bus, classify_open_failure, dictionary_of, guid_parts, is_our_driver, pair_from_ids, Found,
     Target, CONFIG_MANAGER_DICTIONARY, CONFIG_MANAGER_NOT_THERE, DFU_CLASS, DFU_SUBCLASS,
-    PYDFU_LIBUSB_CLASS, WINUSB_CLASS,
+    WINDOWS_USBDEVICE_CLASS, WINUSB_CLASS,
 };
 
 /// The nine bytes a published reading (cherryusb's `class/dfu/usb_dfu.h`) writes for this board's functional
@@ -166,60 +171,83 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
         "the declaration says the pair pydfu filters on, which is what makes the two readings comparable",
     );
 
-    // The class name this machine answers for the board is the one pydfu names for libusb-win32; WinUSB publishes
-    // its interfaces under another. Both are read through the shape rather than through the casing, because the
-    // call writes the name in capitals, and both answer with no rows for this instance today, so nothing about
-    // which class a board in its bootloader belongs to is assumed here.
+    // What this machine answers for the board is one class name, not two: pydfu's filter (`FilterDFU`) and Windows'
+    // own class-install INF for devices of this kind (`c_usbdevice.inf`) write the same string. The paragraph that
+    // treated them as two dictionaries is corrected here, and the name is compared through the shape rather than
+    // through the casing, because the call writes it in capitals.
     assert_eq!(
         guid_parts(&found.class),
-        guid_parts(PYDFU_LIBUSB_CLASS),
-        "the class the element says it is in is the class pydfu's published reader names"
+        guid_parts(WINDOWS_USBDEVICE_CLASS),
+        "the class the element says it is in is the class the published installer names"
     );
     assert_ne!(
         guid_parts(&found.class),
         guid_parts(WINUSB_CLASS),
-        "and it is not the class WinUSB publishes interfaces under",
+        "and it is not the guid WinUSB samples write, which is a second fact and not a class on this machine",
     );
 
-    let under_pydfu = bus::rows_for_class(PYDFU_LIBUSB_CLASS, &found.instance)
-        .expect("the list answers as it says");
-    let under_winusb =
+    // The value that decides whether a row exists for an instance, read from the device key. Nothing is written here:
+    // the published package for this board has a branch whose own comment says the generic path skips the value, and
+    // that is what this machine holds — no value, and no row. A service name alone does not make an instance
+    // readable, so `is_our_driver` and this reading are two facts that can disagree on one board.
+    let written = bus::interface_guid_value(&found.instance);
+    println!("  value the install wrote on the device key: {written:?}");
+
+    let under_class =
+        bus::rows_for_class(&found.class, &found.instance).expect("the list answers as it says");
+    let under_sample =
         bus::rows_for_class(WINUSB_CLASS, &found.instance).expect("the list answers as it says");
 
     println!(
-        "  rows published under pydfu's class: {}",
-        under_pydfu.len()
+        "  rows for this instance under its class: {}",
+        under_class.len()
     );
     println!(
-        "  rows published under WinUSB's class: {}",
-        under_winusb.len()
+        "  rows for this instance under the guid WinUSB samples: {}",
+        under_sample.len()
     );
 
-    // The two readers agree that nothing is published for this instance, which is what makes the empty path a fact
-    // about the bus rather than about one class somebody chose; pydfu's own filter would find no row either, so this
-    // half asserts the refusal rather than a descriptor.
-    assert!(under_pydfu.is_empty());
-    assert_eq!(under_pydfu, under_winusb);
-    assert_eq!(
-        found.path, None,
-        "no interface is published for this instance"
-    );
+    // The rule these calls carry, held as data rather than as one expected outcome: the row exists because of the
+    // value, so the two readings have to agree whichever way this run finds them. pydfu's filter would find the same
+    // nothing today, because it looks through the same name.
+    if written.is_none() {
+        assert!(under_class.is_empty() && under_sample.is_empty());
+    } else {
+        assert!(
+            !under_class.is_empty(),
+            "a value written by the install has to answer with a row for the same instance",
+        );
+    }
 
-    // So the device cannot be reached through this binding, and the refusal is the one about a device that is there:
-    // the instance answers as being present and its service says WinUSB, so `device_unreachable` would say the wrong
-    // thing about it. A published reader finds the same nothing — pydfu filters on its own class and gets no row
-    // either — which is why this half asserts the refusal rather than a descriptor. The third reading of the same
-    // fact is outside this binding: the flag for "every class the machine knows" is not one this crate calls, and the
-    // second reader that asked for it was answered with 4 as a Config Manager number rather than with a list, so what
-    // is asserted here rests on the two published class names.
+    assert_eq!(found.path, under_class.first().map(String::from));
+
+    // The refusal that falls before anything travels, read as the state this run found rather than as one expected
+    // outcome. When the install wrote nothing on the device key there is no row to open, and the code that says so is
+    // the one about a device that is there: the instance answers as being present and its service says WinUSB, so
+    // `device_unreachable` would say the wrong thing about it. When the value is written the same call reaches the
+    // board, and what this half can say is only that it reached it through the service — the descriptor, the string
+    // index and the state are asserted by the half that reads them against the published shape. The third reading of
+    // the same fact stays outside this binding: the flag for every class is not one this crate calls, and the second
+    // reader that asked for it was answered with 4 as a Config Manager number rather than with a list.
     match Handle::open(&target) {
-        Ok(_) => panic!(
-            "the instance is there but publishes no interface, so nothing should have been opened"
-        ),
+        Ok(handle) => {
+            println!(
+                "open reached an interface through the service: {}",
+                handle.describe()
+            );
+            assert!(is_our_driver(&found.service));
+        }
         Err(error) => {
             println!("open says: {error}");
-            assert_eq!(error.code(), "device_not_ours");
-            assert!(format!("{error}").contains(found.class.as_str()));
+            assert_eq!(
+                error.code(),
+                "device_not_ours",
+                "the instance is there and its service is ours, so this is not a device that is not there",
+            );
+
+            if written.is_none() {
+                assert!(format!("{error}").contains(found.class.as_str()));
+            }
         }
     }
 }

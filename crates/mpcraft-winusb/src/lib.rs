@@ -174,14 +174,30 @@ pub fn classify_open_failure(address: &str, answered_by: &str, code: u32) -> Dev
     }
 }
 
-/// The two class names a published reader would look under, written from the published sources rather than from what
-/// this machine answered: pydfu's own class for libusb-win32 (`FilterDFU` reads its rows through it), and the class
-/// WinUSB publishes interfaces under. Both are compared against what the element says about itself in the live area,
-/// which is why they are kept as data here.
+/// The class name pydfu's published filter reads its rows through (`FilterDFU`), written from the published source
+/// rather than from what this machine answered, so that the live area can compare it with what the element says about
+/// itself.
 pub const PYDFU_LIBUSB_CLASS: &str = "88bae032-5a81-49f0-bc3d-a4ff138216d6";
 
-/// The class WinUSB publishes device interfaces under, from the published constant.
+/// The same name read through a second published implementation: Windows' own class-install INF for this kind of
+/// device (`c_usbdevice.inf`) writes it as its `ClassGUID`. So on this machine there is one class name and not two,
+/// and the agreement between pydfu's filter and the class installer is a fact about two implementations that were
+/// not built from each other. What decides whether an instance can be read is not the class name but the value the
+/// install writes on the device itself ([`INTERFACE_GUID_VALUE`]), and this board has none, which is why the list
+/// answers with no rows even though its service says `WinUSB`.
+pub const WINDOWS_USBDEVICE_CLASS: &str = "88bae032-5a81-49f0-bc3d-a4ff138216d6";
+
+/// The name WinUSB samples write as a device-interface guid. What was said before about this is corrected here: it
+/// is not a class key on this machine, and interfaces are not published under it — a row exists for an instance only
+/// when the install wrote the per-device value below. The earlier paragraph read this name as the class WinUSB
+/// publishes under, and the live area repeated that as an expectation, which is why the comparison now says what the
+/// list answers instead of what a name should answer.
 pub const WINUSB_CLASS: &str = "a5dcbf13-4437-40bb-9a12-8e18f591d448";
+
+/// The value a class install writes on the device itself, named as the published class-install INF names it. This is
+/// the fact that makes a row exist for one instance; a service name alone does not, which is what this machine shows
+/// on this board: the service says `WinUSB` and the list gives no row.
+pub const INTERFACE_GUID_VALUE: &str = "DeviceInterfaceGUIDs";
 
 /// A class name as these APIs read it: the five parts, in the lengths they have — 8, 4, 4, 4 and 12 hexadecimal
 /// digits. Nothing is guessed: a name that cannot be read as the shape is refused, which is what keeps a class from
@@ -303,8 +319,13 @@ pub mod bus {
     use windows::core::{GUID, PCWSTR};
     use windows::Win32::Devices::DeviceAndDriverInstallation::*;
     use windows::Win32::Devices::Usb::*;
-    use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
+    use windows::Win32::Foundation::{
+        CloseHandle, ERROR_SUCCESS, GENERIC_READ, GENERIC_WRITE, HANDLE,
+    };
     use windows::Win32::Storage::FileSystem::*;
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ,
+    };
 
     use mpcraft_transport::device::{
         read_string, Device, DeviceError, DeviceResult, FunctionalDescriptor,
@@ -312,7 +333,7 @@ pub mod bus {
 
     use super::{
         as_text, classify_open_failure, detail_room, enumerator, guid_parts, is_our_driver,
-        nul_terminated, Found, Target,
+        nul_terminated, Found, Target, INTERFACE_GUID_VALUE,
     };
 
     /// The call that answers for a registry property, named so that a refusal can say which dictionary its number
@@ -474,10 +495,11 @@ pub mod bus {
     /// enumeration, because the two are different readings of the same fact and the list answers with a Config
     /// Manager number rather than with a result.
     ///
-    /// What this machine answers today for this board is no rows under either published class name — pydfu's class
-    /// for libusb-win32 and WinUSB's own — which is why the descriptor, the string index and the state cannot be
-    /// read through this binding: there is nothing to open. A published reader finds the same nothing, since pydfu
-    /// filters on its class and gets no row for this instance either, so that is said rather than assumed.
+    /// What this machine answers today for this board is no rows for either published name, which is why the
+    /// descriptor, the string index and the state cannot be read through this binding: there is nothing to open. The
+    /// reason is the value read by [`interface_guid_value`], not the class name — pydfu's name and the name Windows'
+    /// own class-install INF writes are the same string here — and a published reader finds the same nothing, since
+    /// pydfu filters on its class and gets no row for this instance either, so that is said rather than assumed.
     pub fn rows_for_class(class: &str, instance: &str) -> DeviceResult<Vec<String>> {
         let parts = match guid_parts(class) {
             Some(parts) => parts,
@@ -524,6 +546,60 @@ pub mod bus {
                 .filter(|row| !row.is_empty())
                 .map(String::from)
                 .collect())
+        }
+    }
+
+    /// The value a class install writes on the device itself, read through the key these APIs write it under: the
+    /// instance path as the registry stores it, which is `SYSTEM\CurrentControlSet\Enum\` plus what the bus writes.
+    ///
+    /// This is the fact that decides whether a row can exist for an instance, and it is a different fact from the
+    /// service name: this board answers `WinUSB` for the service and nothing for this value, which is why the list
+    /// gives no rows. The published package for this board has a branch that says so — `[NoDeviceInterfaceGUID]`,
+    /// "Avoids adding a DeviceInterfaceGUID for generic driver" — so the agreement between the published source and
+    /// what this machine holds is what the live area reads, not a guess about which branch an install took.
+    ///
+    /// Nothing is written here. Reading a device key does not need elevation, and the reading is what says whether
+    /// this binding can reach the board at all; writing that value is something the operator has to do with an
+    /// elevated prompt, which the gate names as what the operator supplies.
+    pub fn interface_guid_value(instance: &str) -> Option<String> {
+        let key = format!("SYSTEM\\CurrentControlSet\\Enum\\{instance}");
+        let wide = nul_terminated(&key);
+        let name = nul_terminated(INTERFACE_GUID_VALUE);
+
+        unsafe {
+            let mut handle = HKEY::default();
+
+            if RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                PCWSTR(wide.as_ptr()),
+                None,
+                KEY_READ,
+                &mut handle,
+            ) != ERROR_SUCCESS
+            {
+                return None;
+            }
+
+            let mut buffer = vec![0_u8; 512];
+            let mut length = buffer.len() as u32;
+
+            let answer = RegQueryValueExW(
+                handle,
+                PCWSTR(name.as_ptr()),
+                None,
+                None,
+                Some(buffer.as_mut_ptr()),
+                Some(&mut length),
+            );
+
+            let _ = RegCloseKey(handle);
+
+            if answer != ERROR_SUCCESS {
+                return None;
+            }
+
+            buffer.truncate(usize::try_from(length).unwrap_or(buffer.len()));
+            Some(as_text(&buffer))
         }
     }
 
@@ -900,9 +976,45 @@ mod tests {
     }
 
     #[test]
+    fn the_two_published_names_for_this_kind_of_class_are_one_name_on_this_machine() {
+        // pydfu's filter (`FilterDFU`) and Windows' own class-install INF for devices of this kind
+        // (`c_usbdevice.inf`, read on this machine) write the same string, so there is one class name here and not
+        // two. What makes a row exist for one instance is the value the install writes on the device key, which is a
+        // different fact from the service name: this board answers `WinUSB` for the service and nothing for the value.
+        assert_eq!(PYDFU_LIBUSB_CLASS, WINDOWS_USBDEVICE_CLASS);
+        assert_ne!(PYDFU_LIBUSB_CLASS, WINUSB_CLASS);
+    }
+
+    #[test]
+    fn the_value_the_install_writes_and_the_guid_it_would_write_are_read_as_data() {
+        // Taken from the published package for this board rather than written twice here: it names the value
+        // `DeviceInterfaceGUIDs`, names the guid it would put in it, and has a branch that says in its own comment
+        // that the generic path skips it. That guid is neither name above, so a row under either name is not
+        // something a reader can expect from the class alone — it is what the machine holds.
+        const WRITTEN_GUID: &str = "{01105872-BF45-43BE-8B67-3C0F2B8CF0D9}";
+
+        assert_eq!(INTERFACE_GUID_VALUE, "DeviceInterfaceGUIDs");
+        assert_eq!(
+            guid_parts(&WRITTEN_GUID[1..WRITTEN_GUID.len() - 1]),
+            Some((
+                0x01105872,
+                0xBF45,
+                0x43BE,
+                [0x8B, 0x67, 0x3C, 0x0F, 0x2B, 0x8C, 0xF0, 0xD9]
+            ))
+        );
+        assert_eq!(
+            guid_parts(WRITTEN_GUID),
+            None,
+            "braces are not the shape these APIs read"
+        );
+    }
+
+    #[test]
     fn a_class_name_is_read_as_the_shape_it_carries_and_not_invented_by_the_reader() {
-        // Both dictionaries this area compares: pydfu's class for libusb-win32, which is what this machine answered
-        // for the board, and WinUSB's published class. A name that is not the shape is refused rather than guessed.
+        // Both names this area compares: pydfu's filter name, which is what this machine answered for the board, and
+        // the name WinUSB samples write as a device-interface guid. A name that is not the shape is refused rather
+        // than guessed.
         assert_eq!(
             guid_parts(PYDFU_LIBUSB_CLASS),
             Some((

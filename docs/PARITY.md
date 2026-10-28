@@ -491,6 +491,19 @@ una; una tercera lectura es lo que la declaracion de la instancia dice antes de 
 donde el par aparece como texto (`USB\Class_FE&SubClass_01&Prot_02`) y se lee con una regla que
 rechaza una cadena que no lo dice en lugar de inventarlo.
 
+Lo que se dijo antes sobre dos clases se corrige aqui: no son dos nombres. El que pydfu usa para
+su filtro es el mismo que el INF de clase que Windows publica para esta familia de dispositivos
+(`c_usbdevice.inf`, leido en esta maquina) escribe como su `ClassGUID`, asi que en esta maquina hay
+un solo nombre, y el acuerdo entre el filtro y el instalador es un hecho sobre dos implementaciones
+que no se hicieron la una desde la otra. Lo que decide que exista una fila para una instancia no es
+ese nombre: es el valor que la instalacion escribe sobre la clave del dispositivo,
+`DeviceInterfaceGUIDs`. El paquete publicado para esta placa nombra el guid que escribiria
+(`{01105872-BF45-43BE-8B67-3C0F2B8CF0D9}`) y tiene una rama cuyo propio comentario dice que el
+camino generico lo salta, y esa es la rama que esta maquina tiene: la clave no lleva el valor, y la
+lectura por `reg query` lo dice igual que la lectura del crate, que lo lee sin elevacion. Leer esa
+clave no pide privilegios; escribirla si, y por eso la puerta nombra esa escritura como lo que el
+operador pone, junto con BOOT sostenido al encender: el crate lee y no escribe.
+
 El area viva (`crates/mpcraft-app/tests/dfu_live.rs`, detras de `hardware-tests` y `windows`)
 afirma cada mitad por sus propios hechos y no por un resultado esperado: el registro conserva
 cinco filas para `USB\VID_0483&PID_DF11` y hoy una de ellas contesta como estando — la que la
@@ -503,14 +516,19 @@ depende del camino por el que se lee, y esa lectura dice `Status OK` para la fil
 el nombre que el elemento lleva: `STM32  BOOTLOADER`. Lo que el elemento contesta por su id es lo
 que el area compara, y alli la clave de clase `{88bae032-5a81-49f0-bc3d-a4ff138216d6}\0011` y el
 servicio `WinUSB` son dos nombres del mismo hecho: la regla lee el segundo, y el nombre que el
-elemento dice que su clase es coincide con el que pydfu nombra para libusb-win32, mientras la
-declaracion del elemento lleva el par 0xFE y 1 como texto, que es la tercera lectura y coincide con
-el par que el filtro publicado pide aunque por otro camino.
+elemento dice que su clase es es el que el instalador de clase escribe, que es el mismo nombre con
+el que pydfu filtra. La declaracion del elemento lleva el par 0xFE y 1 como texto, que es la
+tercera lectura y coincide con el par que el filtro publicado pide aunque por otro camino. El area
+lee tambien el valor que la instalacion dejo en la clave del dispositivo y afirma la regla que lo
+une con la fila, no un resultado esperado: si no hay valor las dos lecturas de la lista tienen que
+dar cero filas, y si lo hay tienen que dar al menos una para la misma instancia; hoy el valor
+contesta con nada y las dos listas dan cero, que es lo que `reg query` dice para la misma clave.
 
 Lo que no se puede leer hoy por este vinculo se dice en lugar de suponerse: la instancia esta y su
-servicio es el nuestro, pero no publica ninguna interfaz — la lista da cero filas tanto para la
-clase que el elemento dice como para la que WinUSB publica, y `SetupDiEnumDeviceInterfaces` contesto
-259 (no hay mas elementos) para las dos, que es como lo lee la segunda lectura del mismo hecho; por
+servicio es el nuestro, pero no publica ninguna interfaz — la lista da cero filas tanto para el
+nombre que el elemento dice como para el guid que WinUSB escribe como muestra, que es lo que se
+espera cuando el valor que decide la fila no esta escrito, y `SetupDiEnumDeviceInterfaces` contesto
+259 (no hay mas elementos) para los dos, que es como lo lee la segunda lectura del mismo hecho; por
 eso el descriptor, el indice de la cadena y el estado no se pueden afirmar por este camino, y lo que
 el area afirma hoy es la negativa `device_not_ours`, que cae antes de que nada viaje por el cable y
 que es el codigo correcto porque la placa si esta. pydfu tampoco encontraria una fila: su filtro mira

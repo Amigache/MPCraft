@@ -226,11 +226,15 @@ pair as the environment writes it, the classification of an opening failure, the
 the class-install key that makes an interface ours (`SPDRP_DRIVER` names the key rather than the
 driver, so the key can never be the name it compares with), the part of an instance path these calls
 read as the enumerator, the pair a published reader uses to call an interface one of this kind, which
-is a second rule and not the same one, and the shape of a class name, which is what lets the two
-published class names be compared against what the element says about itself instead of being assumed
-from either; the calls themselves are behind `cfg(windows)`. Whether the application reaches a board is
-decided in `mpcraft-app`, behind `hardware-tests`, and the live area holds each state as data rather
-than asserting one expected outcome: what the registry remembers and what the bus answers for are two
+is a second rule and not the same one, and the shape of a class name — which is one name on this
+machine, because pydfu's filter and Windows' own class-install INF for devices of this kind
+(`c_usbdevice.inf`) write the same string — plus the value the install leaves on the device key,
+`DeviceInterfaceGUIDs`, which is the fact that decides whether a row can exist for an instance and is
+a different fact from the service name. Reading that key needs no elevation, so the binding reads it;
+writing it does, and the gate names that as what the operator supplies, beside BOOT held at power-on.
+The calls themselves are behind `cfg(windows)`. Whether the application reaches a board is decided in
+`mpcraft-app`, behind `hardware-tests`, and the live area holds each state as data rather than
+asserting one expected outcome: what the registry remembers and what the bus answers for are two
 readings, and a number a refusal carries is read through the dictionary of the call that answered it,
 because 13 says `CR_NO_SUCH_DEVNODE` through the Config Manager dictionary and `ERROR_INVALID_DATA`
 through the Win32 one, which is the overlap that made an earlier green read a wrong address as a
