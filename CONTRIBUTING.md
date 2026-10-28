@@ -23,8 +23,20 @@ and it is not copied into new text. This applies to `docs/PARITY.md` as much as 
 | `<area>/<topic>` | One change: `ui/plan-editor`, `link/heartbeat-timeout`, `docs/release` |
 
 A change goes: **a branch from `develop` → a pull request to `develop` → `develop` → a pull request
-to `main`**. Direct pushes to either branch are refused by the repository, and a pull request to
-`main` that does not come from `develop` is refused by the check `The flow of the branches`.
+to `main`**. A change may also be made directly on `develop` when it is a small one that is still
+proved on the machine. Direct pushes to either branch are refused by the repository, and a pull
+request to `main` that does not come from `develop` is refused by the check `The flow of the
+branches`.
+
+## Nothing is pushed until it is proved locally
+
+A push is how a change is shared, not how it is tried. Before anything goes to the repository, run
+the gates and the flow the change touches on the machine, with the application opened and the change
+used as an operator would use it. A change that has not been run locally stays on the branch.
+
+The same rule applies to a release: the version is bumped on `develop`, the release is built and
+installed from that branch or from `main` after the pull request, and the update is exercised before
+the following release is announced.
 
 A release is tagged from `main` after `develop` has been merged into it. The steps are in
 [`docs/RELEASE.md`](docs/RELEASE.md).

@@ -10,11 +10,18 @@
 //! at launch, because a program that reaches the network by itself is a program that says something
 //! about the machine it runs on without being asked.
 
+use std::time::Duration;
+
 use serde::Serialize;
 use tauri::AppHandle;
 use tauri_plugin_updater::UpdaterExt;
 
 use mpcraft_app::{CommandError, CommandResult};
+
+/// How long a check or a download waits for the release before it is said as an answer that did
+/// not come. The updater has no limit of its own, and a request that hangs leaves the operator with
+/// a menu item that did nothing.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// What the release says about an update that is newer than this copy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -39,9 +46,13 @@ pub struct UpdateInfo {
 /// release cannot be read. A machine that is offline is not an error of the application: it is a
 /// check that did not answer.
 pub async fn check(app: &AppHandle) -> CommandResult<Option<UpdateInfo>> {
-    let updater = app.updater().map_err(|error| {
-        CommandError::internal(format!("the updater is not configured: {error}"))
-    })?;
+    let updater = app
+        .updater_builder()
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .map_err(|error| {
+            CommandError::internal(format!("the updater is not configured: {error}"))
+        })?;
 
     let found = updater.check().await.map_err(|error| {
         CommandError::internal(format!("the release could not be read: {error}"))
@@ -64,9 +75,13 @@ pub async fn check(app: &AppHandle) -> CommandResult<Option<UpdateInfo>> {
 /// Returns a `CommandError` with a stable code when the release cannot be read, when the download
 /// fails, or when the update cannot be installed.
 pub async fn install(app: &AppHandle) -> CommandResult<()> {
-    let updater = app.updater().map_err(|error| {
-        CommandError::internal(format!("the updater is not configured: {error}"))
-    })?;
+    let updater = app
+        .updater_builder()
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .map_err(|error| {
+            CommandError::internal(format!("the updater is not configured: {error}"))
+        })?;
 
     let Some(update) = updater.check().await.map_err(|error| {
         CommandError::internal(format!("the release could not be read: {error}"))
