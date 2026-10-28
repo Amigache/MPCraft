@@ -162,6 +162,8 @@ jobs:
   bundle:
     name: Bundle / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -205,9 +207,34 @@ jobs:
       - name: Install the frontend dependencies
         run: npm ci
 
+      # Which platform the manifest of the updater names this runner's output with. It is derived
+      # from the runner rather than assumed, because macos-latest is an ARM machine now and an
+      # entry filed under the wrong architecture is an update no machine reads.
+      - name: Name the platform this runner builds
+        id: platform
+        shell: bash
+        run: |
+          case "${{ runner.os }}-${{ runner.arch }}" in
+            Windows-X64) echo "key=windows-x86_64" >> "$GITHUB_OUTPUT" ;;
+            Linux-X64) echo "key=linux-x86_64" >> "$GITHUB_OUTPUT" ;;
+            macOS-ARM64) echo "key=darwin-aarch64" >> "$GITHUB_OUTPUT" ;;
+            macOS-X64) echo "key=darwin-x86_64" >> "$GITHUB_OUTPUT" ;;
+            *) echo "key=" >> "$GITHUB_OUTPUT"; exit 1 ;;
+          esac
+
       # The entry moves to the folder holding tauri.conf.json, which is where the CLI reads the
-      # project from; --ci keeps it from waiting for a signing identity nobody gave it.
+      # project from; --ci keeps it from waiting for a signing identity nobody gave it. A tag is
+      # also signed for the updater, and its artifacts are the archives the release carries; a
+      # change that is not a tag builds the installers only, so a pull request needs no secret.
+      - name: Build the installers with update artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run bundle -- --ci --config tauri.updater.conf.json
+
       - name: Build the installers
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: npm run bundle -- --ci
 
       # A build that wrote no installer has not packaged anything, so an empty upload is a failure
@@ -218,3 +245,74 @@ jobs:
           name: mpcraft-${{ matrix.os }}
           path: target/release/bundle/**
           if-no-files-found: error
+
+      # The release carries the installers, the archives the updater installs and their
+      # signatures. Each of the three jobs adds its own, and the first one creates the release.
+      - name: Publish the installers and their signatures
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: MPCraft ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            target/release/bundle/**/*.msi
+            target/release/bundle/**/*.exe
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.AppImage
+            target/release/bundle/**/*.dmg
+            target/release/bundle/**/*.zip
+            target/release/bundle/**/*.tar.gz
+            target/release/bundle/**/*.sig
+
+      # One platform of the document the updater reads. The three are merged into one by the job
+      # that runs after this matrix, because no job sees the output of the others.
+      - name: Write this platform of the update manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: .
+        run: |
+          node scripts/updater-manifest.js discover \
+            --bundle target/release/bundle \
+            --platform "${{ steps.platform.outputs.key }}" \
+            --version "${GITHUB_REF_NAME#v}" \
+            --tag "${{ github.ref_name }}" \
+            --repository "${{ github.repository }}" \
+            --out "latest-${{ steps.platform.outputs.key }}.json"
+
+      - name: Keep this platform of the update manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ runner.os }}
+          path: latest-*.json
+          if-no-files-found: error
+
+  publish-manifest:
+    name: Publish the update manifest
+    needs: bundle
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    # The three platforms are built by three jobs that never see each other, so each leaves its own
+    # fragment and this job puts them together. The document is what the application reads to learn
+    # that a newer version exists, and it is attached to the same release the installers are on.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: updater-*
+          path: fragments
+          merge-multiple: true
+
+      - name: Merge the platforms into the document the updater reads
+        run: node scripts/updater-manifest.js merge --out latest.json fragments/*.json
+
+      - name: Attach the document to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" latest.json --clobber

@@ -23,6 +23,8 @@ use mpcraft_transport::SerialTransport;
 use mpcraft_vehicle::Telemetry;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+mod updater;
+
 /// The event that carries the state of the link and the telemetry.
 const STATE_EVENT: &str = "link-state";
 
@@ -1797,6 +1799,31 @@ async fn scp_download(
     let target = mpcraft_app::scp::ScpTarget::parse(&target)?;
 
     mpcraft_app::scp::download_logs(&target, &names, std::path::Path::new(&folder)).await
+}
+
+/// Asks the release whether there is a newer version of this application.
+///
+/// Nothing is downloaded by asking: the answer is what the release says, and installing it is a
+/// second command that the operator confirms.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the updater is not configured or when the
+/// release cannot be read.
+#[tauri::command]
+async fn check_for_update(app: AppHandle) -> CommandResult<Option<updater::UpdateInfo>> {
+    updater::check(&app).await
+}
+
+/// Downloads the update the release announces, installs it and starts the application again.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the release cannot be read, when the archive
+/// does not verify against the public key, or when it cannot be installed.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> CommandResult<()> {
+    updater::install(&app).await
 }
 
 /// Starts the web server, so that another program can follow the flight.
@@ -4488,6 +4515,9 @@ fn main() {
         .manage(AppState::default())
         // The file dialog, for the plans an operator saves and loads.
         .plugin(tauri_plugin_dialog::init())
+        // The updater: the release is on GitHub and the key it is checked with is in the
+        // configuration. Nothing is fetched until the operator asks.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             connect,
             disconnect,
@@ -4564,6 +4594,8 @@ fn main() {
             generate_signing_key,
             scp_logs,
             scp_download,
+            check_for_update,
+            install_update,
             flash_bootloader,
             reboot_into_bootloader,
             ftp_list,

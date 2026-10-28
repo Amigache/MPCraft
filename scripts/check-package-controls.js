@@ -18,6 +18,7 @@ const FILES = {
   windowsConfig: "apps/desktop/tauri.windows.conf.json",
   linuxConfig: "apps/desktop/tauri.linux.conf.json",
   macosConfig: "apps/desktop/tauri.macos.conf.json",
+  updaterConfig: "apps/desktop/tauri.updater.conf.json",
   workflow: ".github/workflows/ci.yml",
 };
 
@@ -49,6 +50,15 @@ function replace(source, pattern, replacement) {
   }
 
   return source.replace(pattern, replacement);
+}
+
+/** Replaces every occurrence, and says so when the text to change is not there. */
+function replaceEverywhere(source, pattern, replacement) {
+  if (!source.includes(pattern)) {
+    return { error: `nothing in the document looks like ${pattern}` };
+  }
+
+  return source.split(pattern).join(replacement);
 }
 
 /**
@@ -196,6 +206,47 @@ const cases = [
     expect: /the Linux bundle packages \[deb, msi\], and Linux packages/,
   },
   {
+    claim: "an updater that names no public key is caught",
+    mutated: {
+      ...docs,
+      [FILES.config]: edit(FILES.config, (doc) => {
+        delete doc.plugins.updater.pubkey;
+      }),
+    },
+    expect: /names no public key/,
+  },
+  {
+    claim: "an updater whose endpoint is not https is caught",
+    mutated: {
+      ...docs,
+      [FILES.config]: edit(FILES.config, (doc) => {
+        doc.plugins.updater.endpoints = ["http://example.invalid/latest.json"];
+      }),
+    },
+    expect: /which is not https/,
+  },
+  {
+    claim: "a configuration that signs every change is caught",
+    mutated: {
+      ...docs,
+      [FILES.config]: edit(FILES.config, (doc) => {
+        doc.bundle.createUpdaterArtifacts = true;
+      }),
+    },
+    expect: /signs every build/,
+  },
+  {
+    claim:
+      "the tag document that turns the update artifacts on is caught when it does not",
+    mutated: {
+      ...docs,
+      [FILES.updaterConfig]: edit(FILES.updaterConfig, (doc) => {
+        doc.bundle.createUpdaterArtifacts = false;
+      }),
+    },
+    expect: /does not turn the update artifacts on/,
+  },
+  {
     claim: "a workflow that leaves one platform out is caught",
     mutated: {
       ...docs,
@@ -214,7 +265,7 @@ const cases = [
     mutated: {
       ...docs,
       [FILES.workflow]: inBundleJob(docs[FILES.workflow], (job) =>
-        replace(job, "npm run bundle -- --ci", "npm run launch -- --ci"),
+        replaceEverywhere(job, "npm run bundle", "npm run launch"),
       ),
     },
     expect: /does not run the bundle script/,
@@ -225,7 +276,7 @@ const cases = [
     mutated: {
       ...docs,
       [FILES.workflow]: inBundleJob(docs[FILES.workflow], (job) =>
-        replace(job, "target/release/bundle/**", "target/release/**"),
+        replaceEverywhere(job, "target/release/bundle", "target/release/out"),
       ),
     },
     expect: /does not keep the installers from target\/release\/bundle/,
@@ -235,7 +286,11 @@ const cases = [
     mutated: {
       ...docs,
       [FILES.workflow]: inBundleJob(docs[FILES.workflow], (job) =>
-        replace(job, "if-no-files-found: error", "if-no-files-found: warn"),
+        replaceEverywhere(
+          job,
+          "if-no-files-found: error",
+          "if-no-files-found: warn",
+        ),
       ),
     },
     expect: /empty upload is a failure/,

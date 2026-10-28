@@ -209,7 +209,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 10.3 | Internationalisation | `Strings.resx` + Crowdin | ✅ | 7 |
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | ✅ | 0 |
-| 10.6 | Auto-updater | `Updater/` | 🔜 | 7 |
+| 10.6 | Auto-updater | `Updater/` | 🔽 | 7 |
 | 10.7 | Crash handler / diagnostics bundle | `Program.cs` | ✅ | 7 |
 | 10.8 | Windows / Linux / macOS packaging | `wix/`, `Msi/` | ✅ | 7 |
 | 10.9 | Code signing & notarisation | `wix/` | 🔜 | 7 |
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 144 |
-| 🔜 Planned | 2 |
+| 🔜 Planned | 1 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 7 |
+| Partial (🟡 / 🔽) | 8 |
 
 The 144 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
@@ -1750,6 +1750,25 @@ said in the sheet rather than hidden. What is not asserted is a companion: there
 this machine, so the tests read the address, the selection of the `.bin` names and the safe name
 against values written down before the functions were called, and the connection itself only
 compiles. That is why the row stays partial.
+
+The **update of the application** is wired to the releases of the repository now. A tag builds the
+three platforms with the update archives on, signs each archive with the key whose public half the
+configuration carries, and attaches the installers, the archives and their signatures to a GitHub
+release; the three jobs leave one fragment each, and a last job merges them into the `latest.json`
+the application reads. The check is a command of the menu, not a task that runs at launch: it asks
+the release whether there is a newer version, and only after the operator confirms does it download
+the archive, verify it against the public key, install it and start the application again. Two limits
+are said rather than hidden: on Linux the updater installs the AppImage, while deb and rpm are
+updated by the package manager, and the runner builds the architecture it is — macOS arm64 — so an
+Intel Mac needs an entry of its own. What is not asserted is an update: there is no published release
+and no installed copy that updates itself on this machine, so the manifest script was exercised
+against a folder of archives and signatures written for it (including the refusals when a signature
+is missing or two fragments name the same platform), the signing key was generated with its private
+half kept outside the repository for the operator to store as a secret, and the workflow has not
+run. The entry was run on this machine with that key: it wrote the NSIS installer and its `.sig`,
+the MSI and its `.sig`, and the manifest discovered the NSIS one and named it, so what is unproven is
+the release and an installed copy that updates itself, not the signature. That is why the row stays
+partial.
 
 The **contract** is read from both sides now, because one document was spoken two ways and nothing read the
 two against each other. The pair that identifies a vehicle was written with underscores by the structs that

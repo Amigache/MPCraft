@@ -126,6 +126,14 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Write a diagnostics bundle…": "Escribir un paquete de diagnóstico…",
     "The bundle of the diagnostics": "El paquete de diagnóstico",
     "The bundle was written to {path}.": "El paquete se escribió en {path}.",
+    "Check for updates…": "Buscar actualizaciones…",
+    "MPCraft is up to date.": "MPCraft está al día.",
+    "Version {version} is available. Install it now? The application will restart.":
+      "La versión {version} está disponible. ¿Instalarla ahora? La aplicación se reiniciará.",
+    "The update is being installed. The application will restart.":
+      "La actualización se está instalando. La aplicación se reiniciará.",
+    "The update could not be checked.":
+      "No se pudo comprobar la actualización.",
     "About MPCraft": "Sobre MPCraft",
     "Main menu": "El menú principal",
 

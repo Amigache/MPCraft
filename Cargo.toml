@@ -23,7 +23,7 @@ edition = "2021"
 rust-version = "1.88"
 license = "GPL-3.0-or-later"
 authors = ["MPCraft Contributors"]
-repository = "https://github.com/mpcraft/mpcraft"
+repository = "https://github.com/Amigache/MPCraft"
 
 [workspace.dependencies]
 mpcraft-mavlink = { path = "crates/mpcraft-mavlink" }
@@ -124,6 +124,7 @@ tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-store = "2"
+tauri-plugin-updater = "2"
 tauri-plugin-shell = "2"
 
 [profile.release]

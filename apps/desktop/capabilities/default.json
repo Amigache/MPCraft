@@ -3,7 +3,13 @@
   "identifier": "default",
   "description": "The permissions the application needs, and the development server.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-set-title", "core:event:default"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "core:event:default",
+    "dialog:default",
+    "dialog:allow-ask"
+  ],
   "remote": {
     "urls": ["http://localhost:1420", "http://127.0.0.1:1420"]
   }

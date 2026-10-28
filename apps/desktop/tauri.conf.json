@@ -29,8 +29,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": false,
     "publisher": "MPCraft Contributors",
-    "homepage": "https://github.com/mpcraft/mpcraft",
+    "homepage": "https://github.com/Amigache/MPCraft",
     "copyright": "Copyright (c) 2026 MPCraft Contributors",
     "category": "Utility",
     "shortDescription": "Ground control station for ArduPilot and PX4 vehicles",
@@ -45,6 +46,14 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYyQjBDNzFGMDFCNEQ0MkMKUldRczFMUUJIOGV3WW5sVnhEMFROaXdWeGF2K0RMYXllMUVWa0VBRzNpMndpcXcwZ0xHWWZOeE8K",
+      "endpoints": [
+        "https://github.com/Amigache/MPCraft/releases/latest/download/latest.json"
+      ]
     }
   }
 }

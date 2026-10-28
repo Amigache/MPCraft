@@ -81,3 +81,20 @@ export async function pickOpenPath(
     return { ok: false, reason: "unavailable" };
   }
 }
+
+/**
+ * Asks a yes-or-no question.
+ *
+ * A shell that cannot ask is said as a no: an update that nobody confirmed is not installed.
+ */
+export async function askQuestion(message: string): Promise<boolean> {
+  try {
+    return await invoke<boolean>("plugin:dialog|ask", {
+      title: "MPCraft",
+      kind: "info",
+      message,
+    });
+  } catch {
+    return false;
+  }
+}

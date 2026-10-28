@@ -387,6 +387,7 @@ const GATES = [
       "apps/desktop/tauri.windows.conf.json",
       "apps/desktop/tauri.linux.conf.json",
       "apps/desktop/tauri.macos.conf.json",
+      "apps/desktop/tauri.updater.conf.json",
       "apps/desktop/icons/",
       ".github/workflows/ci.yml",
     ],
@@ -407,7 +408,7 @@ const GATES = [
     args: ["scripts/check-contract.js"],
     cwd: ROOT,
     reads: [
-      "apps/desktop/src/main.rs",
+      "apps/desktop/src/",
       "apps/ui/src/lib/ipc/types.ts",
       "apps/ui/src/lib/ipc/bridge.ts",
       "apps/ui/src/lib/link/linkStore.ts",

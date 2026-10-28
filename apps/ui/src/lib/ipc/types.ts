@@ -550,6 +550,16 @@ export interface GeneratedKey {
   readonly publicKey: string;
 }
 
+/** What the release says about an update that is newer than this copy. */
+export interface UpdateInfo {
+  /** The version of this copy. */
+  readonly currentVersion: string;
+  /** The version the release announces. */
+  readonly version: string;
+  /** What the release says about the update. */
+  readonly notes: string;
+}
+
 /** One point of a path that follows the ground. */
 export interface TerrainPathPoint {
   readonly lat: number;

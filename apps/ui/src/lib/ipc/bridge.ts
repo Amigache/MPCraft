@@ -61,6 +61,7 @@ import type {
   StreamAnswer,
   SwarmRequest,
   TerrainPathPoint,
+  UpdateInfo,
   TerrainPoint,
   TileBounds,
   TransponderStatus,
@@ -1680,6 +1681,25 @@ const EMPTY_STATE: StateEvent = {
   gimbals: [],
   cameras: [],
 };
+
+/**
+ * Asks the release whether there is a newer version of this application.
+ *
+ * The answer is what the release says. Nothing is downloaded by asking.
+ */
+export async function checkForUpdate(): Promise<UpdateInfo | null> {
+  return call<UpdateInfo | null>("check_for_update");
+}
+
+/**
+ * Downloads the update the release announces and installs it.
+ *
+ * The archive is verified against the public key the application carries. After it is installed
+ * the application starts again, so the call does not return on the side that restarted.
+ */
+export async function installUpdate(): Promise<void> {
+  await call<void>("install_update");
+}
 
 /**
  * Subscribes to the state of the link.

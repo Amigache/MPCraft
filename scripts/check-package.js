@@ -30,6 +30,7 @@ const FILES = {
   windowsConfig: "apps/desktop/tauri.windows.conf.json",
   linuxConfig: "apps/desktop/tauri.linux.conf.json",
   macosConfig: "apps/desktop/tauri.macos.conf.json",
+  updaterConfig: "apps/desktop/tauri.updater.conf.json",
   workflow: ".github/workflows/ci.yml",
 };
 
@@ -301,6 +302,38 @@ export function check(texts, icons) {
         `the ${platform} bundle packages [${shown}], and ${platform} packages [${wanted}]`,
       );
     }
+  }
+
+  /* The update: the public key the application checks an archive with, and the two documents that
+     turn the update artifacts on for a tag and leave them off for a change. */
+  const updater = config.plugins?.updater;
+
+  if (updater !== undefined) {
+    if (typeof updater.pubkey !== "string" || updater.pubkey.trim() === "") {
+      faults.push(`the updater names no public key`);
+    }
+
+    const endpoints = Array.isArray(updater.endpoints) ? updater.endpoints : [];
+
+    if (endpoints.length === 0) {
+      faults.push(`the updater names no endpoint`);
+    }
+
+    for (const endpoint of endpoints) {
+      if (!/^https:\/\//.test(endpoint)) {
+        faults.push(`the updater names ${endpoint}, which is not https`);
+      }
+    }
+  }
+
+  if (bundle.createUpdaterArtifacts === true) {
+    faults.push(
+      `the configuration signs every build, and a change that is not a tag has no key`,
+    );
+  }
+
+  if (documents.updaterConfig?.bundle?.createUpdaterArtifacts !== true) {
+    faults.push(`${FILES.updaterConfig} does not turn the update artifacts on`);
   }
 
   /* The workflow: the entry run on all three, and what it wrote kept. */

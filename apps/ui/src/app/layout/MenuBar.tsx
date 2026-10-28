@@ -9,11 +9,13 @@ import {
   disarmVehicle,
 } from "../../lib/flight/flightActions";
 import { useModesStore } from "../../lib/flight/modesStore";
-import { pickFolder, pickSavePath } from "../../lib/ipc/dialog";
+import { askQuestion, pickFolder, pickSavePath } from "../../lib/ipc/dialog";
 import {
+  checkForUpdate,
   diagnosticsBundle,
   httpServerStart,
   httpServerStop,
+  installUpdate,
   setMapInjectionFolder,
   startLiveKml,
   stopLiveKml,
@@ -1073,6 +1075,49 @@ export function MenuBar() {
               })
               .catch(() => {
                 setNote(t("The file could not be asked for."));
+              });
+          },
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "check-updates",
+          label: t("Check for updates…"),
+          onSelect: () => {
+            close();
+
+            void checkForUpdate()
+              .then(async (found) => {
+                if (found === null) {
+                  setNote(t("MPCraft is up to date."));
+                  return;
+                }
+
+                const notes =
+                  found.notes.trim() === "" ? "" : `\n\n${found.notes}`;
+                const yes = await askQuestion(
+                  `${t(
+                    "Version {version} is available. Install it now? The application will restart.",
+                    { version: found.version },
+                  )}${notes}`,
+                );
+
+                if (!yes) {
+                  return;
+                }
+
+                setNote(
+                  t(
+                    "The update is being installed. The application will restart.",
+                  ),
+                );
+
+                await installUpdate();
+              })
+              .catch((cause: { message?: string }) => {
+                setNote(cause.message ?? t("The update could not be checked."));
               });
           },
           disabled: false,
