@@ -531,6 +531,17 @@ contesto 7, que es lo que la tabla publicada de tipos de valor da para una lista
 el operador ejecuta escribe `0x10000`, que es como un INF escribe esa misma idea en su linea de `AddReg`; las dos son
 dos formas de decirlo, no el mismo numero, y la puerta las conserva como dos lecturas con su propia fuente.
 
+Y lo que la herramienta contesto cuando esa escritura se intento en esta maquina es un hecho sobre la herramienta, no
+sobre la regla: `reg add ... /d "nombre","nombre"` paso la cadena entera como dato, asi que la clave sigue teniendo una
+sola palabra con la coma dentro. Una segunda lectura del mismo valor — la que lo lee como lista de nombres, que es lo
+que hace el lector de .NET por `GetValue` y `Get-Item`, y que no pide elevacion — dio un tipo de lista y una entrada,
+con la coma dentro, que es lo mismo que dio la lectura del crate para la misma clave, asi que los dos caminos coinciden
+hoy y no se cerraron por mano. Con la forma que escribe un nombre por entrada esa lectura daria dos entradas y cada una
+se leeria como la forma; lo que no cambiaria es el conteo de filas, porque dos reinicios de la instancia contestaron
+correctamente sin pedir elevacion y las dos listas siguen dando cero filas, lo que dice que el valor no registra una
+interfaz: registra una instalacion. Lo que haria falta entonces es la escritura con esa forma, o una instalacion que
+registre la interfaz, y ninguna de las dos depende de este archivo.
+
 Hay un hecho mas sobre ese valor, y es el que decide lo que este programa puede alcanzar: la fila
 contesta bajo el nombre que el valor escribe, que no tiene por que ser el nombre que el elemento dice
 que su clase es, porque el vinculo lee la lista de interfaces a traves de ese ultimo (`read_element`
