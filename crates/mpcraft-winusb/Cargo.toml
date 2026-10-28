@@ -11,4 +11,10 @@ repository.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 mpcraft-transport = { workspace = true }
+
+# The bus exists only on Windows. The rest of the crate is portable — the rules about what the
+# registry says and how a row is read are tested on any system — so the binding comes with the
+# platform rather than with the crate: a dependency declared here would be compiled on Linux and
+# macOS too, where `windows-future` does not build.
+[target.'cfg(windows)'.dependencies]
 windows = { workspace = true }
