@@ -36,9 +36,9 @@ use mpcraft_app::dfu::{Flash, Layout, State};
 use mpcraft_transport::device::{Device, FunctionalDescriptor};
 use mpcraft_winusb::bus::Handle;
 use mpcraft_winusb::{
-    bus, classify_open_failure, dictionary_of, guid_parts, is_our_driver, pair_from_ids, Found,
-    Target, CONFIG_MANAGER_DICTIONARY, CONFIG_MANAGER_NOT_THERE, DFU_CLASS, DFU_SUBCLASS,
-    INF_TYPE_MULTI_SZ, REGISTRY_TYPE_MULTI_SZ, WINDOWS_USBDEVICE_CLASS, WINUSB_CLASS,
+    bus, classify_open_failure, dictionary_of, guid_parts, is_our_driver, name_without_the_pair,
+    pair_from_ids, Found, Target, CONFIG_MANAGER_DICTIONARY, CONFIG_MANAGER_NOT_THERE, DFU_CLASS,
+    DFU_SUBCLASS, INF_TYPE_MULTI_SZ, REGISTRY_TYPE_MULTI_SZ, WINDOWS_USBDEVICE_CLASS, WINUSB_CLASS,
 };
 
 /// The nine bytes a published reading (cherryusb's `class/dfu/usb_dfu.h`) writes for this board's functional
@@ -258,46 +258,86 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
     for entry in &names.entries {
         match bus::rows_for_class(entry, &found.instance) {
             Ok(rows) => println!(
-                "  rows under {entry}: {} (same string as the class the element says: {})",
+                "  rows under {entry}: {} (the same name once the pair is taken off, which is what these APIs print: {})",
                 rows.len(),
-                guid_parts(entry) == guid_parts(&found.class)
+                guid_parts(name_without_the_pair(entry).unwrap_or(entry))
+                    == guid_parts(&found.class)
             ),
-            Err(error) => println!("  {entry} is not the shape these APIs read: {error}"),
+            Err(error) => println!("  {entry} is not a name either reading gives: {error}"),
         }
     }
 
-    // Three states, held as data rather than as one expected outcome, and only the branch this run is in asserts
-    // anything. A value that is not there gives no entry to either reading and no row to either list. A value that
-    // reads as the shape answers through the name it writes — which is what decides the name, not the class the
-    // element reports — so `found.path`, produced by the reading that went through the class, is compared with the
-    // list read through the value only when the two name the same string. A value that is present but not the shape
-    // is refused rather than invented, and that is the state this machine answered today: the type came as a list of
-    // names and the split gave one entry with a comma inside it, because the write put two names inside one word
-    // rather than one name per entry, so the first reading got that word, the splitting reading got the same word as
-    // one entry, the shape rule refused it, and both lists kept answering with no rows. Whether an interface was
-    // registered or only remembered is not something this run can say for either name — a row answers only where an
-    // interface was registered — so the counts are printed as answers and not asserted.
+    // Four states, held as data rather than as one expected outcome, and only the branch this run is in asserts
+    // anything. A value that is not there gives no entry to either reading and no row to either list. An entry that is
+    // a name answers through the name it writes — which is what decides the name, not the class the element reports —
+    // so `found.path`, produced by the reading that went through the class, is compared with the list read through the
+    // value only when the two name the same string. And an entry that is not a name is refused rather than invented,
+    // in two halves that are not the same fact: the pair around the string form is opened without being closed, or the
+    // five parts do not have the lengths the shape gives. This machine answered the first half today after the write
+    // was corrected: the value carries one entry, the type came as a list of names, and that entry opens the pair and
+    // does not close it, because the closing brace did not reach the key. Before the correction the same key answered
+    // one word with a comma inside — two names in letters, one entry in bytes — which is the other half. Either way
+    // both lists kept answering with no rows, and whether an interface was registered or only remembered is not
+    // something this run can say for any name, since a row answers only where an interface was registered, so the
+    // counts are printed as answers and not asserted.
     if names.entries.is_empty() {
         assert!(
             under_class.is_empty() && under_sample.is_empty(),
-            "with nothing written on the device key there is no row to read under either name",
+            "with nothing written on the device key there is no entry to read and no row under either published name",
         );
     } else {
         for entry in &names.entries {
-            if guid_parts(entry).is_none() {
+            let bare = match name_without_the_pair(entry) {
+                Some(bare) => bare,
+                None => {
+                    assert!(
+                        under_class.is_empty() && under_sample.is_empty(),
+                        "an entry that opens the pair without closing it is not a name, and no row answers under either published name",
+                    );
+                    continue;
+                }
+            };
+
+            if guid_parts(bare).is_none() {
                 assert!(
                     under_class.is_empty() && under_sample.is_empty(),
-                    "an entry that is not the shape answers with no row under either published name",
+                    "an entry whose parts do not have the lengths the shape gives answers with no row under either published name",
                 );
             }
         }
     }
 
+    // When the value carries one entry the two readings answer with the same text, because there is no terminator
+    // inside it. Whether that text is a name is a third rule, and it reads through the pair first, so this asserts the
+    // text and the shape decision separately rather than folding them into one check.
     assert_eq!(
-        names.entries.first().map(|entry| guid_parts(entry)),
-        written.as_ref().map(|value| guid_parts(value)),
-        "the two readings give the same fact when the value carries one entry",
+        names.entries.first(),
+        written.as_ref(),
+        "the reading that stops at the terminator and the reading that splits at the terminators answer with the same text for one entry",
     );
+
+    let entry = names.entries.first();
+
+    if let Some(text) = entry {
+        let bare = name_without_the_pair(text);
+
+        println!(
+            "  read through the pair: {}",
+            match bare {
+                Some(bare) => format!("{bare}"),
+                None => String::from("the pair is opened and not closed, so this is not a name"),
+            }
+        );
+
+        assert_eq!(
+            bare.map(|bare_name| guid_parts(bare_name)),
+            written
+                .as_ref()
+                .and_then(|value| name_without_the_pair(value))
+                .map(|bare_name| guid_parts(bare_name)),
+            "the shape rule answers the same way for the same text through either reading",
+        );
+    }
 
     // The refusal that falls before anything travels, read as the state this run found rather than as one expected
     // outcome. When the install wrote nothing on the device key there is no row to open, and the code that says so is

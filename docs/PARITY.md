@@ -520,27 +520,42 @@ el valor decide bajo que nombre contesta y no lo que hace que la fila exista —
 cadena, los doce sectores y cual forma de la orden de borrado entiende este build siguen pendientes de que haya una
 fila que abrir.
 
-Y el valor se lee de dos maneras, que hoy dieron cosas distintas, y por eso se conservan aparte: la lectura que para
-en el terminador dio una palabra, y la que parte por los terminadores dio una entrada con una coma dentro, porque la
-escritura del operador puso los dos nombres dentro de una sola comilla en lugar de un nombre por entrada. La regla de
-forma rechaza esa entrada, que es lo que el area afirma en ese estado; para cerrar la fila hace falta el valor con
-una forma que la regla pueda leer, o una instalacion que registre la interfaz, y la forma que escribe entradas
-separadas es un nombre por entrada, como PowerShell lo da con `Set-ItemProperty ... -Value @("nombre","nombre")`
-elevando. El numero que la llamada contesto por el tipo es otro hecho, y es el que la puerta compara: `RegQueryValueExW`
+Y el valor se lee de dos maneras, que en el primer estado dieron cosas distintas, y por eso se conservan aparte: la
+lectura que para en el terminador dio una palabra, y la que parte por los terminadores dio una entrada con una coma
+dentro, porque la primera escritura puso los dos nombres dentro de una sola comilla en lugar de un nombre por entrada. La
+regla de forma rechaza esa entrada, que es lo que el area afirma en ese estado; para cerrar la fila hace falta el valor
+con una forma que la regla pueda leer, o una instalacion que registre la interfaz, y la forma que escribe entradas
+separadas es un nombre por entrada, como PowerShell lo da con `Set-ItemProperty ... -Value @("nombre","nombre")` elevando. El numero que la llamada contesto por el tipo es otro hecho, y es el que la puerta compara: `RegQueryValueExW`
 contesto 7, que es lo que la tabla publicada de tipos de valor da para una lista de nombres, mientras el archivo que
 el operador ejecuta escribe `0x10000`, que es como un INF escribe esa misma idea en su linea de `AddReg`; las dos son
 dos formas de decirlo, no el mismo numero, y la puerta las conserva como dos lecturas con su propia fuente.
 
 Y lo que la herramienta contesto cuando esa escritura se intento en esta maquina es un hecho sobre la herramienta, no
-sobre la regla: `reg add ... /d "nombre","nombre"` paso la cadena entera como dato, asi que la clave sigue teniendo una
-sola palabra con la coma dentro. Una segunda lectura del mismo valor — la que lo lee como lista de nombres, que es lo
-que hace el lector de .NET por `GetValue` y `Get-Item`, y que no pide elevacion — dio un tipo de lista y una entrada,
-con la coma dentro, que es lo mismo que dio la lectura del crate para la misma clave, asi que los dos caminos coinciden
-hoy y no se cerraron por mano. Con la forma que escribe un nombre por entrada esa lectura daria dos entradas y cada una
-se leeria como la forma; lo que no cambiaria es el conteo de filas, porque dos reinicios de la instancia contestaron
-correctamente sin pedir elevacion y las dos listas siguen dando cero filas, lo que dice que el valor no registra una
-interfaz: registra una instalacion. Lo que haria falta entonces es la escritura con esa forma, o una instalacion que
-registre la interfaz, y ninguna de las dos depende de este archivo.
+sobre la regla: `reg add ... /d "nombre","nombre"` paso la cadena entera como dato, asi que la clave quedo con una sola
+palabra con la coma dentro. Una segunda lectura del mismo valor — la que lo lee como lista de nombres, que es lo que
+hace el lector de .NET por `GetValue` y `Get-Item`, y que no pide elevacion — dio tipo de lista y una entrada, con la
+coma dentro, que es lo mismo que dio la lectura del crate para la misma clave, asi que los dos caminos coinciden y no se
+cerraron por mano. Despues se escribio un solo nombre por entrada, que es la forma que la regla lee, y hoy la clave
+contesta una entrada con ese nombre; lo que no llego fue el par: abre con la llave de inicio y no la cierra, y el
+segundo nombre no esta, porque el comando que se ejecuto lo perdio al pegarse. Con esa entrada completa la lectura que
+parte por los terminadores daria un nombre leible como la forma, y la que para en el primer terminador daria el mismo
+texto; lo que no cambia es el conteo de filas, porque dos reinicios de la instancia contestaron correctamente sin pedir
+elevacion y las dos listas siguen dando cero filas, lo que dice que el valor no registra una interfaz: registra una
+instalacion. Los numeros que terminaron la lectura hoy son los que la puerta compara con su fuente: `RegOpenKeyExW`
+contesto 0 para la clave, `RegQueryValueExW` contesto 0 para el valor y 7 para el tipo, y `open` sigue diciendo
+`device_not_ours` antes de que nada viaje por el cable.
+
+Y hay una tercera lectura sobre esa cadena, que no es la regla de la forma escrita otra vez: el par de llaves que la
+forma de texto puede llevar, leido como hecho propio — los dos lados o ninguno. `StringFromCLSID` escribe el nombre
+con el par, y estas APIs lo imprimen sin el, mientras el lector publicado que lo interpreta (`CLSIDFromString`) acepta
+las dos formas. Por eso el par se lee antes que las cinco partes, y un nombre que abre el par sin cerrarlo se rechaza
+en lugar de inventarse: eso es lo que esta maquina contesto hoy, porque la escritura corregida dejo una entrada que
+abre el par y no lo cierra — la llave de cierre no llego a la clave — asi que la regla la rechaza y las dos listas
+siguen dando cero filas. Antes de la correccion la misma clave contestaba una palabra con una coma dentro, que es la
+otra mitad: dos nombres en las letras y una entrada en los bytes. El area afirma las dos mitades por separado, y la
+puerta nombra su caso conocido-malo para el par: una copia que recorta la llave de apertura sin buscar la de cierre
+convierte un texto incompleto en una clase. Lo que la puerta no hace con esto lo dice su informe: lee esas tres formas
+como texto, asi que no ejecuta el modulo ni muestra lo que la maquina guardo.
 
 Hay un hecho mas sobre ese valor, y es el que decide lo que este programa puede alcanzar: la fila
 contesta bajo el nombre que el valor escribe, que no tiene por que ser el nombre que el elemento dice
@@ -552,8 +567,12 @@ que decide que la fila exista es el valor, y pydfu enumera por el nombre con el 
 es el guid que WinUSB usa como muestra — una tercera lectura, no la misma regla escrita dos veces —, asi que escribir
 un solo nombre sirve al camino de este programa y no dice nada sobre el otro. Lo que el area lee son las dos lecturas,
 conservadas como dos hechos: la que para en el terminador da el primer nombre, y la que parte por los terminadores da
-las entradas; hoy la primera dio una palabra y la segunda dio una sola entrada con la coma dentro, que no es la forma
-que la regla lee, y eso se dice como un hecho del lector y de la escritura, no como un nombre inventado aqui. Por eso
+las entradas; en el primer estado la primera dio una palabra con la coma dentro y la segunda dio esa misma palabra como
+una sola entrada, que la regla de forma rechazo, y hoy la clave contesta una sola entrada con un nombre que abre el par
+sin cerrarlo, que la regla del par rechaza — dos estados, dos negativas, ninguna cerrada por mano. Por eso la puerta lee
+el valor como la linea lo escribe, con su par, y no a traves de un lector que lo recorta: una linea que pierde la llave
+de cierre escribe un texto que no es un nombre en ninguna de las dos lecturas, y ese es el caso conocido-malo que la
+puerta muestra disparandose sobre una copia de su propio archivo. Por eso
 el area compara las filas a traves del valor y no a traves de un nombre escrito aqui,
 y dice si los dos nombres coinciden como un dato. Por eso el archivo que el operador ejecuta elevando escribe
 `{88bae032-5a81-49f0-bc3d-a4ff138216d6}` (`scripts/dfu-winusb.inf`), escrito desde la forma que el INF
@@ -637,7 +656,9 @@ traves del elemento fuera el mismo hecho —que es el estado que este cambio enc
 declaracion de clase que nombra otro string, un archivo que declara clase y no escribe nada, un valor escrito
 como una palabra cuando el registro guarda una lista de nombres, las dos formas de decir ese tipo escritas como
 el mismo numero cuando son dos lecturas con fuentes distintas, la lectura que reparte los tramos por otra marca que
-los terminadores, y la lectura que dice la palabra sin pararse en su primer terminador, el par del filtro escrito
+los terminadores, y la lectura que dice la palabra sin pararse en su primer terminador, una copia que recorta la llave
+de apertura sin buscar la de cierre —que leeria una clase donde el valor no dijo una—, una linea del archivo del
+operador que abre el par sin cerrarlo, el par del filtro escrito
 como si decidiera las dos reglas cuando aqui se decide por el servicio, y un limite que nombra los numeros y el
 escritor pero no el archivo que lee como texto)
 y lo que no alcanza: lee los literales como texto, no ejecuta el modulo, y la comparacion entre
@@ -647,10 +668,11 @@ conteste despues de escribirlo. Y la copia de la forma que el area viva lleva no
 esa puerta, que lee los literales de `tests/dfu.rs`: lo que el area compara es lo que la
 placa pone en el cable contra lo que la lectura publicada escribe, y eso se sabe solo
 cuando una placa contesta. La regla que reparte los tramos se afirma aparte, en
-`crates/mpcraft-winusb/tests/values.rs`, contra bytes escritos antes de llamarla: hoy dio una
-entrada con una coma dentro, que la regla de forma rechaza, mientras la misma lectura con un
-nombre por entrada da dos; y el desacuerdo entre las dos formas de decir el tipo se conserva
-como un hecho en ese mismo archivo. Por eso la fila sigue parcial.
+`crates/mpcraft-winusb/tests/values.rs`, contra bytes escritos antes de llamarla: en el primer estado dio una
+entrada con una coma dentro, que la regla de forma rechaza, mientras la misma lectura con un nombre por entrada da dos;
+y en ese mismo archivo el par de llaves se afirma contra tres nombres escritos antes de llamarlo — el par puesto, el
+par ausente, y el par abierto sin cerrar — que es lo que la puerta lee como texto sin ejecutar el modulo. El desacuerdo
+entre las dos formas de decir el tipo se conserva como un hecho en ese archivo. Por eso la fila sigue parcial.
 
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are

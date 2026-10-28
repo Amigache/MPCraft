@@ -14,9 +14,12 @@
 ; The line writes `0x10000`, which is how an AddReg line spells a list of names; the call that reads the value
 ; answered `7` for the instance written here, which is what the published table of value types gives for a list. Two
 ; spellings of one fact, kept apart because they are read from different sides. And the shape of the entries matters:
-; what the operator wrote today put two names inside one word with a comma between them, so the reading that stops at
-; the terminator got one word and the reading that splits at terminators got one entry the shape rule refuses. One
-; name per entry is what answers as a list, which is what PowerShell writes with a value given as an array.
+; the first writing put two names inside one word with a comma between them, so the reading that stops at the terminator
+; got one word and the reading that splits at terminators got one entry that is not a name. The line here writes one
+; name per entry, each with its own terminator, which is what answers as a list — PowerShell gives that with a value
+; given as an array. The pair around the name is read as its own fact, both sides or neither: this line carries both,
+; while the write that landed on this machine carried the opening one only, so that value is not a name either reading
+; gives.
 ;
 ; Why the name written here is {88bae032-5a81-49f0-bc3d-a4ff138216d6}: a row answers under whatever
 ; name the value writes, and this binding reads the interface list through the class the element

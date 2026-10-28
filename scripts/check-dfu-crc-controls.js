@@ -231,6 +231,17 @@ const cases = [
   },
   {
     side: "device",
+    claim:
+      "the brace pair read as decoration is caught, because a name that opens it without closing it is not a name either reading gives",
+    /* This is the state the corrected write left on the key: an opening brace and no closing one. `StringFromCLSID`
+       writes names with the pair and these APIs print them without it, so the pair is one fact with two shapes; a copy
+       that trims the opening brace on its own turns an incomplete text into a class. */
+    mutated: mutate(device, /if opens != closes \{/, "if opens {"),
+    expect: /read as decoration rather than as its own fact/,
+    allowExtra: /never matched/,
+  },
+  {
+    side: "device",
     claim: "a pair written as if it decided both rules is caught",
     mutated: mutate(
       device,
@@ -251,6 +262,21 @@ const cases = [
       "; nothing written, which is what this machine answers today",
     ),
     expect: /writes no value on the device key/,
+    allowExtra: /never matched/,
+  },
+  {
+    side: "inf",
+    claim:
+      "a value whose pair is opened and not closed is caught, because that text is not a name on either reading",
+    /* The gate reads the name as the line writes it rather than through a reader that strips the pair, so a line that
+       loses the closing brace says a class where the file wrote an incomplete string — which is what happened on this
+       machine when the command was pasted without it. */
+    mutated: mutate(
+      inf,
+      /^HKR,,DeviceInterfaceGUIDs,0x10000,"\{[^"]*\}"$/,
+      'HKR,,DeviceInterfaceGUIDs,0x10000,"{88bae032-5a81-49f0-bc3d-a4ff138216d6"',
+    ),
+    expect: /the pair on one side only/,
     allowExtra: /never matched/,
   },
 ];

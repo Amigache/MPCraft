@@ -252,6 +252,14 @@ function namesOfDevice(device) {
       /pub fn as_wide\(units: &\[u16\]\)[\s\S]*?split\('\\0'\)\s*\n?\s*\.next\(\)/.test(
         device,
       ),
+    /* The pair a string form can carry, read as its own fact: both sides or neither. It comes from a published
+       reader (`CLSIDFromString` takes a brace-enclosed string as well as the bare form) and it is not the same thing
+       as the five parts these APIs print, so a copy that trims the opening brace without looking for the closing one
+       reads a name out of a value that never said one. */
+    pairReadAsItsOwnFact:
+      /pub fn name_without_the_pair\(name: &str\)[\s\S]*?opens != closes/.test(
+        device,
+      ),
   };
 }
 
@@ -275,6 +283,8 @@ function namesOfInf(text) {
     type: (
       text.match(/DeviceInterfaceGUIDs,(0x[0-9a-fA-F]+)/)?.[1] ?? ""
     ).toLowerCase(),
+    valueRaw:
+      text.match(/DeviceInterfaceGUIDs,0x[0-9a-fA-F]+,"([^"]*)"/)?.[1] ?? "",
     value: (
       text.match(
         /DeviceInterfaceGUIDs,0x[0-9a-fA-F]+,"\{?([0-9a-fA-F][0-9a-fA-F-]*)\}?"/,
@@ -400,6 +410,21 @@ function check({ tests, source, inf, device }) {
      the entries, so two names inside one entry are refused by the rule that reads names while two entries would each
      be read, which is what this machine answered for the instance the operator wrote. A single absence is said once,
      so the type is read only when there is a line to read. */
+  /* The name in the line is read as the file writes it, and the pair around it is its own fact: both sides or neither.
+     A line that opens the pair without closing it writes a text that is not a name on either reading — which is what a
+     command lost on this machine when it was pasted, so the gate says it rather than reading a class out of an
+     incomplete string. */
+  if (names.valueRaw !== "") {
+    const opens = names.valueRaw.startsWith("{");
+    const closes = names.valueRaw.endsWith("}");
+
+    if (opens !== closes) {
+      faults.push(
+        `the line writes the name with the pair on one side only (${JSON.stringify(names.valueRaw)}), which is not a name either reading gives`,
+      );
+    }
+  }
+
   if (names.value === "") {
     faults.push(
       "the file writes no value on the device key, so there is nothing to read",
@@ -451,7 +476,7 @@ function check({ tests, source, inf, device }) {
      the word up to the first one. Today's machine showed the difference on one value — the same bytes gave one word
      to the reader that stops and one entry with a comma inside to the reader that splits, and the rule that reads
      names refused that entry, so a copy that splits by another mark, or a word reading that keeps going past its
-     first terminator, says the pair is one fact seen through a different mark. */
+     first terminator, says the two readings are one rule seen through a different mark. */
   if (!constants.splitsAtTerminators) {
     faults.push(
       "the reading that walks entries does not split at the terminators, which is where a list of names differs from a word",
@@ -461,6 +486,16 @@ function check({ tests, source, inf, device }) {
   if (!constants.stopsAtFirstTerminator) {
     faults.push(
       "the reading that answers with a word but does not stop at the first terminator, which is what makes it a word",
+    );
+  }
+
+  /* And the braces are a third fact, read as both-or-neither: `StringFromCLSID` writes a name with them and these
+     APIs print it without them, so a name that opens the pair and does not close it — which is what this machine
+     answered after the corrected write — has to be refused rather than read as a class. A copy that trims the opening
+     brace on its own turns an incomplete text into a name. */
+  if (!constants.pairReadAsItsOwnFact) {
+    faults.push(
+      "the pair around a string form of a name is read as decoration rather than as its own fact, so a name that opens it without closing it would be read as a class",
     );
   }
 
@@ -525,9 +560,14 @@ function check({ tests, source, inf, device }) {
       infType: constants.infType,
       registryType: constants.registryType,
       publishedSpellings: SPELLINGS,
+      /* The name as the line writes it, kept with its pair rather than read through a reader that strips it. */
+      valueAsWritten: names.valueRaw,
+      valuePairComplete:
+        names.valueRaw.startsWith("{") && names.valueRaw.endsWith("}"),
       /* The two readings of one value, kept as the shapes they carry so a copy that collapses them is seen. */
       splitsAtTerminators: constants.splitsAtTerminators,
       stopsAtFirstTerminator: constants.stopsAtFirstTerminator,
+      pairReadAsItsOwnFact: constants.pairReadAsItsOwnFact,
     },
     faults,
   };
@@ -543,7 +583,7 @@ function check({ tests, source, inf, device }) {
  * that is what the live area reads when the install has run.
  */
 const LIMIT =
-  "the numbers are worked out by a second implementation of the format written here, not by the module that carries them, so nothing of the module is executed and the agreement between its own rule and these tables is what the module's test carries. The writer is read as text: a shape the reading does not name is not seen, and the disagreement is said as two numbers for the same bytes, which does not say which reading a board answers with. The file the operator runs is read as text too, so nothing here shows that an elevated install writes the value or that a row answers afterwards, and the two spellings of the value type are compared as text, which does not show what the call answered for a machine: the number the bus gave — 7 for this instance, against the `0x10000` the file writes — is what the live area reads.";
+  "the numbers are worked out by a second implementation of the format written here, not by the module that carries them, so nothing of the module is executed and the agreement between its own rule and these tables is what the module's test carries. The writer is read as text: a shape the reading does not name is not seen, and the disagreement is said as two numbers for the same bytes, which does not say which reading a board answers with. The file the operator runs is read as text too, so nothing here shows that an elevated install writes the value or that a row answers afterwards, and the two spellings of the value type are compared as text, which does not show what the call answered for a machine: the number the bus gave — 7 for this instance, against the `0x10000` the file writes — is what the live area reads. The three shapes the gate compares here (splitting at the terminators, stopping at the first one, and taking the brace pair as both-or-neither) are read as text, so they say how the rule is written and not what a machine stored on the key.";
 
 function main() {
   const testsPath = process.argv[2] ?? "crates/mpcraft-app/tests/dfu.rs";
