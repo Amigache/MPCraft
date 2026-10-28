@@ -120,7 +120,7 @@ fn padded(image: &[u8]) -> Vec<u8> {
 }
 
 /// Decodes a base64 document.
-fn base64_bytes(text: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn base64_bytes(text: &str) -> Result<Vec<u8>, String> {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     let mut out = Vec::new();
@@ -153,8 +153,37 @@ fn base64_bytes(text: &str) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+/// Writes bytes as base64, which is how the document carries the image and how a key is written.
+pub(crate) fn base64_text(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+
+    for chunk in bytes.chunks(3) {
+        let first = u32::from(chunk[0]);
+        let second = u32::from(chunk.get(1).copied().unwrap_or(0));
+        let third = u32::from(chunk.get(2).copied().unwrap_or(0));
+        let group = (first << 16) | (second << 8) | third;
+
+        out.push(ALPHABET[((group >> 18) & 0x3F) as usize] as char);
+        out.push(ALPHABET[((group >> 12) & 0x3F) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            ALPHABET[((group >> 6) & 0x3F) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            ALPHABET[(group & 0x3F) as usize] as char
+        } else {
+            '='
+        });
+    }
+
+    out
+}
+
 /// Unpacks the image, which is published compressed.
-fn unpack(bytes: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn unpack(bytes: &[u8]) -> Result<Vec<u8>, String> {
     use std::io::Read as _;
 
     let mut out = Vec::new();
@@ -292,5 +321,22 @@ mod tests {
         assert_eq!(error.code, CommandError::CODE_INVALID_REQUEST);
         assert!(error.message.contains("9"));
         assert!(error.message.contains("3"));
+    }
+
+    #[test]
+    fn the_document_writes_base64_the_way_the_reader_of_it_reads_it() {
+        // The values were written by python's own base64 rather than taken from this encoder, so
+        // the two agreeing is a fact about the alphabet and the padding and not a round trip of
+        // this crate with itself.
+        assert_eq!(base64_text(b""), "");
+        assert_eq!(base64_text(b"f"), "Zg==");
+        assert_eq!(base64_text(b"MPCraft"), "TVBDcmFmdA==");
+        assert_eq!(base64_text(&[0, 1, 2]), "AAEC");
+        assert_eq!(base64_text(&[0, 1]), "AAE=");
+
+        let bytes: Vec<u8> = (0_u8..=255).collect();
+        let text = base64_text(&bytes);
+
+        assert_eq!(base64_bytes(&text).expect("the text is base64"), bytes);
     }
 }

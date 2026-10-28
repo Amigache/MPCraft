@@ -525,6 +525,31 @@ export interface FirmwareManifest {
   readonly boards: readonly FirmwareBoard[];
 }
 
+/** The kind of firmware file a signature is made for. */
+export type SecureFirmwareKind = "apj" | "bootloader";
+
+/** What was written when a firmware was signed. */
+export interface SignedFirmware {
+  /** The file the signed form was written to. */
+  readonly output: string;
+  /** How big the file is, in bytes. */
+  readonly bytes: number;
+  /** The SHA-512 of what was signed, in base64. Empty for a bootloader, which is not signed. */
+  readonly sha: string;
+  /** The public key the board has to trust, in base64. */
+  readonly publicKey: string;
+}
+
+/** What was written when a key for secure firmware was generated. */
+export interface GeneratedKey {
+  /** The file the private key was written to. */
+  readonly privateKeyPath: string;
+  /** The file the public key was written to, beside it. */
+  readonly publicKeyPath: string;
+  /** The public key itself, in base64. */
+  readonly publicKey: string;
+}
+
 /** One point of a path that follows the ground. */
 export interface TerrainPathPoint {
   readonly lat: number;

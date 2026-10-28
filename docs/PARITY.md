@@ -184,7 +184,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔽 | 5 |
 | 8.5 | Board auto-detect | `BoardDetect.cs` | ✅ | 5 |
 | 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | ✅ | 5 |
-| 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔜 | 5 |
+| 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔽 | 5 |
 
 ## 9. Extensibility & integration
 
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 144 |
-| 🔜 Planned | 4 |
+| 🔜 Planned | 3 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 5 |
+| Partial (🟡 / 🔽) | 6 |
 
 The 144 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
@@ -1718,6 +1718,25 @@ their installers are what the workflow builds rather than what this machine saw.
 do is said rather than assumed: it does not build an installer, does not run npm or cargo, cannot
 say that a runner accepts the workflow, and says nothing about signing or notarisation, which is row
 10.9 and needs a certificate only the operator holds.
+
+The **signature of the firmware** is made on this machine, for a board with secure boot. The image
+inside an `.apj` carries a descriptor of eight bytes and a 92-byte block after it; what is signed is
+everything except that block, with Ed25519, and the block is then written with a length of 72, the
+version 30437 and the 64 bytes of the signature, in the byte order the board reads. The document is
+filled again with the image, its size, the room left in the flash and the SHA-512 of what was signed.
+A bootloader is not signed: it carries the three keys every ArduPilot bootloader holds and the
+operator's own after them, which is what the board checks the autopilot image with. The key is read
+from the form the published signer writes (`PRIVATE_KEYV1:` and the seed in base64) or from a PKCS#8
+PEM, and the application never writes it anywhere it was not asked to; a key it generates is written
+where the operator chose, with the public half beside it. The tests are two facts that are not this
+crate agreeing with itself: the seed, the public key and the signature of an empty message are the
+values RFC 8032 publishes, and the signature and the SHA-512 of the fixture are what the platform's
+own Ed25519 gives for the same bytes, so the place of the block and what is signed are checked
+against a signer that was not built from this one. What is not carried is the hosted half of
+`ConfigSecure.cs`: signing through the vendor's service needs an account and a call to a third party,
+and the offline signer makes the same document without either. And no board with secure boot was
+flashed here, because there is none on this machine, so the row stays partial: the signer is done,
+and what is left is the service and the board.
 
 The **contract** is read from both sides now, because one document was spoken two ways and nothing read the
 two against each other. The pair that identifies a vehicle was written with underscores by the structs that

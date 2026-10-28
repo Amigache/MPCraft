@@ -63,6 +63,7 @@ pub mod logs;
 pub mod ntrip;
 pub mod operations;
 pub mod plugins;
+pub mod secure;
 pub mod signing;
 pub mod streams;
 pub mod supervisor;

@@ -1,21 +1,26 @@
 import { useEffect, useState } from "react";
 
-import { pickSavePath } from "../../lib/ipc/dialog";
+import { pickOpenPath, pickSavePath } from "../../lib/ipc/dialog";
 import {
   firmwareDownload,
   firmwareEraseBoard,
   firmwareManifest,
   firmwareWriteToBoard,
   flashBootloader,
+  generateSigningKey,
   listSerialPorts,
   normaliseError,
   rebootIntoBootloader,
+  signFirmware,
 } from "../../lib/ipc/bridge";
 import type {
   BoardInfo,
   FirmwareBoard,
   FirmwareManifest,
+  GeneratedKey,
+  SecureFirmwareKind,
   SerialPort,
+  SignedFirmware,
 } from "../../lib/ipc/types";
 import { formatCount, formatText } from "../../lib/format";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
@@ -72,6 +77,15 @@ export function FirmwareSheet() {
   const [allowSame, setAllowSame] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // The signed form: the key the operator keeps, the file that is signed, and what was written.
+  const [secureKeyPath, setSecureKeyPath] = useState("");
+  const [secureFile, setSecureFile] = useState<string | null>(null);
+  const [secureKind, setSecureKind] = useState<SecureFirmwareKind>("apj");
+  const [generatedKey, setGeneratedKey] = useState<GeneratedKey | null>(null);
+  const [signedFirmware, setSignedFirmware] = useState<SignedFirmware | null>(
+    null,
+  );
 
   // Both of these need a link to a vehicle: one writes a sector of the board's flash, the other asks
   // the board to restart and stay in its loader.
@@ -283,6 +297,107 @@ export function FirmwareSheet() {
         t("the vehicle answered {result} to {command}", {
           result: answer.result,
           command: answer.command,
+        }),
+      );
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const choosePrivateKey = async () => {
+    const picked = await pickOpenPath([
+      { name: t("The private key"), extensions: ["dat", "pem"] },
+    ]);
+
+    if (picked.ok) {
+      setSecureKeyPath(picked.path);
+    }
+  };
+
+  const makeKey = async () => {
+    const picked = await pickSavePath("mpcraft-key.dat", [
+      { name: t("The private key"), extensions: ["dat"] },
+    ]);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const made = await generateSigningKey(picked.path);
+      setGeneratedKey(made);
+      setSecureKeyPath(made.privateKeyPath);
+      setNotice(
+        t(
+          "The key is written to {path}. Protect it: if it is lost, the board cannot be signed again.",
+          { path: made.privateKeyPath },
+        ),
+      );
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseSecureFile = async () => {
+    const picked = await pickOpenPath([
+      { name: t("The file to sign"), extensions: ["apj", "bin"] },
+    ]);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setSecureFile(picked.path);
+    setSecureKind(
+      picked.path.toLowerCase().endsWith(".apj") ? "apj" : "bootloader",
+    );
+  };
+
+  const signSecureFile = async () => {
+    if (secureFile === null) {
+      setError(t("there is no file to sign."));
+      return;
+    }
+
+    if (secureKeyPath === "") {
+      setError(t("there is no private key chosen."));
+      return;
+    }
+
+    const extension = secureKind === "apj" ? "apj" : "bin";
+    const stem = secureFile.replace(/\.(apj|bin)$/i, "");
+    const picked = await pickSavePath(`${stem}-signed.${extension}`, [
+      { name: t("The signed file"), extensions: [extension] },
+    ]);
+
+    if (!picked.ok) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const signed = await signFirmware(
+        secureKind,
+        secureFile,
+        picked.path,
+        secureKeyPath,
+      );
+      setSignedFirmware(signed);
+      setNotice(
+        t("The file was signed and written to {path} ({size}).", {
+          path: signed.output,
+          size: showSize(signed.bytes),
         }),
       );
     } catch (cause) {
@@ -534,6 +649,131 @@ export function FirmwareSheet() {
                 },
               )}
             </p>
+          ) : null}
+        </section>
+
+        <section className={styles.block}>
+          <h3 className={styles.heading}>{t("Signed firmware")}</h3>
+
+          <p className={styles.text}>
+            {t(
+              "A board with secure boot does not run an image that is not signed by a key it trusts. The signature is Ed25519: the image inside the document is signed, and a bootloader carries the keys the board checks with.",
+            )}
+          </p>
+
+          <p className={styles.text}>
+            {t(
+              "The private key is the operator's. It is read from a PRIVATE_KEYV1 file or a PKCS#8 PEM, and this application never writes it anywhere it was not asked to.",
+            )}
+          </p>
+
+          <div className={styles.fields}>
+            <label className={styles.field}>
+              <span className={styles.label}>{t("The private key")}</span>
+              <input
+                className="input"
+                value={secureKeyPath}
+                aria-label={t("The private key")}
+                placeholder={t("no key chosen")}
+                onChange={(event) => {
+                  setSecureKeyPath(event.target.value);
+                }}
+              />
+            </label>
+
+            <label className={styles.field}>
+              <span className={styles.label}>{t("The file to sign")}</span>
+              <input
+                className="input"
+                value={secureFile ?? ""}
+                aria-label={t("The file to sign")}
+                placeholder={t("no file chosen")}
+                onChange={(event) => {
+                  setSecureFile(
+                    event.target.value === "" ? null : event.target.value,
+                  );
+                  setSecureKind(
+                    event.target.value.toLowerCase().endsWith(".apj")
+                      ? "apj"
+                      : "bootloader",
+                  );
+                }}
+              />
+            </label>
+          </div>
+
+          <div className={styles.row}>
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={() => {
+                void choosePrivateKey();
+              }}
+            >
+              {t("Choose the private key")}
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={() => {
+                void makeKey();
+              }}
+            >
+              {t("Generate a key")}
+            </button>
+
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={() => {
+                void chooseSecureFile();
+              }}
+            >
+              {t("Choose the file to sign")}
+            </button>
+
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={busy || secureFile === null || secureKeyPath === ""}
+              onClick={() => {
+                void signSecureFile();
+              }}
+            >
+              {t("Sign the file")}
+            </button>
+          </div>
+
+          <p className={styles.text}>
+            {t(
+              "A bootloader is not signed: it carries the three keys every ArduPilot bootloader holds and the operator's own after them, which is what the board checks the autopilot image with.",
+            )}
+          </p>
+
+          {generatedKey !== null ? (
+            <dl className={styles.facts}>
+              <dt>{t("The public key")}</dt>
+              <dd className={styles.hash}>{generatedKey.publicKey}</dd>
+              <dt>{t("The public key was written to")}</dt>
+              <dd>{generatedKey.publicKeyPath}</dd>
+            </dl>
+          ) : null}
+
+          {signedFirmware !== null ? (
+            <dl className={styles.facts}>
+              <dt>{t("The public key the board has to trust")}</dt>
+              <dd className={styles.hash}>{signedFirmware.publicKey}</dd>
+              {signedFirmware.sha !== "" ? (
+                <>
+                  <dt>{t("The SHA-512 of what was signed")}</dt>
+                  <dd className={styles.hash}>{signedFirmware.sha}</dd>
+                </>
+              ) : null}
+            </dl>
           ) : null}
         </section>
 

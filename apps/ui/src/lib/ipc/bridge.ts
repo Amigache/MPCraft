@@ -20,6 +20,7 @@ import type {
   FlightMode,
   FormationStatus,
   FtpEntry,
+  GeneratedKey,
   FtpFile,
   GraphPreset,
   GraphSeries,
@@ -48,8 +49,10 @@ import type {
   PlanKind,
   PlanWarning,
   PluginInfo,
+  SecureFirmwareKind,
   SelectedVehicle,
   SerialPort,
+  SignedFirmware,
   SigningKeyEvent,
   SigningStatus,
   StateEvent,
@@ -1216,6 +1219,33 @@ export async function firmwareWriteToBoard(
  */
 export async function firmwareEraseBoard(port: string): Promise<BoardInfo> {
   return call<BoardInfo>("firmware_erase_board", { port });
+}
+
+/**
+ * Signs a firmware file with the operator's own key.
+ *
+ * The document of an `.apj` carries a signature over its image; a bootloader carries the keys the
+ * board trusts. The key is read from the file the operator chose and is never written by this call.
+ */
+export async function signFirmware(
+  kind: SecureFirmwareKind,
+  input: string,
+  output: string,
+  keyFile: string,
+): Promise<SignedFirmware> {
+  return call<SignedFirmware>("sign_firmware", {
+    kind,
+    input,
+    output,
+    keyFile,
+  });
+}
+
+/** Generates a key for secure firmware and writes it where the operator asked. */
+export async function generateSigningKey(
+  privateKeyPath: string,
+): Promise<GeneratedKey> {
+  return call<GeneratedKey>("generate_signing_key", { privateKeyPath });
 }
 
 /**

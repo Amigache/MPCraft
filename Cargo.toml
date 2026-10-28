@@ -82,6 +82,12 @@ regex = "1"
 flate2 = "1"
 sha2 = "0.10"
 
+# The signature of a firmware image for a board with secure boot. The curve and the encoding are
+# the ones the published signer uses (Ed25519), so the rule is not re-derived here: what this
+# workspace carries is the crate that implements it, and the layout of the image around it.
+ed25519-dalek = { version = "2", features = ["pem"] }
+getrandom = "0.2"
+
 # The WASM runtime behind the plugin sandbox. It is the only runtime dependency in the workspace,
 # and only `mpcraft-plugin` uses it: the layer above hands the sandbox a manifest and gets typed
 # results back, so nothing else has to know that a runtime exists.

@@ -839,6 +839,35 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The vehicle wrote the bootloader it carries in itself into the sector of its flash. It did not restart, and it is still speaking as a vehicle.":
       "El vehículo escribió el cargador de arranque que lleva en sí mismo en el sector de su memoria. No volvió a empezar, y sigue hablando como vehículo.",
 
+    // The sheet of the signed firmware.
+    "Signed firmware": "Firmware firmado",
+    "A board with secure boot does not run an image that is not signed by a key it trusts. The signature is Ed25519: the image inside the document is signed, and a bootloader carries the keys the board checks with.":
+      "Una placa con arranque seguro no ejecuta una imagen que no esté firmada por una clave en la que confíe. La firma es Ed25519: se firma la imagen que hay dentro del documento, y un cargador de arranque lleva las claves con las que la placa comprueba.",
+    "The private key is the operator's. It is read from a PRIVATE_KEYV1 file or a PKCS#8 PEM, and this application never writes it anywhere it was not asked to.":
+      "La clave privada es del operador. Se lee de un archivo PRIVATE_KEYV1 o de un PEM PKCS#8, y esta aplicación nunca la escribe donde no se le pidió.",
+    "The private key": "La clave privada",
+    "The file to sign": "El archivo que firmar",
+    "no key chosen": "no hay clave elegida",
+    "no file chosen": "no hay archivo elegido",
+    "Choose the private key": "Elegir la clave privada",
+    "Generate a key": "Generar una clave",
+    "Choose the file to sign": "Elegir el archivo que firmar",
+    "Sign the file": "Firmar el archivo",
+    "A bootloader is not signed: it carries the three keys every ArduPilot bootloader holds and the operator's own after them, which is what the board checks the autopilot image with.":
+      "Un cargador de arranque no se firma: lleva las tres claves que todo cargador de ArduPilot tiene y la del operador detrás, que es con lo que la placa comprueba la imagen del piloto automático.",
+    "The public key": "La clave pública",
+    "The public key was written to": "La clave pública se escribió en",
+    "The public key the board has to trust":
+      "La clave pública en la que la placa tiene que confiar",
+    "The SHA-512 of what was signed": "El SHA-512 de lo que se firmó",
+    "The key is written to {path}. Protect it: if it is lost, the board cannot be signed again.":
+      "La clave se escribió en {path}. Protégela: si se pierde, la placa no se podrá volver a firmar.",
+    "there is no file to sign.": "no hay archivo que firmar.",
+    "there is no private key chosen.": "no hay clave privada elegida.",
+    "The signed file": "El archivo firmado",
+    "The file was signed and written to {path} ({size}).":
+      "El archivo se firmó y se escribió en {path} ({size}).",
+
     // The sheet of the files of the vehicle.
     "The files of the vehicle": "Los archivos del vehículo",
     "The vehicle holds a filesystem of its own. The folders are listed the way the vehicle says them, and a file is brought to the disk of the computer.":

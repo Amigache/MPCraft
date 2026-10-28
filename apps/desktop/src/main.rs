@@ -1727,6 +1727,46 @@ async fn firmware_erase_board(port: String) -> CommandResult<mpcraft_app::bootlo
     mpcraft_app::bootloader::erase_firmware(transport).await
 }
 
+/// Signs a firmware file with the operator's own key.
+///
+/// The document of an `.apj` carries a signature over its image, and a bootloader carries the keys
+/// the board trusts. The key is read from the file the operator chose and is never written here.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the key cannot be read, when the file is not the
+/// shape the signer reads, or when either file cannot be read or written.
+#[tauri::command]
+async fn sign_firmware(
+    kind: mpcraft_app::secure::FirmwareKind,
+    input: String,
+    output: String,
+    key_file: String,
+) -> CommandResult<mpcraft_app::secure::SignedFirmware> {
+    mpcraft_app::secure::sign_file(
+        kind,
+        std::path::Path::new(&input),
+        std::path::Path::new(&output),
+        std::path::Path::new(&key_file),
+    )
+}
+
+/// Generates a key for secure firmware and writes it where the operator asked.
+///
+/// The private key is written in the form the published signer writes, and the public key beside it,
+/// which is the one a bootloader is told to trust.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the machine gives no randomness, or when either
+/// file cannot be written.
+#[tauri::command]
+async fn generate_signing_key(
+    private_key_path: String,
+) -> CommandResult<mpcraft_app::secure::GeneratedKey> {
+    mpcraft_app::secure::generate_key_files(std::path::Path::new(&private_key_path))
+}
+
 /// Starts the web server, so that another program can follow the flight.
 ///
 /// The server answers three things: the page that shows the flight, the state of the
@@ -4488,6 +4528,8 @@ fn main() {
             firmware_download,
             firmware_write_to_board,
             firmware_erase_board,
+            sign_firmware,
+            generate_signing_key,
             flash_bootloader,
             reboot_into_bootloader,
             ftp_list,

@@ -21,7 +21,9 @@ hardware-tests = []
 [dependencies]
 async-trait = { workspace = true }
 csv = { workspace = true }
+ed25519-dalek = { workspace = true }
 flate2 = { workspace = true }
+getrandom = { workspace = true }
 mpcraft-geo = { workspace = true }
 mpcraft-link = { workspace = true }
 mpcraft-log = { workspace = true }
@@ -37,6 +39,7 @@ mpcraft-winusb = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
