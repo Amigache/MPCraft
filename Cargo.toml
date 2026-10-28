@@ -86,7 +86,7 @@ sha2 = "0.10"
 # the ones the published signer uses (Ed25519), so the rule is not re-derived here: what this
 # workspace carries is the crate that implements it, and the layout of the image around it.
 ed25519-dalek = { version = "2", features = ["pem"] }
-getrandom = "0.2"
+getrandom = "0.4"
 
 # The client that reaches the files of a companion computer over SSH. The cryptography is the
 # backend the SSH library carries; this workspace does not implement a cipher of its own.
