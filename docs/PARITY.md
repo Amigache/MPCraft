@@ -535,11 +535,12 @@ sobre la regla: `reg add ... /d "nombre","nombre"` paso la cadena entera como da
 palabra con la coma dentro. Una segunda lectura del mismo valor — la que lo lee como lista de nombres, que es lo que
 hace el lector de .NET por `GetValue` y `Get-Item`, y que no pide elevacion — dio tipo de lista y una entrada, con la
 coma dentro, que es lo mismo que dio la lectura del crate para la misma clave, asi que los dos caminos coinciden y no se
-cerraron por mano. Despues se escribio un solo nombre por entrada, que es la forma que la regla lee, y hoy la clave
-contesta una entrada con ese nombre; lo que no llego fue el par: abre con la llave de inicio y no la cierra, y el
-segundo nombre no esta, porque el comando que se ejecuto lo perdio al pegarse. Con esa entrada completa la lectura que
-parte por los terminadores daria un nombre leible como la forma, y la que para en el primer terminador daria el mismo
-texto; lo que no cambia es el conteo de filas, porque dos reinicios de la instancia contestaron correctamente sin pedir
+cerraron por mano. Despues se escribio un solo nombre por entrada, que es la forma que la regla lee, y la clave
+contesto una entrada con ese nombre; lo que no llego fue el par: abria con la llave de inicio y no la cerraba, porque
+el comando que se ejecuto perdio la llave de cierre al pegarse. Con el par completo y un nombre por entrada la lectura
+que parte por los terminadores dio dos entradas, y la que para en el primer terminador dio la primera — la misma forma
+que la regla lee, leida ahora por las tres reglas como nombres; lo que no cambia es el conteo de filas, porque dos
+reinicios de la instancia contestaron correctamente sin pedir
 elevacion y las dos listas siguen dando cero filas, lo que dice que el valor no registra una interfaz: registra una
 instalacion. Los numeros que terminaron la lectura hoy son los que la puerta compara con su fuente: `RegOpenKeyExW`
 contesto 0 para la clave, `RegQueryValueExW` contesto 0 para el valor y 7 para el tipo, y `open` sigue diciendo
@@ -549,9 +550,12 @@ Y hay una tercera lectura sobre esa cadena, que no es la regla de la forma escri
 forma de texto puede llevar, leido como hecho propio — los dos lados o ninguno. `StringFromCLSID` escribe el nombre
 con el par, y estas APIs lo imprimen sin el, mientras el lector publicado que lo interpreta (`CLSIDFromString`) acepta
 las dos formas. Por eso el par se lee antes que las cinco partes, y un nombre que abre el par sin cerrarlo se rechaza
-en lugar de inventarse: eso es lo que esta maquina contesto hoy, porque la escritura corregida dejo una entrada que
-abre el par y no lo cierra — la llave de cierre no llego a la clave — asi que la regla la rechaza y las dos listas
-siguen dando cero filas. Antes de la correccion la misma clave contestaba una palabra con una coma dentro, que es la
+en lugar de inventarse: eso es lo que esta maquina contesto en el segundo estado, porque la escritura corregida dejo
+una entrada que abre el par y no lo cierra — la llave de cierre no llego a la clave — asi que la regla la rechazo y
+las dos listas siguieron dando cero filas. Con la escritura completa, que pone el par en los dos lados y un nombre por
+entrada, las entradas se leen como nombres y el conteo de filas no cambia, que es la diferencia entre una lectura que
+rechaza un texto y una que registra una interfaz. Antes de la correccion la misma clave contestaba una palabra con una
+coma dentro, que es la
 otra mitad: dos nombres en las letras y una entrada en los bytes. El area afirma las dos mitades por separado, y la
 puerta nombra su caso conocido-malo para el par: una copia que recorta la llave de apertura sin buscar la de cierre
 convierte un texto incompleto en una clase. Lo que la puerta no hace con esto lo dice su informe: lee esas tres formas
@@ -568,8 +572,11 @@ es el guid que WinUSB usa como muestra — una tercera lectura, no la misma regl
 un solo nombre sirve al camino de este programa y no dice nada sobre el otro. Lo que el area lee son las dos lecturas,
 conservadas como dos hechos: la que para en el terminador da el primer nombre, y la que parte por los terminadores da
 las entradas; en el primer estado la primera dio una palabra con la coma dentro y la segunda dio esa misma palabra como
-una sola entrada, que la regla de forma rechazo, y hoy la clave contesta una sola entrada con un nombre que abre el par
-sin cerrarlo, que la regla del par rechaza — dos estados, dos negativas, ninguna cerrada por mano. Por eso la puerta lee
+una sola entrada, que la regla de forma rechazo; en el segundo la clave contesto una sola entrada con un nombre que abre
+el par sin cerrarlo, que la regla del par rechaza; y hoy da dos entradas, cada una con su terminador propio y el par en
+los dos lados, que las tres reglas leen como nombres — y las dos lecturas coinciden solo en la primera, porque la que
+para en el terminador no ve la segunda, que es justamente la diferencia entre una palabra y una lista. Dos negativas
+que no se cerraron por mano, y un tercer estado que no dice nada sobre las filas. Por eso la puerta lee
 el valor como la linea lo escribe, con su par, y no a traves de un lector que lo recorta: una linea que pierde la llave
 de cierre escribe un texto que no es un nombre en ninguna de las dos lecturas, y ese es el caso conocido-malo que la
 puerta muestra disparandose sobre una copia de su propio archivo. Por eso
@@ -602,10 +609,13 @@ lee tambien el valor que la instalacion dejo en la clave del dispositivo y afirm
 une con la fila, no un resultado esperado, en tres estados: si no hay valor, las dos lecturas de la lista tienen que
 dar cero filas; si lo hay y se lee como la forma, la fila se lee a traves del nombre que ese valor escribe y no a
 traves de un nombre elegido aqui; y si el valor esta pero no se lee como la forma, lo que se afirma es la negativa del
-lector, porque hoy la escritura del operador puso dos nombres dentro de una sola comilla y eso es una palabra con una
-coma dentro, no una lista de entradas: la lectura que para en el terminador dio esa palabra, la que parte por los
-terminadores dio una entrada con la coma dentro, la regla de forma la rechaza, y las dos listas siguen dando cero, que
-es lo que `reg query` dice para la misma clave. El segundo estado no corre hoy, y lo que el conteo de entradas puede
+lector. La clave contesto los tres estados en este orden: primero una palabra con una coma dentro, porque la primera
+escritura puso dos nombres dentro de una sola comilla, que la regla de forma rechazo; luego una sola entrada que abria
+el par sin cerrarlo; y hoy dos entradas, cada una con su terminador propio y el par en los dos lados, que las tres
+reglas leen como nombres, y el area dice como dato cual de las dos coincide con el nombre que el elemento dice que su
+clase es y cual nombra el guid que WinUSB usa como muestra — dos hechos, no el mismo. Lo que no cambio en ninguno de
+los tres estados es el conteo de filas: las dos listas dieron cero, que es lo que `reg query` sigue diciendo para la
+misma clave, y eso es lo que dice que escribir el valor no registra una interfaz. Lo que el conteo de entradas puede
 decir se conserva con los numeros que lo terminaron: `RegOpenKeyExW` contesto 0 para la clave y `RegQueryValueExW`
 contesto 0 para el valor y 7 para el tipo, los dos por el diccionario Win32 que este vinculo nombra para esas llamadas
 y no por el de Config Manager; el numero 7 es lo que la tabla publicada da para una lista de nombres mientras el

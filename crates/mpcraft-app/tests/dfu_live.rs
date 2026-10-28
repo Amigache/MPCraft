@@ -188,8 +188,10 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
 
     // The value that decides whether a row exists for an instance, read from the device key. Nothing is written here:
     // the published package for this board has a branch whose own comment says the generic path skips the value, and
-    // that is what this machine holds — no value, and no row. A service name alone does not make an instance
-    // readable, so `is_our_driver` and this reading are two facts that can disagree on one board.
+    // that was the state this machine held before the operator wrote it from an elevated prompt — no value, and no
+    // row. A service name alone does not make an instance readable, so `is_our_driver` and this reading are two facts
+    // that can disagree on one board. Today they answer as two facts: the value reads as names, and there is still
+    // nothing to open, which is why the code that says so is the one about a device that is there.
     let written = bus::interface_guid_value(&found.instance);
     println!("  value the install wrote on the device key: {written:?}");
 
@@ -207,18 +209,22 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
         under_sample.len()
     );
 
-    // The rule these calls carry, held as data rather than as one expected outcome: the row exists because of the
-    // value, and it answers under whatever name that value writes — which is not necessarily the class the element
-    // says it is in. So the assertion reads through the value rather than through a name this file chose, and which
+    // The rule these calls carry, held as data rather than as one expected outcome: the value decides under which name
+    // a row answers, and it is not what makes the row exist — a row answers where an interface was registered, which is
+    // the fact this machine has kept answering zero for both names in every state of the value. And the name the value
+    // writes is not necessarily the class the element says it is in, so the assertion reads through the value rather
+    // than through a name this file chose, and which
     // of the three published names the install wrote is said rather than assumed. What follows from that is a fact
     // about this binding rather than about the format: the interface list is read through the class the element
     // reports, so a value naming another string leaves a row that this program cannot open, while the published
     // reader decides by the pair it takes from what the interface says about itself — a second rule, not the same
     // one. And the reading sees the first name the value says, because `as_text` stops at the terminator, so a
     // value carrying more than one name is read as its first here; that is said as a fact about the reader rather
-    // than as a claim about what the install wrote. A value that is not one name the shape can read is refused
-    // rather than invented, which is what this machine answered today: the pair written between two quotes came as
-    // one word with a comma inside, so the reader refused it and both lists answered with no rows.
+    // than as a claim about what the install wrote. An entry that is not a name the shape can read is refused rather
+    // than invented, and this key answered that in two states before answering as names: one word with a comma inside,
+    // then an entry that opened the pair without closing it. Today it answers two entries with the pair on both sides,
+    // so each reads as a name — and both lists still say zero rows, which is the fact that writing a value does not
+    // register an interface.
     // `find` reads the path through the class the element says it is in, so this equality holds whichever way the
     // install wrote the value: it compares one reading with the reading that produced it rather than with the other
     // name.
@@ -256,6 +262,20 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
     println!("  what the reading that stops at the terminator saw: {written:?}");
 
     for entry in &names.entries {
+        let bare = name_without_the_pair(entry);
+
+        println!(
+            "  entry {entry}: {}",
+            match bare {
+                Some(bare) => format!("the pair is on both sides, so it reads as {bare}"),
+                None => String::from(
+                    "the pair is opened and not closed, so this is not a name either reading gives"
+                ),
+            }
+        );
+    }
+
+    for entry in &names.entries {
         match bus::rows_for_class(entry, &found.instance) {
             Ok(rows) => println!(
                 "  rows under {entry}: {} (the same name once the pair is taken off, which is what these APIs print: {})",
@@ -273,13 +293,16 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
     // so `found.path`, produced by the reading that went through the class, is compared with the list read through the
     // value only when the two name the same string. And an entry that is not a name is refused rather than invented,
     // in two halves that are not the same fact: the pair around the string form is opened without being closed, or the
-    // five parts do not have the lengths the shape gives. This machine answered the first half today after the write
-    // was corrected: the value carries one entry, the type came as a list of names, and that entry opens the pair and
-    // does not close it, because the closing brace did not reach the key. Before the correction the same key answered
-    // one word with a comma inside — two names in letters, one entry in bytes — which is the other half. Either way
-    // both lists kept answering with no rows, and whether an interface was registered or only remembered is not
-    // something this run can say for any name, since a row answers only where an interface was registered, so the
-    // counts are printed as answers and not asserted.
+    // five parts do not have the lengths the shape gives.
+    //
+    // What this key answered over time is three readings of the same fact, kept apart rather than merged: first one
+    // word with a comma inside — two names in letters, one entry in bytes — which the shape rule refused; then one
+    // entry that opened the pair without closing it, because the closing brace did not reach the key; and today two
+    // entries, each with its own terminator and the pair on both sides, which every rule here accepts as a name. What
+    // did not change across the three states is the count of rows: both lists answered zero in all three, and the
+    // instance was restarted twice without asking for elevation, so writing the value does not register an interface —
+    // it records an install — and whether a row exists is not something this run can assert for any name, since a row
+    // answers only where an interface was registered. The counts are printed as answers, not asserted.
     if names.entries.is_empty() {
         assert!(
             under_class.is_empty() && under_sample.is_empty(),
@@ -307,27 +330,33 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
         }
     }
 
-    // When the value carries one entry the two readings answer with the same text, because there is no terminator
-    // inside it. Whether that text is a name is a third rule, and it reads through the pair first, so this asserts the
-    // text and the shape decision separately rather than folding them into one check.
+    // The two readings of the same stored bytes are two rules, so this asserts the text they answer with and reads the
+    // shape decision through the pair separately rather than folding them into one check. They agree on the first entry
+    // because nothing inside that entry carries a terminator; they do not agree on a second entry, which is exactly the
+    // difference between a word and a list. Whether an entry is a name is the third rule, and it reads through the pair
+    // first, so the pair state is printed for every entry as this run read it.
     assert_eq!(
         names.entries.first(),
         written.as_ref(),
-        "the reading that stops at the terminator and the reading that splits at the terminators answer with the same text for one entry",
+        "the reading that stops at the first terminator answers with the first entry when that entry has no terminator inside it",
     );
 
-    let entry = names.entries.first();
-
-    if let Some(text) = entry {
-        let bare = name_without_the_pair(text);
+    for entry in &names.entries {
+        let bare = name_without_the_pair(entry);
 
         println!(
-            "  read through the pair: {}",
+            "  entry {entry}: {}",
             match bare {
-                Some(bare) => format!("{bare}"),
-                None => String::from("the pair is opened and not closed, so this is not a name"),
+                Some(bare) => format!("the pair is on both sides, so it reads as {bare}"),
+                None => String::from(
+                    "the pair is opened and not closed, so this is not a name either reading gives"
+                ),
             }
         );
+    }
+
+    if let Some(text) = names.entries.first() {
+        let bare = name_without_the_pair(text);
 
         assert_eq!(
             bare.map(|bare_name| guid_parts(bare_name)),
