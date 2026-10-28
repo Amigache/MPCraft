@@ -211,7 +211,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | ✅ | 0 |
 | 10.6 | Auto-updater | `Updater/` | 🔜 | 7 |
 | 10.7 | Crash handler / diagnostics bundle | `Program.cs` | ✅ | 7 |
-| 10.8 | Windows / Linux / macOS packaging | `wix/`, `Msi/` | 🔜 | 7 |
+| 10.8 | Windows / Linux / macOS packaging | `wix/`, `Msi/` | ✅ | 7 |
 | 10.9 | Code signing & notarisation | `wix/` | 🔜 | 7 |
 
 ---
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 143 |
-| 🔜 Planned | 5 |
+| ✅ Done | 144 |
+| 🔜 Planned | 4 |
 | ⬜ Dropped | 2 |
 | Partial (🟡 / 🔽) | 5 |
 
-The 143 rows marked done are the connection, transport, parameter, mission, command and
+The 144 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -1692,6 +1692,33 @@ look at; the five documents are also shown passing untouched. What it cannot see
 assumed: the window itself, the compiler, whether an install is present in either folder, and a port set
 through a variable or an environment override.
 
+The **installers** are built where each platform builds them: the workflow carries a job for Windows,
+Linux and macOS, and each runs the same entry that opens the application — moving to the folder that
+holds the configuration — and packages what its platform has: MSI and NSIS on Windows, deb and AppImage
+on Linux, the app bundle and a dmg on macOS. The target list lives in a document of its own beside the
+configuration rather than in one list the three share, so a platform cannot package an installer another
+platform packages. The bundle carries what a package shows a person before it is installed — the
+publisher, the home page, the copyright, the category, the two descriptions and the licence — and an
+icon for each platform, which is why the macOS container is generated as an `.icns` rather than left as
+a PNG the platform does not read, and why the Windows icon is written as an `.ico` at the size an
+installer draws it. The workflow keeps what it wrote in `target/release/bundle` and reads an empty
+upload as a failure, because a job that packaged nothing has not packaged anything; it runs on a push to
+`main`, on a tag and on demand, so an artifact can be asked for without a change. The gate
+(`scripts/check-package.js`) asserts that chain, and its known-bad cases are shown firing on a copy of
+each document (`scripts/check-package-controls.js`): an entry with no bundle script, one that runs the
+CLI from the folder whose package.json holds it or names it without declaring it, a bundle that is not
+active or names no publisher or a category the bundler does not accept, an icon that is listed but not
+on the disk or an `.icns` that is not listed, a platform packaging an installer another platform
+packages, a workflow that leaves one system out, does not run the entry, keeps a folder the bundler does
+not write, reads an empty upload as a pass, or builds on Linux without the webview libraries. The entry
+was run on this machine too, and it wrote the two Windows installers the workflow keeps —
+`MPCraft_0.1.0_x64_en-US.msi` (11.51 MiB) and `MPCraft_0.1.0_x64-setup.exe` (8.49 MiB) — under
+`target/release/bundle`, which is the folder the upload reads; macOS and Linux have no host here, so
+their installers are what the workflow builds rather than what this machine saw. What the gate cannot
+do is said rather than assumed: it does not build an installer, does not run npm or cargo, cannot
+say that a runner accepts the workflow, and says nothing about signing or notarisation, which is row
+10.9 and needs a certificate only the operator holds.
+
 The **contract** is read from both sides now, because one document was spoken two ways and nothing read the
 two against each other. The pair that identifies a vehicle was written with underscores by the structs that
 carry it — the key in the application and the id in the vehicle state — while the interface read it with the
@@ -1849,7 +1876,7 @@ exercises is the rule that reads a busy artifact as a gap, not a file locked by 
 share mode of a handle, so the process holding it is the control's own, and the application is not running here. The
 case shows the flip rather than the finding, because prettier opens with its heading.
 
-The control column is read as a document now (`scripts/check-tool-controls.js`), because the runner's own note points at it and nothing read it: the fifteen gates name their known-bad case and the checker under `scripts/` they name is on the disk, since a claim that points at a file which is not there is a claim nobody can show. Both halves are shown firing — a gate that says nothing about its negative control, and a control that names a checker that does not exist — on a copy of the runner, so the runner as it stands is never disturbed, and the sources are shown passing. What the reading does not reach is said: a path named outside `scripts/` — the Playwright spec, a test file inside a crate — is not read as a path, because the reading cannot know which layer a sentence about a case belongs to.
+The control column is read as a document now (`scripts/check-tool-controls.js`), because the runner's own note points at it and nothing read it: the sixteen gates name their known-bad case and the checker under `scripts/` they name is on the disk, since a claim that points at a file which is not there is a claim nobody can show. Both halves are shown firing — a gate that says nothing about its negative control, and a control that names a checker that does not exist — on a copy of the runner, so the runner as it stands is never disturbed, and the sources are shown passing. What the reading does not reach is said: a path named outside `scripts/` — the Playwright spec, a test file inside a crate — is not read as a path, because the reading cannot know which layer a sentence about a case belongs to.
 
 The parity checker names what it cannot reach inside what it reports, not only in its header, because the gate reads that report through its verdict field and would not see the sentence otherwise (`scripts/check-parity.js`). The rule is shown firing on two copies of the checker — one that names no limit, and one whose limit says only what the table can be compared against — with the checker as it stands passing, and it is said what the reading does not do: it reads the sentence as text, so nothing of the checker is executed with its limit taken out.
 

@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -156,3 +158,63 @@ jobs:
       - name: Stop the simulator
         if: steps.sim.outputs.available == 'true'
         run: docker stop mpcraft-sitl
+
+  bundle:
+    name: Bundle / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    # The installers are built where the platform builds them: MSI and NSIS on Windows, deb and
+    # AppImage on Linux, app and dmg on macOS. What each platform packages is named in its own
+    # configuration file beside tauri.conf.json, so the three do not share one target list.
+    defaults:
+      run:
+        working-directory: apps/ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache the Cargo registry and build directory
+        uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/ui/package-lock.json
+
+      - name: Install the Linux webview dependencies
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            pkg-config \
+            file
+
+      - name: Install the frontend dependencies
+        run: npm ci
+
+      # The entry moves to the folder holding tauri.conf.json, which is where the CLI reads the
+      # project from; --ci keeps it from waiting for a signing identity nobody gave it.
+      - name: Build the installers
+        run: npm run bundle -- --ci
+
+      # A build that wrote no installer has not packaged anything, so an empty upload is a failure
+      # rather than a job that passed with nothing in it.
+      - name: Keep the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpcraft-${{ matrix.os }}
+          path: target/release/bundle/**
+          if-no-files-found: error

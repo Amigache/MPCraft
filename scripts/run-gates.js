@@ -369,6 +369,32 @@ const GATES = [
     proof: (text) => lineMatching(text, /"verdict": "PASS"/),
   },
   {
+    name: "the packaging, read as the documents say it is",
+    layer: "any",
+    /**
+     * Packaging is written across the entry, the manifest, the three platform documents, the icons and the
+     * workflow, so this gate is scoped by what it reads rather than by a layer, and says so when none of them
+     * was touched. It asserts the chain an installer needs, not an installer: building one on three systems is
+     * what the workflow does, and signing is a certificate this machine does not hold.
+     */
+    command: "node",
+    probe: ["--version"],
+    args: ["scripts/check-package.js"],
+    cwd: ROOT,
+    reads: [
+      "apps/ui/package.json",
+      "apps/desktop/tauri.conf.json",
+      "apps/desktop/tauri.windows.conf.json",
+      "apps/desktop/tauri.linux.conf.json",
+      "apps/desktop/tauri.macos.conf.json",
+      "apps/desktop/icons/",
+      ".github/workflows/ci.yml",
+    ],
+    control:
+      "scripts/check-package-controls.js, which shows each rule firing on a known-bad document and the documents passing untouched",
+    proof: (text) => lineMatching(text, /"verdict": "PASS"/),
+  },
+  {
     name: "the contract, read from both sides",
     layer: "any",
     /**

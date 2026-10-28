@@ -4,8 +4,8 @@ A modern, Rust-based Ground Control Station for ArduPilot & PX4, functionally eq
 [Mission Planner](https://github.com/ardupilot/MissionPlanner) but rebuilt with a contemporary
 architecture and stack.
 
-> **Status: design & scaffolding phase.** Feature parity is delivered incrementally — see
-> [`docs/PLAN.md`](docs/PLAN.md).
+> **Status: feature parity under way.** 144 of the 155 rows in [`docs/PARITY.md`](docs/PARITY.md)
+> are done, five are partial and four are planned; see [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Why a rewrite
 
@@ -83,9 +83,13 @@ cargo install tauri-cli --version "^2"
 cargo build --workspace
 cargo test --workspace
 
-# Full desktop app
-cd apps/ui && npm install && cd -
-cargo tauri dev --config apps/desktop/tauri.conf.json
+# Full desktop app (from apps/ui, where the CLI is declared)
+cd apps/ui
+npm install
+npm run launch
+
+# Installers for this platform, written under target/release/bundle
+npm run bundle
 ```
 
 ### Toolchain notes

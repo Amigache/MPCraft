@@ -29,6 +29,22 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"]
+    "publisher": "MPCraft Contributors",
+    "homepage": "https://github.com/mpcraft/mpcraft",
+    "copyright": "Copyright (c) 2026 MPCraft Contributors",
+    "category": "Utility",
+    "shortDescription": "Ground control station for ArduPilot and PX4 vehicles",
+    "longDescription": "MPCraft is a ground control station for ArduPilot and PX4: live telemetry, mission planning, parameter configuration, log analysis and firmware tools, in one application on Windows, Linux and macOS.",
+    "license": "GPL-3.0-or-later",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
   }
 }

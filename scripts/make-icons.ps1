@@ -36,6 +36,41 @@ function New-IconPng([int]$size, [string]$path) {
     $bmp.Dispose()
 }
 
+function Write-BigEndian([System.IO.BinaryWriter]$writer, [UInt32]$value) {
+    # ICNS keeps its lengths big-endian, while BinaryWriter writes little-endian.
+    foreach ($shift in 24, 16, 8, 0) {
+        $writer.Write([Byte](($value -shr $shift) -band 0xFF))
+    }
+}
+
+function New-IconIcns([string]$icnsPath, [object[]]$chunks) {
+    $body = New-Object System.IO.MemoryStream
+
+    foreach ($chunk in $chunks) {
+        $png = [System.IO.File]::ReadAllBytes($chunk.Path)
+        $bw = New-Object System.IO.BinaryWriter($body, [System.Text.Encoding]::ASCII, $true)
+        $bw.Write([System.Text.Encoding]::ASCII.GetBytes($chunk.Type))
+        Write-BigEndian $bw ([UInt32](8 + $png.Length))
+        $bw.Write($png)
+        $bw.Flush()
+        $bw.Dispose()
+    }
+
+    $bytes = $body.ToArray()
+    $body.Dispose()
+
+    $fs = [System.IO.File]::Create($icnsPath)
+    $header = New-Object System.IO.BinaryWriter($fs)
+
+    # The magic number and the length of the whole container, header included.
+    $header.Write([System.Text.Encoding]::ASCII.GetBytes("icns"))
+    Write-BigEndian $header ([UInt32](8 + $bytes.Length))
+    $header.Write($bytes)
+    $header.Flush()
+    $header.Dispose()
+    $fs.Dispose()
+}
+
 function New-IconFile([string]$pngPath, [string]$icoPath, [int]$size) {
     $png = [System.IO.File]::ReadAllBytes($pngPath)
 
@@ -68,7 +103,38 @@ New-IconPng 512 $master
 New-IconFile $master (Join-Path $iconDir "icon.ico") 256
 
 New-IconPng 128 (Join-Path $iconDir "128x128.png")
-New-IconPng 64 (Join-Path $iconDir "128x128@2x.png")
+New-IconPng 256 (Join-Path $iconDir "128x128@2x.png")
+New-IconPng 32 (Join-Path $iconDir "32x32.png")
+
+# macOS reads an .icns container rather than a PNG, so every size the platform asks for is
+# written into one: the points of the display and the twice-and-thrice forms Retina reads.
+$sizes = @{
+    16   = Join-Path $iconDir "16x16.png"
+    32   = Join-Path $iconDir "32x32.png"
+    64   = Join-Path $iconDir "64x64.png"
+    128  = Join-Path $iconDir "128x128.png"
+    256  = Join-Path $iconDir "128x128@2x.png"
+    512  = $master
+    1024 = Join-Path $iconDir "1024x1024.png"
+}
+
+New-IconPng 16 $sizes[16]
+New-IconPng 64 $sizes[64]
+New-IconPng 1024 $sizes[1024]
+
+New-IconIcns (Join-Path $iconDir "icon.icns") @(
+    @{ Type = "icp4"; Path = $sizes[16] },
+    @{ Type = "icp5"; Path = $sizes[32] },
+    @{ Type = "icp6"; Path = $sizes[64] },
+    @{ Type = "ic07"; Path = $sizes[128] },
+    @{ Type = "ic08"; Path = $sizes[256] },
+    @{ Type = "ic09"; Path = $sizes[512] },
+    @{ Type = "ic10"; Path = $sizes[1024] },
+    @{ Type = "ic11"; Path = $sizes[32] },
+    @{ Type = "ic12"; Path = $sizes[64] },
+    @{ Type = "ic13"; Path = $sizes[256] },
+    @{ Type = "ic14"; Path = $sizes[512] }
+)
 
 Write-Output "icons written to $iconDir"
 Get-ChildItem $iconDir | Select-Object Name, Length

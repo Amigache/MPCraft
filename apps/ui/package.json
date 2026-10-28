@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "bundle": "cd ../desktop && tauri build",
     "launch": "cd ../desktop && tauri dev"
   },
   "dependencies": {
