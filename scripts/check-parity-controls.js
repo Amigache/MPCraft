@@ -63,10 +63,12 @@ const cases = [
   },
   {
     claim: "a planned row without a phase is caught",
+    /** Row 1.18 is no longer a planned row, so the case uses a row that still is: what the rule reads is a
+       planned mark with no phase beside it, which is the same fact on any row. */
     mutated: mutate(
       text,
-      /^\| 1\.18 \|.*🔜.*\|$/,
-      "| 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 |  |",
+      /^\| 8\.7 \|.*🔜.*\|$/,
+      "| 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔜 |  |",
     ),
     expect: /planned without a phase/,
   },

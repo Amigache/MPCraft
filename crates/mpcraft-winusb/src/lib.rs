@@ -123,8 +123,18 @@ pub const CONFIG_MANAGER_NOT_THERE: u32 = 13;
 /// The dictionary the `CM_*` calls answer from.
 pub const CONFIG_MANAGER_DICTIONARY: &str = "Config Manager";
 
-/// The dictionary the `SetupDi*`, `GetLastError` and `CreateFileW` calls answer from.
+/// The dictionary the `SetupDi*`, `GetLastError`, `CreateFileW` and `Reg*` calls answer from.
 pub const WIN32_DICTIONARY: &str = "Win32 error";
+
+/// The number an enumeration answers with when there is nothing more to read (`ERROR_NO_MORE_ITEMS`). It is kept
+/// beside the rows it ended, because a list that stops is not a list that is whole, and a green that counted only
+/// what came before the stop would read a gap as a pass.
+pub const NO_MORE_ITEMS: u32 = 259;
+
+/// The key the machine writes its serial ports under, named as Microsoft's own reader names it — that reader is
+/// what lists ports from this key, so a row here is the device name and the port it answers with. Reading it needs
+/// no elevation, which is what lets the binding read it in a test run.
+pub const SERIALCOMM_KEY: &str = "HARDWARE\\DEVICEMAP\\SERIALCOMM";
 
 /// Which dictionary a number comes from, said by the call that answered it rather than by the number.
 #[must_use]
@@ -303,7 +313,14 @@ fn as_text(bytes: &[u8]) -> String {
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect();
 
-    String::from_utf16_lossy(&units)
+    as_wide(&units)
+}
+
+/// The same reading for what is already in UTF-16 units, which is the shape the enumeration calls write names
+/// into. Stopping at the terminator is the rule for both, so one rule is not written twice.
+#[must_use]
+pub fn as_wide(units: &[u16]) -> String {
+    String::from_utf16_lossy(units)
         .split('\0')
         .next()
         .unwrap_or_default()
@@ -316,7 +333,7 @@ fn as_text(bytes: &[u8]) -> String {
 pub mod bus {
     use async_trait::async_trait;
 
-    use windows::core::{GUID, PCWSTR};
+    use windows::core::{GUID, PCWSTR, PWSTR};
     use windows::Win32::Devices::DeviceAndDriverInstallation::*;
     use windows::Win32::Devices::Usb::*;
     use windows::Win32::Foundation::{
@@ -324,16 +341,19 @@ pub mod bus {
     };
     use windows::Win32::Storage::FileSystem::*;
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ,
+        RegCloseKey, RegEnumValueW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE,
+        KEY_READ,
     };
 
+    use mpcraft_transport::bluetooth::{BluetoothError, MapRow};
     use mpcraft_transport::device::{
         read_string, Device, DeviceError, DeviceResult, FunctionalDescriptor,
     };
 
     use super::{
-        as_text, classify_open_failure, detail_room, enumerator, guid_parts, is_our_driver,
-        nul_terminated, Found, Target, INTERFACE_GUID_VALUE,
+        as_text, as_wide, classify_open_failure, detail_room, enumerator, guid_parts,
+        is_our_driver, nul_terminated, Found, Target, INTERFACE_GUID_VALUE, NO_MORE_ITEMS,
+        SERIALCOMM_KEY,
     };
 
     /// The call that answers for a registry property, named so that a refusal can say which dictionary its number
@@ -562,9 +582,19 @@ pub mod bus {
     /// this binding can reach the board at all; writing that value is something the operator has to do with an
     /// elevated prompt, which the gate names as what the operator supplies.
     pub fn interface_guid_value(instance: &str) -> Option<String> {
+        device_key_value(instance, INTERFACE_GUID_VALUE)
+    }
+
+    /// One value of a device key, read through the path as the registry stores it — `SYSTEM\CurrentControlSet\Enum\`
+    /// plus what the bus writes. This is the shape `interface_guid_value` reads through, so the two are one reading
+    /// rather than the same code written twice.
+    ///
+    /// Nothing is written here. Reading a device key does not need elevation; writing one does, which is why the
+    /// gate names the write as what the operator supplies.
+    pub fn device_key_value(instance: &str, value: &str) -> Option<String> {
         let key = format!("SYSTEM\\CurrentControlSet\\Enum\\{instance}");
         let wide = nul_terminated(&key);
-        let name = nul_terminated(INTERFACE_GUID_VALUE);
+        let name = nul_terminated(value);
 
         unsafe {
             let mut handle = HKEY::default();
@@ -600,6 +630,131 @@ pub mod bus {
 
             buffer.truncate(usize::try_from(length).unwrap_or(buffer.len()));
             Some(as_text(&buffer))
+        }
+    }
+
+    /// The room one value of the map is read into. A port number is short; the bound is what says the reading did
+    /// not read past what the call wrote.
+    pub const MAP_VALUE_ROOM: usize = 128;
+
+    /// What the map of serial ports said, kept as the rows it could read and the refusals for the ones it could
+    /// not, beside the numbers that ended the readings.
+    ///
+    /// A list that stops is not a list that is whole, so the count of rows does not stand alone: what
+    /// `RegOpenKeyExW` answered for the key and what `RegEnumValueW` answered at the end of the loop are kept with
+    /// it, because a key that refuses to be opened and a key with no rows are two different facts, and a stop in
+    /// the middle is a gap rather than a pass. Both calls answer through the Win32 dictionary — the dictionary this
+    /// binding names for these calls, not for the `CM_*` ones — which is why the numbers carry the call that
+    /// answered them.
+    #[derive(Debug, Clone)]
+    pub struct MapReadings {
+        /// The key the reading was made against, as the published reader names it.
+        pub key: &'static str,
+        /// Each row as the reading found it: the pair when it is the shape, and the refusal named by its code when
+        /// it is not.
+        pub rows: Vec<Result<MapRow, BluetoothError>>,
+        /// What the call that opened the key answered, kept because nothing here writes to that key. The number is
+        /// read through the Win32 dictionary — the dictionary this binding names for the `Reg*` calls — which is
+        /// what a name for the call gives it.
+        pub open_answer: u32,
+        /// What the enumeration answered with when it stopped: `NO_MORE_ITEMS` when the list was read to its end.
+        pub list_answer: u32,
+        /// Whether the enumeration stopped because the list was read to its end, rather than by an answer or by
+        /// its own bound. A list that stops for another reason is a gap, not a reading of the whole key.
+        pub read_to_the_end: bool,
+        /// Whether the loop was stopped by its own bound rather than by the answer of the call.
+        pub cap_reached: bool,
+    }
+
+    /// The call that answers for the key itself, named so that a number carries it.
+    pub const OPEN_CALL: &str = "RegOpenKeyExW";
+
+    /// The call that answers for each row, named so that the number at the end of the loop carries it.
+    pub const LIST_CALL: &str = "RegEnumValueW";
+
+    /// How many rows one reading of the map can walk, kept so that a bounded reading says it is bounded.
+    pub const MAP_ROWS_CAP: usize = 512;
+
+    /// The map `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`, read as the machine writes it: each value names a device and
+    /// says which port that device answers with, which is what Microsoft's own reader lists ports from
+    /// (`System/sys/system/IO/ports/SerialPort.cs`).
+    ///
+    /// Nothing here decides whether a row belongs to Bluetooth. That is the rule in
+    /// `mpcraft_transport::bluetooth`, which compares the prefix the RFCOMM service writes — the looser comparison
+    /// SuperCollider carries matches any port name, so a virtual pair named with the word would be read as a
+    /// Bluetooth row. Reading this key needs no elevation, and nothing is written to it.
+    pub fn map_rows() -> MapReadings {
+        let wide = nul_terminated(SERIALCOMM_KEY);
+
+        unsafe {
+            let mut handle = HKEY::default();
+
+            let opened = RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                PCWSTR(wide.as_ptr()),
+                None,
+                KEY_READ,
+                &mut handle,
+            );
+
+            let mut readings = MapReadings {
+                key: SERIALCOMM_KEY,
+                rows: Vec::new(),
+                open_answer: opened.0,
+                list_answer: 0,
+                read_to_the_end: false,
+                cap_reached: false,
+            };
+
+            if opened.0 != 0 {
+                return readings;
+            }
+
+            let mut index = 0_u32;
+
+            loop {
+                let mut name = vec![0_u16; 256];
+                let mut name_length = name.len() as u32;
+                let mut value = vec![0_u8; MAP_VALUE_ROOM];
+                let mut value_length = value.len() as u32;
+
+                let answer = RegEnumValueW(
+                    handle,
+                    index,
+                    Some(PWSTR(name.as_mut_ptr())),
+                    &mut name_length,
+                    None,
+                    None,
+                    Some(value.as_mut_ptr()),
+                    Some(&mut value_length),
+                );
+
+                readings.list_answer = answer.0;
+
+                if answer.0 == NO_MORE_ITEMS {
+                    readings.read_to_the_end = true;
+                    break;
+                }
+
+                if answer.0 != 0 {
+                    break;
+                }
+
+                let device = as_wide(&name[..usize::try_from(name_length).unwrap_or(name.len())]);
+                let port = as_text(&value[..usize::try_from(value_length).unwrap_or(value.len())]);
+
+                readings.rows.push(MapRow::read(&device, &port));
+
+                index += 1;
+
+                if index >= MAP_ROWS_CAP as u32 {
+                    readings.cap_reached = true;
+                    break;
+                }
+            }
+
+            let _ = RegCloseKey(handle);
+            readings
         }
     }
 

@@ -294,6 +294,45 @@ const GATES = [
     proof: (text) => resultForSection(text, "dfu_live"),
   },
   {
+    name: "the rows this machine writes, read as it writes them",
+    layer: "rust",
+    /**
+     * The rules about which port belongs to Bluetooth are read against published sources, and the literals those
+     * rules were written against are carried by the tests in `crates/mpcraft-transport/src/bluetooth.rs`. What only
+     * the machine can say is what this area reads: the rows `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM` carries today, the
+     * numbers the two registry calls answered for them, and what one instance says about itself — which is a Ports
+     * class with the RFCOMM service behind it, so membership comes from the service and not from the class. Without
+     * a row named by the environment the scripted peer in `crates/mpcraft-app/tests/bluetooth_peer.rs` stands in: it
+     * answers the transport contract without opening a port, so what stands in is narrower than what it replaces —
+     * it cannot show what a machine writes in its own registry. Two things are said rather than assumed: nothing is
+     * opened on COM40, because that port belongs to a module that may be using it, and no peripheral on this machine
+     * advertises the Nordic UART service, so upstream's enumeration filter has nothing to find and its half stays
+     * outside the crate, since no runtime is carried here.
+     */
+    command: "cargo",
+    probe: [TOOLCHAIN, "--version"],
+    needs: ["gcc"],
+    args: [
+      TOOLCHAIN,
+      "test",
+      "-p",
+      "mpcraft-app",
+      "--features",
+      "hardware-tests",
+      "--test",
+      "bluetooth_live",
+      "--",
+      "--test-threads=1",
+    ],
+    cwd: ROOT,
+    liveWhen: (env) => Boolean(env.MPCRAFT_BT_ROW),
+    substitute:
+      "the scripted peer in crates/mpcraft-app/tests/bluetooth_peer.rs, which answers the transport contract without opening a port, and the literals written from published sources, which cannot show what a machine writes about itself",
+    control:
+      "scripts/run-gates-controls.js for the report line this gate reads, shown against a transcript where the scripted half passed and the area reading the machine failed, and for the stand-in named when no row is named",
+    proof: (text) => resultForSection(text, "bluetooth_live"),
+  },
+  {
     name: "parity matrix",
     layer: "documentation",
     command: "node",

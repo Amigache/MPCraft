@@ -29,8 +29,8 @@
 ├───────────────────────────────────────────────────────────────────────┤
 │ mpcraft-mavlink   Framing, CRC, signing, dialect re-exports          │
 ├───────────────────────────────────────────────────────────────────────┤
-│ mpcraft-transport Transport trait: serial · UDP · TCP · file · NTRIP │
-│ mpcraft-winusb    OS binding for a board in its bootloader            │
+│ mpcraft-transport Trait: serial · BLE · UDP · TCP · file · NTRIP     │
+│ mpcraft-winusb    OS binding for its bootloader, plus its serial map  │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -212,6 +212,23 @@ Implementations:
 | `TcpTransport` | Client and server mode; the accept is deferred to the first read so a listening station never races its own startup |
 | `FileTransport` | Replays a recorded byte stream at a configurable rate - powers log playback and deterministic tests |
 | `NtripTransport` | RTCM correction source |
+| `BluetoothTransport` | A Bluetooth serial channel, which is a COM port with a reading beside it: the bytes are moved by the same code that moves them for any other serial port, so what this adds is only which port belongs to Bluetooth — read through the prefix the RFCOMM service writes in the map, not through the class the row says it is in |
+
+Membership comes from the **service** the install bound the instance to (`BTHMODEM`, as the published driver
+lists write it), not from the class a row names: a serial row says the Ports class, a hands-free row says the
+audio class with another service behind it, and a personal-area-network row says the network class, so a rule
+that decided by class would say nothing about the ports it was asked about. The whole prefix is compared rather
+than a word inside a name, which is what SuperCollider's parser shows: it matches any port name, so a virtual
+pair named `com0comBluetooth0` would be read as an RFCOMM row by a looser comparison. A group of zeros names
+nothing — that is what an install leaves where nothing was written, not a value the machine decided — and it
+keeps its own code (`bluetooth_no_device_named`), which says something different from
+`bluetooth_row_not_the_shape`: one fact is a row the machine presents with no device behind it and the other is
+a text the reader cannot read. Both refusals fall before anything travels on the cable. For this scheme the rate
+is the number the driver was given rather than something the peer hears, since a Bluetooth channel has no rate;
+`baud=auto` is refused because searching for rates promises what the medium cannot answer. The half that scans
+and reads characteristics is not carried here: it would need a runtime, and the plugin sandbox is the only place
+one is allowed, so upstream's enumeration filter — which looks for the Nordic UART service — has nothing to find
+on a machine that carries no runtime and no peripheral advertising it.
 
 A board in its bootloader is not a transport: it answers requests rather than moving bytes, so
 the device layer is its own trait — `send`, `receive`, `string`, `describe` — and it carries no
@@ -238,7 +255,12 @@ asserting one expected outcome: what the registry remembers and what the bus ans
 readings, and a number a refusal carries is read through the dictionary of the call that answered it,
 because 13 says `CR_NO_SUCH_DEVNODE` through the Config Manager dictionary and `ERROR_INVALID_DATA`
 through the Win32 one, which is the overlap that made an earlier green read a wrong address as a
-missing board.
+missing board. Through the same `cfg(windows)` half the crate reads the machine's own map of serial ports
+(`HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`), which is what Microsoft's reader lists ports from, and each number
+there belongs to the call that answered it through that call's dictionary — `RegOpenKeyExW` and
+`RegEnumValueW` answer through the Win32 one, not through the Config Manager one — and what ended the list is
+kept beside the count, so a reading that stopped at its own bound says it is bounded rather than being read as
+a whole list. Nothing here writes to that key: reading it asks for no elevation.
 
 Auto-reconnect is implemented **in the transport** as `reconnect()`, matching upstream's
 `TcpSerial.autoReconnect`. The *policy* - how many attempts, with what backoff, and whether
@@ -252,6 +274,7 @@ A connection target is a single string:
 ```text
 serial:COM3:57600
 serial:/dev/ttyUSB0:115200|nodtr
+ble:COM40:9600|nodtr
 udp:127.0.0.1:14550
 udp::14550|server
 tcp:192.168.1.10:5760
@@ -404,7 +427,7 @@ localised messages. **A message is never parsed for meaning.**
 | Pure logic | Unit tests next to the code; `proptest` for the framer and parsers |
 | Wire format | Golden files: real captured frames → expected decoded values |
 | Round-trip | `serialise → parse → serialise` byte equality |
-| Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli`. In CI the half that needs no vehicle — the golden files — runs on the runner, and the live half is named as `HERRAMIENTA-AUSENTE` when no image can be pulled anonymously; it runs against a simulator started locally with `MPCRAFT_SITL_LIVE=1`. A live area that reaches a board names the scripted peer that stands in for it, and its green is read from the report of its own test binary, because the reports of the tests that ran before it say nothing about a device that was never there |
+| Integration | A SITL container (ArduPilot `sitl.py` in Docker) driven by `mpcraft-cli`. In CI the half that needs no vehicle — the golden files — runs on the runner, and the live half is named as `HERRAMIENTA-AUSENTE` when no image can be pulled anonymously; it runs against a simulator started locally with `MPCRAFT_SITL_LIVE=1`. A live area that reaches a board names the scripted peer that stands in for it, and its green is read from the report of its own test binary, because the reports of the tests that ran before it say nothing about a device that was never there. The area that reads what a machine writes about itself names its stand-in the same way, because a peer that answers a transport contract cannot show what a registry says, so a green from the scripted half does not stand for an area that read no rows |
 | Compatibility | Upstream's own test corpus: real `.tlog`, `.param`, `.waypoints` files |
 | Frontend | Vitest for stores and reducers; Playwright for the critical flows; eslint for what a reader would have to notice by hand — a name written and never used, a dependency list that does not match what the effect reads. It reads the sources this project can change and names what it leaves out: the vendored MapLibre worker under `public/`, and the React JSX rules, because the plugin for those cannot run on the version of eslint declared in `apps/ui/package.json`. A rule that is not carried cannot be switched off, so a source file that disables one is a finding |
 | Gates | `scripts/run-gates.js` runs them and says which layer it did not read (`NO-APLICA`, `HERRAMIENTA-AUSENTE`, `SUSTITUIDA`), so a green that rests on nothing is not read as a pass. A home-grown gate is shown failing on a known-bad case and passing on a known-good one before its green is trusted (`scripts/check-overlaps-controls.js`, `scripts/run-gates-controls.js`, `scripts/check-lint-controls.js`, `scripts/check-parity-controls.js`, `scripts/check-dfu-crc-controls.js`). The parity matrix is read rather than remembered: its counts are worked out from the rows (`scripts/check-parity.js`). And every gate that reads a tool rather than a document names its own known-bad case (`scripts/check-tool-controls.js`), because a gate whose green is its exit code alone cannot fail; only one of those five shows the finding itself, since the runner keeps the first line of what a tool says, and the other four show the state turning. A busy artifact is read as a gap rather than as green, and that reading is shown with a genuine sharing violation held by a separate process (`scripts/run-gates-controls.js`), not with a string that looks like one. The control column is read as a document too: every gate names its known-bad case and the checker under `scripts/` it names is on the disk, with both halves shown firing on a copy of the runner. And the parity checker names what it cannot reach inside its own report, not only in its header, which is read as a rule with two known-bad copies (`scripts/check-parity-controls.js`). The runner carries the same rule for itself: what the whole run cannot see — no window, no vehicle, no board, and no tool reading beyond the file it was shown — is named inside what it reports, and that reading is shown firing on two copies of the runner (`scripts/run-gates-controls.js`), not on the runner as it stands. |
@@ -442,6 +465,12 @@ downsamples rather than replays raw samples.
   import names through the loader (`raw-dylib`), so nothing is loaded while the program runs, and it
   is the only crate that knows WinUSB exists; the unsafe surface stops at that crate, because the
   device trait below it carries no operating-system types.
+- A Bluetooth serial channel is reached through the machine's own writings, and the reading half asks for no
+  elevation: `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM` and the values on a device key are read as they are written,
+  while writing a class key does ask for elevation and is named as what the operator supplies. Nothing is opened
+  on a port that belongs to a module that may be using it, and both refusals at the rules — a row with no device
+  behind it, a row that is not the shape a reader can read — fall before anything travels on the cable. The GATT
+  half is not carried because it would need a runtime, which only the plugin sandbox is allowed to carry.
 - A board in its bootloader is named by the environment as the pair the bus writes it
   (`MPCRAFT_DFU_TARGET`), not as a connection specification, because it answers requests rather than
   moving bytes. The half that erases runs only when the operator names it with a flag

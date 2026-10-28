@@ -590,6 +590,56 @@ checks.push({
   },
 });
 
+/* The rules about which port belongs to Bluetooth are read against published sources, and the scripted peer answers
+ * the transport contract without opening a port. With no row named by the environment the stand-in is what the gate
+ * has to name, because a peer that answers a contract cannot show what a machine writes in its own registry. */
+const bluetoothGate = run(
+  ["crates/mpcraft-app/tests/bluetooth_live.rs"],
+  ["the rows this machine writes, read as it writes them"],
+  { MPCRAFT_BT_ROW: "" },
+);
+
+checks.push({
+  claim:
+    "the Bluetooth area names what stands in for it when no row is named, rather than reading the scripted peer as if the machine had answered",
+  ok:
+    stateOf(
+      bluetoothGate,
+      "the rows this machine writes, read as it writes them",
+    ) === "SUSTITUIDA",
+  saw: {
+    gate: stateOf(
+      bluetoothGate,
+      "the rows this machine writes, read as it writes them",
+    ),
+    why: bluetoothGate.gates?.[0]?.why,
+  },
+});
+
+/* The same reading on a transcript where the scripted half passed and the area reading the machine failed. The two
+ * are one crate and one run, so a count taken from the whole of it would read the pass as covering both. */
+const bluetoothTranscript =
+  "test result: ok. 8 passed; 0 failed; finished in 0.01s\n" +
+  "test result: FAILED. 0 passed; 1 failed; finished in 4.20s\n" +
+  "     Running tests\\bluetooth_peer.rs (target/debug/deps/bluetooth_peer-1)\n" +
+  "     Running tests\\bluetooth_live.rs (target/debug/deps/bluetooth_live-2)\n";
+
+checks.push({
+  claim:
+    "the Bluetooth area reads the report of its own binary, so the scripted peer passing does not stand for an area that read nothing on the machine",
+  ok:
+    resultForSection(bluetoothTranscript, "bluetooth_live").includes(
+      "FAILED",
+    ) &&
+    resultForSection(bluetoothTranscript, "bluetooth_peer").includes(
+      "8 passed",
+    ),
+  saw: {
+    live: resultForSection(bluetoothTranscript, "bluetooth_live"),
+    scripted: resultForSection(bluetoothTranscript, "bluetooth_peer"),
+  },
+});
+
 /*
  * The runner names its own reach inside what it reports. A limit that is not there, and a limit that names only
  * how the states are read without saying what the run cannot see, are both findings; each is put in front of the

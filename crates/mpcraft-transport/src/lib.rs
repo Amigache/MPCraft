@@ -42,6 +42,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 
+pub mod bluetooth;
 pub mod device;
 pub mod file;
 pub mod serial;
@@ -49,6 +50,15 @@ pub mod spec;
 pub mod tcp;
 pub mod udp;
 
+pub use bluetooth::{
+    address_with_colons, address_without_colons, belongs_to_class, names_nothing,
+    service_is_rfcomm, upstream_port_label, BluetoothError, BluetoothTransport, EnumRow, MapRow,
+    BTH_ENUMERATOR,
+};
+pub use bluetooth::{
+    AUDIO_CLASS, BLUETOOTH_CLASS, NETWORK_CLASS, PORTS_CLASS, RFCOMM_PREFIX, RFCOMM_SERVICE,
+    SERIAL_PROFILE,
+};
 pub use device::{
     read_string, Capability, Device, DeviceError, DeviceResult, FunctionalDescriptor,
 };
@@ -64,6 +74,8 @@ pub use udp::UdpTransport;
 pub enum TransportKind {
     /// A serial port.
     Serial,
+    /// A Bluetooth serial channel: a COM port with the reading that says which device it belongs to.
+    Bluetooth,
     /// UDP, in either client or server mode.
     Udp,
     /// TCP, in either client or server mode.
@@ -78,6 +90,7 @@ impl fmt::Display for TransportKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
             Self::Serial => "serial",
+            Self::Bluetooth => "bluetooth",
             Self::Udp => "udp",
             Self::Tcp => "tcp",
             Self::File => "file",
@@ -153,6 +166,16 @@ pub async fn open(spec: &ConnectionSpec) -> std::io::Result<Box<dyn Transport>> 
                 SerialTransport::open(port, spec.options.baud_rate, spec.options.dtr_on_open)?;
             Ok(Box::new(transport))
         }
+        // A specification names a port and nothing else, so this path cannot know which row that port came
+        // from: the map is a fact about the machine, and reading it needs the registry, which is not what a
+        // byte carrier reaches. The transport therefore carries the port as typed and says that no row was read,
+        // while the application — which is the layer that reaches the machine — hands over the row it read when
+        // there is one.
+        ConnectionScheme::Bluetooth => Ok(Box::new(BluetoothTransport::open_as_typed(
+            spec.port_name().unwrap_or_default(),
+            spec.options.baud_rate,
+            spec.options.dtr_on_open,
+        )?)),
         ConnectionScheme::Udp => {
             let port = spec.port().unwrap_or_default();
             let host = spec.host().unwrap_or_default();

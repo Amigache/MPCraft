@@ -126,6 +126,12 @@ impl From<mpcraft_transport::DeviceError> for CommandError {
     }
 }
 
+impl From<mpcraft_transport::BluetoothError> for CommandError {
+    fn from(error: mpcraft_transport::BluetoothError) -> Self {
+        Self::new(error.code(), error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,6 +199,31 @@ mod tests {
             ))
             .code,
             "device_unreachable"
+        );
+    }
+
+    #[test]
+    fn a_row_that_names_no_device_keeps_its_code_apart_from_a_row_that_is_not_the_shape() {
+        // The two things a Bluetooth reading can say about a row are different facts for the operator: one is a
+        // row the machine presents with nothing behind it, which says put a device there or pick another port;
+        // the other is text the reader could not read at all, which says the row was not written as the map
+        // writes rows. Reading both as one code would say the same thing about each.
+        let shape = mpcraft_transport::BluetoothError::NotTheShape {
+            row: "\\Device\\LSIModem5 = MODEM5".to_owned(),
+            reason: "the value is not a COM number".to_owned(),
+        };
+        let unnamed = mpcraft_transport::BluetoothError::NoDeviceNamed {
+            row: "BTHENUM\\{00001101-0000-1000-8000-00805f9b34fb}_LOCALMFG&0000".to_owned(),
+            reason: "the group that would name a device says 000000000000".to_owned(),
+        };
+
+        assert_eq!(
+            CommandError::from(shape).code,
+            "bluetooth_row_not_the_shape"
+        );
+        assert_eq!(
+            CommandError::from(unnamed).code,
+            "bluetooth_no_device_named"
         );
     }
 }

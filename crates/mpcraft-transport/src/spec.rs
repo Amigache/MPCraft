@@ -6,6 +6,7 @@
 //! ```text
 //! serial:COM3:57600
 //! serial:/dev/ttyUSB0:115200|nodtr
+//! ble:COM40:9600|nodtr
 //! udp:127.0.0.1:14550
 //! udp::14550|server
 //! tcp:192.168.1.10:5760
@@ -16,7 +17,7 @@
 //!
 //! ```text
 //! spec      := scheme ":" target [ "|" option [ "|" option ]* ]
-//! scheme    := "serial" | "udp" | "tcp" | "file"
+//! scheme    := "serial" | "ble" | "udp" | "tcp" | "file"
 //! option    := key [ "=" value ]
 //! ```
 //!
@@ -25,6 +26,7 @@
 //! | Scheme | Target | Positional extras |
 //! | --- | --- | --- |
 //! | `serial` | the port name | `:<baud rate>` |
+//! | `ble` | the port name the machine's map answers with for a Bluetooth channel | `:<driver rate>` |
 //! | `udp` | `<host>:<port>` | — |
 //! | `tcp` | `<host>:<port>` | — |
 //! | `file` | a filesystem path | — |
@@ -36,9 +38,14 @@
 //! | --- | --- | --- |
 //! | `server` | `udp`, `tcp` | bind and wait for the peer instead of connecting out |
 //! | `client` | `udp`, `tcp` | connect out (the default) |
-//! | `dtr` / `nodtr` | `serial` | the state of the DTR line when the port is opened |
-//! | `baud=<n>` | `serial` | the baud rate, overriding the positional form |
+//! | `dtr` / `nodtr` | `serial`, `ble` | the state of the DTR line when the port is opened |
+//! | `baud=<n>` | `serial`, `ble` | the baud rate, overriding the positional form |
 //! | `rate=<f>` | `file` | the replay rate; `1.0` is real time, `0` is as fast as possible |
+//!
+//! For a `ble` connection the rate is the number the driver is given rather than something the peer hears: a
+//! Bluetooth channel has no rate. It is kept because the driver still takes one, and saying that is what keeps
+//! an option from promising something the medium cannot do. Upstream carries a baud on its BLE class where its
+//! own path has no line and no rate at all, which is recorded as a difference in `docs/PARITY.md`.
 
 use std::fmt;
 use std::str::FromStr;
@@ -48,6 +55,8 @@ use std::str::FromStr;
 pub enum ConnectionScheme {
     /// A serial port.
     Serial,
+    /// A Bluetooth serial channel, which is a COM port with a reading beside it.
+    Bluetooth,
     /// UDP.
     Udp,
     /// TCP.
@@ -62,6 +71,7 @@ impl ConnectionScheme {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Serial => "serial",
+            Self::Bluetooth => "ble",
             Self::Udp => "udp",
             Self::Tcp => "tcp",
             Self::File => "file",
@@ -81,6 +91,7 @@ impl FromStr for ConnectionScheme {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value.to_ascii_lowercase().as_str() {
             "serial" => Ok(Self::Serial),
+            "ble" => Ok(Self::Bluetooth),
             "udp" => Ok(Self::Udp),
             "tcp" => Ok(Self::Tcp),
             "file" => Ok(Self::File),
@@ -163,7 +174,7 @@ impl ConnectionSpec {
 
         // The scheme decides how the positional parts are read.
         let target = match scheme {
-            ConnectionScheme::Serial => {
+            ConnectionScheme::Serial | ConnectionScheme::Bluetooth => {
                 let mut parts = target.split(':');
                 let port = parts.next().unwrap_or_default().to_owned();
 
@@ -214,14 +225,26 @@ impl ConnectionSpec {
                 (ConnectionScheme::Udp | ConnectionScheme::Tcp, "client") => {
                     options.server = false;
                 }
-                (ConnectionScheme::Serial, "dtr") => options.dtr_on_open = true,
-                (ConnectionScheme::Serial, "nodtr") => options.dtr_on_open = false,
-                (ConnectionScheme::Serial, "baud") => {
+                (ConnectionScheme::Serial | ConnectionScheme::Bluetooth, "dtr") => {
+                    options.dtr_on_open = true;
+                }
+                (ConnectionScheme::Serial | ConnectionScheme::Bluetooth, "nodtr") => {
+                    options.dtr_on_open = false;
+                }
+                (ConnectionScheme::Serial | ConnectionScheme::Bluetooth, "baud") => {
                     let text = value.ok_or(SpecError::MissingValue("baud".to_owned()))?;
 
-                    // The rate can be left to the program: it opens the port at each
-                    // rate in turn until the vehicle answers.
+                    // The rate can be left to the program on a medium that has one. A Bluetooth channel has
+                    // no rate, so `auto` here would be an option that promises a search the medium cannot
+                    // answer, and it is refused rather than accepted and then ignored.
                     if text.eq_ignore_ascii_case("auto") {
+                        if scheme == ConnectionScheme::Bluetooth {
+                            return Err(SpecError::UnknownOption {
+                                scheme,
+                                option: "baud=auto".to_owned(),
+                            });
+                        }
+
                         options.auto_baud = true;
                         continue;
                     }
@@ -279,11 +302,12 @@ impl ConnectionSpec {
         }
     }
 
-    /// The serial port name, if the scheme is serial.
+    /// The serial port name, if the scheme is a serial port or a Bluetooth channel — which is a COM port with a
+    /// reading beside it, so both are named by a port.
     #[must_use]
     pub fn port_name(&self) -> Option<&str> {
         match self.scheme {
-            ConnectionScheme::Serial => Some(self.target.as_str()),
+            ConnectionScheme::Serial | ConnectionScheme::Bluetooth => Some(self.target.as_str()),
             _ => None,
         }
     }
@@ -293,7 +317,10 @@ impl fmt::Display for ConnectionSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.scheme, self.target)?;
 
-        if self.scheme == ConnectionScheme::Serial {
+        // The number is written back for the two schemes that take one. For a Bluetooth channel it is the number
+        // the driver was given rather than something the peer hears, and the round trip below is what says the
+        // form survived without losing the value.
+        if self.scheme == ConnectionScheme::Serial || self.scheme == ConnectionScheme::Bluetooth {
             write!(f, ":{}", self.options.baud_rate)?;
             if self.options.dtr_on_open {
                 write!(f, "|dtr")?;
@@ -513,9 +540,64 @@ mod tests {
     }
 
     #[test]
+    fn parses_a_bluetooth_channel_as_the_port_the_map_answers_with() {
+        // COM40 is the port this machine writes for its Bluetooth serial row in DEVICEMAP. The specification
+        // names a port, which is what Microsoft's own reader would open for the same pair, and keeps nothing
+        // about which row it came from: that is a fact about the machine, not about the text typed into it.
+        let spec = ConnectionSpec::parse("ble:COM40:9600|nodtr").unwrap();
+        assert_eq!(spec.scheme, ConnectionScheme::Bluetooth);
+        assert_eq!(spec.port_name(), Some("COM40"));
+        assert_eq!(spec.options.baud_rate, 9600);
+        assert!(!spec.options.dtr_on_open);
+
+        // A name that is not a port shape is refused rather than made into one.
+        assert_eq!(ConnectionSpec::parse("ble:"), Err(SpecError::MissingTarget));
+
+        // The round trip keeps the number as the number the driver was given, which is all it can keep.
+        let rendered = spec.to_string();
+        assert_eq!(rendered, "ble:COM40:9600");
+        assert_eq!(ConnectionSpec::parse(&rendered).unwrap(), spec);
+    }
+
+    #[test]
+    fn a_bluetooth_channel_is_not_asked_for_a_rate_it_cannot_find_or_a_peer_it_cannot_wait_for() {
+        // Auto-baud is a search through rates, and a Bluetooth channel has no rate to be found; upstream carries a
+        // baud on its BLE class where its path has none, so the option here is only what the driver takes.
+        assert_eq!(
+            ConnectionSpec::parse("ble:COM40|baud=auto"),
+            Err(SpecError::UnknownOption {
+                scheme: ConnectionScheme::Bluetooth,
+                option: "baud=auto".to_owned(),
+            })
+        );
+
+        // Waiting for a peer is a rule of the network transports, not of a port.
+        assert!(matches!(
+            ConnectionSpec::parse("ble:COM40|server"),
+            Err(SpecError::UnknownOption { .. })
+        ));
+
+        // The line control does exist on a COM port even though upstream's own class has nothing to toggle, so
+        // the option means what it says — with the house default still low.
+        assert!(
+            !ConnectionSpec::parse("ble:COM40")
+                .unwrap()
+                .options
+                .dtr_on_open
+        );
+        assert!(
+            ConnectionSpec::parse("ble:COM40|dtr")
+                .unwrap()
+                .options
+                .dtr_on_open
+        );
+    }
+
+    #[test]
     fn round_trips_through_its_display_form() {
         for input in [
             "serial:COM3:57600",
+            "ble:COM40:9600",
             "udp:127.0.0.1:14550",
             "tcp:192.168.1.10:5760",
         ] {

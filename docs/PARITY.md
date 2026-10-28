@@ -30,7 +30,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.15 | MAVLink FTP client | `ExtLibs/ArduPilot/Mavlink/MAVFtp.cs` | ✅ | 5 |
 | 1.16 | Auto-connect profiles | `ExtLibs/Utilities/AutoConnect.cs` | ✅ | 7 |
 | 1.17 | NTRIP correction source | `ExtLibs/Comms/CommsNTRIP.cs` | ✅ | 5 |
-| 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔜 | 5 |
+| 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔽 | 5 |
 | 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
 | 1.20 | Serial passthrough (`SERIAL_CONTROL`) | `MAVLinkSerialPort.cs` | ✅ | 5 |
 
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 143 |
-| 🔜 Planned | 6 |
+| 🔜 Planned | 5 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 4 |
+| Partial (🟡 / 🔽) | 5 |
 
 The 143 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
@@ -742,6 +742,77 @@ with what it is and the other does not, so the second reading asks and the third
 wire, and the count starts again on a second link. What cannot be asserted is said rather than
 assumed: there is no physical CAN bus on this machine, so nothing here proves that a real node
 answers, and the row stays partial. The sheet is measured at 1920x1080 and at 1024x640 in Spanish.
+
+La **placa Bluetooth** se alcanza por el camino que no pide un runtime: un canal serie de
+Bluetooth es una puerto COM, y los bytes los mueve el mismo código que los mueve para
+cualquier otra puerto, porque la pertenencia no cambia lo que viaja. Lo que decide qué fila
+pertenece a Bluetooth son tres hechos, cada uno con una fuente publicada que no es este
+archivo: `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM` es lo que un lector lee para listar puertos —
+el `SerialPort` de Microsoft lo abre (`System/sys/system/IO/ports/SerialPort.cs`) —, así que una
+fila es siempre el nombre del dispositivo y el puerto que contesta; la pertenencia viene del
+**prefijo** que el servicio RFCOMM escribe en ese mapa y del servicio que la instalación ligó a
+la instancia (`BTHMODEM`, como las listas publicadas lo escriben), y no de la clase, porque una
+fila serie no dice la clase Bluetooth: dice la clase Ports
+(`{4d36e978-e325-11ce-bfc1-08002be10318}`), y una fila de manos libres dice la clase audio
+(`{4d36e97d-e325-11ce-bfc1-08002be10318}`) con otro servicio detrás (`BthHFEnum`), así que una
+regla que decidiera por la clase no diría nada sobre los puertos que le preguntaron; y el
+perfil que lleva la corriente es `00001101-…` (zephyr lo nombra en su propia ayuda de SPP),
+mientras las filas de esta máquina contestan perfiles de audio, AVRCP y manos libres, que no
+llevan corriente. SuperCollider muestra por qué el prefijo completo es la regla: su parser casa
+cualquier nombre de puerto, así que un par virtual nombrado `com0comBluetooth0` sería leído como
+fila de Bluetooth por una comparación más floja, y aquí se rechaza. Un grupo de ceros no nombra
+nada: es lo que una instalación deja donde nada se escribió, no un valor que la máquina decidió,
+y esta máquina muestra las dos mitades de una misma fila a la vez — `LOCALMFG&0000` junto a doce
+ceros para la fila que da COM41 —, así que la lectura rechaza en lugar de inventar una dirección,
+con su propio código (`bluetooth_no_device_named`), que dice algo distinto de
+`bluetooth_row_not_the_shape`: una cosa es una fila que la máquina presenta sin dispositivo
+detrás y otra es un texto que el lector no puede leer; y las dos negativas caen antes de que nada
+viaje por el cable, que es lo que el peer scriptado muestra, porque nada viajó antes de la
+lectura.
+
+El área viva (`crates/mpcraft-app/tests/bluetooth_live.rs`, detrás de `hardware-tests` y
+`windows`) lee lo que la máquina contesta hoy, y cada estado se sostiene como dato en lugar de
+afirmar un resultado esperado: el mapa contestó siete filas y dos llevan el prefijo del servicio
+(`\Device\BthModem0` = COM40 para el módulo Matek, `\Device\BthModem1` = COM41), con los números
+atribuidos a la llamada que los contestó a través del diccionario de esa llamada —
+`RegOpenKeyExW` dio 0 para la clave y `RegEnumValueW` dio 259 (no hay más elementos) al final del
+bucle, los dos por el diccionario Win32, que es el que este vínculo nombra para esas llamadas y
+no para las `CM_*` —, así que un conteo no vale solo: lo que terminó la lista se conserva con él y
+un paro por el propio límite (512) se dice como hueco. Para la instancia que el entorno nombra
+(`MPCRAFT_BT_ROW`) la máquina escribe `ClassGUID` `{4d36e978-e325-11ce-bfc1-08002be10318}` y
+`Service` `BTHMODEM`, que es el nombre que las listas publicadas escriben, y el nombre de clase
+que `tdibth.inf` lee en esta máquina es el mismo que Microsoft usa como
+`System.Devices.Aep.ProtocolId` en su propio ejemplo de enumeración: dos implementaciones que no
+se hicieron la una desde la otra, así que el acuerdo entre los dos caminos es un hecho y no una
+regla escrita dos veces. Bajo ese nombre la instancia publica cero filas, que es lo que se espera
+cuando la instalación no escribió el valor que decide que una fila exista, y aquí se lee sin
+elevación porque leer una clave de dispositivo no la pide; escribir esa clave sí la pide, y por eso
+la puerta nombra esa escritura como lo que el operador pone.
+
+Lo que no se puede afirmar aquí se dice en lugar de suponerse: ningún periférico emparejado en
+esta máquina anuncia el servicio Nordic UART `6e400001-b5a3-f393-e0a9-e50e24dcca9e`, así que el
+filtro de enumeración de upstream no encuentra nada para `Makeblock_LE001b1062c13c` (contesta
+cuatro servicios y ninguno es ese), y la mitad GATT no está portada porque no se lleva un runtime
+— el sandbox de plugins es el único lugar donde se permite llevar uno —, así que no hay escaneo,
+no hay lista de periféricos y no hay característica que escribir o leer, y la regla del nombre que
+upstream construye (`BLE_<identificador>_<dirección sin separadores>`) se conserva como dato: por
+una puerto COM la máquina nombra el puerto, y esa regla solo dice lo que un lector con el camino
+GATT habría escrito para el mismo periférico. Dos diferencias se conservan como diferencias:
+upstream lleva una velocidad en su clase BLE donde su propio camino no tiene velocidad ninguna, y
+su `toggleDTR()` está vacío porque esa clase no tiene línea; aquí una puerto COM sí la tiene, así
+que `dtr` y `nodtr` significan lo que dicen, con el valor de la casa todavía bajo, y la velocidad
+se conserva para el esquema `ble` como el número que se da al driver, que el medio no usa, mientras
+`baud=auto` se rechaza (`SpecError::UnknownOption`) porque una búsqueda de velocidades es una
+opción que promete lo que el medio no puede contestar. Lo que el peer scriptado puede responder es
+lo que se afirma en `crates/mpcraft-app/tests/bluetooth_peer.rs`: `Ok(0)` al final del stream en
+lugar de un error, la escritura que casa tres bytes a la vez y repite hasta completar el buffer, y
+la lectura de la fila que sobrevive a un reconnect, porque la fila es lo que se le dijo al operador
+sobre el puerto y un reintento no puede convertirla en otro hecho. Lo que no puede mostrar es lo
+que una máquina escribe sobre sí misma, por eso la fila sigue parcial, y la puerta nombra ese
+sustituto; el control lo lee con un transcripto donde la mitad scriptada pasó y el área que lee la
+máquina falló, con las dos mitades leídas como sus propios informes, que es lo que hace que un
+verde del peer no valga por un área que no leyó ninguna fila. Y nada se abre en COM40: esa puerto
+pertenece a un módulo que puede estar usándola.
 
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the
