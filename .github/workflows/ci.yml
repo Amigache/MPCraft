@@ -278,8 +278,7 @@ jobs:
             target/release/bundle/**/*.deb
             target/release/bundle/**/*.AppImage
             target/release/bundle/**/*.dmg
-            target/release/bundle/**/*.zip
-            target/release/bundle/**/*.tar.gz
+            target/release/bundle/macos/**/*.tar.gz
             target/release/bundle/**/*.sig
 
       # One platform of the document the updater reads. The three are merged into one by the job

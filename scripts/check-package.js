@@ -110,7 +110,10 @@ function relative(path) {
 
 /** The block of one job, from its line to the line where the next job begins. */
 function jobBlock(text, id) {
-  const lines = text.split("\n");
+  /* A checkout on Windows writes the file with CRLF, and a line that still carries the carriage
+     return is not the line the job is written on. The reading is of the text, so the ending is
+     normalized before the lines are compared. */
+  const lines = text.replaceAll("\r\n", "\n").split("\n");
   const at = lines.findIndex((line) => line === `  ${id}:`);
 
   if (at === -1) {
