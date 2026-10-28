@@ -1,5 +1,19 @@
 # Contributing
 
+## Language
+
+The project is written in **English**: commit messages, pull-request titles and descriptions, code
+and doc comments, documentation, test names, and file names. A sentence in another language is a
+finding, because the code is read by people who do not share one.
+
+The interface is the exception in the other direction: a source string is written once in English and
+looked up in the translation bundles (`apps/ui/src/lib/i18n/strings.ts`), so the words the operator
+reads can be another language without a second implementation. A string that is not in a bundle is
+said as it is written, which keeps a missing translation a gap rather than a blank.
+
+An existing passage in another language is translated when it is edited, not as a separate change,
+and it is not copied into new text. This applies to `docs/PARITY.md` as much as to the code.
+
 ## The branches
 
 | Branch | What it is |
