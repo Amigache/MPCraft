@@ -78,7 +78,7 @@ const THEMES: readonly { id: Theme; key: string }[] = [
 ];
 
 /** The version shown in the About box. */
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 
 export function MenuBar() {
   const [open, setOpen] = useState<string | null>(null);
