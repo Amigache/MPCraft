@@ -67,7 +67,9 @@ function replaceEverywhere(source, pattern, replacement) {
  * would disturb the job before this one and leave the one being tested as it was.
  */
 function inBundleJob(source, change) {
-  const lines = source.split("\n");
+  /* A checkout on Windows writes the file with CRLF; the job is found by its line, so the ending
+     is normalized before the lines are compared. */
+  const lines = source.replaceAll("\r\n", "\n").split("\n");
   const at = lines.findIndex((line) => line === "  bundle:");
 
   if (at === -1) {
