@@ -1129,6 +1129,22 @@ export interface VehicleLog {
   readonly size: number;
 }
 
+/** One log a companion computer holds, as it is listed over SSH. */
+export interface RemoteLog {
+  /** The name of the file on the companion. */
+  readonly name: string;
+  /** How big the companion says it is, in bytes. */
+  readonly size: number;
+}
+
+/** One log that was brought from a companion to the disk. */
+export interface DownloadedLog {
+  /** The name of the file, as the companion called it. */
+  readonly name: string;
+  /** How many bytes arrived, which is not always what the companion announced. */
+  readonly bytes: number;
+}
+
 /**
  * The identification a vehicle broadcasts.
  */

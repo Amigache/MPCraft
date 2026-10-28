@@ -145,7 +145,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 6.3 | MAVLink `.tlog` parser | `Log/MavlinkLog.cs` | ✅ | 4 |
 | 6.4 | PX4 ULog parser | `ExtLibs/Utilities/ULog.cs` (upstream: unwired) | ✅ | 4 |
 | 6.5 | Log download over MAVLink | `Log/LogDownloadMavLink.cs` | ✅ | 4 |
-| 6.6 | Log download over SCP | `Log/LogDownloadscp.cs` | 🔜 | 5 |
+| 6.6 | Log download over SCP | `Log/LogDownloadscp.cs` | 🔽 | 5 |
 | 6.7 | Log browser — message tree + sample grid | `Log/LogBrowse.cs` | ✅ | 4 |
 | 6.8 | Log graphing with multi-axis | `LogBrowse.CreateChart` | ✅ | 4 |
 | 6.9 | Graph preset definitions | `graphs/mavgraphs.xml` | ✅ | 4 |
@@ -221,9 +221,9 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 144 |
-| 🔜 Planned | 3 |
+| 🔜 Planned | 2 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 6 |
+| Partial (🟡 / 🔽) | 7 |
 
 The 144 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
@@ -1737,6 +1737,19 @@ against a signer that was not built from this one. What is not carried is the ho
 and the offline signer makes the same document without either. And no board with secure boot was
 flashed here, because there is none on this machine, so the row stays partial: the signer is done,
 and what is left is the service and the board.
+
+The **logs of a companion computer** are listed and brought over SSH now, which is what the published
+client does under the name of SCP: it opens an SFTP session, keeps the files whose name ends in `.bin`
+in either case, and writes them to a folder of this machine. The address is the one that client asks
+for — `user:password@host:/dir/path/` — with an optional port read before the path, and a string that
+is missing a part is refused rather than filled in with a default that would reach another machine. A
+name with a separator, or one that is `.` or `..`, is refused before a local file is created, so a
+companion cannot name a place outside the folder the operator chose. The key the companion presents is
+accepted rather than compared with one remembered from before, and only a password is read; both are
+said in the sheet rather than hidden. What is not asserted is a companion: there is no SSH server on
+this machine, so the tests read the address, the selection of the `.bin` names and the safe name
+against values written down before the functions were called, and the connection itself only
+compiles. That is why the row stays partial.
 
 The **contract** is read from both sides now, because one document was spoken two ways and nothing read the
 two against each other. The pair that identifies a vehicle was written with underscores by the structs that

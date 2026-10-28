@@ -1767,6 +1767,38 @@ async fn generate_signing_key(
     mpcraft_app::secure::generate_key_files(std::path::Path::new(&private_key_path))
 }
 
+/// Lists the logs a companion computer holds, over SSH.
+///
+/// The address is the one the published client asks for: `user:password@host:/dir/path/`.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the address is not one this station reads, when
+/// the companion cannot be reached, or when it refuses the user and password.
+#[tauri::command]
+async fn scp_logs(target: String) -> CommandResult<Vec<mpcraft_app::scp::RemoteLog>> {
+    let target = mpcraft_app::scp::ScpTarget::parse(&target)?;
+
+    mpcraft_app::scp::list_logs(&target).await
+}
+
+/// Brings logs from a companion computer to a folder of this machine.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the address is not one this station reads, when
+/// a name is not one of the companion's logs, or when a file cannot be read or written.
+#[tauri::command]
+async fn scp_download(
+    target: String,
+    names: Vec<String>,
+    folder: String,
+) -> CommandResult<Vec<mpcraft_app::scp::DownloadedLog>> {
+    let target = mpcraft_app::scp::ScpTarget::parse(&target)?;
+
+    mpcraft_app::scp::download_logs(&target, &names, std::path::Path::new(&folder)).await
+}
+
 /// Starts the web server, so that another program can follow the flight.
 ///
 /// The server answers three things: the page that shows the flight, the state of the
@@ -4530,6 +4562,8 @@ fn main() {
             firmware_erase_board,
             sign_firmware,
             generate_signing_key,
+            scp_logs,
+            scp_download,
             flash_bootloader,
             reboot_into_bootloader,
             ftp_list,

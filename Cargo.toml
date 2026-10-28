@@ -88,6 +88,11 @@ sha2 = "0.10"
 ed25519-dalek = { version = "2", features = ["pem"] }
 getrandom = "0.2"
 
+# The client that reaches the files of a companion computer over SSH. The cryptography is the
+# backend the SSH library carries; this workspace does not implement a cipher of its own.
+russh = { version = "0.63", default-features = false, features = ["ring", "flate2", "rsa"] }
+russh-sftp = "3"
+
 # The WASM runtime behind the plugin sandbox. It is the only runtime dependency in the workspace,
 # and only `mpcraft-plugin` uses it: the layer above hands the sandbox a manifest and gets typed
 # results back, so nothing else has to know that a runtime exists.

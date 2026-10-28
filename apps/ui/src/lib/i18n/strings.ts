@@ -1458,6 +1458,20 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The logs of the vehicle": "Los registros del vehículo",
     "Ask the vehicle for the logs it holds in its own memory":
       "Pedir al vehículo los registros que tiene en su propia memoria",
+    "The address of the companion": "La dirección del compañero",
+    "user:password@host:/path/": "usuario:contraseña@equipo:/ruta/",
+    "List the logs the companion keeps over SSH":
+      "Listar los registros que el compañero guarda por SSH",
+    "The logs of the companion": "Los registros del compañero",
+    "Choose where the logs of the companion are kept":
+      "Elegir dónde se guardan los registros del compañero",
+    "The folder for the companion": "La carpeta del compañero",
+    "The key the companion presents is accepted rather than compared with one remembered from before, and only a password is read.":
+      "La clave que presenta el compañero se acepta en lugar de compararse con una recordada de antes, y solo se lee una contraseña.",
+    "The companion holds {count} logs.":
+      "El compañero tiene {count} registros.",
+    "there is no address of a companion.": "no hay dirección de un compañero.",
+    "{name} · {size} kB": "{name} · {size} kB",
     "Log {number} · {size} kB": "Registro {number} · {size} kB",
     "The samples of": "Las muestras de",
     "The message the samples are of": "El mensaje del que son las muestras",

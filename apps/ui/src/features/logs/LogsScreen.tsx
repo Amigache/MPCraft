@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { pickOpenPath, pickSavePath } from "../../lib/ipc/dialog";
+import { pickFolder, pickOpenPath, pickSavePath } from "../../lib/ipc/dialog";
 import {
   listGraphs,
   logExportCsv,
@@ -14,6 +14,8 @@ import {
   playbackClose,
   playbackOpen,
   playbackSeek,
+  scpDownload,
+  scpLogs,
   vehicleLogs,
 } from "../../lib/ipc/bridge";
 import type {
@@ -22,6 +24,7 @@ import type {
   GraphSeries,
   LogSummary,
   MessageSamples,
+  RemoteLog,
   SampleValue,
   VehicleLog,
 } from "../../lib/ipc/types";
@@ -130,6 +133,11 @@ export function LogsScreen() {
 
   /** The logs the vehicle holds in its own memory. */
   const [logs, setLogs] = useState<readonly VehicleLog[]>([]);
+
+  // The logs of a companion computer: the address, the list it answers with, and where they are kept.
+  const [companion, setCompanion] = useState("");
+  const [companionLogs, setCompanionLogs] = useState<readonly RemoteLog[]>([]);
+  const [companionFolder, setCompanionFolder] = useState("");
   /** How long the flight lasted, in seconds. */
   const [flight, setFlight] = useState(0);
   /** Where the play-back is, in seconds. */
@@ -376,6 +384,74 @@ export function LogsScreen() {
     try {
       await downloadLog(log.id, log.size, picked.path);
       setNotice(t("The log was written to {path}.", { path: picked.path }));
+      setError(null);
+    } catch (cause) {
+      setError(normaliseError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const readCompanionLogs = async () => {
+    if (companion.trim() === "") {
+      setError({
+        code: "invalid_request",
+        message: t("there is no address of a companion."),
+      });
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const list = await scpLogs(companion);
+      setCompanionLogs(list);
+      setNotice(
+        t("The companion holds {count} logs.", {
+          count: formatCount(list.length),
+        }),
+      );
+      setError(null);
+    } catch (cause) {
+      setCompanionLogs([]);
+      setError(normaliseError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseCompanionFolder = async () => {
+    const picked = await pickFolder();
+
+    if (picked.ok) {
+      setCompanionFolder(picked.path);
+    }
+  };
+
+  const fetchCompanionLog = async (log: RemoteLog) => {
+    let folder = companionFolder;
+
+    if (folder === "") {
+      const picked = await pickFolder();
+
+      if (!picked.ok) {
+        return;
+      }
+
+      folder = picked.path;
+      setCompanionFolder(folder);
+    }
+
+    setBusy(true);
+
+    try {
+      const done = await scpDownload(companion, [log.name], folder);
+      const written = done[0]?.name ?? log.name;
+      setNotice(
+        t("The log was written to {path}.", {
+          path: `${folder}/${written}`,
+        }),
+      );
       setError(null);
     } catch (cause) {
       setError(normaliseError(cause));
@@ -706,6 +782,82 @@ export function LogsScreen() {
                   disabled={busy}
                   onClick={() => {
                     void fetchLog(log);
+                  }}
+                >
+                  {t("Download")}
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <section className={styles.actions}>
+          <label className={styles.field}>
+            <span className={styles.label}>
+              {t("The address of the companion")}
+            </span>
+            <input
+              className="input"
+              value={companion}
+              aria-label={t("The address of the companion")}
+              placeholder={t("user:password@host:/path/")}
+              onChange={(event) => {
+                setCompanion(event.target.value);
+              }}
+            />
+          </label>
+
+          <button
+            type="button"
+            className="button"
+            disabled={busy}
+            title={t("List the logs the companion keeps over SSH")}
+            onClick={() => {
+              void readCompanionLogs();
+            }}
+          >
+            {t("The logs of the companion")}
+          </button>
+
+          <button
+            type="button"
+            className="button"
+            disabled={busy}
+            title={t("Choose where the logs of the companion are kept")}
+            onClick={() => {
+              void chooseCompanionFolder();
+            }}
+          >
+            {t("The folder for the companion")}
+          </button>
+
+          {companionFolder !== "" ? (
+            <p className={styles.note}>{companionFolder}</p>
+          ) : null}
+
+          <p className={styles.note}>
+            {t(
+              "The key the companion presents is accepted rather than compared with one remembered from before, and only a password is read.",
+            )}
+          </p>
+        </section>
+
+        {companionLogs.length > 0 ? (
+          <div className={styles.messages}>
+            {companionLogs.map((log) => (
+              <span key={log.name} className={styles.message}>
+                <span className={styles.messageName}>
+                  {t("{name} · {size} kB", {
+                    name: log.name,
+                    size: (log.size / 1024).toFixed(1),
+                  })}
+                </span>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={busy}
+                  onClick={() => {
+                    void fetchCompanionLog(log);
                   }}
                 >
                   {t("Download")}

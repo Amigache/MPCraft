@@ -14,6 +14,7 @@ import type {
   ConnectResponse,
   ConnectionStatus,
   Coordinates,
+  DownloadedLog,
   DronecanReport,
   DtedLibraryInfo,
   FirmwareManifest,
@@ -49,6 +50,7 @@ import type {
   PlanKind,
   PlanWarning,
   PluginInfo,
+  RemoteLog,
   SecureFirmwareKind,
   SelectedVehicle,
   SerialPort,
@@ -1388,6 +1390,25 @@ export async function playbackClose(): Promise<void> {
  */
 export async function vehicleLogs(vehicle?: VehicleKey): Promise<VehicleLog[]> {
   return call<VehicleLog[]>("vehicle_logs", vehicleRequest(vehicle));
+}
+
+/**
+ * Lists the logs a companion computer holds, over SSH.
+ *
+ * The address is `user:password@host:/dir/path/`, and the key the companion presents is accepted
+ * rather than compared with one remembered from before.
+ */
+export async function scpLogs(target: string): Promise<RemoteLog[]> {
+  return call<RemoteLog[]>("scp_logs", { target });
+}
+
+/** Brings the named logs from a companion computer to a folder of this machine. */
+export async function scpDownload(
+  target: string,
+  names: readonly string[],
+  folder: string,
+): Promise<DownloadedLog[]> {
+  return call<DownloadedLog[]>("scp_download", { target, names, folder });
 }
 
 /** Fetches a log of the vehicle and writes it to a file. */
