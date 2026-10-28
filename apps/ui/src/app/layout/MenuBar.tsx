@@ -78,7 +78,7 @@ const THEMES: readonly { id: Theme; key: string }[] = [
 ];
 
 /** The version shown in the About box. */
-const VERSION = "0.1.2";
+const VERSION = "0.1.3";
 
 export function MenuBar() {
   const [open, setOpen] = useState<string | null>(null);
@@ -1087,6 +1087,7 @@ export function MenuBar() {
           label: t("Check for updates…"),
           onSelect: () => {
             close();
+            setNote(t("Checking for updates…"));
 
             void checkForUpdate()
               .then(async (found) => {
