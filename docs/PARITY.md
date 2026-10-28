@@ -508,7 +508,11 @@ clave no pide privilegios; escribirla si, y por eso la puerta nombra esa escritu
 operador pone, junto con BOOT sostenido al encender: el crate lee y no escribe. Y las dos lecturas de la
 herramienta contestan como se leyo hoy, cada una por su propio hecho: `pnputil /add-driver dfu-winusb.inf
 /install` rechazo el paquete porque un INF de otro fabricante no lleva informacion de firma digital, que es una
-regla de la herramienta sobre los paquetes de terceros y no sobre el privilegio de esta ejecucion — asi que por
+regla de la herramienta sobre los paquetes de terceros y no sobre el privilegio de esta ejecucion. Un segundo intento
+sobre el mismo archivo, elevando, contesto lo mismo, asi que el rechazo se atribuye a esa regla y no a si la marca de
+firma de prueba estaba puesta: esta ejecucion no puede verla, porque `bcdedit` rechazo abrir el almacen de configuracion
+de arranque con acceso denegado al privilegio con el que corre, y lo que la herramienta conteste despues de poner la
+marca y reiniciar se registra como hecho de la herramienta. Asi que por
 este camino el archivo nombra la intencion, y lo que puede cerrar la fila sin un certificado es escribir el valor
 mismo con elevacion, o firmar el paquete, o aceptar la firma de prueba, que son tres cosas que decide el operador
 y ninguna depende de este archivo; y `pnputil /restart-device` contesto correctamente sin pedir elevacion, que es
