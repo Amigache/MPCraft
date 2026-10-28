@@ -222,12 +222,19 @@ opened, which is a different fact from a device that is not there. The binding t
 physical bus lives in `crates/mpcraft-winusb`: it is the one place outside the plugin sandbox where
 a system dependency is carried, and it has its own crate because `mpcraft-app` forbids unsafe code
 while these are unsafe functions. What can be read without a bus stays outside `cfg(windows)` — the
-pair as the environment writes it, the classification of an opening failure, the driver name that
-makes an interface ours, and the pair a published reader uses to call an interface one of this kind,
-which is a second rule and not the same one; the calls themselves are behind `cfg(windows)`. Whether
-the application reaches a board is decided in `mpcraft-app`, behind `hardware-tests`, and the live
-area says what the bus answers rather than what the registry remembers, because remembering an
-instance is not being there.
+pair as the environment writes it, the classification of an opening failure, the service name behind
+the class-install key that makes an interface ours (`SPDRP_DRIVER` names the key rather than the
+driver, so the key can never be the name it compares with), the part of an instance path these calls
+read as the enumerator, the pair a published reader uses to call an interface one of this kind, which
+is a second rule and not the same one, and the shape of a class name, which is what lets the two
+published class names be compared against what the element says about itself instead of being assumed
+from either; the calls themselves are behind `cfg(windows)`. Whether the application reaches a board is
+decided in `mpcraft-app`, behind `hardware-tests`, and the live area holds each state as data rather
+than asserting one expected outcome: what the registry remembers and what the bus answers for are two
+readings, and a number a refusal carries is read through the dictionary of the call that answered it,
+because 13 says `CR_NO_SUCH_DEVNODE` through the Config Manager dictionary and `ERROR_INVALID_DATA`
+through the Win32 one, which is the overlap that made an earlier green read a wrong address as a
+missing board.
 
 Auto-reconnect is implemented **in the transport** as `reconnect()`, matching upstream's
 `TcpSerial.autoReconnect`. The *policy* - how many attempts, with what backoff, and whether

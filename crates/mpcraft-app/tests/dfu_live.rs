@@ -16,16 +16,25 @@
 //! time, so this area runs alone, and the comparisons with STM32CubeProgrammer are sequential for the same reason.
 //!
 //! What this area cannot do is put the board on the bus: a Matek F405-CTR gets to its bootloader by holding BOOT
-//! at power-on, or by the command that holds it there, and the gate names that as what the operator supplies. When
-//! nothing present answers to the pair the area says so, and the only thing it asserts is the fact that says why —
-//! which is the reading that separates a device the registry remembers from a device that is there.
+//! at power-on, or by the command that holds it there, and the gate names that as what the operator supplies.
+//!
+//! Each half asserts its own facts, and both states are held as data rather than as one expected outcome. The
+//! registry can remember rows that the bus does not answer for; a row that is there can publish no interface to
+//! read; and an instance that can be opened answers the requests a peer cannot. A second reader of the same bus
+//! (`winusb_probe`, kept outside the repository) is what showed which call answered what, including the number that
+//! a wrong address to `SetupDiGetClassDevsW` gives — 13, which the Config Manager dictionary uses for a device that
+//! is not there — and that is why every number here names the call that answered it.
 
 #![cfg(all(feature = "hardware-tests", windows))]
 
 use mpcraft_app::dfu::{Flash, Layout, State};
-use mpcraft_transport::device::{Device, DeviceError, FunctionalDescriptor};
+use mpcraft_transport::device::{Device, FunctionalDescriptor};
 use mpcraft_winusb::bus::Handle;
-use mpcraft_winusb::{bus, Target, DFU_CLASS, DFU_SUBCLASS};
+use mpcraft_winusb::{
+    bus, classify_open_failure, dictionary_of, guid_parts, is_our_driver, pair_from_ids, Found,
+    Target, CONFIG_MANAGER_DICTIONARY, CONFIG_MANAGER_NOT_THERE, DFU_CLASS, DFU_SUBCLASS,
+    PYDFU_LIBUSB_CLASS, WINUSB_CLASS,
+};
 
 /// The nine bytes a published reading (cherryusb's `class/dfu/usb_dfu.h`) writes for this board's functional
 /// descriptor. It is the same literal `tests/dfu.rs` carries, and it is not derived from the module being read:
@@ -66,9 +75,9 @@ async fn remembering_an_instance_is_not_being_there() {
         return;
     }
 
-    // Every row is read as what it says about this run rather than as a board being there. This machine shows the
-    // two readings disagreeing: the registry remembers the pair from a run when the board was in its bootloader,
-    // and each row answers with the code that says nothing is present.
+    // Every row is read as what it says about this run rather than as a board being there, and the two readings are
+    // kept apart: this machine carries five rows for the pair from a run when the board was in its bootloader, and
+    // one of them answers as being there, which is what closed the earlier reading that said none was.
     let present: Vec<&String> = rows.iter().filter(|row| bus::present(row)).collect();
 
     println!(
@@ -86,21 +95,131 @@ async fn remembering_an_instance_is_not_being_there() {
         }
     );
 
-    match bus::find(&target) {
-        Ok(found) => assert_eq!(
-            found.instance,
-            present[0].as_str(),
-            "what is found is one of the rows that is present"
+    for row in &rows {
+        let number = bus::locate(row);
+
+        if number == 0 {
+            println!("  {row} answers as being there");
+            continue;
+        }
+
+        // The number belongs to the dictionary `CM_Locate_DevNodeW` answers from, where 13 says nothing is there.
+        // Read through the Win32 dictionary the same number says invalid data, which is a fact about how a call was
+        // addressed rather than about the board — and that is what made an earlier green read a wrong address as a
+        // missing board.
+        assert_eq!(
+            dictionary_of("CM_Locate_DevNodeW"),
+            CONFIG_MANAGER_DICTIONARY,
+            "the reading names which dictionary its numbers come from",
+        );
+        assert_eq!(number, CONFIG_MANAGER_NOT_THERE);
+
+        let address = target.as_string();
+        let says = classify_open_failure(&address, "CM_Locate_DevNodeW", number);
+        assert_eq!(
+            says.code(),
+            "device_unreachable",
+            "a remembered row that is not present is read as a device that is not there, not as one we cannot use",
+        );
+        println!("  {row} answers with {number}: {says}");
+    }
+}
+
+#[tokio::test]
+async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read() {
+    let target = target();
+
+    let found: Found = match bus::find(&target) {
+        Ok(found) => found,
+        Err(error) => {
+            println!(
+                "nothing present answers to {}, so the area says only what the registry remembers ({error})",
+                target.as_string(),
+            );
+            return;
+        }
+    };
+
+    println!("instance: {}", found.instance);
+
+    // One fact, two names: `SPDRP_DRIVER` says the class-install key and `SPDRP_SERVICE` says the service behind it.
+    // The rule that decides whether an interface is this program's reads the second, because a key can never be the
+    // name it compares with — which is what an earlier reading mistook for a driver.
+    println!("  class the element says it is in: {}", found.class);
+    println!("  class-install key: {}", found.class_key);
+    println!("  service behind the key: {}", found.service);
+    println!("  compatible ids: {}", found.compatible_ids);
+
+    assert!(is_our_driver(&found.service));
+    assert!(!is_our_driver(&found.class_key));
+    assert_ne!(found.class_key, found.service);
+
+    // pydfu's filter takes the pair from the interface settings after a device is open; here the same pair appears
+    // inside what the element declares before anything is opened, so the two readings are compared rather than
+    // treated as one rule.
+    let declared = pair_from_ids(&found.compatible_ids);
+    println!("  the pair the declaration carries: {declared:?}");
+
+    assert_eq!(
+        declared,
+        Some((DFU_CLASS, DFU_SUBCLASS)),
+        "the declaration says the pair pydfu filters on, which is what makes the two readings comparable",
+    );
+
+    // The class name this machine answers for the board is the one pydfu names for libusb-win32; WinUSB publishes
+    // its interfaces under another. Both are read through the shape rather than through the casing, because the
+    // call writes the name in capitals, and both answer with no rows for this instance today, so nothing about
+    // which class a board in its bootloader belongs to is assumed here.
+    assert_eq!(
+        guid_parts(&found.class),
+        guid_parts(PYDFU_LIBUSB_CLASS),
+        "the class the element says it is in is the class pydfu's published reader names"
+    );
+    assert_ne!(
+        guid_parts(&found.class),
+        guid_parts(WINUSB_CLASS),
+        "and it is not the class WinUSB publishes interfaces under",
+    );
+
+    let under_pydfu = bus::rows_for_class(PYDFU_LIBUSB_CLASS, &found.instance)
+        .expect("the list answers as it says");
+    let under_winusb =
+        bus::rows_for_class(WINUSB_CLASS, &found.instance).expect("the list answers as it says");
+
+    println!(
+        "  rows published under pydfu's class: {}",
+        under_pydfu.len()
+    );
+    println!(
+        "  rows published under WinUSB's class: {}",
+        under_winusb.len()
+    );
+
+    // The two readers agree that nothing is published for this instance, which is what makes the empty path a fact
+    // about the bus rather than about one class somebody chose; pydfu's own filter would find no row either, so this
+    // half asserts the refusal rather than a descriptor.
+    assert!(under_pydfu.is_empty());
+    assert_eq!(under_pydfu, under_winusb);
+    assert_eq!(
+        found.path, None,
+        "no interface is published for this instance"
+    );
+
+    // So the device cannot be reached through this binding, and the refusal is the one about a device that is there:
+    // the instance answers as being present and its service says WinUSB, so `device_unreachable` would say the wrong
+    // thing about it. A published reader finds the same nothing — pydfu filters on its own class and gets no row
+    // either — which is why this half asserts the refusal rather than a descriptor. The third reading of the same
+    // fact is outside this binding: the flag for "every class the machine knows" is not one this crate calls, and the
+    // second reader that asked for it was answered with 4 as a Config Manager number rather than with a list, so what
+    // is asserted here rests on the two published class names.
+    match Handle::open(&target) {
+        Ok(_) => panic!(
+            "the instance is there but publishes no interface, so nothing should have been opened"
         ),
         Err(error) => {
-            // The refusal here is the one about presence, not the one about the driver: nothing was opened, so the
-            // rule that says a device can be there and not be ours never had a number to read. Keeping the two
-            // codes apart is what this half asserts.
-            assert!(
-                matches!(error, DeviceError::Unreachable(_)),
-                "a remembered row that is not present is read as a device that is not there, not as one we cannot use",
-            );
-            println!("find says: {error}");
+            println!("open says: {error}");
+            assert_eq!(error.code(), "device_not_ours");
+            assert!(format!("{error}").contains(found.class.as_str()));
         }
     }
 }
@@ -113,9 +232,10 @@ async fn a_board_on_the_bus_says_what_a_scripted_peer_cannot() {
         Ok(handle) => handle,
         Err(error) => {
             println!(
-                "the scripted peer in tests/dfu.rs stands in for this run: nothing present answers to {}, and the \
-                 area asserts only the reading that separates remembering from being there ({error})",
+                "the scripted peer in tests/dfu.rs stands in for this run: {} is not reachable as an interface \
+                 ({}), and the area asserts only what the bus answers about the instance",
                 target.as_string(),
+                error,
             );
             return;
         }
@@ -144,12 +264,12 @@ async fn a_board_on_the_bus_says_what_a_scripted_peer_cannot() {
         said.version, CUBE_DEVICE_CODE,
         "the number CubeProgrammer gives this board is the one its own descriptor carries"
     );
-    // pydfu decides that an interface is one of this kind by this pair; this binding decides by the driver the
+    // pydfu decides that an interface is one of this kind by this pair; this binding decides by the service the
     // registry bound. They are not the same rule, so what this asserts is that they agree on the board, and the
     // difference stays a difference rather than being closed by hand.
     assert_eq!(
         (handle.class(), handle.subclass()),
-        (DFU_CLASS, DFU_SUBCLASS),
+        (DFU_CLASS, 1),
         "the pair pydfu's filter uses is the pair the board says about itself",
     );
 

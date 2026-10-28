@@ -98,35 +98,163 @@ pub const DFU_CLASS: u8 = 0xFE;
 /// The sub-class of that pair, from the same published filter.
 pub const DFU_SUBCLASS: u8 = 1;
 
-/// The number the system answers with when nothing present answers to the instance.
+/// The number that says nothing is there in the Win32 dictionary (`ERROR_FILE_NOT_FOUND`), which is what the calls
+/// that open a path answer from.
 pub const NOTHING_THERE: u32 = 2;
 
-/// The number it answers with when the instance is there and its handle is held by somebody else.
+/// The number that says the instance is there and its handle is held by somebody else, in the same dictionary
+/// (`ERROR_ACCESS_DENIED`).
 pub const HANDLE_HELD: u32 = 5;
 
-/// The number it answers with when the instance is there and is held without sharing.
+/// The number that says the instance is there and is held without sharing, in the same dictionary
+/// (`ERROR_SHARING_VIOLATION`).
 pub const HELD_WITHOUT_SHARING: u32 = 32;
 
-/// What a failure to open says, given the number the system answered with.
+/// The number that says invalid data in the Win32 dictionary (`ERROR_INVALID_DATA`).
+pub const WIN32_INVALID_DATA: u32 = 13;
+
+/// The number that says an instance is not there in the Config Manager dictionary (`CR_NO_SUCH_DEVNODE`). It is the
+/// same 13 as the number above, and that is why a number cannot be read without naming the call that answered it:
+/// an earlier green on this machine read a wrong address as a missing board because it took the 13 from the wrong
+/// dictionary, and the two facts are not the same thing — one is how a call was addressed, the other is that the
+/// instance is not on the bus.
+pub const CONFIG_MANAGER_NOT_THERE: u32 = 13;
+
+/// The dictionary the `CM_*` calls answer from.
+pub const CONFIG_MANAGER_DICTIONARY: &str = "Config Manager";
+
+/// The dictionary the `SetupDi*`, `GetLastError` and `CreateFileW` calls answer from.
+pub const WIN32_DICTIONARY: &str = "Win32 error";
+
+/// Which dictionary a number comes from, said by the call that answered it rather than by the number.
+#[must_use]
+pub fn dictionary_of(answered_by: &str) -> &'static str {
+    if answered_by.starts_with("CM_") {
+        CONFIG_MANAGER_DICTIONARY
+    } else {
+        WIN32_DICTIONARY
+    }
+}
+
+/// The part of an instance path these calls read as the enumerator: what comes before the first backslash. Passing
+/// the whole path where the call asks for the enumerator answers `ERROR_INVALID_DATA` (13), which is the number
+/// above, so this is the shape the reading takes rather than a convenience.
+#[must_use]
+pub fn enumerator(instance: &str) -> &str {
+    instance.split('\\').next().unwrap_or(instance)
+}
+
+/// What a failure says, given the number and the call that answered it.
 ///
-/// The enumeration already found the device, which is what excludes "nothing is there" for every number but the
-/// one that says the instance is not present. So the other numbers are read as the device being ours to look at
-/// and not ours to use, with the number kept as what the system said rather than turned into a word.
-pub fn classify_open_failure(address: &str, code: u32) -> DeviceError {
-    if code == NOTHING_THERE {
+/// The element was reached, which is what excludes "nothing is there" for every number but the one each dictionary
+/// reserves for it. So the other numbers are read as the device being ours to look at and not ours to use, with the
+/// number kept as what the system said and the dictionary named with it.
+pub fn classify_open_failure(address: &str, answered_by: &str, code: u32) -> DeviceError {
+    let dictionary = dictionary_of(answered_by);
+
+    if (dictionary == WIN32_DICTIONARY && code == NOTHING_THERE)
+        || (dictionary == CONFIG_MANAGER_DICTIONARY && code == CONFIG_MANAGER_NOT_THERE)
+    {
         return DeviceError::Unreachable(address.to_owned());
     }
 
     let reason = match code {
         HANDLE_HELD => "the handle is held by another process".to_owned(),
         HELD_WITHOUT_SHARING => "the handle is held without sharing".to_owned(),
-        other => format!("the system answered with {other}"),
+        WIN32_INVALID_DATA if dictionary == WIN32_DICTIONARY => format!(
+            "answered with {code} as {dictionary} invalid data, which is a fact about how the call was addressed \
+             rather than about the board"
+        ),
+        other => format!("answered with {other}, read as a {dictionary} number from {answered_by}"),
     };
 
     DeviceError::NotOurs {
         address: address.to_owned(),
         reason,
     }
+}
+
+/// The two class names a published reader would look under, written from the published sources rather than from what
+/// this machine answered: pydfu's own class for libusb-win32 (`FilterDFU` reads its rows through it), and the class
+/// WinUSB publishes interfaces under. Both are compared against what the element says about itself in the live area,
+/// which is why they are kept as data here.
+pub const PYDFU_LIBUSB_CLASS: &str = "88bae032-5a81-49f0-bc3d-a4ff138216d6";
+
+/// The class WinUSB publishes device interfaces under, from the published constant.
+pub const WINUSB_CLASS: &str = "a5dcbf13-4437-40bb-9a12-8e18f591d448";
+
+/// A class name as these APIs read it: the five parts, in the lengths they have — 8, 4, 4, 4 and 12 hexadecimal
+/// digits. Nothing is guessed: a name that cannot be read as the shape is refused, which is what keeps a class from
+/// being invented by the reader.
+#[must_use]
+pub fn guid_parts(name: &str) -> Option<(u32, u16, u16, [u8; 8])> {
+    let parts: Vec<&str> = name.split('-').collect();
+
+    if parts.len() != 5
+        || parts[0].len() != 8
+        || parts[1].len() != 4
+        || parts[2].len() != 4
+        || parts[3].len() != 4
+        || parts[4].len() != 12
+    {
+        return None;
+    }
+
+    let data1 = u32::from_str_radix(parts[0], 16).ok()?;
+    let data2 = u16::from_str_radix(parts[1], 16).ok()?;
+    let data3 = u16::from_str_radix(parts[2], 16).ok()?;
+
+    let mut data4 = [0_u8; 8];
+
+    for (index, pair) in parts[3..].concat().as_bytes().chunks(2).enumerate() {
+        data4[index] = u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?;
+    }
+
+    Some((data1, data2, data3, data4))
+}
+
+/// What a device that is there says about itself: the instance, the two names the registry gives the same fact —
+/// the class-install key and the service behind it, which are not the same thing and cannot be read as one — the
+/// compatible ids the element carries, and the interface path it publishes, or nothing when it publishes none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Found {
+    /// The instance id as the bus writes it.
+    pub instance: String,
+    /// The class name the element says it belongs to, as the call wrote it — which is compared with the two
+    /// published class names above rather than assumed from either.
+    pub class: String,
+    /// What the element says the class-install key is, read through `SPDRP_DRIVER`. That property names the key
+    /// rather than the driver, so it can never be the name this binding compares with [`OUR_DRIVER`].
+    pub class_key: String,
+    /// What the element says the service behind the key is, read through `SPDRP_SERVICE`. This is the name the rule
+    /// that decides whether an interface is ours reads, because the key above answered `{88bae032-...}\0011` for a
+    /// board whose service says `WinUSB`.
+    pub service: String,
+    /// The compatible ids as the element writes them. A published reader decides that an interface is one of this
+    /// kind by the pair 0xFE and 1; here the pair appears inside the declaration as text, which is a third reading
+    /// of the same fact and is read by [`pair_from_ids`] rather than assumed from a row.
+    pub compatible_ids: String,
+    /// The device interface path, as the call wrote it, or nothing when the instance publishes no interface —
+    /// which is what this machine answers today for this board under both class names above.
+    pub path: Option<String>,
+}
+
+/// The pair a published filter reads from an interface, read out of the compatible ids as the element writes them.
+///
+/// This is not the same rule as pydfu's, which reads the pair from the interface settings after the device is open:
+/// here it is what the element declares before anything is opened. So the two readings are kept apart, and a string
+/// that does not say the pair is refused rather than guessed at.
+#[must_use]
+pub fn pair_from_ids(ids: &str) -> Option<(u8, u8)> {
+    let number_after = |prefix: &str| {
+        ids.split('&').find_map(|part| {
+            // The declaration writes the pair as a word inside a segment, so the part before it is taken off rather
+            // than assumed to be nothing.
+            u8::from_str_radix(part.rsplit('\\').next()?.strip_prefix(prefix)?, 16).ok()
+        })
+    };
+
+    Some((number_after("Class_")?, number_after("SubClass_")?))
 }
 
 /// A string as these APIs read it: the text and the terminator. Without the terminator the answer is the reader's
@@ -152,18 +280,6 @@ pub const fn detail_room() -> usize {
     DETAIL_HEADER + PATH_UNITS * 2
 }
 
-/// What the enumeration says about an instance that is there: the id, the driver bound to it, and the path its
-/// interface publishes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Found {
-    /// The instance id as the bus writes it.
-    pub instance: String,
-    /// The name the registry gives the driver bound to the instance.
-    pub driver: String,
-    /// The device interface path, as the API wrote it.
-    pub path: String,
-}
-
 /// Reads a wide value as the text it says, stopping at the terminator rather than at the end of the buffer.
 fn as_text(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
@@ -184,12 +300,10 @@ fn as_text(bytes: &[u8]) -> String {
 pub mod bus {
     use async_trait::async_trait;
 
-    use windows::core::PCWSTR;
+    use windows::core::{GUID, PCWSTR};
     use windows::Win32::Devices::DeviceAndDriverInstallation::*;
     use windows::Win32::Devices::Usb::*;
-    use windows::Win32::Foundation::{
-        CloseHandle, GetLastError, GENERIC_READ, GENERIC_WRITE, HANDLE,
-    };
+    use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
     use windows::Win32::Storage::FileSystem::*;
 
     use mpcraft_transport::device::{
@@ -197,9 +311,14 @@ pub mod bus {
     };
 
     use super::{
-        as_text, classify_open_failure, detail_room, is_our_driver, nul_terminated, Found, Target,
-        DETAIL_HEADER,
+        as_text, classify_open_failure, detail_room, enumerator, guid_parts, is_our_driver,
+        nul_terminated, Found, Target,
     };
+
+    /// The call that answers for a registry property, named so that a refusal can say which dictionary its number
+    /// came from: this one answers with a Win32 error number, while `CM_Locate_DevNodeW` answers with a Config
+    /// Manager number, and the two dictionaries give the same 13 for two different facts.
+    const PROPERTY_CALL: &str = "SetupDiGetDeviceRegistryPropertyW";
 
     /// The rows the registry carries for the pair. These are the instances it remembers from an earlier run,
     /// which is why they cannot be read as a board being there: `remembered` and `present` are two readings, and
@@ -230,21 +349,24 @@ pub mod bus {
         }
     }
 
-    /// Whether an instance is on the bus for this run, read by locating it rather than by finding it in the
-    /// list. The two are different facts, and this machine shows them disagreeing: the registry remembers the
-    /// pair from a run when the board was in its bootloader, and every one of those rows answers with the code
-    /// that says nothing is there.
-    pub fn present(instance: &str) -> bool {
+    /// The number locating gives for one instance, kept as what the Config Manager dictionary says rather than
+    /// turned into a word, because the same 13 means something else through the dictionary the SetupDi calls answer
+    /// from and the two facts cannot be read with one code.
+    pub fn locate(instance: &str) -> u32 {
         let id = nul_terminated(instance);
         let mut devinst = 0_u32;
 
-        unsafe {
-            CM_Locate_DevNodeW(&mut devinst, PCWSTR(id.as_ptr()), CM_LOCATE_DEVNODE_NORMAL)
-                == CR_SUCCESS
-        }
+        unsafe { CM_Locate_DevNodeW(&mut devinst, PCWSTR(id.as_ptr()), CM_LOCATE_DEVNODE_NORMAL).0 }
     }
 
-    /// Finds the instance the pair names and says what the registry and the class say about it.
+    /// Whether an instance is on the bus for this run, read by locating it rather than by finding it in the list.
+    /// The two are different facts, and this machine shows them disagreeing: the registry carries five rows for the
+    /// pair from a run when the board was in its bootloader, and exactly one of them answers as being there.
+    pub fn present(instance: &str) -> bool {
+        locate(instance) == CR_SUCCESS.0
+    }
+
+    /// Finds the instance the pair names and says what the element answers about itself.
     ///
     /// # Errors
     ///
@@ -259,31 +381,19 @@ pub mod bus {
                 continue;
             }
 
-            let driver = property(&instance, SPDRP_DRIVER)?;
-            let path = interface_path(&instance)?;
-
-            return Ok(Found {
-                instance,
-                driver,
-                path,
-            });
+            return read_element(&instance);
         }
 
         Err(DeviceError::Unreachable(address))
     }
 
-    /// A wide registry property, read through the instance it belongs to.
-    fn property(instance: &str, property: SETUP_DI_REGISTRY_PROPERTY) -> DeviceResult<String> {
-        let id = nul_terminated(instance);
-
+    /// One element, reached by opening it through its id. That is the documented shape, and it is not the same thing
+    /// as enumerating a set built from an instance path: passing the whole path where the call asks for the
+    /// enumerator answers `ERROR_INVALID_DATA` (13), which is the number the Config Manager dictionary gives for a
+    /// board that is not there, so the two facts have to come from different calls.
+    fn read_element(instance: &str) -> DeviceResult<Found> {
         unsafe {
-            let set = SetupDiGetClassDevsW(
-                None,
-                PCWSTR(id.as_ptr()),
-                None,
-                DIGCF_ALLCLASSES | DIGCF_PRESENT,
-            )
-            .map_err(|error| classify_open_failure(instance, number(error.code().0)))?;
+            let set = open_set(enumerator(instance))?;
 
             // cbSize is part of what the call reads, so it is written where the value is made rather than after
             // it, which is the form that keeps the reader from seeing two facts about one struct.
@@ -292,125 +402,128 @@ pub mod bus {
                 ..Default::default()
             };
 
-            if SetupDiEnumDeviceInfo(set, 0, &mut info).is_err() {
-                let _ = SetupDiDestroyDeviceInfoList(set);
-                return Err(classify_open_failure(
-                    instance,
-                    number(GetLastError().0 as i32),
-                ));
-            }
+            let id = nul_terminated(instance);
 
-            let mut raw = vec![0_u8; detail_room()];
+            SetupDiOpenDeviceInfoW(set, PCWSTR(id.as_ptr()), None, 0, Some(&mut info)).map_err(
+                |error| {
+                    classify_open_failure(
+                        instance,
+                        "SetupDiOpenDeviceInfoW",
+                        number(error.code().0),
+                    )
+                },
+            )?;
 
-            let answer =
-                SetupDiGetDeviceRegistryPropertyW(set, &info, property, None, Some(&mut raw), None);
+            let guid = info.ClassGuid;
+            let class = format!("{guid:?}");
+            let rows = rows_for_class(&class, instance)?;
+
+            let found = Found {
+                instance: instance.to_owned(),
+                class,
+                class_key: read_property(set, &info, instance, SPDRP_DRIVER)?,
+                service: read_property(set, &info, instance, SPDRP_SERVICE)?,
+                compatible_ids: read_property(set, &info, instance, SPDRP_COMPATIBLEIDS)?,
+                path: rows.first().map(String::from),
+            };
+
             let _ = SetupDiDestroyDeviceInfoList(set);
 
-            answer.map_err(|error| classify_open_failure(instance, number(error.code().0)))?;
-
-            Ok(as_text(&raw))
+            Ok(found)
         }
     }
 
-    /// The path an instance publishes, read through the class the instance itself says it is in — which is what
-    /// keeps a guess out of it: nothing here says that a board in its bootloader is in the USB class.
-    fn interface_path(instance: &str) -> DeviceResult<String> {
-        let id = nul_terminated(instance);
+    /// A device-info set built the documented way: the enumerator, and the flags that say only what is present.
+    fn open_set(enumerator: &str) -> DeviceResult<HDEVINFO> {
+        let id = nul_terminated(enumerator);
 
         unsafe {
-            let set = SetupDiGetClassDevsW(
+            SetupDiGetClassDevsW(
                 None,
                 PCWSTR(id.as_ptr()),
                 None,
                 DIGCF_ALLCLASSES | DIGCF_PRESENT,
             )
-            .map_err(|error| classify_open_failure(instance, number(error.code().0)))?;
+            .map_err(|error| {
+                classify_open_failure(enumerator, "SetupDiGetClassDevsW", number(error.code().0))
+            })
+        }
+    }
 
-            // cbSize is part of what the call reads, so it is written where the value is made rather than after
-            // it, which is the form that keeps the reader from seeing two facts about one struct.
-            let mut info = SP_DEVINFO_DATA {
-                cbSize: size_of::<SP_DEVINFO_DATA>() as u32,
-                ..Default::default()
-            };
+    /// A wide registry property, read through the element it belongs to, with the answering call named so that a
+    /// number kept as data says which dictionary it came from.
+    fn read_property(
+        set: HDEVINFO,
+        info: &SP_DEVINFO_DATA,
+        instance: &str,
+        property: SETUP_DI_REGISTRY_PROPERTY,
+    ) -> DeviceResult<String> {
+        let mut raw = vec![0_u8; detail_room()];
 
-            if SetupDiEnumDeviceInfo(set, 0, &mut info).is_err() {
-                let _ = SetupDiDestroyDeviceInfoList(set);
+        unsafe {
+            SetupDiGetDeviceRegistryPropertyW(set, info, property, None, Some(&mut raw), None)
+                .map_err(|error| {
+                    classify_open_failure(instance, PROPERTY_CALL, number(error.code().0))
+                })?;
+        }
+
+        Ok(as_text(&raw))
+    }
+
+    /// The rows one class publishes for one instance, read through the interface list rather than through an
+    /// enumeration, because the two are different readings of the same fact and the list answers with a Config
+    /// Manager number rather than with a result.
+    ///
+    /// What this machine answers today for this board is no rows under either published class name — pydfu's class
+    /// for libusb-win32 and WinUSB's own — which is why the descriptor, the string index and the state cannot be
+    /// read through this binding: there is nothing to open. A published reader finds the same nothing, since pydfu
+    /// filters on its class and gets no row for this instance either, so that is said rather than assumed.
+    pub fn rows_for_class(class: &str, instance: &str) -> DeviceResult<Vec<String>> {
+        let parts = match guid_parts(class) {
+            Some(parts) => parts,
+            None => {
                 return Err(DeviceError::NotOurs {
                     address: instance.to_owned(),
-                    reason: "publishes no device interface".to_owned(),
+                    reason: format!("the class name {class} is not the shape these APIs read"),
                 });
             }
+        };
 
-            let class = info.ClassGuid;
+        let id = nul_terminated(instance);
 
-            let interfaces = SetupDiGetClassDevsW(
-                Some(&class),
+        unsafe {
+            let guid = GUID::from_values(parts.0, parts.1, parts.2, parts.3);
+            let mut needed = 0_u32;
+
+            if CM_Get_Device_Interface_List_SizeW(
+                &mut needed,
+                &guid,
                 PCWSTR(id.as_ptr()),
-                None,
-                DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
-            )
-            .map_err(|error| classify_open_failure(instance, number(error.code().0)));
-
-            let interfaces = match interfaces {
-                Ok(interfaces) => interfaces,
-                Err(error) => {
-                    let _ = SetupDiDestroyDeviceInfoList(set);
-                    return Err(error);
-                }
-            };
-
-            let mut own = SP_DEVINFO_DATA {
-                cbSize: size_of::<SP_DEVINFO_DATA>() as u32,
-                ..Default::default()
-            };
-
-            let mut iface = SP_DEVICE_INTERFACE_DATA {
-                cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
-                ..Default::default()
-            };
-
-            let found_interface = SetupDiEnumDeviceInfo(interfaces, 0, &mut own).is_ok()
-                && SetupDiEnumDeviceInterfaces(
-                    interfaces,
-                    Some(&own as *const SP_DEVINFO_DATA),
-                    &class,
-                    0,
-                    &mut iface,
-                )
-                .is_ok();
-
-            if !found_interface {
-                let _ = SetupDiDestroyDeviceInfoList(interfaces);
-                let _ = SetupDiDestroyDeviceInfoList(set);
-
-                return Err(DeviceError::NotOurs {
-                    address: instance.to_owned(),
-                    reason: "publishes no device interface".to_owned(),
-                });
+                CM_GET_DEVICE_INTERFACE_LIST_PRESENT,
+            ) != CR_SUCCESS
+            {
+                return Ok(Vec::new());
             }
 
-            // The header is what the API says a 64-bit process writes; the room asked for is the header plus the
-            // path, which the crate's definition of the struct does not carry.
-            let mut raw = vec![0_u8; detail_room()];
-            raw[..4].copy_from_slice(&(DETAIL_HEADER as u32).to_le_bytes());
+            let mut buffer = vec![0_u16; usize::try_from(needed).unwrap_or(4096)];
 
-            let detail = raw.as_mut_ptr().cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+            if CM_Get_Device_Interface_ListW(
+                &guid,
+                PCWSTR(id.as_ptr()),
+                &mut buffer,
+                CM_GET_DEVICE_INTERFACE_LIST_PRESENT,
+            ) != CR_SUCCESS
+            {
+                return Ok(Vec::new());
+            }
 
-            let answer = SetupDiGetDeviceInterfaceDetailW(
-                interfaces,
-                &iface,
-                Some(detail),
-                raw.len() as u32,
-                None,
-                None,
-            );
+            let joined = String::from_utf16_lossy(&buffer);
 
-            let _ = SetupDiDestroyDeviceInfoList(interfaces);
-            let _ = SetupDiDestroyDeviceInfoList(set);
-
-            answer.map_err(|error| classify_open_failure(instance, number(error.code().0)))?;
-
-            Ok(as_text(&raw[DETAIL_HEADER..]))
+            Ok(joined
+                .split('\0')
+                .filter(|row| !row.is_empty())
+                .map(String::from)
+                .collect())
         }
     }
 
@@ -456,15 +569,30 @@ pub mod bus {
         pub fn open(target: &Target) -> DeviceResult<Self> {
             let found = find(target)?;
 
-            if !is_our_driver(&found.driver) {
+            // The rule reads the service behind the class-install key rather than the key itself, which is what an
+            // earlier reading mistook for a driver: a key can never be the name it compares with, so on this board
+            // the key says one thing and the service says another, and only one of them is a driver.
+            if !is_our_driver(&found.service) {
                 return Err(DeviceError::NotOurs {
                     address: target.as_string(),
-                    reason: format!("the driver bound to it says {}", found.driver),
+                    reason: format!("the service behind it says {}", found.service),
                 });
             }
 
+            // Nothing is opened here, so this refusal falls before anything travels: the instance is there and is
+            // bound to the right service, but it publishes no interface that could be read.
+            let Some(path) = found.path.as_ref() else {
+                return Err(DeviceError::NotOurs {
+                    address: target.as_string(),
+                    reason: format!(
+                        "publishes no device interface under the class it says it is in ({})",
+                        found.class
+                    ),
+                });
+            };
+
             unsafe {
-                let path = nul_terminated(&found.path);
+                let path = nul_terminated(path);
 
                 let handle = CreateFileW(
                     PCWSTR(path.as_ptr()),
@@ -476,19 +604,31 @@ pub mod bus {
                     None,
                 )
                 .map_err(|error| {
-                    classify_open_failure(&target.as_string(), number(error.code().0))
+                    classify_open_failure(
+                        &target.as_string(),
+                        "CreateFileW",
+                        number(error.code().0),
+                    )
                 })?;
 
                 let mut interface = WINUSB_INTERFACE_HANDLE::default();
 
                 WinUsb_Initialize(handle, &mut interface).map_err(|error| {
-                    classify_open_failure(&target.as_string(), number(error.code().0))
+                    classify_open_failure(
+                        &target.as_string(),
+                        "WinUsb_Initialize",
+                        number(error.code().0),
+                    )
                 })?;
 
                 let mut settings = USB_INTERFACE_DESCRIPTOR::default();
 
                 WinUsb_QueryInterfaceSettings(interface, 0, &mut settings).map_err(|error| {
-                    classify_open_failure(&target.as_string(), number(error.code().0))
+                    classify_open_failure(
+                        &target.as_string(),
+                        "WinUsb_QueryInterfaceSettings",
+                        number(error.code().0),
+                    )
                 })?;
 
                 let descriptor = FunctionalDescriptor::read(&control_read(interface, 0x06, 0, 9)?)?;
@@ -665,10 +805,10 @@ pub mod bus {
 
         fn describe(&self) -> String {
             format!(
-                "{} — the interface {} publishes, bound to {}",
+                "{} — the interface {} publishes, through the service {}",
                 self.found.instance,
                 u32::from(self.number),
-                self.found.driver
+                self.found.service
             )
         }
     }
@@ -703,32 +843,115 @@ mod tests {
         // rather than from the reading.
         let address = "0483:df11";
         assert_eq!(
-            classify_open_failure(address, 2).code(),
+            classify_open_failure(address, "CreateFileW", 2).code(),
             "device_unreachable"
         );
-        assert_eq!(classify_open_failure(address, 5).code(), "device_not_ours");
-        assert_eq!(classify_open_failure(address, 32).code(), "device_not_ours");
         assert_eq!(
-            classify_open_failure(address, 4319).code(),
+            classify_open_failure(address, "CreateFileW", 5).code(),
+            "device_not_ours"
+        );
+        assert_eq!(
+            classify_open_failure(address, "CreateFileW", 32).code(),
+            "device_not_ours"
+        );
+        assert_eq!(
+            classify_open_failure(address, "SetupDiOpenDeviceInfoW", 4319).code(),
             "device_not_ours"
         );
 
-        // The last one keeps the number as data: a code that turned every failure into one word would tell the
-        // operator to look for a board that is already there.
-        let error = classify_open_failure(address, 4319);
+        // The last one keeps the number as data and names the call that answered it: a code that turned every
+        // failure into one word would tell the operator to look for a board that is already there.
+        let error = classify_open_failure(address, "SetupDiOpenDeviceInfoW", 4319);
         assert!(matches!(error, DeviceError::NotOurs { .. }));
         assert!(format!("{error}").contains("4319"));
+    }
+
+    #[test]
+    fn the_same_number_says_two_things_depending_on_which_call_answered_it() {
+        // 13 is `CR_NO_SUCH_DEVNODE` through the Config Manager dictionary and `ERROR_INVALID_DATA` through the
+        // Win32 one, and those are two different facts about the same board: one says the instance is not on the
+        // bus, the other says a call was addressed wrong. An earlier green read here as "not there" because it took
+        // the number from the wrong dictionary, so the rule takes the call as its own fact.
+        let address = "USB\\VID_0483&PID_DF11\\3357316C3536";
+
+        assert_eq!(
+            classify_open_failure(address, "CM_Locate_DevNodeW", 13).code(),
+            "device_unreachable"
+        );
+        assert_eq!(
+            classify_open_failure(address, "SetupDiGetClassDevsW", 13).code(),
+            "device_not_ours"
+        );
+        assert_eq!(
+            dictionary_of("CM_Get_Device_ID_ListW"),
+            CONFIG_MANAGER_DICTIONARY
+        );
+        assert_eq!(dictionary_of("CreateFileW"), WIN32_DICTIONARY);
+    }
+
+    #[test]
+    fn an_instance_path_and_the_part_of_it_these_calls_read_are_not_the_same_thing() {
+        // The documented argument of SetupDiGetClassDevsW is the enumerator; passing the whole path where it asks for
+        // one answered ERROR_INVALID_DATA (13) on this machine, and that is a fact about how the call was addressed
+        // rather than about the board. The element is reached by opening it through its id instead.
+        let instance = "USB\\VID_0483&PID_DF11\\3357316C3536";
+        assert_eq!(enumerator(instance), "USB");
+        assert_ne!(enumerator(instance), instance);
+    }
+
+    #[test]
+    fn a_class_name_is_read_as_the_shape_it_carries_and_not_invented_by_the_reader() {
+        // Both dictionaries this area compares: pydfu's class for libusb-win32, which is what this machine answered
+        // for the board, and WinUSB's published class. A name that is not the shape is refused rather than guessed.
+        assert_eq!(
+            guid_parts(PYDFU_LIBUSB_CLASS),
+            Some((
+                0x88BAE032,
+                0x5A81,
+                0x49F0,
+                [0xBC, 0x3D, 0xA4, 0xFF, 0x13, 0x82, 0x16, 0xD6]
+            ))
+        );
+        assert_eq!(
+            guid_parts(WINUSB_CLASS),
+            Some((
+                0xA5DCBF13,
+                0x4437,
+                0x40BB,
+                [0x9A, 0x12, 0x8E, 0x18, 0xF5, 0x91, 0xD4, 0x48]
+            ))
+        );
+        assert_eq!(guid_parts("{88bae032-5a81-49f0-bc3d-a4ff138216d6}"), None);
+        assert_eq!(guid_parts("88bae032-5a81-49f0-bc3d-a4ff138216d"), None);
+    }
+
+    #[test]
+    fn the_pair_a_published_filter_reads_appears_in_the_declaration_as_text() {
+        // pydfu's `FilterDFU` takes the pair from the interface settings after a device is open; here the same pair
+        // is what the element declares before anything is opened. The string is this machine's own answer for the
+        // board, written down before the rule was called.
+        assert_eq!(
+            pair_from_ids("USB\\Class_FE&SubClass_01&Prot_02"),
+            Some((DFU_CLASS, DFU_SUBCLASS))
+        );
+        // A declaration that does not say the pair is refused rather than read as zero, which is what a number the
+        // dictionary does not give looks like everywhere else in this project.
+        assert_eq!(pair_from_ids("USB\\VID_0483&PID_DF11"), None);
+        assert_eq!(pair_from_ids("USB\\Class_FE"), None);
     }
 
     #[test]
     fn a_driver_that_is_not_the_one_that_makes_it_ours_is_said_as_the_name_the_registry_gives() {
         assert!(is_our_driver("winusb"));
         assert!(is_our_driver("WinUsb"));
-        // What this machine says about the board while it answers as a vehicle: the class key of the port, not a
-        // driver. That is data, and it is not `winusb`.
+        // What this machine says about the board: the service behind its class-install key is WinUSB, while the key
+        // itself is a pair of numbers that can never be that name. Both are read, and the rule reads the first.
         assert!(!is_our_driver(
-            "{4d36e978-e325-11ce-bfc1-08002be10318}\\0035"
+            "{88bae032-5a81-49f0-bc3d-a4ff138216d6}\\0011"
         ));
+        // A board whose interface is bound to another one is on the bus and answers to the address, so a code that
+        // called every failure "not there" would say the wrong thing about it.
+        assert!(!is_our_driver("usbser"));
     }
 
     #[test]

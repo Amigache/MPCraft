@@ -404,12 +404,13 @@ cadenas que la interfaz ofrece — y el vinculo que llega a un bus real vive en
 `crates/mpcraft-winusb`, alcanzado desde la aplicacion detras de `hardware-tests`,
 porque una capa por debajo de la aplicacion no puede saber que WinUSB existe y porque
 `mpcraft-app` declara `forbid(unsafe_code)` mientras que las llamadas del sistema son
-funciones unsafe, lo que le da al vinculo su propio crate. El descriptor que esta placa
-pone en el cable es
-`09 21 0B FF 00 00 08 1A 01`, que es la forma que una lectura publicada escribe para un
-STM32, y los dos numeros que guarda — `0x0413` y `0x011a` — son los que
-STM32CubeProgrammer dice de la misma placa, asi que el acuerdo entre los dos caminos es
-un hecho y no una suposicion.
+funciones unsafe, lo que le da al vinculo su propio crate. El descriptor que una lectura
+publicada escribe para un STM32 es `09 21 0B FF 00 00 08 1A 01`, y ese es el literal con
+el que el area compara lo que la placa ponga en el cable cuando haya una interfaz que
+abrir; el numero que ese cuerpo guarda (`0x011a`) y el que la misma herramienta da para la
+familia (`0x0413`) son los que STM32CubeProgrammer dice de esta placa, asi que el acuerdo
+entre los dos caminos es un hecho y no una suposicion — y hoy, con cero filas publicadas,
+esa comparacion sigue pendiente de que la placa publique una ruta.
 
 Los numeros guardados vienen de una segunda implementacion del formato
 (`scripts/check-dfu-crc.js`), escrita desde la formula publicada y no desde la lectura que
@@ -460,37 +461,67 @@ Lo que se lee sin placa son las reglas, y las llamadas estan separadas de ellas:
 lleva el rasgo del dispositivo contestado con las llamadas del sistema detras de
 `cfg(windows)`, y lo que se afirma sin bus es como se lee la pareja (`0483:df11`, escrita
 por el entorno como el bus la escribe, porque una placa en su cargador no es una
-especificacion de conexion), como se clasifica una negativa al abrir, y el nombre del
-controlador que hace que una interfaz sea nuestra. El cuarto codigo es `device_not_ours`:
-la placa esta y no se puede abrir, que es otra cosa que `device_unreachable`, y las dos se
-leen por caminos distintos — la segunda cae cuando nada presente responde, la primera
-cuando el controlador no es el nuestro o cuando el asa no se puede tomar. Un paro y otra
+especificacion de conexion), como se clasifica una negativa al abrir, como se lee el
+enumerador a partir de una ruta de instancia, y el nombre del servicio detras de la clave
+de clase que hace que una interfaz sea nuestra: `SPDRP_DRIVER` dice la clave y
+`SPDRP_SERVICE` dice el servicio detras de ella, que son dos cosas distintas y una clave
+no puede ser nunca el nombre con el que la regla compara — en esta placa la clave dice
+`{88bae032-5a81-49f0-bc3d-a4ff138216d6}\0011` y el servicio dice `WinUSB`, asi que la
+regla lee el segundo. El cuarto codigo es `device_not_ours`: la placa esta y no se puede
+abrir, que es otra cosa que `device_unreachable`, y las dos se leen por caminos distintos
+— la segunda cae cuando nada presente responde, la primera
+cuando el servicio no es el nuestro, cuando el asa no se puede tomar, o cuando la instancia
+esta y no publica ninguna interfaz que se pueda leer. Un paro y otra
 negativa se parecen por este camino, asi que el vinculo dice que la interfaz rechazo la
 peticion y dice que no puede decir cual de las dos fue; el numero con que el sistema
 contesto no tiene donde viajar dentro de ese codigo, y es lo que el area viva escribe
-cuando una placa contesta. El numero de la interfaz y el indice de la cadena de memoria se
-leen de la interfaz, que es lo que pydfu hace por `intf.iInterface` y no por un numero que
-el lector elige. Y la regla que decide que una interfaz es de esta clase es otra lectura
-que la del vinculo: pydfu pide el par 0xFE y 1, aqui se decide por el nombre del
-controlador, y las dos se comparan contra la misma placa en lugar de tratarse como una.
+cuando una placa contesta, con el diccionario nombrado junto al numero porque el diccionario
+lo decide la llamada y no el numero: 13 es `ERROR_INVALID_DATA` cuando lo contesto
+`SetupDiGetClassDevsW` — que es lo que pasa cuando se le da la ruta de la instancia donde
+la llama pide el enumerador — y es `CR_NO_SUCH_DEVNODE` cuando lo contesto
+`CM_Locate_DevNodeW`, y esas son dos hechos sobre la misma placa que un verde anterior
+confundio. Un elemento se alcanza por su id con `SetupDiOpenDeviceInfoW`, que es otra lectura
+que enumerar un conjunto armado a partir de una ruta de instancia, y el numero que cada llamada
+contesta se atribuye a esa llamada dentro del codigo que lo lleva. El numero de la interfaz y el
+indice de la cadena de memoria se leen de la interfaz, que es lo que pydfu hace por
+`intf.iInterface` y no por un numero que el lector elige. Y la regla que decide que una interfaz
+es de esta clase es otra lectura que la del vinculo: pydfu pide el par 0xFE y 1, aqui se decide
+por el nombre del servicio, y las dos se comparan contra la misma placa en lugar de tratarse como
+una; una tercera lectura es lo que la declaracion de la instancia dice antes de que nada se abra,
+donde el par aparece como texto (`USB\Class_FE&SubClass_01&Prot_02`) y se lee con una regla que
+rechaza una cadena que no lo dice en lugar de inventarlo.
 
-El area viva (`crates/mpcraft-app/tests/dfu_live.rs`, detras de `hardware-tests` y
-`windows`) dice hoy lo que el bus contesta: el registro conserva cinco filas para
-`USB\VID_0483&PID_DF11` y cada una responde `CR_NO_SUCH_DEVNODE` (13), porque recordar no
-es estar — `CM_Get_Device_ID_ListW` da las filas que el registro tiene y la presencia se
-decide con `CM_Locate_DevNodeW`, que es lo que separa las dos lecturas y lo que hoy se
-afirma. Una lectura distinta del mismo registro — la interfaz que Windows expone por WMI —
-da las mismas cinco filas y el mismo estado para todas, asi que el conteo no depende del
-camino por el que se lee. La placa si esta, pero como
-`USB\VID_1209&PID_5741\3C0026000D47363530313133` en la clase de los puertos, con el
-controlador `{4d36e978-e325-11ce-bfc1-08002be10318}\0035`, que no es `winusb` y que una
-segunda lectura del registro (la propiedad que Windows expone por WMI para ese dispositivo)
-dice igual, asi que hoy el area afirma la negativa que separa los dos codigos y no el
-descriptor. Lo que la placa
-podria decir cuando este en su cargador es lo que el area compara con las dos lecturas
-publicadas: los nueve bytes del descriptor, el numero `0x011a` que STM32CubeProgrammer da
-para esta placa, y los doce sectores de la geometria que el propio escritor de ArduPilot
-declara para esta familia (4 de 16K, 1 de 64K, 7 de 128K, un megabyte entero). Poner la
+El area viva (`crates/mpcraft-app/tests/dfu_live.rs`, detras de `hardware-tests` y `windows`)
+afirma cada mitad por sus propios hechos y no por un resultado esperado: el registro conserva
+cinco filas para `USB\VID_0483&PID_DF11` y hoy una de ellas contesta como estando — la que la
+placa pone ahora en el cable, `USB\VID_0483&PID_DF11\3357316C3536` — mientras las otras cuatro
+responden `CR_NO_SUCH_DEVNODE` (13), porque recordar no es estar: `CM_Get_Device_ID_ListW` da las
+filas que el registro tiene y la presencia se decide con `CM_Locate_DevNodeW`, que es lo que
+separa las dos lecturas y lo que el area afirma fila por fila. Una segunda lectura del mismo
+registro, la propiedad que Windows expone por WMI, da las mismas cinco filas, asi que el conteo no
+depende del camino por el que se lee, y esa lectura dice `Status OK` para la fila que hoy esta, con
+el nombre que el elemento lleva: `STM32  BOOTLOADER`. Lo que el elemento contesta por su id es lo
+que el area compara, y alli la clave de clase `{88bae032-5a81-49f0-bc3d-a4ff138216d6}\0011` y el
+servicio `WinUSB` son dos nombres del mismo hecho: la regla lee el segundo, y el nombre que el
+elemento dice que su clase es coincide con el que pydfu nombra para libusb-win32, mientras la
+declaracion del elemento lleva el par 0xFE y 1 como texto, que es la tercera lectura y coincide con
+el par que el filtro publicado pide aunque por otro camino.
+
+Lo que no se puede leer hoy por este vinculo se dice en lugar de suponerse: la instancia esta y su
+servicio es el nuestro, pero no publica ninguna interfaz — la lista da cero filas tanto para la
+clase que el elemento dice como para la que WinUSB publica, y `SetupDiEnumDeviceInterfaces` contesto
+259 (no hay mas elementos) para las dos, que es como lo lee la segunda lectura del mismo hecho; por
+eso el descriptor, el indice de la cadena y el estado no se pueden afirmar por este camino, y lo que
+el area afirma hoy es la negativa `device_not_ours`, que cae antes de que nada viaje por el cable y
+que es el codigo correcto porque la placa si esta. pydfu tampoco encontraria una fila: su filtro mira
+su propia clase, que es la misma que aqui da cero. La lectura por todas las clases no la lleva este
+vinculo — la bandera de "todas las clases" no es una llamada que este crate use, y la segunda lectura
+que la pidio fue contestada con 4 como numero del diccionario de Config Manager, no con una lista —
+asi que lo afirmado descansa en los dos nombres publicados. Lo que la placa podria decir cuando haya
+una interfaz que abrir sigue escrito contra las dos lecturas publicadas: los nueve bytes del
+descriptor, el numero `0x011a` que STM32CubeProgrammer da para esta placa, y los doce sectores de la
+geometria que el propio escritor de ArduPilot declara para esta familia (4 de 16K, 1 de 64K, 7 de
+128K, un megabyte entero), y esa mitad corre cuando una instancia publique una ruta. Poner la
 placa alli no depende de esta maquina: se alcanza sosteniendo BOOT al encender o con la
 orden que la sostiene, y la puerta nombra eso como lo que el operador pone; y un solo
 proceso tiene el dispositivo a la vez, por eso el area corre sola y las comparaciones
