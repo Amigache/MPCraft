@@ -830,6 +830,18 @@ falta entonces es abrir la puerto, que es lo que el operador dice, porque esa pu
 dispositivo que puede estar usándola, y sin abrir nada los bytes cruzarían por un peer escrito para responder
 en lugar de por un canal.
 
+La lectura que nombra los servicios de un periférico emparejado vive dentro del subkey `Properties` de su
+instancia, y ese subkey contesta 5 por el diccionario Win32 de `RegOpenKeyExW` — el mismo 5 que el camino de
+abrir llama `HANDLE_HELD`, porque el diccionario pertenece a la llamada y no al número — mientras las claves de
+la instancia se leen sin elevación: la ruta que la máquina escribe para
+`BTHLE\Dev_001b1062c13c\b&548bea1&0&001b1062c13c` dice la clase Bluetooth (`{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}`)
+con el servicio `BthLEEnum`, que no es el de una fila serie, así que esta instancia no es un canal por el que
+viajan bytes aunque diga el nombre de Bluetooth. Las dos rutas son dos lecturas y se mantienen aparte: la carpeta
+que la clave del dispositivo llama por su nombre contesta 2 (no hay nada ahí), que es otra cosa que la negativa,
+y por eso cada número se nombra junto a la llamada que lo contestó. Lo que cerraría la fila es una lectura
+elevada de esa clave, o el permiso del operador para abrir la puerto de un dispositivo que ofrece el perfil
+serie, y ninguna de las dos depende de este archivo.
+
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the
 radio, and the channels are sent to the vehicle twenty times a second, the way a

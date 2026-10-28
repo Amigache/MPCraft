@@ -96,6 +96,8 @@ MPCraft/
 │   ├── mpcraft-params/     # parameter metadata repository, types, ranges, bitmasks
 │   ├── mpcraft-log/        # tlog, DataFlash (.log/.bin), ULog, KML export
 │   ├── mpcraft-settings/   # persisted config, plugin registry, recent-connections
+│   ├── mpcraft-plugin/     # the capability-scoped sandbox; the only crate that knows a runtime exists
+│   ├── mpcraft-winusb/     # the OS binding for a board in its bootloader, and the machine's serial map
 │   └── mpcraft-app/        # application orchestration, event bus, app-wide state
 ├── apps/
 │   ├── desktop/            # Tauri v2 binary (thin: delegates to mpcraft-app)
@@ -331,20 +333,23 @@ built and verified:
 
 | Component | State |
 | --- | --- |
-| `mpcraft-mavlink` | Frame parser and encoder (v1/v2), CRC with CRC_EXTRA seeds, signature handling, packet inspector — **34 tests** |
-| `mpcraft-transport` | `Transport` trait, `ConnectionSpec` parser, serial / UDP / TCP / file transports — **40 tests** |
-| `mpcraft-geo` | Geodesy, pure-Rust UTM and MGRS — **15 tests**, validated against PROJ and two independent MGRS implementations |
-| `mpcraft-vehicle` | Telemetry snapshot with derived values and staleness tracking — **10 tests** |
-| `mpcraft-link` | Session, heartbeat negotiation, vehicle registry, loss accounting, telemetry aggregation, the parameter and mission protocols — **67 tests** |
-| `mpcraft-params` | The parameter model, the encoding rules and the capability gate — **14 tests** |
-| `mpcraft-mission` | The plan model, the MAV_CMD metadata and the wire conversions — **21 tests** |
-| `mpcraft-mission` | Mission model and `MAV_CMD` metadata table — **10 tests** |
-| `mpcraft-app` | The IPC contract and its stable error codes — **5 tests** |
-| `mpcraft-cli` | `mpcraft-cli ports \| connect \| params \| mission` |
-| `apps/desktop`, `apps/ui` | Tauri v2 shell and the typed IPC bridge |
-| CI | Format, clippy, test and build gates on Windows, Linux and macOS |
+| `mpcraft-mavlink` | Frame parser and encoder (v1/v2), CRC with CRC_EXTRA seeds, signature handling, packet inspector — **44 tests** |
+| `mpcraft-transport` | `Transport` trait, `ConnectionSpec` parser, serial / UDP / TCP / file transports, NTRIP, and the Bluetooth channel as a COM port with its reading beside it — **56 tests**, eight of them the rules about which row belongs to Bluetooth |
+| `mpcraft-geo` | Geodesy, pure-Rust UTM and MGRS, DTED and the terrain service — **82 tests** (one held back as a known gap) |
+| `mpcraft-vehicle` | Telemetry snapshot with derived values, per-vehicle state, the mode tables, and the formation decision — **41 tests** |
+| `mpcraft-link` | Session, heartbeat negotiation, vehicle registry, loss accounting, telemetry aggregation, the parameter, mission, command and file-transfer protocols — **223 tests** across its own binaries |
+| `mpcraft-params` | The parameter model, the encoding rules and the capability gate — **34 tests** |
+| `mpcraft-mission` | The plan model, the MAV_CMD metadata, fences and rallies, the wire conversions, and the import and export formats — **81 tests** |
+| `mpcraft-log` | tlog, DataFlash text and binary, and PX4 ULog readers, KML and CSV export — **54 tests** |
+| `mpcraft-settings` | The hand-editable settings file: profiles, the plugin decisions, the signing keys, the places of the formation — **23 tests** |
+| `mpcraft-plugin` | The capability-scoped sandbox, the four stages, and the ceilings — **27 tests** |
+| `mpcraft-winusb` | The device trait answered through the OS calls, and the machine's own map of serial ports — **14 tests** |
+| `mpcraft-app` | The application layer, the IPC contract with its stable codes, the supervisor and the policy that lives in it — **193 tests** |
+| `mpcraft-cli` | `mpcraft-cli ports \| connect \| params \| mission \| arm \| mode \| takeoff \| disarm`, driven against a simulated vehicle written from the specification rather than from this crate |
+| `apps/desktop`, `apps/ui` | Tauri v2 shell, the typed IPC bridge read from both sides, the screens, the stores and the formatting module — six tests on the shell side |
+| CI | Format, clippy, test, contract, parity, lint, prettier and launch gates, each naming its known-bad case and what it cannot see |
 
-**205 tests pass. `clippy -D warnings` and `rustfmt --check` are clean.**
+**The counts above are worked out from the report of each binary rather than remembered, and they add up to 878; thirty-one more come from the doc examples, which makes 909 in the run that produced this reading.** Seven live areas answered with nothing in that run because no device or row was named (`bluetooth_live`, `dfu_live`, `hardware_live`, `plugins_live`, `streams_live`, `bootloader_live`, `sitl`); when the environment names their target they answer, and each of them is read from its own report — `bluetooth_live` answered five green with `MPCRAFT_BT_ROW` naming the row it reads, which is the only one of those seven this machine could answer today. The frontend layer is not counted here: its gates are Vitest, Playwright and eslint, and a layer that was not touched by a change is said as `NO-APLICA` rather than counted as evidence. `clippy -D warnings` and `rustfmt --check` are clean.
 
 ### Phase 0, Task 2 — the transport layer: what was built
 
@@ -370,6 +375,13 @@ Two deliberate decisions:
 - **Replaying a `.tlog` with its original timing lives in `mpcraft-log`, not here.** The
   transport is byte-oriented and knows nothing about the log format; `mpcraft-log` implements
   the same trait and does understand the records.
+
+A fifth transport arrived in phase 5, and it keeps the same rule to itself: the Bluetooth serial channel is a COM
+port, so the bytes are moved by the code above, and what the new module adds is only which row of the machine's
+map belongs to Bluetooth — read through the prefix the RFCOMM service writes and the service the install bound the
+instance to, not through the class the row names. The board in its bootloader stayed outside the trait, because it
+answers requests rather than moving bytes, and its OS binding lives in `crates/mpcraft-winusb`, which also reads
+the map this channel stands on.
 
 ### Phase 0, Task 3 - the session: what was built
 

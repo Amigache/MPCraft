@@ -467,10 +467,13 @@ downsamples rather than replays raw samples.
   device trait below it carries no operating-system types.
 - A Bluetooth serial channel is reached through the machine's own writings, and the reading half asks for no
   elevation: `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM` and the values on a device key are read as they are written,
-  while writing a class key does ask for elevation and is named as what the operator supplies. Nothing is opened
-  on a port that belongs to a module that may be using it, and both refusals at the rules — a row with no device
-  behind it, a row that is not the shape a reader can read — fall before anything travels on the cable. The GATT
-  half is not carried because it would need a runtime, which only the plugin sandbox is allowed to carry.
+  while writing a class key does ask for elevation and is named as what the operator supplies. So does the subkey
+  that holds which services a paired peripheral announces: on this machine it answered with a refusal at the
+  privilege the run has, and that refusal is the fact that keeps upstream's enumeration filter outside what can be
+  asserted here. Nothing is opened on a port that belongs to a module that may be using it, and both refusals at
+  the rules — a row with no device behind it, a row that is not the shape a reader can read — fall before anything
+  travels on the cable. The GATT half is not carried because it would need a runtime, which only the plugin sandbox
+  is allowed to carry.
 - A board in its bootloader is named by the environment as the pair the bus writes it
   (`MPCRAFT_DFU_TARGET`), not as a connection specification, because it answers requests rather than
   moving bytes. The half that erases runs only when the operator names it with a flag

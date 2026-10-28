@@ -106,6 +106,12 @@ pub const NOTHING_THERE: u32 = 2;
 /// (`ERROR_ACCESS_DENIED`).
 pub const HANDLE_HELD: u32 = 5;
 
+/// The same 5 read through the registry path: what `RegOpenKeyExW` answers when the reading is not allowed at this
+/// privilege (`ERROR_ACCESS_DENIED`). It is not the same fact as the number above even though it is the same
+/// number, because the dictionary belongs to the call and not to the value — which is the rule that kept the two
+/// thirteens apart.
+pub const READING_NOT_ALLOWED: u32 = 5;
+
 /// The number that says the instance is there and is held without sharing, in the same dictionary
 /// (`ERROR_SHARING_VIOLATION`).
 pub const HELD_WITHOUT_SHARING: u32 = 32;
@@ -583,6 +589,32 @@ pub mod bus {
     /// elevated prompt, which the gate names as what the operator supplies.
     pub fn interface_guid_value(instance: &str) -> Option<String> {
         device_key_value(instance, INTERFACE_GUID_VALUE)
+    }
+
+    /// What the call answers for a subkey of a device key, kept because the answer is the fact. The values on the
+    /// instance itself are read without elevation, which is what `device_key_value` does; the `Properties` subkey
+    /// answers `READING_NOT_ALLOWED` at that privilege, and the names of the services a paired peripheral announces
+    /// live inside it, so which of the two states the reading is in decides whether those names can be reached here
+    /// at all. The number is read through the Win32 dictionary, because the call that answered it is a `Reg*` call,
+    /// and nothing is invented when the answer is a refusal. The folder the device key holds and the instance under
+    /// it are two readings, so the path is named in what is asked: only the instance carries that subkey, and an
+    /// answer of `NOTHING_THERE` says the path asked for was not there rather than that the reading was refused.
+    pub fn subkey_answer(instance: &str, subkey: &str) -> u32 {
+        let key = format!("SYSTEM\\CurrentControlSet\\Enum\\{instance}\\{subkey}");
+        let wide = nul_terminated(&key);
+
+        unsafe {
+            let mut handle = HKEY::default();
+
+            RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                PCWSTR(wide.as_ptr()),
+                None,
+                KEY_READ,
+                &mut handle,
+            )
+            .0
+        }
     }
 
     /// One value of a device key, read through the path as the registry stores it — `SYSTEM\CurrentControlSet\Enum\`

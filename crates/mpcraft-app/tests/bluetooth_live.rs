@@ -31,7 +31,9 @@ use mpcraft_transport::{
     upstream_port_label, EnumRow, MapRow, AUDIO_CLASS, BLUETOOTH_CLASS, BTH_ENUMERATOR,
     NETWORK_CLASS, PORTS_CLASS, RFCOMM_PREFIX, RFCOMM_SERVICE, SERIAL_PROFILE,
 };
-use mpcraft_winusb::{bus, dictionary_of, NO_MORE_ITEMS, WIN32_DICTIONARY};
+use mpcraft_winusb::{
+    bus, dictionary_of, HANDLE_HELD, NO_MORE_ITEMS, READING_NOT_ALLOWED, WIN32_DICTIONARY,
+};
 
 /// The service upstream's own filter looks for (`CommsBLE.cs`). Nothing on this machine advertises it, so the number
 /// is read as data in `docs/PARITY.md` and cannot be asserted against a device.
@@ -267,6 +269,79 @@ fn what_this_area_cannot_reach_is_said_rather_than_assumed() {
     // list, and no characteristic to write or read through.
     assert_eq!(RFCOMM_PREFIX.to_ascii_lowercase(), "bthmodem");
     println!("the half that scans and reads characteristics is not carried here, so nothing about a device is claimed");
+}
+
+#[test]
+fn what_a_paired_peripheral_announces_cannot_be_read_at_this_privilege() {
+    // The values on an instance are read without elevation, which is what `device_key_value` does here, and that is
+    // why the class and the service of a serial row can be asserted against what the machine writes. The names of
+    // the services a paired peripheral announces live inside the `Properties` subkey of its instance, and this
+    // machine answered that subkey with `READING_NOT_ALLOWED` — the same 5 the open path names `HANDLE_HELD`, read
+    // through the dictionary of the call that answered it rather than through the number, which is what keeps the
+    // two facts apart. So the filter upstream builds cannot be read against this peripheral from here, and the state
+    // is held as data instead of being asserted as one expected outcome. Two paths are kept apart because they are
+    // two readings: the folder the device key holds answers with what it answers, and the instance under it is where
+    // the `Properties` subkey actually is.
+    const LE_FOLDER: &str = "BTHLE\\Dev_001b1062c13c";
+    const LE_INSTANCE: &str = "BTHLE\\Dev_001b1062c13c\\b&548bea1&0&001b1062c13c";
+
+    assert_eq!(dictionary_of(bus::OPEN_CALL), WIN32_DICTIONARY);
+
+    let folder = bus::subkey_answer(LE_FOLDER, "Properties");
+    let instance = bus::subkey_answer(LE_INSTANCE, "Properties");
+
+    println!(
+        "{} answered {} for the subkey of {LE_FOLDER}, through the {}",
+        bus::OPEN_CALL,
+        folder,
+        dictionary_of(bus::OPEN_CALL)
+    );
+    println!(
+        "{} answered {} for the same subkey under the instance {}, through the {}",
+        bus::OPEN_CALL,
+        instance,
+        LE_INSTANCE,
+        dictionary_of(bus::OPEN_CALL)
+    );
+
+    if instance == READING_NOT_ALLOWED {
+        println!(
+            "  which services the peripheral announces is outside of what this area can read at this privilege, so \
+             upstream's filter stays a fact read from the published source and not an assertion"
+        );
+    } else {
+        println!(
+            "  at this privilege the instance subkey was readable, so the filter would have to be read against what \
+             the instance says rather than against a name written by the test"
+        );
+    }
+
+    // The instance itself answers without elevation, which is the contrast that makes the two readings different:
+    // the same path gives its class and the service the install bound it to, and that service is not the RFCOMM one,
+    // so this instance is not a channel bytes travel on even though it carries the Bluetooth class.
+    let class_said = bus::device_key_value(LE_INSTANCE, "ClassGUID");
+    let service_said = bus::device_key_value(LE_INSTANCE, "Service");
+
+    println!(
+        "  the instance itself was read without elevation: class {class_said:?}, service {service_said:?}"
+    );
+
+    if let (Some(class), Some(service)) = (&class_said, &service_said) {
+        assert!(belongs_to_class(class, BLUETOOTH_CLASS));
+        assert!(
+            !service_is_rfcomm(service),
+            "the class says Bluetooth; the service the instance is bound to is not the one a serial row carries"
+        );
+    } else {
+        println!(
+            "  the key answered with nothing for this run, so the two names are not compared here"
+        );
+    }
+
+    assert_eq!(
+        READING_NOT_ALLOWED, HANDLE_HELD,
+        "the same number, two facts: the dictionary belongs to the call that answered it"
+    );
 }
 
 #[test]
