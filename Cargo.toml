@@ -90,7 +90,7 @@ getrandom = "0.2"
 
 # The client that reaches the files of a companion computer over SSH. The cryptography is the
 # backend the SSH library carries; this workspace does not implement a cipher of its own.
-russh = { version = "0.63", default-features = false, features = ["ring", "flate2", "rsa"] }
+russh = { version = "0.64", default-features = false, features = ["ring", "flate2", "rsa"] }
 russh-sftp = "3"
 
 # The WASM runtime behind the plugin sandbox. It is the only runtime dependency in the workspace,
