@@ -307,7 +307,9 @@ const GATES = [
      * it cannot show what a machine writes in its own registry. Two things are said rather than assumed: nothing is
      * opened on COM40, because that port belongs to a module that may be using it, and no peripheral on this machine
      * advertises the Nordic UART service, so upstream's enumeration filter has nothing to find and its half stays
-     * outside the crate, since no runtime is carried here.
+     * outside the crate, since no runtime is carried here. What would close the row is the pair the machine writes
+     * for a device that offers the Serial Port profile — a classic profile, which a GATT tool cannot offer — and the
+     * port itself, which this area does not open because it belongs to a device that may be using it.
      */
     command: "cargo",
     probe: [TOOLCHAIN, "--version"],

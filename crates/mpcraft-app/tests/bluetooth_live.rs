@@ -20,7 +20,9 @@
 //! Two things are said rather than assumed. No peripheral on this machine advertises the Nordic UART service, so
 //! upstream's enumeration filter has nothing to find and its rule stays outside this crate; and no runtime is
 //! carried here, since the plugin sandbox is the one place a runtime dependency is allowed, which is why the GATT
-//! half is not ported at all.
+//! half is not ported at all. The half that would close the row is the pair the machine writes for a device that
+//! offers the Serial Port profile — which only the classic profile carries, so a GATT-only tool cannot write it —
+//! and the port itself, which this area does not open because that belongs to a device that may be using it.
 
 #![cfg(all(feature = "hardware-tests", windows))]
 
@@ -265,4 +267,48 @@ fn what_this_area_cannot_reach_is_said_rather_than_assumed() {
     // list, and no characteristic to write or read through.
     assert_eq!(RFCOMM_PREFIX.to_ascii_lowercase(), "bthmodem");
     println!("the half that scans and reads characteristics is not carried here, so nothing about a device is claimed");
+}
+
+#[test]
+fn a_device_that_only_speaks_gatt_is_not_the_shape_the_port_reads() {
+    // The map lists ports, so a device that carries no serial profile has nothing to be listed under it. That is
+    // what keeps the two paths apart, and it is read through the enumerator this machine writes for the paired
+    // peripheral: `BTHLE`, not the enumerator the RFCOMM rows are written under. The rule refuses a path that does
+    // not say that enumerator rather than inventing one, so a GATT device cannot be turned into a serial row by the
+    // reading.
+    const LE_PATH: &str = "BTHLE\\Dev_001b1062c13c";
+
+    assert_eq!(mpcraft_winusb::enumerator(LE_PATH), "BTHLE");
+
+    let refused = EnumRow::read(LE_PATH)
+        .expect_err("the path says BTHLE, not the enumerator these readers address");
+    assert_eq!(refused.code(), "bluetooth_row_not_the_shape");
+
+    println!(
+        "the paired peripheral lives under {LE_PATH}, and the rule keeps it as the shape it has"
+    );
+
+    // A pair of the map never carries an address: it carries the device name and the port. So the device half can
+    // only come from the instance path, which is why a GATT-only device has no pair here to read — said as data,
+    // because the reading cannot see which instance wrote a row.
+    let readings = bus::map_rows();
+
+    if readings.open_answer == 0 && !readings.cap_reached {
+        for row in readings.rows.iter().filter_map(|row| row.as_ref().ok()) {
+            assert!(
+                !row.device_name.to_lowercase().contains("001b1062c13c"),
+                "no row of the map names this device"
+            );
+        }
+
+        println!(
+            "none of the {} rows the map answers today names this device, so the pair for it does not exist",
+            readings.rows.len()
+        );
+    }
+
+    println!(
+        "the service behind the COM rows is {RFCOMM_SERVICE} (`mdmbtmdm.inf`), which is a classic profile: bytes \
+         cross only through a device that offers the Serial Port profile, and nRF Connect cannot offer it"
+    );
 }

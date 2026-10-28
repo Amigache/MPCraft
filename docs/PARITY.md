@@ -814,6 +814,22 @@ máquina falló, con las dos mitades leídas como sus propios informes, que es l
 verde del peer no valga por un área que no leyó ninguna fila. Y nada se abre en COM40: esa puerto
 pertenece a un módulo que puede estar usándola.
 
+El mapa lista puertos, así que una periferica que solo habla GATT no tiene fila: esta máquina la escribe
+bajo `BTHLE\Dev_001b1062c13c` — tres instancias de servicio, ninguna es el perfil serie — y no bajo el
+enumerador del que salen las filas RFCOMM, por eso la regla rechaza esa ruta en lugar de inventar el
+enumerador, y ninguna de las siete filas nombra esa dirección, porque una fila del mapa nunca lleva una
+dirección: lleva el nombre del dispositivo y el puerto, y la mitad del dispositivo solo puede venir de la
+ruta de la instancia. Lo que sí puede cerrar la fila es lo que la máquina escribiría para un dispositivo que
+ofrece el perfil Serial Port: el soporte está aquí (`mdmbtmdm.inf`, servicio `BTHMODEM`) y los perfiles que
+las filas contestan son `1101`, `110B`, `110E` y `111E`, pero solo `1101` lleva corriente, y ese es un perfil
+clásico, así que nRF Connect no puede escribir esa fila — es una herramienta GATT — mientras una app de
+terminal serie sobre el teléfono sí podría, porque eso es lo que hace que Android publique el perfil por SDP.
+Con esa fila escrita el área lee lo mismo que lee hoy, pero por una instancia que la máquina escribió para un
+dispositivo que decidió emparejar, y los números siguen atribuidos a la llamada que los contestó; lo que
+falta entonces es abrir la puerto, que es lo que el operador dice, porque esa puerto pertenece a un
+dispositivo que puede estar usándola, y sin abrir nada los bytes cruzarían por un peer escrito para responder
+en lugar de por un canal.
+
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the
 radio, and the channels are sent to the vehicle twenty times a second, the way a
