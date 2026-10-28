@@ -502,15 +502,31 @@ ese nombre: es el valor que la instalacion escribe sobre la clave del dispositiv
 camino generico lo salta, y esa es la rama que esta maquina tiene: la clave no lleva el valor, y la
 lectura por `reg query` lo dice igual que la lectura del crate, que lo lee sin elevacion. Leer esa
 clave no pide privilegios; escribirla si, y por eso la puerta nombra esa escritura como lo que el
-operador pone, junto con BOOT sostenido al encender: el crate lee y no escribe.
+operador pone, junto con BOOT sostenido al encender: el crate lee y no escribe. Y las dos lecturas de la
+herramienta contestan como se leyo hoy, cada una por su propio hecho: `pnputil /add-driver dfu-winusb.inf
+/install` rechazo el paquete porque un INF de otro fabricante no lleva informacion de firma digital, que es una
+regla de la herramienta sobre los paquetes de terceros y no sobre el privilegio de esta ejecucion — asi que por
+este camino el archivo nombra la intencion, y lo que puede cerrar la fila sin un certificado es escribir el valor
+mismo con elevacion, o firmar el paquete, o aceptar la firma de prueba, que son tres cosas que decide el operador
+y ninguna depende de este archivo; y `pnputil /restart-device` contesto correctamente sin pedir elevacion, que es
+otra cosa que la escritura del valor: volver a enumerar una instancia no la pidio aqui, asi que cada llamada se
+nombra con su propio hecho y no con una regla sobre el proceso. Despues de ese reinicio la clave sigue sin el
+valor, las dos listas dan cero filas y el area sigue leyendo `device_not_ours`, que es lo que el area afirma hoy;
+lo que hace falta para pasar de ahi es el valor escrito, y el descriptor, el indice de la cadena, los doce sectores
+y cual forma de la orden de borrado entiende este build siguen pendientes de que haya una fila que abrir.
 
 Hay un hecho mas sobre ese valor, y es el que decide lo que este programa puede alcanzar: la fila
 contesta bajo el nombre que el valor escribe, que no tiene por que ser el nombre que el elemento dice
 que su clase es, porque el vinculo lee la lista de interfaces a traves de ese ultimo (`read_element`
 usa `info.ClassGuid`). Un valor que nombra otra cadena pone una fila en la placa y deja a este programa
-contestando `device_not_ours`, mientras el filtro publicado encuentra esa fila por su propio camino. Por
-eso el area lee las filas a traves del valor y no a traves de un nombre escrito aqui, y dice si los dos
-nombres coinciden como un dato; y por eso el archivo que el operador ejecuta elevando escribe
+contestando `device_not_ours`, porque para este vinculo la fila contesta bajo el nombre que el valor escribe
+y no bajo el par. Y el par se lee de lo que la interfaz dice sobre sí misma cuando hay una fila que abrir: lo
+que decide que la fila exista es el valor, y pydfu enumera por el nombre con el que su propia lectura busca, que
+es el guid que WinUSB usa como muestra — una tercera lectura, no la misma regla escrita dos veces —, asi que escribir
+un solo nombre sirve al camino de este programa y no dice nada sobre el otro. Lo que el area lee es el primer
+nombre que el valor dice, porque la lectura de una cadena ancha para en el terminador, y eso se dice como un
+hecho del lector; por eso el area compara las filas a traves del valor y no a traves de un nombre escrito aqui,
+y dice si los dos nombres coinciden como un dato. Por eso el archivo que el operador ejecuta elevando escribe
 `{88bae032-5a81-49f0-bc3d-a4ff138216d6}` (`scripts/dfu-winusb.inf`), escrito desde la forma que el INF
 publicado de Windows para esta familia lleva en esta maquina (`winusb.inf`, leido aqui: la misma clase y
 el mismo servicio) mas el valor, que es lo unico que este proyecto lee y no puede escribir. Los tres
@@ -580,7 +596,10 @@ conocido-malo (`scripts/check-dfu-crc-controls.js`: un literal que no coincide c
 propia tabla, una pareja escrita como si las dos lecturas coincidieran, un escritor cuyo
 tamano del objetivo va sin su prefijo, un valor nombrado como si el nombre que la puerta lee a
 traves del elemento fuera el mismo hecho —que es el estado que este cambio encontro—, una
-declaracion de clase que nombra otro string, y un archivo que declara clase y no escribe nada)
+declaracion de clase que nombra otro string, un archivo que declara clase y no escribe nada, un valor escrito
+como una palabra cuando el registro guarda una lista de nombres, el par del filtro escrito como si decidiera las
+dos reglas cuando aqui se decide por el servicio, y un limite que nombra los numeros y el escritor pero no el
+archivo que lee como texto)
 y lo que no alcanza: lee los literales como texto, no ejecuta el modulo, y la comparacion entre
 la regla del codigo y estas tablas es lo que el test del propio modulo lleva; y lee el archivo del
 operador como texto, asi que no muestra que una instalacion elevada escriba el valor ni que la fila

@@ -172,6 +172,20 @@ const cases = [
     allowExtra: /never matched/,
   },
   {
+    side: "inf",
+    claim:
+      "a value written as one word instead of as a list of names is caught",
+    mutated: mutate(
+      inf,
+      /^HKR,,DeviceInterfaceGUIDs,0x10000,/,
+      'HKR,,DeviceInterfaceGUIDs,0x10001,"{88bae032-5a81-49f0-bc3d-a4ff138216d6}"',
+    ),
+    /* The live area reads the value as wide text and stops at the terminator, so what it sees is the first name;
+       a copy that writes the value as `REG_SZ` says the reading would get a list, which it would not. */
+    expect: /the file writes the value with "0x10001"/,
+    allowExtra: /never matched/,
+  },
+  {
     side: "device",
     claim: "a pair written as if it decided both rules is caught",
     mutated: mutate(

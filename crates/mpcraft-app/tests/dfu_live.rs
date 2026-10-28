@@ -213,7 +213,10 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
     // of the three published names the install wrote is said rather than assumed. What follows from that is a fact
     // about this binding rather than about the format: the interface list is read through the class the element
     // reports, so a value naming another string leaves a row that this program cannot open, while the published
-    // reader decides by the pair it takes from the interface settings — a second rule, not the same one.
+    // reader decides by the pair it takes from the interface settings — a second rule, not the same one. And the
+    // reading sees the first name the value says, because `as_text` stops at the terminator, so a value carrying
+    // more than one name is read as its first here; that is said as a fact about the reader rather than as a claim
+    // about what the install wrote.
     if let Some(value) = written.as_ref() {
         let rows =
             bus::rows_for_class(value, &found.instance).expect("the list answers as it says");

@@ -21,6 +21,12 @@
 ; Run once, from an elevated prompt:
 ;   pnputil /add-driver dfu-winusb.inf /install
 ;   pnputil /restart-device "USB\VID_0483&PID_DF11\3357316C3536"
+; What this machine answered today is said rather than assumed: the first call refused the package because a
+; third-party INF carries no digital signature information — a rule of the tool about packages of other makers,
+; not about the privilege of the run — so what closes the row without a certificate is writing the value itself
+; on the device key with elevation (or signing the package, or accepting test signing), each of which is something
+; the operator decides. The second call answered as succeeding without asking for elevation, which is a different
+; fact from the write: re-enumerating an instance did not ask for it here, so each call names its own answer.
 ; Then, with BOOT held at power-on so the instance answers as its bootloader, the live area reads what
 ; the board puts on the cable: crates/mpcraft-app/tests/dfu_live.rs behind `hardware-tests`, with
 ; MPCRAFT_DFU_TARGET=0483:df11, one process holding the device at a time.

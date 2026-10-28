@@ -231,21 +231,29 @@ function namesOfDevice(device) {
 /** What pydfu's published filter takes, said as data so the literals can be compared with it. */
 const PYDFU_PAIR = { dfuClass: 0xfe, dfuSubclass: 1 };
 
-/** What the file the operator runs with elevation says: the class it declares and the value it writes. */
+/** What the file the operator runs with elevation says: the class it declares, and the value it writes. */
 function namesOfInf(text) {
   return {
     classGuid: (
       text.match(/^ClassGuid=\{?([0-9a-fA-F][0-9a-fA-F-]*)\}?/m)?.[1] ?? ""
     ).toLowerCase(),
     /* `HKR` in an AddReg section called from a DDInstall is the device key, which is where
-       `interface_guid_value` looks, so this line is the reading the crate will get. */
+       `interface_guid_value` looks, so this line is the reading the crate will get. The type is read as its own
+       part of the line rather than assumed, because the value is a list of names. */
+    line: text.match(/DeviceInterfaceGUIDs,(0x[0-9a-fA-F]+),"([^"]*)"/) ?? [],
+    type: (
+      text.match(/DeviceInterfaceGUIDs,(0x[0-9a-fA-F]+)/)?.[1] ?? ""
+    ).toLowerCase(),
     value: (
       text.match(
-        /DeviceInterfaceGUIDs,0x10000,"\{?([0-9a-fA-F][0-9a-fA-F-]*)\}?"/,
+        /DeviceInterfaceGUIDs,0x[0-9a-fA-F]+,"\{?([0-9a-fA-F][0-9a-fA-F-]*)\}?"/,
       )?.[1] ?? ""
     ).toLowerCase(),
   };
 }
+
+/** The type the registry stores this value as, said as the number the call reads it with. */
+const REG_MULTI_SZ = "0x10000";
 
 function check({ tests, source, inf, device }) {
   const faults = [];
@@ -357,6 +365,15 @@ function check({ tests, source, inf, device }) {
   if (names.value === "") {
     faults.push(
       "the file writes no value on the device key, so there is nothing to read",
+    );
+  }
+
+  /* The value is a list of names, not one word, so the type flag the file carries has to be the number the registry
+     stores lists with; the live area reads whatever it finds as wide text and stops at the terminator, which is why
+     it sees the first name rather than the whole list when the install writes more than one. */
+  if (names.line.length !== 0 && names.type !== REG_MULTI_SZ) {
+    faults.push(
+      `the file writes the value with ${JSON.stringify(names.type)}, and the registry stores a list of names with ${JSON.stringify(REG_MULTI_SZ)}`,
     );
   }
 

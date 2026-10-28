@@ -414,7 +414,7 @@ const GATES = [
       "crates/mpcraft-winusb/src/lib.rs",
     ],
     control:
-      "scripts/check-dfu-crc-controls.js, which shows each rule firing on a known-bad copy — a literal that disagrees with its own table, a pair written as agreeing, a writer whose shapes disagree with the format, a file that names another string than the class this program reads through, a class declaration naming another string, a file that declares a class and writes nothing, and a pair written as if it decided both rules — and the files passing untouched",
+      "scripts/check-dfu-crc-controls.js, which shows each rule firing on a known-bad copy — a literal that disagrees with its own table, a pair written as agreeing, a writer whose shapes disagree with the format, a file that names another string than the class this program reads through, a class declaration naming another string, a file that declares a class and writes nothing, a value written as one word when the registry stores a list of names, a pair written as if it decided both rules, and a limit that names the numbers and the writer but not the file it reads as text — and the files passing untouched",
     proof: (text) => lineMatching(text, /"verdict": "PASS"/),
   },
   {
