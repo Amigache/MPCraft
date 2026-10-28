@@ -208,17 +208,39 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
     );
 
     // The rule these calls carry, held as data rather than as one expected outcome: the row exists because of the
-    // value, so the two readings have to agree whichever way this run finds them. pydfu's filter would find the same
-    // nothing today, because it looks through the same name.
-    if written.is_none() {
-        assert!(under_class.is_empty() && under_sample.is_empty());
+    // value, and it answers under whatever name that value writes — which is not necessarily the class the element
+    // says it is in. So the assertion reads through the value rather than through a name this file chose, and which
+    // of the three published names the install wrote is said rather than assumed. What follows from that is a fact
+    // about this binding rather than about the format: the interface list is read through the class the element
+    // reports, so a value naming another string leaves a row that this program cannot open, while the published
+    // reader decides by the pair it takes from the interface settings — a second rule, not the same one.
+    if let Some(value) = written.as_ref() {
+        let rows =
+            bus::rows_for_class(value, &found.instance).expect("the list answers as it says");
+
+        println!(
+            "  rows for this instance under the name the value writes: {}",
+            rows.len()
+        );
+        println!(
+            "  the name the value writes is the same as the class the element says: {}",
+            guid_parts(value) == guid_parts(&found.class)
+        );
+
+        assert!(
+            !rows.is_empty(),
+            "a value written by the install has to answer with a row for the same instance",
+        );
     } else {
         assert!(
-            !under_class.is_empty(),
-            "a value written by the install has to answer with a row for the same instance",
+            under_class.is_empty() && under_sample.is_empty(),
+            "with nothing written on the device key there is no row to read under either name",
         );
     }
 
+    // `find` reads the path through the class the element says it is in, so this equality holds whichever way the
+    // install wrote the value: it compares one reading with the reading that produced it rather than with the other
+    // name.
     assert_eq!(found.path, under_class.first().map(String::from));
 
     // The refusal that falls before anything travels, read as the state this run found rather than as one expected

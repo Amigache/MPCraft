@@ -5,10 +5,11 @@
  *
  * What these prove, and what they do not: they prove each rule can fire — a literal that disagrees with the
  * table built from the polynomial, a pair written as agreeing, a writer whose shape numbers disagree with the
- * format — and that the files as they stand satisfy them. They do not prove that the Rust implementation's own
- * rule uses the same table as this one: that comparison is what the module's test carries, and nothing here
- * executes the module. The known-bad cases are copies held in memory, so the files on the disk are never
- * disturbed.
+ * format, a file that names another string than the class this program reads through — and that the files as they
+ * stand satisfy them. They do not prove that the Rust implementation's own rule uses the same table as this one:
+ * that comparison is what the module's test carries, and nothing here executes the module. The known-bad cases are
+ * copies held in memory, so the files on the disk are never disturbed, and nothing here shows that an elevated
+ * install writes the value the operator puts or that a row answers after it is written.
  */
 
 import { readFileSync } from "node:fs";
@@ -20,9 +21,16 @@ const testsPath = new URL(
   import.meta.url,
 );
 const sourcePath = new URL("../crates/mpcraft-app/src/dfu.rs", import.meta.url);
+const infPath = new URL("./dfu-winusb.inf", import.meta.url);
+const devicePath = new URL(
+  "../crates/mpcraft-winusb/src/lib.rs",
+  import.meta.url,
+);
 
 const tests = readFileSync(testsPath, "utf8");
 const source = readFileSync(sourcePath, "utf8");
+const inf = readFileSync(infPath, "utf8");
+const device = readFileSync(devicePath, "utf8");
 
 /**
  * Replaces one line with another, and says so when the line to change is not there. The indentation the file
@@ -43,12 +51,36 @@ function mutate(text, pattern, replacement) {
 const checks = [];
 
 /* The known-good case, before anything is disturbed. */
-const good = check({ tests, source });
+const good = check({ tests, source, inf, device });
 
 checks.push({
   claim: "the two files agree with a table written from the polynomial",
   ok: good.faults.length === 0 && good.samples.length === 5,
   saw: { fixture: good.fixture, shapes: good.shapes, faults: good.faults },
+});
+
+/* The file the operator runs, read as text: the value decides under which name a row answers, and this binding
+   reads through the class the element reports, so the file has to name the same string as the crate carries. The
+   sample guid stays a separate fact rather than becoming the name the file writes, and the pair stays the pair the
+   published filter takes rather than the rule this program reads. */
+checks.push({
+  claim:
+    "the file names the same string as the class this program reads through",
+  ok:
+    good.faults.length === 0 &&
+    good.names.infValue === good.names.sourceClass &&
+    good.names.infClassGuid === good.names.sourceClass &&
+    good.names.sampleGuid !== good.names.sourceClass,
+  saw: good.names,
+});
+
+checks.push({
+  claim: "the pair the crate carries is the pair the published filter takes",
+  ok:
+    good.faults.length === 0 &&
+    good.names.pair[0] === good.names.publishedPair[0] &&
+    good.names.pair[1] === good.names.publishedPair[1],
+  saw: { pair: good.names.pair, publishedPair: good.names.publishedPair },
 });
 
 const cases = [
@@ -113,6 +145,56 @@ const cases = [
     expect: /says "DFU" for the suffixMarker/,
     allowExtra: /the format gives/,
   },
+  {
+    side: "inf",
+    claim:
+      "a value naming the guid WinUSB samples is caught, because that pair was read as if the two names were one fact",
+    /* This is the state this change found: the file wrote the sample guid, which agrees with the second reading
+       and not with the name this program reads through, so the row would be there and the program would refuse. */
+    mutated: mutate(
+      inf,
+      /^HKR,,DeviceInterfaceGUIDs,0x10000,/,
+      'HKR,,DeviceInterfaceGUIDs,0x10000,"{a5dcbf13-4437-40bb-9a12-8e18f591d448}"',
+    ),
+    expect:
+      /the file writes "a5dcbf13-4437-40bb-9a12-8e18f591d448" on the device key/,
+    allowExtra: /never matched/,
+  },
+  {
+    side: "inf",
+    claim: "a class declaration naming another string is caught",
+    mutated: mutate(
+      inf,
+      /^ClassGuid=\{/,
+      "ClassGuid={36109140-8b13-11cf-bfc1-08002be10318}",
+    ),
+    expect: /the class the file declares/,
+    allowExtra: /never matched/,
+  },
+  {
+    side: "device",
+    claim: "a pair written as if it decided both rules is caught",
+    mutated: mutate(
+      device,
+      /^pub const DFU_CLASS: u8 = 0xFE;/,
+      "pub const DFU_CLASS: u8 = 0xFB;",
+    ),
+    /* pydfu takes 0xFE and 1 from the interface settings; a literal that names another number says the filter and
+       this binding read the same fact. */
+    expect: /the pair the crate carries is \[251,1\]/,
+    allowExtra: /never matched/,
+  },
+  {
+    side: "inf",
+    claim: "a file that declares a class and writes nothing is caught",
+    mutated: mutate(
+      inf,
+      /^HKR,,DeviceInterfaceGUIDs,0x10000,/,
+      "; nothing written, which is what this machine answers today",
+    ),
+    expect: /writes no value on the device key/,
+    allowExtra: /never matched/,
+  },
 ];
 
 for (const entry of cases) {
@@ -124,6 +206,8 @@ for (const entry of cases) {
   const changed = {
     tests: entry.side === "tests" ? entry.mutated : tests,
     source: entry.side === "source" ? entry.mutated : source,
+    inf: entry.side === "inf" ? entry.mutated : inf,
+    device: entry.side === "device" ? entry.mutated : device,
   };
   const result = check(changed);
   const fault = result.faults.find((line) => entry.expect.test(line));
@@ -156,8 +240,18 @@ function readsItsOwnLimit(text) {
     return "names no limit";
   }
 
-  return /not by the module that carries them/.test(said[1]) &&
-    /does not say which reading a board answers with/.test(said[1])
+  if (!/not by the module that carries them/.test(said[1])) {
+    return `names a limit that does not say what it cannot reach: ${said[1]}`;
+  }
+
+  if (!/does not say which reading a board answers with/.test(said[1])) {
+    return `names a limit that does not say what it cannot reach: ${said[1]}`;
+  }
+
+  /* The file is a third thing this reading touches, and it can only be read as text: nothing here shows that an
+     elevated install writes the value, or that a row answers after it is written. A limit that names the numbers
+     and the writer but not that is a claim about more than the reading buys. */
+  return /read as text too/.test(said[1])
     ? null
     : `names a limit that does not say what it cannot reach: ${said[1]}`;
 }
@@ -197,6 +291,24 @@ checks.push({
       sentence,
       'const LIMIT =\n  "the numbers are worked out by a second implementation written here.";',
     ),
+  ),
+});
+
+/* The file the operator runs is a third thing this reading touches, and it can only be read as text. A copy whose
+   limit names the numbers and the writer but not that is put in front of the rule, and the gate as it stands passes. */
+const omittedBody =
+  "the numbers are worked out by a second implementation of the format written here, not by the module that carries them, so nothing of the module is executed. The writer is read as text, and the disagreement is said as two numbers for the same bytes, which does not say which reading a board answers with.";
+
+checks.push({
+  claim:
+    "and on a limit that names the numbers and the writer but not the file it reads as text",
+  ok:
+    readsItsOwnLimit(
+      gate.replace(sentence, `const LIMIT =\n  "${omittedBody}";`),
+    ) ===
+    `names a limit that does not say what it cannot reach: ${omittedBody}`,
+  saw: readsItsOwnLimit(
+    gate.replace(sentence, `const LIMIT =\n  "${omittedBody}";`),
   ),
 });
 

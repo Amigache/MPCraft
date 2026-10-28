@@ -504,6 +504,21 @@ lectura por `reg query` lo dice igual que la lectura del crate, que lo lee sin e
 clave no pide privilegios; escribirla si, y por eso la puerta nombra esa escritura como lo que el
 operador pone, junto con BOOT sostenido al encender: el crate lee y no escribe.
 
+Hay un hecho mas sobre ese valor, y es el que decide lo que este programa puede alcanzar: la fila
+contesta bajo el nombre que el valor escribe, que no tiene por que ser el nombre que el elemento dice
+que su clase es, porque el vinculo lee la lista de interfaces a traves de ese ultimo (`read_element`
+usa `info.ClassGuid`). Un valor que nombra otra cadena pone una fila en la placa y deja a este programa
+contestando `device_not_ours`, mientras el filtro publicado encuentra esa fila por su propio camino. Por
+eso el area lee las filas a traves del valor y no a traves de un nombre escrito aqui, y dice si los dos
+nombres coinciden como un dato; y por eso el archivo que el operador ejecuta elevando escribe
+`{88bae032-5a81-49f0-bc3d-a4ff138216d6}` (`scripts/dfu-winusb.inf`), escrito desde la forma que el INF
+publicado de Windows para esta familia lleva en esta maquina (`winusb.inf`, leido aqui: la misma clase y
+el mismo servicio) mas el valor, que es lo unico que este proyecto lee y no puede escribir. Los tres
+nombres siguen siendo hechos separados y no una tabla: el que pydfu filtra, que es el mismo que el
+instalador de clase escribe para esta familia; el que WinUSB usa como muestra; y el que el paquete
+publicado para esta placa nombra. Esta ejecucion contesta `False` para ser administrador, asi que esa
+escritura sigue nombrandose como lo que el operador pone.
+
 El area viva (`crates/mpcraft-app/tests/dfu_live.rs`, detras de `hardware-tests` y `windows`)
 afirma cada mitad por sus propios hechos y no por un resultado esperado: el registro conserva
 cinco filas para `USB\VID_0483&PID_DF11` y hoy una de ellas contesta como estando — la que la
@@ -521,7 +536,8 @@ el que pydfu filtra. La declaracion del elemento lleva el par 0xFE y 1 como text
 tercera lectura y coincide con el par que el filtro publicado pide aunque por otro camino. El area
 lee tambien el valor que la instalacion dejo en la clave del dispositivo y afirma la regla que lo
 une con la fila, no un resultado esperado: si no hay valor las dos lecturas de la lista tienen que
-dar cero filas, y si lo hay tienen que dar al menos una para la misma instancia; hoy el valor
+dar cero filas, y si lo hay tienen que dar al menos una para la misma instancia, leida a traves del nombre
+que ese valor escribe y no a traves de un nombre elegido aqui; hoy el valor
 contesta con nada y las dos listas dan cero, que es lo que `reg query` dice para la misma clave.
 
 Lo que no se puede leer hoy por este vinculo se dice en lugar de suponerse: la instancia esta y su
@@ -562,9 +578,13 @@ esa mitad vive detras de `hardware-tests`, donde la placa decide cual de las dos
 la orden de borrado entiende. La puerta (`scripts/check-dfu-crc.js`) nombra su caso
 conocido-malo (`scripts/check-dfu-crc-controls.js`: un literal que no coincide con su
 propia tabla, una pareja escrita como si las dos lecturas coincidieran, un escritor cuyo
-tamano del objetivo va sin su prefijo) y lo que no alcanza: lee los literales como texto,
-no ejecuta el modulo, y la comparacion entre la regla del codigo y estas tablas es lo que
-el test del propio modulo lleva. Y la copia de la forma que el area viva lleva no la lee
+tamano del objetivo va sin su prefijo, un valor nombrado como si el nombre que la puerta lee a
+traves del elemento fuera el mismo hecho —que es el estado que este cambio encontro—, una
+declaracion de clase que nombra otro string, y un archivo que declara clase y no escribe nada)
+y lo que no alcanza: lee los literales como texto, no ejecuta el modulo, y la comparacion entre
+la regla del codigo y estas tablas es lo que el test del propio modulo lleva; y lee el archivo del
+operador como texto, asi que no muestra que una instalacion elevada escriba el valor ni que la fila
+conteste despues de escribirlo. Y la copia de la forma que el area viva lleva no la lee
 esa puerta, que lee los literales de `tests/dfu.rs`: lo que el area compara es lo que la
 placa pone en el cable contra lo que la lectura publicada escribe, y eso se sabe solo
 cuando una placa contesta. Por eso la fila sigue parcial.

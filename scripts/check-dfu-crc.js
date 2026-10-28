@@ -19,6 +19,14 @@
  * writes them as agreeing is a finding. What the gate also reads is the writer as a document — the shapes the
  * format gives for the five fields — because the number is worked out over bytes the writer puts together, and
  * a writer that counts the target size field without its prefix says one thing and builds another.
+ *
+ * The third reading is the pair of names the bus half carries, and the file the operator runs with elevation
+ * (`scripts/dfu-winusb.inf`), read as text. A row answers under whatever name the install writes on the device key,
+ * while this binding reads the interface list through the class the element reports, so the two have to name the
+ * same string or the row is there and the program still refuses; that is why the file is compared with the names
+ * the crate carries rather than with a name written here. The same reason makes the pair 0xFE and 1 a separate fact:
+ * pydfu decides an interface by that pair and this binding decides by the service it read, so a copy that writes the
+ * two as one rule closes something that is not closed.
  */
 
 import { readFileSync } from "node:fs";
@@ -195,7 +203,51 @@ const RULES = {
   suffixLength: 16,
 };
 
-function check({ tests, source }) {
+/** The names and the pair the bus half carries as literals, read from the crate rather than written here. */
+function namesOfDevice(device) {
+  const number = (pattern) =>
+    Number.parseInt(device.match(pattern)?.[1] ?? "", 16);
+
+  return {
+    /* The name this program reads the interface list through, because `read_element` goes through the class the
+       element reports. A row answers under whatever name the install wrote on the device key, so these two are
+       only the same fact when they name the same string — which is what the file has to be checked against. */
+    class: (
+      device.match(
+        /pub const WINDOWS_USBDEVICE_CLASS: &str = "([^"]+)"/,
+      )?.[1] ?? ""
+    ).toLowerCase(),
+    /* A second fact: the guid WinUSB samples write, which is not a class on this machine. */
+    sample: (
+      device.match(/pub const WINUSB_CLASS: &str = "([^"]+)"/)?.[1] ?? ""
+    ).toLowerCase(),
+    /* pydfu's filter takes this pair from the interface settings; this binding decides by the service the registry
+       bound, so the pair is a published fact kept beside the rule that reads it, not the same rule written twice. */
+    dfuClass: number(/pub const DFU_CLASS: u8 = (0x[0-9a-fA-F]+);/),
+    dfuSubclass: number(/pub const DFU_SUBCLASS: u8 = (\d+);/),
+  };
+}
+
+/** What pydfu's published filter takes, said as data so the literals can be compared with it. */
+const PYDFU_PAIR = { dfuClass: 0xfe, dfuSubclass: 1 };
+
+/** What the file the operator runs with elevation says: the class it declares and the value it writes. */
+function namesOfInf(text) {
+  return {
+    classGuid: (
+      text.match(/^ClassGuid=\{?([0-9a-fA-F][0-9a-fA-F-]*)\}?/m)?.[1] ?? ""
+    ).toLowerCase(),
+    /* `HKR` in an AddReg section called from a DDInstall is the device key, which is where
+       `interface_guid_value` looks, so this line is the reading the crate will get. */
+    value: (
+      text.match(
+        /DeviceInterfaceGUIDs,0x10000,"\{?([0-9a-fA-F][0-9a-fA-F-]*)\}?"/,
+      )?.[1] ?? ""
+    ).toLowerCase(),
+  };
+}
+
+function check({ tests, source, inf, device }) {
   const faults = [];
 
   const golden = {
@@ -276,6 +328,67 @@ function check({ tests, source }) {
     }
   }
 
+  const names = namesOfInf(inf);
+  const constants = namesOfDevice(device);
+
+  if (constants.class === "") {
+    faults.push("the crate carries no class name to compare the file with");
+  }
+
+  if (constants.sample === "") {
+    faults.push("the crate carries no sample guid to keep as a separate fact");
+  }
+
+  /* The pair is read through pydfu's published filter, and the service is read through the call that answers; they
+     are two rules, so the literals have to agree with the filter rather than be written as if one decided both. */
+  if (Number.isNaN(constants.dfuClass) || Number.isNaN(constants.dfuSubclass)) {
+    faults.push(
+      "the crate carries no pair to compare with the published filter",
+    );
+  } else if (
+    constants.dfuClass !== PYDFU_PAIR.dfuClass ||
+    constants.dfuSubclass !== PYDFU_PAIR.dfuSubclass
+  ) {
+    faults.push(
+      `the pair the crate carries is ${JSON.stringify([constants.dfuClass, constants.dfuSubclass])} and the published filter takes ${JSON.stringify([PYDFU_PAIR.dfuClass, PYDFU_PAIR.dfuSubclass])}`,
+    );
+  }
+
+  if (names.value === "") {
+    faults.push(
+      "the file writes no value on the device key, so there is nothing to read",
+    );
+  }
+
+  if (names.classGuid === "") {
+    faults.push(
+      "the file declares no class, so the element would say nothing about itself",
+    );
+  }
+
+  /* A row answers under whatever name the value writes, and this binding reads the list through the class the
+     element reports, which the file decides. So the two have to name one string; a file that writes another leaves
+     the row present and the program refusing, which is what the live area reads as data today. */
+  if (
+    constants.class !== "" &&
+    names.value !== "" &&
+    names.value !== constants.class
+  ) {
+    faults.push(
+      `the file writes ${JSON.stringify(names.value)} on the device key, which answers under a name this program cannot read through (${JSON.stringify(constants.class)})`,
+    );
+  }
+
+  if (
+    constants.class !== "" &&
+    names.classGuid !== "" &&
+    names.classGuid !== constants.class
+  ) {
+    faults.push(
+      `the class the file declares (${JSON.stringify(names.classGuid)}) is not the name this program reads through (${JSON.stringify(constants.class)})`,
+    );
+  }
+
   return {
     samples: golden.samples.map((sample) => ({
       bytes: sample.bytes,
@@ -297,6 +410,15 @@ function check({ tests, source }) {
     },
     shapes,
     rules: RULES,
+    names: {
+      sourceClass: constants.class,
+      infClassGuid: names.classGuid,
+      infValue: names.value,
+      /* Kept as data because it is a separate fact, not the name this program reads through. */
+      sampleGuid: constants.sample,
+      pair: [constants.dfuClass, constants.dfuSubclass],
+      publishedPair: [PYDFU_PAIR.dfuClass, PYDFU_PAIR.dfuSubclass],
+    },
     faults,
   };
 }
@@ -306,18 +428,24 @@ function check({ tests, source }) {
  * a table written here from the polynomial, so nothing of the module is executed — the comparison between the
  * code's own rule and these tables is what the module's test carries. The writer is read as text, so a fixture
  * built by a shape the reader does not name is not seen; and the two readings are compared as numbers, which
- * says they disagree on these bytes and not which one a board answers with.
+ * says they disagree on these bytes and not which one a board answers with. The file the operator runs is read as
+ * text too, so nothing here shows that an elevated install writes the value or that a row answers afterwards:
+ * that is what the live area reads when the install has run.
  */
 const LIMIT =
-  "the numbers are worked out by a second implementation of the format written here, not by the module that carries them, so nothing of the module is executed and the agreement between its own rule and these tables is what the module's test carries. The writer is read as text: a shape the reading does not name is not seen, and the disagreement is said as two numbers for the same bytes, which does not say which reading a board answers with.";
+  "the numbers are worked out by a second implementation of the format written here, not by the module that carries them, so nothing of the module is executed and the agreement between its own rule and these tables is what the module's test carries. The writer is read as text: a shape the reading does not name is not seen, and the disagreement is said as two numbers for the same bytes, which does not say which reading a board answers with. The file the operator runs is read as text too, so nothing here shows that an elevated install writes the value or that a row answers afterwards.";
 
 function main() {
   const testsPath = process.argv[2] ?? "crates/mpcraft-app/tests/dfu.rs";
   const sourcePath = process.argv[3] ?? "crates/mpcraft-app/src/dfu.rs";
+  const infPath = process.argv[4] ?? "scripts/dfu-winusb.inf";
+  const devicePath = process.argv[5] ?? "crates/mpcraft-winusb/src/lib.rs";
 
   const result = check({
     tests: readFileSync(testsPath, "utf8"),
     source: readFileSync(sourcePath, "utf8"),
+    inf: readFileSync(infPath, "utf8"),
+    device: readFileSync(devicePath, "utf8"),
   });
 
   console.log(
@@ -325,6 +453,8 @@ function main() {
       {
         tests: testsPath,
         source: sourcePath,
+        inf: infPath,
+        device: devicePath,
         ...result,
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         limit: LIMIT,

@@ -1,0 +1,69 @@
+; WinUSB install for a board in its bootloader, written from the shape Windows' own published
+; INF for this family carries on this machine (`C:\Windows\INF\winusb.inf`, read here): the same
+; class, the same service, plus the one value this project reads and is not allowed to write.
+;
+; Two facts decide whether a row exists for an instance, and they are not the same fact:
+;   - the service behind the class-install key, which decides whether an interface is this
+;     program's (`SPDRP_SERVICE`, read by `is_our_driver`);
+;   - `DeviceInterfaceGUIDs` on the device key, which decides whether a row can exist at all.
+; This machine answers no value and no row today, so nothing can be opened; writing that value is
+; what the operator does from an elevated prompt, which is what the gate names as operator-supplied.
+;
+; Why the name written here is {88bae032-5a81-49f0-bc3d-a4ff138216d6}: a row answers under whatever
+; name the value writes, and this binding reads the interface list through the class the element
+; reports (`read_element` goes through `info.ClassGuid`). So a value naming another string puts a row
+; on the board and leaves this program answering `device_not_ours`. The three published names stay
+; separate facts, recorded in docs/PARITY.md rather than merged into one table: pydfu's filter, which is
+; the same name Windows' class installer (`c_usbdevice.inf`) writes for this family; the guid WinUSB
+; samples write; and the guid the package published for this board names. Writing this name is the choice
+; that makes the two readings agree for this program; it says nothing about the other two.
+;
+; Run once, from an elevated prompt:
+;   pnputil /add-driver dfu-winusb.inf /install
+;   pnputil /restart-device "USB\VID_0483&PID_DF11\3357316C3536"
+; Then, with BOOT held at power-on so the instance answers as its bootloader, the live area reads what
+; the board puts on the cable: crates/mpcraft-app/tests/dfu_live.rs behind `hardware-tests`, with
+; MPCRAFT_DFU_TARGET=0483:df11, one process holding the device at a time.
+
+[Version]
+Signature="$Windows NT$"
+Class=USBDevice
+ClassGuid={88bae032-5a81-49f0-bc3d-a4ff138216d6}
+Provider=%ProviderName%
+DriverVer=10/28/2026,1.0.0.0
+
+[Manufacturer]
+%MfgName%=Standard,NTamd64
+
+[Standard.NTamd64]
+%DeviceDesc%=WinUsbDevice, USB\VID_0483&PID_DF11
+
+[WinUsbDevice]
+Include=winusb.inf
+InfPath=winusb.inf
+AddReg=DeviceInterfaceGuids
+
+[WinUsbDevice.NT.Services]
+Addservice = WINUSB, 0x00000002, WINUSB.AddService
+
+[WINUSB.AddService]
+DisplayName    = %SvcDesc%
+ServiceType    = 1
+StartType      = 3
+ErrorControl   = 1
+ServiceBinary  = %12%\winusb.sys
+LoadOrderGroup = Base
+
+; `HKR` here is the device key the crate reads (`SYSTEM\CurrentControlSet\Enum\<instance>`), which is
+; why this half lands where `interface_guid_value` looks. The service is not written by this project:
+; it is what an elevated install writes, and the section above follows the published INF's own so that
+; the name this binding reads stays `WinUSB` rather than being assumed from a key — `SPDRP_DRIVER` names
+; the key and `SPDRP_SERVICE` names the service behind it, which are two facts this crate compares.
+[DeviceInterfaceGuids]
+HKR,,DeviceInterfaceGUIDs,0x10000,"{88bae032-5a81-49f0-bc3d-a4ff138216d6}"
+
+[Strings]
+ProviderName   = "MPCraft"
+MfgName         = "MPCraft"
+DeviceDesc      = "STM32 Bootloader (WinUSB interface)"
+SvcDesc         = "WinUSB"
