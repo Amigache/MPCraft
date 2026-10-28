@@ -129,6 +129,8 @@ The application icons are generated, not hand-drawn:
 | [`docs/PARITY.md`](docs/PARITY.md) | Feature-by-feature parity matrix vs Mission Planner |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture decision records |
 | [`docs/RELEASE.md`](docs/RELEASE.md) | Releases, update signing keys, and the publishing workflow |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | The branch flow, the checks, and what a change carries |
+| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, and what is in scope |
 
 ## AI-assisted development
 

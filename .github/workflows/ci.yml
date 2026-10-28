@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
@@ -17,6 +17,22 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  branch-flow:
+    name: The flow of the branches
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    # A change reaches main only from develop, and develop is where the changes meet. Branch
+    # protection makes this check required, so a pull request that skips the integration branch
+    # cannot be merged even though it opened.
+    steps:
+      - name: A change reaches main only from develop
+        run: |
+          if [ "${{ github.base_ref }}" = "main" ] && [ "${{ github.head_ref }}" != "develop" ]; then
+            echo "::error::A pull request to main has to come from develop. Open it against develop first."
+            exit 1
+          fi
+
   rust:
     name: Rust / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
