@@ -215,6 +215,32 @@ pub const WINUSB_CLASS: &str = "a5dcbf13-4437-40bb-9a12-8e18f591d448";
 /// on this board: the service says `WinUSB` and the list gives no row.
 pub const INTERFACE_GUID_VALUE: &str = "DeviceInterfaceGUIDs";
 
+/// Two spellings of one fact, kept apart because they come from different sides. What an `AddReg` line of a
+/// class-install INF writes for this value is `0x10000`, which is how INFs spell a list of names; what the call that
+/// answers the value reports is `7` (`REG_MULTI_SZ`), the number in the published table of value types. They are not
+/// the same number and a reading can only see one of them: the file the operator runs says `0x10000` and this machine
+/// answered `7` for the instance the operator wrote, which is the agreement between a published table and a run
+/// rather than a number chosen here. The spelling that changes what a reader gets is `0x1` (`REG_SZ`): a word rather
+/// than a list, so one reading walks one entry per name and the other walks one word.
+pub const INF_TYPE_MULTI_SZ: &str = "0x10000";
+
+/// The same fact read through the call that answers the value, as the published table of value types gives it.
+pub const REGISTRY_TYPE_MULTI_SZ: &str = "0x7";
+
+/// The entries a wide value makes when it is read as a list of names: each entry ends at its own terminator, and an
+/// empty run between two terminators is not an entry. This is the half that can be asserted without a bus, so the
+/// crate's own test carries it (`tests/values.rs`), against bytes written down before the rule was called —
+/// including the case this machine answered today, where the whole value is one entry with a comma inside it and the
+/// shape rule refuses it, while the same letters read as two names would give two entries.
+#[must_use]
+pub fn entries_of(units: &[u16]) -> Vec<String> {
+    units
+        .split(|unit| *unit == 0)
+        .filter(|entry| !entry.is_empty())
+        .map(as_wide)
+        .collect()
+}
+
 /// A class name as these APIs read it: the five parts, in the lengths they have — 8, 4, 4, 4 and 12 hexadecimal
 /// digits. Nothing is guessed: a name that cannot be read as the shape is refused, which is what keeps a class from
 /// being invented by the reader.
@@ -326,11 +352,9 @@ fn as_text(bytes: &[u8]) -> String {
 /// into. Stopping at the terminator is the rule for both, so one rule is not written twice.
 #[must_use]
 pub fn as_wide(units: &[u16]) -> String {
-    String::from_utf16_lossy(units)
-        .split('\0')
-        .next()
-        .unwrap_or_default()
-        .to_owned()
+    let text = String::from_utf16_lossy(units);
+
+    text.split('\0').next().unwrap_or_default().to_owned()
 }
 
 /// The half that speaks to the bus. It is behind `cfg(windows)` because on another system there is no such thing
@@ -348,7 +372,7 @@ pub mod bus {
     use windows::Win32::Storage::FileSystem::*;
     use windows::Win32::System::Registry::{
         RegCloseKey, RegEnumValueW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE,
-        KEY_READ,
+        KEY_READ, REG_VALUE_TYPE,
     };
 
     use mpcraft_transport::bluetooth::{BluetoothError, MapRow};
@@ -357,7 +381,7 @@ pub mod bus {
     };
 
     use super::{
-        as_text, as_wide, classify_open_failure, detail_room, enumerator, guid_parts,
+        as_text, as_wide, classify_open_failure, detail_room, entries_of, enumerator, guid_parts,
         is_our_driver, nul_terminated, Found, Target, INTERFACE_GUID_VALUE, NO_MORE_ITEMS,
         SERIALCOMM_KEY,
     };
@@ -662,6 +686,123 @@ pub mod bus {
 
             buffer.truncate(usize::try_from(length).unwrap_or(buffer.len()));
             Some(as_text(&buffer))
+        }
+    }
+
+    /// What the value says as a list of names, read from the same key through the same call as
+    /// [`device_key_value`], kept apart from what that reading saw. This is not the same rule written twice: one
+    /// reading stops at the terminator and answers with one word, and the other splits at the terminators and
+    /// answers with the entries, which is why a value written as two names inside one word — a comma inside, which
+    /// is what an operator's `reg add` put on this machine today — refuses in one reading and gives one entry in the
+    /// other. Nothing here decides which name a row exists under; the names are returned as the value writes them,
+    /// and whether one is the shape is what `guid_parts` says when the area compares it. A row answers only where an
+    /// interface was registered, so a value that reads as the shape is not by itself a row — which is why the live
+    /// area prints the counts as answers and asserts the rule rather than an outcome.
+    ///
+    /// A count of entries does not stand alone either: what the call that opened the key answered, what the call
+    /// that read the value answered, and what that same call answered for the type are kept with the entries,
+    /// because a value that is not there, a value that cannot be read at this privilege, and a value stored as
+    /// another type are three different facts, and only the third has entries to walk. Reading a device key needs
+    /// no elevation, and nothing here writes to it.
+    #[derive(Debug, Clone)]
+    pub struct NamesReading {
+        /// The instance the reading was made against, as the bus writes it.
+        pub instance: String,
+        /// What `RegOpenKeyExW` answered for the device key, through the dictionary this binding names for it.
+        pub open_answer: u32,
+        /// What `RegQueryValueExW` answered for the value, through the same dictionary.
+        pub value_answer: u32,
+        /// What the same call answered for the type, as the number it reads it with. It is kept even when the
+        /// entries are empty, because an empty list can be a value stored as one word rather than a value that is
+        /// not there.
+        pub kind: u32,
+        /// Each entry as the terminators split the value, which is why an entry can be a name the shape rule
+        /// refuses — two names inside one entry with a comma between them.
+        pub entries: Vec<String>,
+    }
+
+    /// The call that answers for the value itself, named so that its numbers carry it.
+    pub const VALUE_CALL: &str = "RegQueryValueExW";
+
+    /// The room one value of the device key is read into. A list of names is short; the bound is what says the
+    /// reading did not read past what the call wrote, and a value longer than it is said as cut rather than read as
+    /// a whole list.
+    pub const KEY_VALUE_ROOM: usize = 512;
+
+    /// The same value read the second way — through the terminators rather than up to the first one — on the same
+    /// instance and the same key, so the two readings of one value can be put next to each other. It walks the units
+    /// through [`entries_of`], which is where the rule that splits lives and where its own test sits
+    /// (`crates/mpcraft-winusb/tests/values.rs`), and keeps the numbers that ended the reading beside the entries: a
+    /// value that is not there, a value that cannot be read at this privilege, and a value stored as another type are
+    /// three different facts, and only the third has entries to walk. Reading a device key needs no elevation, and
+    /// nothing here writes to it.
+    pub fn interface_guid_names(instance: &str) -> NamesReading {
+        let key = format!("SYSTEM\\CurrentControlSet\\Enum\\{instance}");
+        let wide = nul_terminated(&key);
+        let name = nul_terminated(INTERFACE_GUID_VALUE);
+
+        unsafe {
+            let mut handle = HKEY::default();
+
+            let opened = RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                PCWSTR(wide.as_ptr()),
+                None,
+                KEY_READ,
+                &mut handle,
+            )
+            .0;
+
+            if opened != ERROR_SUCCESS.0 {
+                return NamesReading {
+                    instance: instance.to_owned(),
+                    open_answer: opened,
+                    value_answer: 0,
+                    kind: 0,
+                    entries: Vec::new(),
+                };
+            }
+
+            let mut buffer = vec![0_u8; KEY_VALUE_ROOM];
+            let mut length = buffer.len() as u32;
+
+            let mut kind = REG_VALUE_TYPE(0);
+            let answer = RegQueryValueExW(
+                handle,
+                PCWSTR(name.as_ptr()),
+                None,
+                Some(&mut kind),
+                Some(buffer.as_mut_ptr()),
+                Some(&mut length),
+            );
+
+            let _ = RegCloseKey(handle);
+
+            let answered = answer.0;
+            if answered != ERROR_SUCCESS.0 {
+                return NamesReading {
+                    instance: instance.to_owned(),
+                    open_answer: opened,
+                    value_answer: answered,
+                    kind: 0,
+                    entries: Vec::new(),
+                };
+            }
+
+            buffer.truncate(usize::try_from(length).unwrap_or(buffer.len()));
+
+            let units: Vec<u16> = buffer
+                .chunks(2)
+                .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+                .collect();
+
+            NamesReading {
+                instance: instance.to_owned(),
+                open_answer: opened,
+                value_answer: answered,
+                kind: kind.0,
+                entries: entries_of(&units),
+            }
         }
     }
 

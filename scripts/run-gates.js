@@ -400,7 +400,9 @@ const GATES = [
      * the numbers are worked out by a table written here from the polynomial, which is what says they did not
      * come from the module that carries them. It also reads the pair and the two class names the bus half carries,
      * and the file the operator runs with elevation, as text — the value that file writes decides under which name
-     * a row answers, while this binding reads through the name the element reports, so the two have to agree. What
+     * a row answers, while this binding reads through the name the element reports, so the two have to agree; and it reads the two spellings of the value type —
+      what an AddReg line writes for a list of names and what the call that answers the value reports — as two
+      sources that are not the same number. What
      * a pair of numbers cannot show, and what a file read as text cannot show, is said inside what it reports.
      */
     command: "node",
@@ -414,7 +416,7 @@ const GATES = [
       "crates/mpcraft-winusb/src/lib.rs",
     ],
     control:
-      "scripts/check-dfu-crc-controls.js, which shows each rule firing on a known-bad copy — a literal that disagrees with its own table, a pair written as agreeing, a writer whose shapes disagree with the format, a file that names another string than the class this program reads through, a class declaration naming another string, a file that declares a class and writes nothing, a value written as one word when the registry stores a list of names, a pair written as if it decided both rules, and a limit that names the numbers and the writer but not the file it reads as text — and the files passing untouched",
+      "scripts/check-dfu-crc-controls.js, which shows each rule firing on a known-bad copy — a literal that disagrees with its own table, a pair written as agreeing, a writer whose shapes disagree with the format, a value naming another string than the class this program reads through, a class declaration naming another string, a file that declares a class and writes nothing, a value written as one word when an AddReg line writes a list of names, the two spellings of that type written as the same number when they are two readings with different sources, a reading that walks entries by another mark than the terminators, a word reading that keeps going past its first terminator, a pair written as if it decided both rules, and a limit that names the numbers and the writer but not the file it reads as text — and the files passing untouched",
     proof: (text) => lineMatching(text, /"verdict": "PASS"/),
   },
   {

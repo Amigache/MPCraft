@@ -499,8 +499,11 @@ que no se hicieron la una desde la otra. Lo que decide que exista una fila para 
 ese nombre: es el valor que la instalacion escribe sobre la clave del dispositivo,
 `DeviceInterfaceGUIDs`. El paquete publicado para esta placa nombra el guid que escribiria
 (`{01105872-BF45-43BE-8B67-3C0F2B8CF0D9}`) y tiene una rama cuyo propio comentario dice que el
-camino generico lo salta, y esa es la rama que esta maquina tiene: la clave no lleva el valor, y la
-lectura por `reg query` lo dice igual que la lectura del crate, que lo lee sin elevacion. Leer esa
+camino generico lo salta, y esa era la rama que esta maquina tenia: la clave no llevaba el valor, y la
+lectura por `reg query` lo decia igual que la lectura del crate, que lo lee sin elevacion. Hoy la clave
+si lo lleva, porque el operador lo escribio elevando, y las dos lecturas contestan lo mismo para la misma
+clave; lo que falta ya no es el valor, y eso se dice aparte de lo que falta antes: una fila existe donde
+una interfaz fue registrada, y escribir el valor no registra nada por si mismo. Leer esa
 clave no pide privilegios; escribirla si, y por eso la puerta nombra esa escritura como lo que el
 operador pone, junto con BOOT sostenido al encender: el crate lee y no escribe. Y las dos lecturas de la
 herramienta contestan como se leyo hoy, cada una por su propio hecho: `pnputil /add-driver dfu-winusb.inf
@@ -510,10 +513,23 @@ este camino el archivo nombra la intencion, y lo que puede cerrar la fila sin un
 mismo con elevacion, o firmar el paquete, o aceptar la firma de prueba, que son tres cosas que decide el operador
 y ninguna depende de este archivo; y `pnputil /restart-device` contesto correctamente sin pedir elevacion, que es
 otra cosa que la escritura del valor: volver a enumerar una instancia no la pidio aqui, asi que cada llamada se
-nombra con su propio hecho y no con una regla sobre el proceso. Despues de ese reinicio la clave sigue sin el
-valor, las dos listas dan cero filas y el area sigue leyendo `device_not_ours`, que es lo que el area afirma hoy;
-lo que hace falta para pasar de ahi es el valor escrito, y el descriptor, el indice de la cadena, los doce sectores
-y cual forma de la orden de borrado entiende este build siguen pendientes de que haya una fila que abrir.
+nombra con su propio hecho y no con una regla sobre el proceso. Lo que la clave contesta hoy es el valor escrito,
+y las dos listas siguen dando cero filas, asi que el area sigue leyendo `device_not_ours`; lo que hace falta para
+pasar de ahi ya no es el valor sino que exista una fila — una interfaz registrada por una instalacion, que es lo que
+el valor decide bajo que nombre contesta y no lo que hace que la fila exista — y el descriptor, el indice de la
+cadena, los doce sectores y cual forma de la orden de borrado entiende este build siguen pendientes de que haya una
+fila que abrir.
+
+Y el valor se lee de dos maneras, que hoy dieron cosas distintas, y por eso se conservan aparte: la lectura que para
+en el terminador dio una palabra, y la que parte por los terminadores dio una entrada con una coma dentro, porque la
+escritura del operador puso los dos nombres dentro de una sola comilla en lugar de un nombre por entrada. La regla de
+forma rechaza esa entrada, que es lo que el area afirma en ese estado; para cerrar la fila hace falta el valor con
+una forma que la regla pueda leer, o una instalacion que registre la interfaz, y la forma que escribe entradas
+separadas es un nombre por entrada, como PowerShell lo da con `Set-ItemProperty ... -Value @("nombre","nombre")`
+elevando. El numero que la llamada contesto por el tipo es otro hecho, y es el que la puerta compara: `RegQueryValueExW`
+contesto 7, que es lo que la tabla publicada de tipos de valor da para una lista de nombres, mientras el archivo que
+el operador ejecuta escribe `0x10000`, que es como un INF escribe esa misma idea en su linea de `AddReg`; las dos son
+dos formas de decirlo, no el mismo numero, y la puerta las conserva como dos lecturas con su propia fuente.
 
 Hay un hecho mas sobre ese valor, y es el que decide lo que este programa puede alcanzar: la fila
 contesta bajo el nombre que el valor escribe, que no tiene por que ser el nombre que el elemento dice
@@ -523,9 +539,11 @@ contestando `device_not_ours`, porque para este vinculo la fila contesta bajo el
 y no bajo el par. Y el par se lee de lo que la interfaz dice sobre sí misma cuando hay una fila que abrir: lo
 que decide que la fila exista es el valor, y pydfu enumera por el nombre con el que su propia lectura busca, que
 es el guid que WinUSB usa como muestra — una tercera lectura, no la misma regla escrita dos veces —, asi que escribir
-un solo nombre sirve al camino de este programa y no dice nada sobre el otro. Lo que el area lee es el primer
-nombre que el valor dice, porque la lectura de una cadena ancha para en el terminador, y eso se dice como un
-hecho del lector; por eso el area compara las filas a traves del valor y no a traves de un nombre escrito aqui,
+un solo nombre sirve al camino de este programa y no dice nada sobre el otro. Lo que el area lee son las dos lecturas,
+conservadas como dos hechos: la que para en el terminador da el primer nombre, y la que parte por los terminadores da
+las entradas; hoy la primera dio una palabra y la segunda dio una sola entrada con la coma dentro, que no es la forma
+que la regla lee, y eso se dice como un hecho del lector y de la escritura, no como un nombre inventado aqui. Por eso
+el area compara las filas a traves del valor y no a traves de un nombre escrito aqui,
 y dice si los dos nombres coinciden como un dato. Por eso el archivo que el operador ejecuta elevando escribe
 `{88bae032-5a81-49f0-bc3d-a4ff138216d6}` (`scripts/dfu-winusb.inf`), escrito desde la forma que el INF
 publicado de Windows para esta familia lleva en esta maquina (`winusb.inf`, leido aqui: la misma clase y
@@ -551,15 +569,24 @@ elemento dice que su clase es es el que el instalador de clase escribe, que es e
 el que pydfu filtra. La declaracion del elemento lleva el par 0xFE y 1 como texto, que es la
 tercera lectura y coincide con el par que el filtro publicado pide aunque por otro camino. El area
 lee tambien el valor que la instalacion dejo en la clave del dispositivo y afirma la regla que lo
-une con la fila, no un resultado esperado: si no hay valor las dos lecturas de la lista tienen que
-dar cero filas, y si lo hay tienen que dar al menos una para la misma instancia, leida a traves del nombre
-que ese valor escribe y no a traves de un nombre elegido aqui; hoy el valor
-contesta con nada y las dos listas dan cero, que es lo que `reg query` dice para la misma clave.
+une con la fila, no un resultado esperado, en tres estados: si no hay valor, las dos lecturas de la lista tienen que
+dar cero filas; si lo hay y se lee como la forma, la fila se lee a traves del nombre que ese valor escribe y no a
+traves de un nombre elegido aqui; y si el valor esta pero no se lee como la forma, lo que se afirma es la negativa del
+lector, porque hoy la escritura del operador puso dos nombres dentro de una sola comilla y eso es una palabra con una
+coma dentro, no una lista de entradas: la lectura que para en el terminador dio esa palabra, la que parte por los
+terminadores dio una entrada con la coma dentro, la regla de forma la rechaza, y las dos listas siguen dando cero, que
+es lo que `reg query` dice para la misma clave. El segundo estado no corre hoy, y lo que el conteo de entradas puede
+decir se conserva con los numeros que lo terminaron: `RegOpenKeyExW` contesto 0 para la clave y `RegQueryValueExW`
+contesto 0 para el valor y 7 para el tipo, los dos por el diccionario Win32 que este vinculo nombra para esas llamadas
+y no por el de Config Manager; el numero 7 es lo que la tabla publicada da para una lista de nombres mientras el
+archivo del operador escribe `0x10000`, asi que las dos formas se conservan como dos lecturas con su fuente. Y una fila existe
+donde una interfaz fue registrada, no donde un valor fue escrito, asi que el area imprime los conteos como respuestas
+y afirma la regla en lugar de afirmar un resultado.
 
 Lo que no se puede leer hoy por este vinculo se dice en lugar de suponerse: la instancia esta y su
 servicio es el nuestro, pero no publica ninguna interfaz — la lista da cero filas tanto para el
 nombre que el elemento dice como para el guid que WinUSB escribe como muestra, que es lo que se
-espera cuando el valor que decide la fila no esta escrito, y `SetupDiEnumDeviceInterfaces` contesto
+espera cuando la fila no fue registrada, y `SetupDiEnumDeviceInterfaces` contesto
 259 (no hay mas elementos) para los dos, que es como lo lee la segunda lectura del mismo hecho; por
 eso el descriptor, el indice de la cadena y el estado no se pueden afirmar por este camino, y lo que
 el area afirma hoy es la negativa `device_not_ours`, que cae antes de que nada viaje por el cable y
@@ -597,16 +624,22 @@ propia tabla, una pareja escrita como si las dos lecturas coincidieran, un escri
 tamano del objetivo va sin su prefijo, un valor nombrado como si el nombre que la puerta lee a
 traves del elemento fuera el mismo hecho —que es el estado que este cambio encontro—, una
 declaracion de clase que nombra otro string, un archivo que declara clase y no escribe nada, un valor escrito
-como una palabra cuando el registro guarda una lista de nombres, el par del filtro escrito como si decidiera las
-dos reglas cuando aqui se decide por el servicio, y un limite que nombra los numeros y el escritor pero no el
-archivo que lee como texto)
+como una palabra cuando el registro guarda una lista de nombres, las dos formas de decir ese tipo escritas como
+el mismo numero cuando son dos lecturas con fuentes distintas, la lectura que reparte los tramos por otra marca que
+los terminadores, y la lectura que dice la palabra sin pararse en su primer terminador, el par del filtro escrito
+como si decidiera las dos reglas cuando aqui se decide por el servicio, y un limite que nombra los numeros y el
+escritor pero no el archivo que lee como texto)
 y lo que no alcanza: lee los literales como texto, no ejecuta el modulo, y la comparacion entre
 la regla del codigo y estas tablas es lo que el test del propio modulo lleva; y lee el archivo del
 operador como texto, asi que no muestra que una instalacion elevada escriba el valor ni que la fila
 conteste despues de escribirlo. Y la copia de la forma que el area viva lleva no la lee
 esa puerta, que lee los literales de `tests/dfu.rs`: lo que el area compara es lo que la
 placa pone en el cable contra lo que la lectura publicada escribe, y eso se sabe solo
-cuando una placa contesta. Por eso la fila sigue parcial.
+cuando una placa contesta. La regla que reparte los tramos se afirma aparte, en
+`crates/mpcraft-winusb/tests/values.rs`, contra bytes escritos antes de llamarla: hoy dio una
+entrada con una coma dentro, que la regla de forma rechaza, mientras la misma lectura con un
+nombre por entrada da dos; y el desacuerdo entre las dos formas de decir el tipo se conserva
+como un hecho en ese mismo archivo. Por eso la fila sigue parcial.
 
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are

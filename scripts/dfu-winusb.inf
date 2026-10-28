@@ -6,8 +6,17 @@
 ;   - the service behind the class-install key, which decides whether an interface is this
 ;     program's (`SPDRP_SERVICE`, read by `is_our_driver`);
 ;   - `DeviceInterfaceGUIDs` on the device key, which decides whether a row can exist at all.
-; This machine answers no value and no row today, so nothing can be opened; writing that value is
-; what the operator does from an elevated prompt, which is what the gate names as operator-supplied.
+; This machine answered no value before the operator wrote it, so nothing could be opened; writing that value is
+; what the operator does from an elevated prompt, which is what the gate names as operator-supplied. Writing it is
+; not what registers a row — a row answers where an interface was registered — and this instance still answers zero
+; rows under both published names after the write and a re-enumeration.
+;
+; The line writes `0x10000`, which is how an AddReg line spells a list of names; the call that reads the value
+; answered `7` for the instance written here, which is what the published table of value types gives for a list. Two
+; spellings of one fact, kept apart because they are read from different sides. And the shape of the entries matters:
+; what the operator wrote today put two names inside one word with a comma between them, so the reading that stops at
+; the terminator got one word and the reading that splits at terminators got one entry the shape rule refuses. One
+; name per entry is what answers as a list, which is what PowerShell writes with a value given as an array.
 ;
 ; Why the name written here is {88bae032-5a81-49f0-bc3d-a4ff138216d6}: a row answers under whatever
 ; name the value writes, and this binding reads the interface list through the class the element

@@ -180,9 +180,53 @@ const cases = [
       /^HKR,,DeviceInterfaceGUIDs,0x10000,/,
       'HKR,,DeviceInterfaceGUIDs,0x10001,"{88bae032-5a81-49f0-bc3d-a4ff138216d6}"',
     ),
-    /* The live area reads the value as wide text and stops at the terminator, so what it sees is the first name;
-       a copy that writes the value as `REG_SZ` says the reading would get a list, which it would not. */
+    /* The two readings differ on this shape: one stops at the terminator and answers with one word, and the other
+       splits at the terminators and answers with entries, so a copy that writes the value as `REG_SZ` says the
+       reading would get a list of names, which it would not. */
     expect: /the file writes the value with "0x10001"/,
+    allowExtra: /never matched/,
+  },
+  {
+    side: "device",
+    claim:
+      "the two spellings of the value type written as the same number are caught",
+    /* An AddReg line writes 0x10000 for a list of names and the call that reads the value answered 7 for this
+       machine's instance. Writing them as one number closes the difference between what a file says and what a
+       reading gets. */
+    mutated: mutate(
+      device,
+      /pub const REGISTRY_TYPE_MULTI_SZ: &str = "0x7";/,
+      'pub const REGISTRY_TYPE_MULTI_SZ: &str = "0x10000";',
+    ),
+    expect: /written as the same number/,
+    allowExtra: /the published table of value types gives/,
+  },
+  {
+    side: "device",
+    claim:
+      "a reading that walks entries by another marker than the terminators is caught",
+    /* Today's machine showed why the two readings are two rules: the value it holds is one entry with a comma
+       inside, so a reader that stops at the first terminator sees one word and the rule that reads names refuses it,
+       while a reader that splits at terminators would give one entry per name. A copy that splits by something else
+       says the pair is the same fact seen through a different mark. */
+    mutated: mutate(
+      device,
+      /\.split\(\|unit\| \*unit == 0\)/,
+      ".split(|unit| *unit == 1)",
+    ),
+    expect: /does not split at the terminators/,
+    allowExtra: /never matched/,
+  },
+  {
+    side: "device",
+    claim:
+      "a word reading that does not stop at its first terminator is caught",
+    mutated: mutate(
+      device,
+      /text\.split\('\\0'\)\.next\(\)/,
+      "text.split('_').first()",
+    ),
+    expect: /answers with a word but does not stop at the first terminator/,
     allowExtra: /never matched/,
   },
   {

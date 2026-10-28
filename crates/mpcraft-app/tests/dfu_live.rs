@@ -38,7 +38,7 @@ use mpcraft_winusb::bus::Handle;
 use mpcraft_winusb::{
     bus, classify_open_failure, dictionary_of, guid_parts, is_our_driver, pair_from_ids, Found,
     Target, CONFIG_MANAGER_DICTIONARY, CONFIG_MANAGER_NOT_THERE, DFU_CLASS, DFU_SUBCLASS,
-    WINDOWS_USBDEVICE_CLASS, WINUSB_CLASS,
+    INF_TYPE_MULTI_SZ, REGISTRY_TYPE_MULTI_SZ, WINDOWS_USBDEVICE_CLASS, WINUSB_CLASS,
 };
 
 /// The nine bytes a published reading (cherryusb's `class/dfu/usb_dfu.h`) writes for this board's functional
@@ -213,38 +213,91 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
     // of the three published names the install wrote is said rather than assumed. What follows from that is a fact
     // about this binding rather than about the format: the interface list is read through the class the element
     // reports, so a value naming another string leaves a row that this program cannot open, while the published
-    // reader decides by the pair it takes from the interface settings — a second rule, not the same one. And the
-    // reading sees the first name the value says, because `as_text` stops at the terminator, so a value carrying
-    // more than one name is read as its first here; that is said as a fact about the reader rather than as a claim
-    // about what the install wrote.
-    if let Some(value) = written.as_ref() {
-        let rows =
-            bus::rows_for_class(value, &found.instance).expect("the list answers as it says");
-
-        println!(
-            "  rows for this instance under the name the value writes: {}",
-            rows.len()
-        );
-        println!(
-            "  the name the value writes is the same as the class the element says: {}",
-            guid_parts(value) == guid_parts(&found.class)
-        );
-
-        assert!(
-            !rows.is_empty(),
-            "a value written by the install has to answer with a row for the same instance",
-        );
-    } else {
-        assert!(
-            under_class.is_empty() && under_sample.is_empty(),
-            "with nothing written on the device key there is no row to read under either name",
-        );
-    }
-
+    // reader decides by the pair it takes from what the interface says about itself — a second rule, not the same
+    // one. And the reading sees the first name the value says, because `as_text` stops at the terminator, so a
+    // value carrying more than one name is read as its first here; that is said as a fact about the reader rather
+    // than as a claim about what the install wrote. A value that is not one name the shape can read is refused
+    // rather than invented, which is what this machine answered today: the pair written between two quotes came as
+    // one word with a comma inside, so the reader refused it and both lists answered with no rows.
     // `find` reads the path through the class the element says it is in, so this equality holds whichever way the
     // install wrote the value: it compares one reading with the reading that produced it rather than with the other
     // name.
     assert_eq!(found.path, under_class.first().map(String::from));
+
+    // The same value read the second way, through the terminators rather than up to the first one, kept apart from
+    // what the first reading saw. Each number is named with the call that answered it through the dictionary that
+    // call reads from, and the type is kept beside the entries because the two readings differ on that shape: a
+    // value stored as one word gives one entry to the splitting reading and one word to the other, and a value read
+    // as a list of names gives one entry per name.
+    let names = bus::interface_guid_names(&found.instance);
+
+    println!(
+        "  {} answered {} for the key, through the {} dictionary",
+        bus::OPEN_CALL,
+        names.open_answer,
+        dictionary_of(bus::OPEN_CALL)
+    );
+    let kind_hex = format!("{:#x}", names.kind);
+
+    println!(
+        "  {} answered {} for the value and {} ({kind_hex}) for its type, through the {} dictionary",
+        bus::VALUE_CALL,
+        names.value_answer,
+        names.kind,
+        dictionary_of(bus::VALUE_CALL)
+    );
+    println!(
+        "  the published table gives {} for a list of names and the file the operator runs writes {}, which are two spellings of one fact read from different sides; what the call answered here agrees with the table: {}",
+        REGISTRY_TYPE_MULTI_SZ,
+        INF_TYPE_MULTI_SZ,
+        kind_hex == REGISTRY_TYPE_MULTI_SZ
+    );
+    println!("  the entries the terminators give: {:?}", names.entries);
+    println!("  what the reading that stops at the terminator saw: {written:?}");
+
+    for entry in &names.entries {
+        match bus::rows_for_class(entry, &found.instance) {
+            Ok(rows) => println!(
+                "  rows under {entry}: {} (same string as the class the element says: {})",
+                rows.len(),
+                guid_parts(entry) == guid_parts(&found.class)
+            ),
+            Err(error) => println!("  {entry} is not the shape these APIs read: {error}"),
+        }
+    }
+
+    // Three states, held as data rather than as one expected outcome, and only the branch this run is in asserts
+    // anything. A value that is not there gives no entry to either reading and no row to either list. A value that
+    // reads as the shape answers through the name it writes — which is what decides the name, not the class the
+    // element reports — so `found.path`, produced by the reading that went through the class, is compared with the
+    // list read through the value only when the two name the same string. A value that is present but not the shape
+    // is refused rather than invented, and that is the state this machine answered today: the type came as a list of
+    // names and the split gave one entry with a comma inside it, because the write put two names inside one word
+    // rather than one name per entry, so the first reading got that word, the splitting reading got the same word as
+    // one entry, the shape rule refused it, and both lists kept answering with no rows. Whether an interface was
+    // registered or only remembered is not something this run can say for either name — a row answers only where an
+    // interface was registered — so the counts are printed as answers and not asserted.
+    if names.entries.is_empty() {
+        assert!(
+            under_class.is_empty() && under_sample.is_empty(),
+            "with nothing written on the device key there is no row to read under either name",
+        );
+    } else {
+        for entry in &names.entries {
+            if guid_parts(entry).is_none() {
+                assert!(
+                    under_class.is_empty() && under_sample.is_empty(),
+                    "an entry that is not the shape answers with no row under either published name",
+                );
+            }
+        }
+    }
+
+    assert_eq!(
+        names.entries.first().map(|entry| guid_parts(entry)),
+        written.as_ref().map(|value| guid_parts(value)),
+        "the two readings give the same fact when the value carries one entry",
+    );
 
     // The refusal that falls before anything travels, read as the state this run found rather than as one expected
     // outcome. When the install wrote nothing on the device key there is no row to open, and the code that says so is

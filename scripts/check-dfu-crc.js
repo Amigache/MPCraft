@@ -225,8 +225,39 @@ function namesOfDevice(device) {
        bound, so the pair is a published fact kept beside the rule that reads it, not the same rule written twice. */
     dfuClass: number(/pub const DFU_CLASS: u8 = (0x[0-9a-fA-F]+);/),
     dfuSubclass: number(/pub const DFU_SUBCLASS: u8 = (\d+);/),
+    /* The two spellings of the value type, read through their own side: what an AddReg line writes and what the call
+       that answers the value reports. They are carried apart in the crate, so a copy that writes them as one number
+       is read as closing the difference between a file and a reading. */
+    infType: (
+      device.match(
+        /pub const INF_TYPE_MULTI_SZ: &str = "(0x[0-9a-fA-F]+)"/,
+      )?.[1] ?? ""
+    ).toLowerCase(),
+    registryType: (
+      device.match(
+        /pub const REGISTRY_TYPE_MULTI_SZ: &str = "(0x[0-9a-fA-F]+)"/,
+      )?.[1] ?? ""
+    ).toLowerCase(),
+    /* The two readings of one value, read as the shapes they carry. They are two rules — one walks the entries
+       between terminators, the other answers with the word up to the first one — and the difference is what this
+       machine showed today on one value: the same bytes gave one word to the reader that stops, and one entry with a
+       comma inside it to the reader that splits, which the rule that reads names refused. So a copy that splits by
+       another mark, or a word reading that keeps going past its first terminator, says the pair is one fact seen
+       through a different mark. */
+    splitsAtTerminators:
+      /pub fn entries_of\(units: &\[u16\]\)[\s\S]*?split\(\|unit\| \*unit == 0\)/.test(
+        device,
+      ),
+    stopsAtFirstTerminator:
+      /pub fn as_wide\(units: &\[u16\]\)[\s\S]*?split\('\\0'\)\s*\n?\s*\.next\(\)/.test(
+        device,
+      ),
   };
 }
+
+/** One fact with two spellings, each from its own published source: the number an AddReg line of a class-install INF
+    writes for a list of names, and the number the table of value types gives the same fact to the call that reads it. */
+const SPELLINGS = { inf: "0x10000", registry: "0x7" };
 
 /** What pydfu's published filter takes, said as data so the literals can be compared with it. */
 const PYDFU_PAIR = { dfuClass: 0xfe, dfuSubclass: 1 };
@@ -238,9 +269,9 @@ function namesOfInf(text) {
       text.match(/^ClassGuid=\{?([0-9a-fA-F][0-9a-fA-F-]*)\}?/m)?.[1] ?? ""
     ).toLowerCase(),
     /* `HKR` in an AddReg section called from a DDInstall is the device key, which is where
-       `interface_guid_value` looks, so this line is the reading the crate will get. The type is read as its own
-       part of the line rather than assumed, because the value is a list of names. */
-    line: text.match(/DeviceInterfaceGUIDs,(0x[0-9a-fA-F]+),"([^"]*)"/) ?? [],
+       `interface_guid_value` looks, so this line is the reading the crate will get. The type and the names are read
+       as separate parts of it rather than assumed, because the type decides what a reader can walk and the names
+       decide under which name a row would answer. */
     type: (
       text.match(/DeviceInterfaceGUIDs,(0x[0-9a-fA-F]+)/)?.[1] ?? ""
     ).toLowerCase(),
@@ -362,18 +393,74 @@ function check({ tests, source, inf, device }) {
     );
   }
 
+  /* One fact with two spellings, kept apart because each comes from its own source: what an AddReg line writes for a
+     list of names is `0x10000`, and what the call that answers the value reports is `7`. Writing them as the same
+     number closes the difference the reading carries, and the shape itself decides what a reader can walk — one
+     reading stops at the terminator and answers with one word, the other splits at the terminators and answers with
+     the entries, so two names inside one entry are refused by the rule that reads names while two entries would each
+     be read, which is what this machine answered for the instance the operator wrote. A single absence is said once,
+     so the type is read only when there is a line to read. */
   if (names.value === "") {
     faults.push(
       "the file writes no value on the device key, so there is nothing to read",
     );
+  } else if (names.type !== SPELLINGS.inf) {
+    faults.push(
+      `the file writes the value with ${JSON.stringify(names.type)}, and an AddReg line spells a list of names with ${JSON.stringify(SPELLINGS.inf)}`,
+    );
   }
 
-  /* The value is a list of names, not one word, so the type flag the file carries has to be the number the registry
-     stores lists with; the live area reads whatever it finds as wide text and stops at the terminator, which is why
-     it sees the first name rather than the whole list when the install writes more than one. */
-  if (names.line.length !== 0 && names.type !== REG_MULTI_SZ) {
+  if (constants.infType === "") {
     faults.push(
-      `the file writes the value with ${JSON.stringify(names.type)}, and the registry stores a list of names with ${JSON.stringify(REG_MULTI_SZ)}`,
+      "the crate carries no spelling of the value type to compare the file with",
+    );
+  }
+
+  if (constants.registryType === "") {
+    faults.push(
+      "the crate carries no number from the call that reads the value",
+    );
+  }
+
+  if (
+    constants.infType !== "" &&
+    constants.registryType !== "" &&
+    constants.infType === constants.registryType
+  ) {
+    faults.push(
+      "the two spellings of the value type are written as the same number, which is the difference the reading carries",
+    );
+  }
+
+  if (constants.infType !== "" && constants.infType !== SPELLINGS.inf) {
+    faults.push(
+      `the crate carries ${JSON.stringify(constants.infType)} for the AddReg spelling of this value, and the published shape of a line writes lists as ${JSON.stringify(SPELLINGS.inf)}`,
+    );
+  }
+
+  if (
+    constants.registryType !== "" &&
+    constants.registryType !== SPELLINGS.registry
+  ) {
+    faults.push(
+      `the crate carries ${JSON.stringify(constants.registryType)} for what the call reads this value as, and the published table of value types gives a list of names as ${JSON.stringify(SPELLINGS.registry)}`,
+    );
+  }
+
+  /* The two readings have to stay two rules: one walks the entries between terminators and the other answers with
+     the word up to the first one. Today's machine showed the difference on one value — the same bytes gave one word
+     to the reader that stops and one entry with a comma inside to the reader that splits, and the rule that reads
+     names refused that entry, so a copy that splits by another mark, or a word reading that keeps going past its
+     first terminator, says the pair is one fact seen through a different mark. */
+  if (!constants.splitsAtTerminators) {
+    faults.push(
+      "the reading that walks entries does not split at the terminators, which is where a list of names differs from a word",
+    );
+  }
+
+  if (!constants.stopsAtFirstTerminator) {
+    faults.push(
+      "the reading that answers with a word but does not stop at the first terminator, which is what makes it a word",
     );
   }
 
@@ -435,6 +522,12 @@ function check({ tests, source, inf, device }) {
       sampleGuid: constants.sample,
       pair: [constants.dfuClass, constants.dfuSubclass],
       publishedPair: [PYDFU_PAIR.dfuClass, PYDFU_PAIR.dfuSubclass],
+      infType: constants.infType,
+      registryType: constants.registryType,
+      publishedSpellings: SPELLINGS,
+      /* The two readings of one value, kept as the shapes they carry so a copy that collapses them is seen. */
+      splitsAtTerminators: constants.splitsAtTerminators,
+      stopsAtFirstTerminator: constants.stopsAtFirstTerminator,
     },
     faults,
   };
@@ -450,7 +543,7 @@ function check({ tests, source, inf, device }) {
  * that is what the live area reads when the install has run.
  */
 const LIMIT =
-  "the numbers are worked out by a second implementation of the format written here, not by the module that carries them, so nothing of the module is executed and the agreement between its own rule and these tables is what the module's test carries. The writer is read as text: a shape the reading does not name is not seen, and the disagreement is said as two numbers for the same bytes, which does not say which reading a board answers with. The file the operator runs is read as text too, so nothing here shows that an elevated install writes the value or that a row answers afterwards.";
+  "the numbers are worked out by a second implementation of the format written here, not by the module that carries them, so nothing of the module is executed and the agreement between its own rule and these tables is what the module's test carries. The writer is read as text: a shape the reading does not name is not seen, and the disagreement is said as two numbers for the same bytes, which does not say which reading a board answers with. The file the operator runs is read as text too, so nothing here shows that an elevated install writes the value or that a row answers afterwards, and the two spellings of the value type are compared as text, which does not show what the call answered for a machine: the number the bus gave — 7 for this instance, against the `0x10000` the file writes — is what the live area reads.";
 
 function main() {
   const testsPath = process.argv[2] ?? "crates/mpcraft-app/tests/dfu.rs";
