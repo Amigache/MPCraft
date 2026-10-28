@@ -1760,15 +1760,19 @@ the release whether there is a newer version, and only after the operator confir
 the archive, verify it against the public key, install it and start the application again. Two limits
 are said rather than hidden: on Linux the updater installs the AppImage, while deb and rpm are
 updated by the package manager, and the runner builds the architecture it is — macOS arm64 — so an
-Intel Mac needs an entry of its own. What is not asserted is an update: there is no published release
-and no installed copy that updates itself on this machine, so the manifest script was exercised
-against a folder of archives and signatures written for it (including the refusals when a signature
-is missing or two fragments name the same platform), the signing key was generated with its private
-half kept outside the repository for the operator to store as a secret, and the workflow has not
-run. The entry was run on this machine with that key: it wrote the NSIS installer and its `.sig`,
-the MSI and its `.sig`, and the manifest discovered the NSIS one and named it, so what is unproven is
-the release and an installed copy that updates itself, not the signature. That is why the row stays
-partial.
+Intel Mac needs an entry of its own. The manifest script and the signature were exercised before the
+release against a folder of archives and signatures written for it (including the refusals when a
+signature is missing or two fragments name the same platform), and the signing key was generated with
+its private half kept outside the repository for the operator to store as a secret. The tag `v0.1.1`
+ran the workflow: it attached the installers, the update bundles of the three platforms and their
+signatures to the release, and `latest.json`; the endpoint
+`https://github.com/Amigache/MPCraft/releases/latest/download/latest.json` answers publicly with
+version 0.1.1, the three platforms and their signatures, and each of the three asset addresses answers
+200. The first real run also found what the billing had hidden: the workspace did not compile on Linux
+or macOS, because `mpcraft-winusb` declared its Windows binding for every platform; the binding now
+travels with the platform, and the tag was made again. What is unproven is an installed copy updating
+itself, which needs a second release and a copy of the first, and there is one release. That is why the
+row stays partial.
 
 The **contract** is read from both sides now, because one document was spoken two ways and nothing read the
 two against each other. The pair that identifies a vehicle was written with underscores by the structs that
