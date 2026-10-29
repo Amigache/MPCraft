@@ -409,8 +409,14 @@ publicada escribe para un STM32 es `09 21 0B FF 00 00 08 1A 01`, y ese es el lit
 el que el area compara lo que la placa ponga en el cable cuando haya una interfaz que
 abrir; el numero que ese cuerpo guarda (`0x011a`) y el que la misma herramienta da para la
 familia (`0x0413`) son los que STM32CubeProgrammer dice de esta placa, asi que el acuerdo
-entre los dos caminos es un hecho y no una suposicion — y hoy, con cero filas publicadas,
-esa comparacion sigue pendiente de que la placa publique una ruta.
+entre los dos caminos es un hecho y no una suposicion. Lo que se dijo antes sobre esa
+comparacion — que esperaba a que la placa publicara una ruta — se corrige aqui: la ruta
+existe, y no bajo la clase que el elemento dice sino bajo la interfaz estandar de WinUSB
+(`{dee824ef-729b-4a0e-9c14-b7117d33a817}`), que es justamente la que el lector publicado de
+Mission Planner (`ExtLibs/Comms/CommsWinUSB.cs`) busca junto con la clase. Con esa fila el
+area lee los nueve bytes que la placa pone en el cable y los compara con el literal de la
+lectura publicada, y el numero `0x011a` y el par de clase `0xfe`/`1` coinciden con los que
+STM32CubeProgrammer da para la misma placa.
 
 Los numeros guardados vienen de una segunda implementacion del formato
 (`scripts/check-dfu-crc.js`), escrita desde la formula publicada y no desde la lectura que
@@ -618,37 +624,53 @@ escritura puso dos nombres dentro de una sola comilla, que la regla de forma rec
 el par sin cerrarlo; y hoy dos entradas, cada una con su terminador propio y el par en los dos lados, que las tres
 reglas leen como nombres, y el area dice como dato cual de las dos coincide con el nombre que el elemento dice que su
 clase es y cual nombra el guid que WinUSB usa como muestra — dos hechos, no el mismo. Lo que no cambio en ninguno de
-los tres estados es el conteo de filas: las dos listas dieron cero, que es lo que `reg query` sigue diciendo para la
-misma clave, y eso es lo que dice que escribir el valor no registra una interfaz. Lo que el conteo de entradas puede
-decir se conserva con los numeros que lo terminaron: `RegOpenKeyExW` contesto 0 para la clave y `RegQueryValueExW`
-contesto 0 para el valor y 7 para el tipo, los dos por el diccionario Win32 que este vinculo nombra para esas llamadas
-y no por el de Config Manager; el numero 7 es lo que la tabla publicada da para una lista de nombres mientras el
-archivo del operador escribe `0x10000`, asi que las dos formas se conservan como dos lecturas con su fuente. Y una fila existe
-donde una interfaz fue registrada, no donde un valor fue escrito, asi que el area imprime los conteos como respuestas
-y afirma la regla en lugar de afirmar un resultado.
+los tres estados es el conteo bajo esos dos nombres: las dos listas dieron cero, que es lo que `reg query` sigue
+diciendo para la misma clave, y eso es lo que dice que escribir el valor no registra una interfaz bajo el nombre que
+el valor escribe. Lo que este cambio encontro es la tercera lectura que el conteo escondia: la instalacion habia
+registrado la interfaz bajo `{dee824ef-...}`, la que el lector publicado busca, y por eso una lista que preguntaba
+solo por la clase y por el nombre de muestra daba cero filas para una placa que estaba y contestaba. Lo que el conteo
+de entradas puede decir se conserva con los numeros que lo terminaron: `RegOpenKeyExW` contesto 0 para la clave y
+`RegQueryValueExW` contesto 0 para el valor y 7 para el tipo, los dos por el diccionario Win32 que este vinculo nombra
+para esas llamadas y no por el de Config Manager; el numero 7 es lo que la tabla publicada da para una lista de nombres
+mientras el archivo del operador escribe `0x10000`, asi que las dos formas se conservan como dos lecturas con su
+fuente. Y una fila existe donde una interfaz fue registrada, no donde un valor fue escrito, asi que el area imprime
+los conteos como respuestas y afirma la regla en lugar de afirmar un resultado.
 
-Lo que no se puede leer hoy por este vinculo se dice en lugar de suponerse: la instancia esta y su
-servicio es el nuestro, pero no publica ninguna interfaz — la lista da cero filas tanto para el
-nombre que el elemento dice como para el guid que WinUSB escribe como muestra, que es lo que se
-espera cuando la fila no fue registrada, y `SetupDiEnumDeviceInterfaces` contesto
-259 (no hay mas elementos) para los dos, que es como lo lee la segunda lectura del mismo hecho; por
-eso el descriptor, el indice de la cadena y el estado no se pueden afirmar por este camino, y lo que
-el area afirma hoy es la negativa `device_not_ours`, que cae antes de que nada viaje por el cable y
-que es el codigo correcto porque la placa si esta. pydfu tampoco encontraria una fila: su filtro mira
-su propia clase, que es la misma que aqui da cero. La lectura por todas las clases no la lleva este
-vinculo — la bandera de "todas las clases" no es una llamada que este crate use, y la segunda lectura
-que la pidio fue contestada con 4 como numero del diccionario de Config Manager, no con una lista —
-asi que lo afirmado descansa en los dos nombres publicados. Lo que la placa podria decir cuando haya
-una interfaz que abrir sigue escrito contra las dos lecturas publicadas: los nueve bytes del
-descriptor, el numero `0x011a` que STM32CubeProgrammer da para esta placa, y los doce sectores de la
-geometria que el propio escritor de ArduPilot declara para esta familia (4 de 16K, 1 de 64K, 7 de
-128K, un megabyte entero), y esa mitad corre cuando una instancia publique una ruta. Poner la
-placa alli no depende de esta maquina: se alcanza sosteniendo BOOT al encender o con la
-orden que la sostiene, y la puerta nombra eso como lo que el operador pone; y un solo
-proceso tiene el dispositivo a la vez, por eso el area corre sola y las comparaciones
-con STM32CubeProgrammer van de una en una. El entorno nombra la pareja
-(`MPCRAFT_DFU_TARGET`) y la mitad que borra esta detras de `MPCRAFT_DFU_ALLOW_ERASE`, que
-es la regla que ya estaba para la mitad que borra una placa.
+Lo que se lee hoy por este vinculo, con la placa en su modo de recuperacion, es lo que el
+area viva afirma como hecho de la placa y no como resultado esperado: la instancia esta y su
+servicio es el nuestro; la instalacion registro una fila bajo la interfaz estandar de WinUSB
+(`{dee824ef-...}`) y otra bajo la del paquete publicado (`{01105872-...}`), mientras la clase
+que el elemento dice y el nombre que WinUSB usa como muestra dan cero; el vinculo abre la
+primera fila que `WinUsb_Initialize` acepta, que es la estandar; los nueve bytes del
+descriptor funcional (`09 21 0B FF 00 00 08 1A 01`) son los del literal publicado, y el area
+los compara con el; el par que las opciones de la interfaz dicen es `0xfe`/`1`, y el numero
+de version `0x011a` es el que STM32CubeProgrammer da para esta placa; la cadena de la
+interfaz es `@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg`, que hace los doce
+sectores y el megabyte entero que el escritor de ArduPilot declara para esta familia; y el
+estado, despues de la orden de abortar, es `dfuIDLE` con estado `OK`.
+
+Esa lectura tiene tres hechos que se conservan porque no son el mismo: la peticion directa
+del descriptor (`GET_DESCRIPTOR`, valor `0x2100`) es rechazada por esta placa, asi que los
+nueve bytes se leen del descriptor de configuracion, que es donde el lector publicado los
+busca; la cadena se pide con el idioma que la propia cadena cero declara, porque pedirla con
+un numero elegido aqui seria una suposicion; y la peticion de estado que sigue a una lectura
+deja la placa en `dfuUPLOAD-IDLE`, que no es el estado desde el que se escribe, asi que el
+area aborta antes de afirmar `dfuIDLE`. Un descriptor de cadena se lee desde el byte dos, sin
+un idioma delante: la regla anterior saltaba dos bytes como si toda cadena llevara uno, y eso
+borraba el primer caracter — el `@` de esta misma cadena —, que es el defecto que este cambio
+corrige y que el peer escrito desde la lectura publicada tambien llevaba.
+
+Lo que sigue sin afirmarse se dice en lugar de suponerse: no se ha borrado ni escrito la
+placa en esta corrida, porque el borrado es la mitad que no se puede deshacer y la puerta lo
+deja detras de `MPCRAFT_DFU_ALLOW_ERASE`, que el operador pone; la orden de borrar todo se
+compara con la placa solo cuando esa bandera esta, y el area imprime que no se pidio. Poner
+la placa en su modo de recuperacion no lo hace esta area: se alcanza sosteniendo BOOT al
+encender, y la orden que la sostiene desde la aplicacion entra en el bootloader de ArduPilot,
+que no enumera como `0483:df11`, asi que la puerta lo nombra como lo que el operador pone; y
+un solo proceso tiene el dispositivo a la vez, por eso el area corre sola y las comparaciones
+con STM32CubeProgrammer van de una en una. La pareja la nombra el entorno
+(`MPCRAFT_DFU_TARGET`) y la mitad que borra esta detras de `MPCRAFT_DFU_ALLOW_ERASE`, que es
+la regla que ya estaba para la mitad que borra una placa.
 
 La fila de la puerta para ese area nombra su sustituto — el peer escrito desde la lectura
 publicada en `crates/mpcraft-app/tests/dfu.rs`, que contesta las peticiones sin ser una
@@ -657,8 +679,8 @@ del vinculo paso y el area de la placa fallo, con las dos mitades leidas como su
 informes, que es lo que hace que un verde del vinculo no valga por un area que no alcanzo
 ninguna placa.
 
-Lo que no se puede afirmar aqui se dice en lugar de suponerse: no hay un bus fisico en
-esta maquina, asi que lo que el test prueba es la forma — el descriptor, la cadena, la
+Lo que el peer no puede afirmar se dice en lugar de suponerse: detras de `tests/dfu.rs` no
+hay un bus, asi que lo que ese archivo prueba es la forma — el descriptor, la cadena, la
 maquina de estados, la regla del bloque y las negativas antes de enviar — respondida por
 un peer escrito desde la lectura publicada, no que una placa real conteste esas peticiones;
 esa mitad vive detras de `hardware-tests`, donde la placa decide cual de las dos formas de
@@ -686,7 +708,8 @@ cuando una placa contesta. La regla que reparte los tramos se afirma aparte, en
 entrada con una coma dentro, que la regla de forma rechaza, mientras la misma lectura con un nombre por entrada da dos;
 y en ese mismo archivo el par de llaves se afirma contra tres nombres escritos antes de llamarlo — el par puesto, el
 par ausente, y el par abierto sin cerrar — que es lo que la puerta lee como texto sin ejecutar el modulo. El desacuerdo
-entre las dos formas de decir el tipo se conserva como un hecho en ese archivo. Por eso la fila sigue parcial.
+entre las dos formas de decir el tipo se conserva como un hecho en ese archivo. Por eso la fila sigue parcial: la
+lectura de la placa ya se afirma contra la placa, y lo que falta es la mitad que escribe y borra, que no se corrio.
 
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are

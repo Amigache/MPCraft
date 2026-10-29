@@ -1008,6 +1008,21 @@ impl<D: Device> Flash<D> {
         self.read_answer().await
     }
 
+    /// Asks the device to stop what it is doing and go back to idle.
+    ///
+    /// A read leaves the device in `dfuUPLOAD-IDLE`, which is a state of waiting for another read and not the idle
+    /// state a write starts from; the abort request is what takes it back. The answer is read through the same rule
+    /// the other steps use, so a refusal is said as a refusal.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the device refuses the request or answers with a status that is not `OK`.
+    pub async fn abort(&mut self) -> CommandResult<Answer> {
+        self.device.send(Request::Abort.as_byte(), 0, &[]).await?;
+
+        self.read_answer().await
+    }
+
     /// What the device says its state is.
     ///
     /// # Errors

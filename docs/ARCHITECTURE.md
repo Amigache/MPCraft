@@ -486,14 +486,15 @@ downsamples rather than replays raw samples.
   moving bytes. The half that erases runs only when the operator names it with a flag
   (`MPCRAFT_DFU_ALLOW_ERASE`), and getting the board into its bootloader is something the operator
   does — holding BOOT at power-on, or the command that holds it there — which the gate says rather
-  than assumes, because a live area cannot do it. The value that decides whether a row can exist for an
-  instance is written by the operator from `scripts/dfu-winusb.inf`, whose shape follows Windows' own
-  published INF for this family read on this machine plus that one value, and it names the string pydfu's
-  filter and Windows' class installer agree on: a row answers under whatever name the value writes, while
-  this binding reads the interface list through the class the element reports, so writing another string
-  leaves the row present and this program answering `device_not_ours`. The run here answers False for being
-  elevated, so the write stays named as what the operator supplies, and the gate that reads the file names
-  that inside what it reports.
+  than assumes, because a live area cannot do it. The interface a board publishes is not always
+  the class it reports: this board registers rows under the standard WinUSB interface
+  (`dee824ef-...`) and under the published package's (`01105872-...`), while its class and the
+  sample name answer none, so the binding tries those names and opens the first that WinUSB
+  accepts, rather than deciding by the class. That is the name the published reader searches, and
+  the value the operator writes from `scripts/dfu-winusb.inf` names what an installation registers
+  in addition, which is why a row and a value are kept apart as two facts. The run here answers
+  False for being elevated, so the write stays named as what the operator supplies, and the gate
+  that reads the file names that inside what it reports.
 - The app makes no unauthenticated network calls except tile/terrain fetches against configured
   providers, which the user can disable.
 - Arm/disarm, mission write, and firmware flash require explicit confirmation. The half that

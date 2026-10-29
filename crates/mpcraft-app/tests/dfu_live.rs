@@ -17,18 +17,20 @@
 //!
 //! What this area cannot do is put the board on the bus: a Matek F405-CTR gets to its bootloader by holding BOOT
 //! at power-on, or by the command that holds it there, and the gate names that as what the operator supplies. It
-//! cannot write the value that decides whether a row exists for an instance either: reading the device key needs no
+//! cannot write the value that names what an installation registers either: reading the device key needs no
 //! elevation, so the area reads it here, while writing it is something the operator does from an elevated prompt,
-//! which the gate names beside BOOT as what the operator supplies. Today this board answers with nothing written on
-//! that key, and the second reader (`reg query`) answers with nothing for the same instance, so the two readings
-//! agree and the refusal is what this run can assert.
+//! which the gate names beside BOOT as what the operator supplies. The key here carries two names, each with its own
+//! terminator and the pair on both sides, and the row this area opens is the one the install registered under the
+//! standard WinUSB interface — the name the published reader searches — while the class and the sample name answer
+//! none, which is the difference a list that asks only for those two cannot see.
 //!
 //! Each half asserts its own facts, and both states are held as data rather than as one expected outcome. The
-//! registry can remember rows that the bus does not answer for; a row that is there can publish no interface to
-//! read; and an instance that can be opened answers the requests a peer cannot. A second reader of the same bus
-//! (`winusb_probe`, kept outside the repository) is what showed which call answered what, including the number that
-//! a wrong address to `SetupDiGetClassDevsW` gives — 13, which the Config Manager dictionary uses for a device that
-//! is not there — and that is why every number here names the call that answered it.
+//! registry can remember rows that the bus does not answer for; a row that is there can answer under a name that is
+//! not the class the element reports; and an instance that can be opened answers the requests a peer cannot. A
+//! second reader of the same bus (`winusb_probe`, kept outside the repository) is what showed which call answered
+//! what, including the number that a wrong address to `SetupDiGetClassDevsW` gives — 13, which the Config Manager
+//! dictionary uses for a device that is not there — and that is why every number here names the call that answered
+//! it.
 
 #![cfg(all(feature = "hardware-tests", windows))]
 
@@ -39,6 +41,7 @@ use mpcraft_winusb::{
     bus, classify_open_failure, dictionary_of, guid_parts, is_our_driver, name_without_the_pair,
     pair_from_ids, Found, Target, CONFIG_MANAGER_DICTIONARY, CONFIG_MANAGER_NOT_THERE, DFU_CLASS,
     DFU_SUBCLASS, INF_TYPE_MULTI_SZ, REGISTRY_TYPE_MULTI_SZ, WINDOWS_USBDEVICE_CLASS, WINUSB_CLASS,
+    WINUSB_DEVICE_INTERFACE,
 };
 
 /// The nine bytes a published reading (cherryusb's `class/dfu/usb_dfu.h`) writes for this board's functional
@@ -186,12 +189,12 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
         "and it is not the guid WinUSB samples write, which is a second fact and not a class on this machine",
     );
 
-    // The value that decides whether a row exists for an instance, read from the device key. Nothing is written here:
-    // the published package for this board has a branch whose own comment says the generic path skips the value, and
-    // that was the state this machine held before the operator wrote it from an elevated prompt — no value, and no
-    // row. A service name alone does not make an instance readable, so `is_our_driver` and this reading are two facts
-    // that can disagree on one board. Today they answer as two facts: the value reads as names, and there is still
-    // nothing to open, which is why the code that says so is the one about a device that is there.
+    // The value that names what an installation registers, read from the device key. Nothing is written here: the
+    // published package for this board has a branch whose own comment says the generic path skips the value, and that
+    // was the state this machine held before the operator wrote it from an elevated prompt. A service name alone does
+    // not register an interface, so `is_our_driver` and this reading are two facts that can disagree on one board.
+    // Today they answer as two facts: the value reads as names, and the row that opens is the one the installation
+    // registered under the standard WinUSB interface, not a row this value created.
     let written = bus::interface_guid_value(&found.instance);
     println!("  value the install wrote on the device key: {written:?}");
 
@@ -199,6 +202,8 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
         bus::rows_for_class(&found.class, &found.instance).expect("the list answers as it says");
     let under_sample =
         bus::rows_for_class(WINUSB_CLASS, &found.instance).expect("the list answers as it says");
+    let under_winusb = bus::rows_for_class(WINUSB_DEVICE_INTERFACE, &found.instance)
+        .expect("the list answers as it says");
 
     println!(
         "  rows for this instance under its class: {}",
@@ -208,27 +213,24 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
         "  rows for this instance under the guid WinUSB samples: {}",
         under_sample.len()
     );
+    println!(
+        "  rows for this instance under the standard WinUSB interface: {}",
+        under_winusb.len()
+    );
 
-    // The rule these calls carry, held as data rather than as one expected outcome: the value decides under which name
-    // a row answers, and it is not what makes the row exist — a row answers where an interface was registered, which is
-    // the fact this machine has kept answering zero for both names in every state of the value. And the name the value
-    // writes is not necessarily the class the element says it is in, so the assertion reads through the value rather
-    // than through a name this file chose, and which
-    // of the three published names the install wrote is said rather than assumed. What follows from that is a fact
-    // about this binding rather than about the format: the interface list is read through the class the element
-    // reports, so a value naming another string leaves a row that this program cannot open, while the published
-    // reader decides by the pair it takes from what the interface says about itself — a second rule, not the same
-    // one. And the reading sees the first name the value says, because `as_text` stops at the terminator, so a
-    // value carrying more than one name is read as its first here; that is said as a fact about the reader rather
-    // than as a claim about what the install wrote. An entry that is not a name the shape can read is refused rather
-    // than invented, and this key answered that in two states before answering as names: one word with a comma inside,
-    // then an entry that opened the pair without closing it. Today it answers two entries with the pair on both sides,
-    // so each reads as a name — and both lists still say zero rows, which is the fact that writing a value does not
-    // register an interface.
-    // `find` reads the path through the class the element says it is in, so this equality holds whichever way the
-    // install wrote the value: it compares one reading with the reading that produced it rather than with the other
-    // name.
-    assert_eq!(found.path, under_class.first().map(String::from));
+    // The names a row can answer under are kept apart: the install decides which one it registered, and the
+    // standard WinUSB interface is what Windows and Zadig write, while the published package names a second and the
+    // class is the last fallback. The binding tries the standard name, the published package, the names the value
+    // carries, then the class, and `found.path` is the row of the name it chose; the equality is with that name
+    // rather than with a name this file picked.
+    let interface = found
+        .interface
+        .as_deref()
+        .expect("a present instance that publishes a row names the interface it was found under");
+    let under_interface =
+        bus::rows_for_class(interface, &found.instance).expect("the list answers as it says");
+
+    assert_eq!(found.path, under_interface.first().map(String::from));
 
     // The same value read the second way, through the terminators rather than up to the first one, kept apart from
     // what the first reading saw. Each number is named with the call that answered it through the dictionary that
@@ -359,11 +361,11 @@ async fn a_present_instance_says_what_it_is_bound_to_before_anything_can_be_read
         let bare = name_without_the_pair(text);
 
         assert_eq!(
-            bare.map(|bare_name| guid_parts(bare_name)),
+            bare.map(guid_parts),
             written
                 .as_ref()
                 .and_then(|value| name_without_the_pair(value))
-                .map(|bare_name| guid_parts(bare_name)),
+                .map(guid_parts),
             "the shape rule answers the same way for the same text through either reading",
         );
     }
@@ -483,6 +485,16 @@ async fn a_board_on_the_bus_says_what_a_scripted_peer_cannot() {
     let mut flash = Flash::open(handle, u16::from(index))
         .await
         .expect("the board answers");
+
+    // A read leaves the board in `dfuUPLOAD-IDLE`, and this area may be run after an earlier one read something;
+    // the abort request is what puts it back in the idle state a write starts from. The state before the abort is
+    // printed as what the board said, so a run that begins in upload-idle is a fact rather than a surprise.
+    let before = flash.state().await.expect("the board answers its state");
+    println!("state before the abort: {before:?}");
+
+    let abort = flash.abort().await.expect("the board answers the abort");
+    println!("abort: {abort:?}");
+
     let state = flash.state().await.expect("the board answers its state");
     println!("state: {state:?}");
     assert_eq!(

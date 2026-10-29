@@ -263,7 +263,7 @@ impl Device for Peer {
             .flat_map(|unit| unit.to_le_bytes())
             .collect();
 
-        let mut bytes = vec![units.len() as u8 + 4, 3, 0x09, 0x04];
+        let mut bytes = vec![units.len() as u8 + 2, 3];
         bytes.extend(units);
 
         mpcraft_transport::read_string(&bytes)
