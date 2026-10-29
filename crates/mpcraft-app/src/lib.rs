@@ -3,7 +3,7 @@
 //! This is the only crate that knows about the application as a whole: the session
 //! supervisor, the event bus, the command surface, and the auto-reconnect policy.
 //!
-//! It is the only library crate permitted to depend on Tauri types — and even here, the Tauri
+//! It is the only library crate permitted to depend on Tauri types â€” and even here, the Tauri
 //! dependency lives in `apps/desktop`, so `mpcraft-app` stays headless and testable.
 //!
 //! # The IPC contract
@@ -19,15 +19,15 @@
 //! # The link
 //!
 //! The [`SessionSupervisor`] owns the link to the vehicle. It opens it, publishes its state
-//! to the interface, and — when the link drops — follows the [`ReconnectPolicy`]: how many
+//! to the interface, and â€” when the link drops â€” follows the [`ReconnectPolicy`]: how many
 //! attempts, with what backoff, and how long a single attempt may take. The policy is data,
 //! and the mechanism it drives is injected, so the whole thing is tested without a network
 //! peer and without waiting.
 //!
 //! # The operations
 //!
-//! The things an operator asks of a vehicle — arm, take off, change the mode, transfer a
-//! plan — live in [`operations`], on the supervisor. They live there rather than in the
+//! The things an operator asks of a vehicle â€” arm, take off, change the mode, transfer a
+//! plan â€” live in [`operations`], on the supervisor. They live there rather than in the
 //! shell so that the rule that a command needs an open link is written once, and tested
 //! without a display server.
 //!
@@ -45,6 +45,7 @@ use mpcraft_settings::{PluginEntry, SettingsStore};
 use serde::{Deserialize, Serialize};
 
 pub mod adsb_relay;
+pub mod announce;
 pub mod apj;
 pub mod board;
 pub mod bootloader;
@@ -74,6 +75,7 @@ pub mod swarm;
 pub mod terrain;
 pub mod transponder;
 pub mod ulog;
+pub mod vehicles;
 pub mod video;
 
 pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
@@ -236,7 +238,7 @@ pub struct AppState {
     ///
     /// The nodes of a DroneCAN bus, and what the station has asked for them.
     ///
-    /// The link keeps what the bus reported; this holds the decision about when the ask goes out —
+    /// The link keeps what the bus reported; this holds the decision about when the ask goes out â€”
     /// once at open, and once more for a node that reported how it is without saying what it is. The
     /// count belongs to the link it was made on, because a link that was restored after dropping is a
     /// new bus.
@@ -602,7 +604,7 @@ impl AppState {
     /// same way it cannot disagree with the keyring about which key signs. What is decided here is
     /// only that there has to be a link to make a choice on.
     ///
-    /// A board that was never seen is refused, and the choice that stands is left where it was —
+    /// A board that was never seen is refused, and the choice that stands is left where it was â€”
     /// an address somebody typed is not a vehicle.
     ///
     /// # Errors
@@ -626,7 +628,7 @@ impl AppState {
 
     /// What the keyring says about what the operator wrote.
     ///
-    /// The decision about a secret — whether it can be read as thirty-two bytes — is made by the
+    /// The decision about a secret â€” whether it can be read as thirty-two bytes â€” is made by the
     /// keyring, so this is where the interface is told which name was left out rather than being
     /// shown a list that quietly dropped it.
     ///
@@ -862,6 +864,28 @@ impl AppState {
             );
 
         crate::cameras::discover(timeout)
+            .await
+            .map_err(|error| CommandError::new(error.code(), error.to_string()))
+    }
+
+    /// Searches the local network for vehicles that announce themselves.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform's mDNS stack cannot be opened. An empty list is not an
+    /// error: it says that no vehicle answered.
+    pub async fn discover_vehicles(
+        &self,
+        seconds: Option<f64>,
+    ) -> CommandResult<Vec<crate::vehicles::DiscoveredVehicle>> {
+        let timeout = seconds
+            .filter(|seconds| seconds.is_finite() && *seconds > 0.0)
+            .map_or(
+                crate::vehicles::DEFAULT_SEARCH,
+                std::time::Duration::from_secs_f64,
+            );
+
+        crate::vehicles::discover(timeout)
             .await
             .map_err(|error| CommandError::new(error.code(), error.to_string()))
     }
@@ -1450,7 +1474,7 @@ mod tests {
             "the ring holds what could be read"
         );
 
-        // A file whose only secret cannot be read is a link that is not signed — not a link signed
+        // A file whose only secret cannot be read is a link that is not signed â€” not a link signed
         // with a key nobody wrote.
         state
             .set_signing_keys(&[mpcraft_settings::SigningKeyEntry::new("typo", "zz")])

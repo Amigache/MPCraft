@@ -10,16 +10,14 @@
 //! That is why the tests below are a scripted advertisement and an advertisement from another
 //! implementation on this machine, rather than a service on the internet: there is no such thing.
 //!
-//! The reading is kept in two halves. The parsing is a function of what was advertised — a name, an
-//! address, a port, a path and the properties — and is tested with values written down before it is
+//! The reading is kept in two halves. The parsing is a function of what was advertised â€” a name, an
+//! address, a port, a path and the properties â€” and is tested with values written down before it is
 //! called. The browsing is the part that needs a network, and it is the thin layer that turns an
 //! `mdns-sd` answer into those values.
 
-use std::collections::HashMap;
 use std::time::Duration;
 
 use serde::Serialize;
-use thiserror::Error;
 
 /// The service type Mission Planner resolves for a camera that publishes RTSP.
 pub const SERVICE_TYPE: &str = "_rtsp._udp.local.";
@@ -61,45 +59,15 @@ pub struct CameraHost {
     pub streams: Vec<CameraStream>,
 }
 
-/// What one advertisement said, kept as values rather than as a record.
-///
-/// This is the seam the parsing is tested at: an mDNS answer is turned into this, and everything
-/// after it is a function of these fields.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Advert {
-    /// The instance name of the service.
-    pub id: String,
-    /// The host name it answered with.
-    pub host: String,
-    /// The addresses it resolved to.
-    pub addresses: Vec<String>,
-    /// The port the service is at.
-    pub port: u16,
-    /// The TXT properties, in the order they were read.
-    pub properties: Vec<(String, String)>,
-}
-
-/// Why a search could not be made.
-#[derive(Debug, Error)]
-pub enum DiscoveryError {
-    /// The platform's mDNS stack could not be opened.
-    #[error("the search for cameras could not be started: {0}")]
-    Start(String),
-}
-
-impl DiscoveryError {
-    /// The stable code the frontend branches on.
-    #[must_use]
-    pub const fn code(&self) -> &'static str {
-        crate::error::CommandError::CODE_INTERNAL
-    }
-}
+/// The address a stream is read at, which is the first address the device answered with.
+pub use crate::announce::DiscoveryError;
+use crate::announce::{browse, Advert};
 
 /// Reads what a camera advertised.
 ///
 /// The properties are the vocabulary upstream reads as well: `name` is what the operator sees,
 /// `path` is the part of the address after the port, and any value that carries a codec followed by
-/// its resolutions — `H264(1920x1080,1280x720)` — is one entry per size. A camera that advertises no
+/// its resolutions â€” `H264(1920x1080,1280x720)` â€” is one entry per size. A camera that advertises no
 /// size still gets one entry: the stream is there, and refusing it because the text did not say how
 /// big the picture is would be refusing a camera that works.
 #[must_use]
@@ -110,12 +78,7 @@ pub fn hosts_from(adverts: Vec<Advert>) -> Vec<CameraHost> {
         // The first address is the one the stream is read at. A camera that answers with both
         // families is read over IPv4 first, because the relay's `ffmpeg` and a camera on a domestic
         // network both speak that; the rest are kept by the network, not by the interface.
-        let Some(address) = advert
-            .addresses
-            .iter()
-            .find(|address| !address.contains(':'))
-            .or_else(|| advert.addresses.first())
-        else {
+        let Some(address) = advert.address() else {
             continue;
         };
 
@@ -149,11 +112,15 @@ pub fn hosts_from(adverts: Vec<Advert>) -> Vec<CameraHost> {
             name = advert.id.clone();
         }
 
+        let host = advert.host.clone();
+        let id = advert.id.clone();
+        let address = address.clone();
+
         hosts.push(CameraHost {
-            id: advert.id,
+            id,
             name,
-            host: advert.host,
-            address: address.clone(),
+            host,
+            address,
             port: advert.port,
             path,
             streams,
@@ -253,65 +220,7 @@ fn stream(
 /// Returns [`DiscoveryError::Start`] when the platform's mDNS stack cannot be opened. An empty list
 /// is not an error: it says that nothing answered, which is what a network without a camera does.
 pub async fn discover(timeout: Duration) -> Result<Vec<CameraHost>, DiscoveryError> {
-    let daemon =
-        mdns_sd::ServiceDaemon::new().map_err(|error| DiscoveryError::Start(error.to_string()))?;
-
-    let receiver = daemon
-        .browse(SERVICE_TYPE)
-        .map_err(|error| DiscoveryError::Start(error.to_string()))?;
-
-    let mut found: HashMap<String, Advert> = HashMap::new();
-    let deadline = tokio::time::Instant::now() + timeout;
-
-    loop {
-        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-
-        if left.is_zero() {
-            break;
-        }
-
-        let event = tokio::time::timeout(left, receiver.recv_async()).await;
-
-        let Ok(Ok(event)) = event else {
-            break;
-        };
-
-        if let mdns_sd::ServiceEvent::ServiceResolved(info) = event {
-            let advert = advert_of(&info);
-
-            found.insert(advert.id.clone(), advert);
-        }
-    }
-
-    // The daemon owns a thread of its own; shutting it down is what lets the search end.
-    let _ = daemon.shutdown();
-
-    Ok(hosts_from(found.into_values().collect()))
-}
-
-/// What one resolved service said, as the parsing reads it.
-fn advert_of(info: &mdns_sd::ResolvedService) -> Advert {
-    let properties = info
-        .get_properties()
-        .iter()
-        .map(|property| (property.key().to_owned(), property.val_str().to_owned()))
-        .collect();
-
-    let mut addresses: Vec<String> = info
-        .get_addresses()
-        .iter()
-        .map(|address| address.to_ip_addr().to_string())
-        .collect();
-
-    addresses.sort();
-
-    Advert {
-        id: info.get_fullname().to_owned(),
-        host: info.get_hostname().to_owned(),
-        addresses,
-        port: info.get_port(),
-        properties,
-    }
+    Ok(hosts_from(browse(SERVICE_TYPE, timeout).await?))
 }
 
 #[cfg(test)]

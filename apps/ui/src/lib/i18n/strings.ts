@@ -1560,6 +1560,11 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The Bluetooth LE device to connect to":
       "El dispositivo Bluetooth LE al que conectarse",
     "Choose a device": "Elija un dispositivo",
+    "Find a vehicle on the network": "Buscar un vehículo en la red",
+    "No vehicle answered the search.":
+      "Ningún vehículo respondió a la búsqueda.",
+    "Vehicle on the network": "Vehículo en la red",
+    "The vehicle found on the network": "El vehículo encontrado en la red",
 
     // The sheet of video.
     "The stream is drawn through the relay.":

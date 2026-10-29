@@ -1587,3 +1587,17 @@ export interface CameraHost {
   /** The streams it advertised. */
   readonly streams: readonly CameraStream[];
 }
+
+/** A vehicle that announced itself on the local network. */
+export interface DiscoveredVehicle {
+  /** The instance name of the service. */
+  readonly id: string;
+  /** The name the vehicle gives itself. */
+  readonly name: string;
+  /** The address it answered with. */
+  readonly address: string;
+  /** The port its MAVLink is at. */
+  readonly port: number;
+  /** The target that opens it, in the specification the backend parses. */
+  readonly target: string;
+}
