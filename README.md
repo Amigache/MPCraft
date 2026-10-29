@@ -4,8 +4,8 @@ A modern, Rust-based Ground Control Station for ArduPilot & PX4, functionally eq
 [Mission Planner](https://github.com/ardupilot/MissionPlanner) but rebuilt with a contemporary
 architecture and stack.
 
-> **Status: feature parity under way.** 144 of the 155 rows in [`docs/PARITY.md`](docs/PARITY.md)
-> are done, eight are partial and one is planned; see [`docs/PLAN.md`](docs/PLAN.md).
+> **Status: feature parity under way.** 145 of the 155 rows in [`docs/PARITY.md`](docs/PARITY.md)
+> are done, seven are partial and one is planned; see [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Why a rewrite
 
