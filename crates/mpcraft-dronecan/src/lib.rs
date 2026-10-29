@@ -20,8 +20,14 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod bits;
 pub mod can;
 pub mod crc;
+pub mod messages;
 
 pub use can::NOMINAL_PRIORITY;
 pub use can::{encode, signature_bytes, CanId, Frame, Kind, Reassembler, Received, Tail};
+pub use messages::{
+    DataType, ExecuteOpcode, GetSetRequest, GetSetResponse, NodeInfo, NodeStatus, ParameterValue,
+    RestartNode,
+};
