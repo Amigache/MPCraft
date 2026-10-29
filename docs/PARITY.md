@@ -1267,11 +1267,18 @@ That search is link-local, which is why the area that reads it is not a service 
 query goes to `224.0.0.251:5353` with a hop of one and no router forwards it, so a camera on another
 network cannot be found and no public demo can stand in for one. What was read here is an
 advertisement written by another implementation: `scripts/advertise-camera.py` registers the service
-with the `zeroconf` library — not the crate this reads — and the area found it at
-`192.168.1.136:8554` with the name, the path and both sizes, and built the two addresses from them.
-No physical camera has been discovered, and upstream's second probe — `_mavlink._udp`, which finds a
-vehicle to connect to — is not carried, because a station here is given its link by the operator; so
-the row stays partial.
+with the `zeroconf` library — not the crate this reads — and the area found it with the name, the
+path and the sizes, and built the addresses from them.
+
+The whole way was then read once with a real camera behind it: a Logitech Brio 100 on this machine
+was published as H.264 640 × 480 through `mediamtx`, the advertisement named that address, the search
+found it, and the relay drew the address it discovered — the loopback answered with
+`multipart/x-mixed-replace` and the body carried a JPEG. So what is asserted is that the address a
+camera advertised is one that plays, and not only that it was written down correctly. What is still
+missing is a camera that advertises itself: the advertisement here is this station's, and no physical
+IP camera has published `_rtsp._udp` on this network yet. Upstream's second probe — `_mavlink._udp`,
+which finds a vehicle to connect to — is not carried either, because a station here is given its link
+by the operator. The row stays partial for those two.
 
 A place is read against the picture that is drawn, not against the box it is drawn in, and a click
 that falls in the band the letterboxing leaves over is refused rather than read as the nearest edge —

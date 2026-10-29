@@ -50,6 +50,16 @@ def main() -> int:
     parser.add_argument("--name", default="MPCraft Test Camera", help="the name advertised")
     parser.add_argument("--address", default=None, help="the address to advertise")
     parser.add_argument(
+        "--path",
+        default="/axis-media/media.amp",
+        help="the path the stream is at, as a camera publishes it",
+    )
+    parser.add_argument(
+        "--codecs",
+        default="H264(1920x1080,1280x720)",
+        help="the codec and sizes, in the shape a camera advertises them",
+    )
+    parser.add_argument(
         "--seconds",
         type=float,
         default=0,
@@ -67,9 +77,9 @@ def main() -> int:
         port=arguments.port,
         properties={
             "name": arguments.name,
-            "path": "/axis-media/media.amp",
+            "path": arguments.path,
             # A camera of the kind upstream draws names the codec and the sizes it can send.
-            "codecs": "H264(1920x1080,1280x720)",
+            "codecs": arguments.codecs,
         },
         server=f"{socket.gethostname()}.local.",
     )
@@ -77,8 +87,8 @@ def main() -> int:
     zeroconf = Zeroconf()
     zeroconf.register_service(info)
 
-    print(f"advertising {name} at {address}:{arguments.port}", flush=True)
-    print("the TXT record says name, path and H264(1920x1080,1280x720)", flush=True)
+    print(f"advertising {name} at {address}:{arguments.port}{arguments.path}", flush=True)
+    print(f"the TXT record says name, path and {arguments.codecs}", flush=True)
 
     try:
         if arguments.seconds > 0:

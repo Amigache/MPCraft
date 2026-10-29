@@ -5,10 +5,15 @@
 //! here is `scripts/advertise-camera.py`, written with the `zeroconf` library rather than with the
 //! crate this reads, so the agreement is between two implementations and not one crate with itself.
 //!
+//! With `MPCRAFT_MDNS_STREAM=1` the area goes one step further: it hands the address it discovered
+//! to the relay and reads the picture back, so what is asserted is that the address a camera
+//! advertised is an address that plays, not only that it was written down correctly.
+//!
 //! ```text
 //! pip install zeroconf
-//! python scripts/advertise-camera.py --seconds 60
-//! MPCRAFT_MDNS_LIVE=1 cargo test -p mpcraft-app --test cameras_live -- --nocapture
+//! python scripts/advertise-camera.py --seconds 400 --port 8554 --path /live --codecs "H264(640x480)"
+//! MPCRAFT_MDNS_LIVE=1 MPCRAFT_MDNS_STREAM=1 \
+//!   cargo test -p mpcraft-app --test cameras_live -- --nocapture
 //! ```
 //!
 //! Discovery is link-local: it is answered on the network this machine is attached to, and nothing
@@ -18,6 +23,9 @@
 use std::time::Duration;
 
 use mpcraft_app::cameras::discover;
+use mpcraft_app::video::VideoRelayService;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 #[tokio::test]
 async fn a_camera_advertised_on_the_network_is_found() {
@@ -35,6 +43,8 @@ async fn a_camera_advertised_on_the_network_is_found() {
         .ok()
         .and_then(|port| port.parse().ok())
         .unwrap_or(8554);
+    let path =
+        std::env::var("MPCRAFT_MDNS_PATH").unwrap_or_else(|_| "/axis-media/media.amp".to_owned());
 
     let cameras = discover(Duration::from_secs(8))
         .await
@@ -64,21 +74,82 @@ async fn a_camera_advertised_on_the_network_is_found() {
     let camera = found.expect("the camera is there");
 
     assert_eq!(camera.port, port);
-    assert_eq!(camera.path, "/axis-media/media.amp");
-    assert_eq!(
-        camera.streams.len(),
-        2,
-        "the TXT record advertises two sizes"
+    assert_eq!(camera.path, path);
+    assert!(
+        !camera.streams.is_empty(),
+        "the camera advertised no stream at all"
     );
-    assert!(camera
-        .streams
-        .iter()
-        .all(|stream| stream.url.starts_with("rtsp://")));
     assert!(
         camera
             .streams
             .iter()
-            .any(|stream| stream.width == Some(1920) && stream.height == Some(1080)),
-        "the sizes are the ones the advertisement named"
+            .all(|stream| stream.url.starts_with("rtsp://") && stream.url.contains(&path)),
+        "every address carries the path the camera advertised"
     );
+
+    // The address is what the relay is given, so the last thing to read is whether the picture
+    // arrives from it. This is skipped unless the machine asks for it, because it needs a stream
+    // behind the advertisement and not only an advertisement.
+    if std::env::var("MPCRAFT_MDNS_STREAM").ok().as_deref() != Some("1") {
+        println!("MPCRAFT_MDNS_STREAM is not 1, so the address was read and not drawn");
+
+        return;
+    }
+
+    let url = camera.streams[0].url.clone();
+    let relay = VideoRelayService::default();
+
+    println!("drawing {url} through the relay");
+
+    let serving = relay.start(&url).await.expect("the relay starts");
+
+    let mut client = tokio::time::timeout(
+        Duration::from_secs(10),
+        TcpStream::connect(("127.0.0.1", serving.port)),
+    )
+    .await
+    .expect("the relay connects")
+    .expect("the relay listens");
+
+    client
+        .write_all(b"GET /stream.mjpeg HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+        .await
+        .expect("the request is written");
+
+    let mut received = Vec::new();
+
+    tokio::time::timeout(Duration::from_secs(30), async {
+        let mut buffer = vec![0_u8; 8192];
+
+        while received.len() < 32 * 1024 {
+            let count = client.read(&mut buffer).await.expect("the relay answers");
+
+            if count == 0 {
+                break;
+            }
+
+            received.extend_from_slice(&buffer[..count]);
+
+            if received.windows(2).any(|pair| pair == [0xFF, 0xD8]) {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("the picture arrives");
+
+    let head = String::from_utf8_lossy(&received[..received.len().min(512)]);
+
+    assert!(
+        head.contains("multipart/x-mixed-replace"),
+        "the loopback answers with the content type a picture element reads"
+    );
+    assert!(
+        received.windows(2).any(|pair| pair == [0xFF, 0xD8]),
+        "the body carries a JPEG"
+    );
+
+    println!("the picture arrived: {} bytes read", received.len());
+
+    relay.stop(&url);
 }
