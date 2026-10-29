@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  camerasDiscover,
   normaliseError,
   trackPoint,
   videoRelayStart,
@@ -9,7 +10,11 @@ import {
   videoStreams,
   videoStreamStop,
 } from "../../lib/ipc/bridge";
-import type { VideoStream } from "../../lib/ipc/types";
+import type {
+  CameraHost,
+  CameraStream,
+  VideoStream,
+} from "../../lib/ipc/types";
 import { DASH, formatCount, formatNumber } from "../../lib/format";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
@@ -68,6 +73,9 @@ export function VideoSheet() {
   const [drawing, setDrawing] = useState(false);
   const [relayUri, setRelayUri] = useState<string | null>(null);
   const [relayBusy, setRelayBusy] = useState(false);
+  const [cameras, setCameras] = useState<readonly CameraHost[]>([]);
+  const [cameraBusy, setCameraBusy] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   // The size that arrived is what the bytes say, and it is kept apart from the size the camera
   // said: for a stream the two are not the same thing.
@@ -142,7 +150,14 @@ export function VideoSheet() {
     }
   };
 
-  const playFrom = async (stream: VideoStream) => {
+  /**
+   * Starts the relay for one address and draws what it serves.
+   *
+   * Every way of drawing a picture that is not already MJPEG goes through here — a stream the camera
+   * described, an address typed by hand, a camera found on the network — so the relay is stopped
+   * before another one starts, and the sheet never shows two processes running for one picture.
+   */
+  const startRelay = async (uri: string, key: string | null) => {
     setRelayBusy(true);
     setError(null);
     setNotice(null);
@@ -152,11 +167,11 @@ export function VideoSheet() {
         await videoRelayStop(relayUri);
       }
 
-      const relay = await videoRelayStart(stream.uri);
+      const relay = await videoRelayStart(uri);
 
-      setRelayUri(stream.uri);
+      setRelayUri(uri);
       setAddress(relay.url);
-      setDrawingKey(keyOf(stream));
+      setDrawingKey(key);
       setArrived(null);
       setPlace(null);
       setReport(null);
@@ -169,29 +184,29 @@ export function VideoSheet() {
     }
   };
 
-  const playAddress = async () => {
-    setRelayBusy(true);
+  const playFrom = (stream: VideoStream) =>
+    startRelay(stream.uri, keyOf(stream));
+
+  const playAddress = () => startRelay(address, null);
+
+  const searchCameras = async () => {
+    setCameraBusy(true);
     setError(null);
     setNotice(null);
 
     try {
-      if (relayUri !== null) {
-        await videoRelayStop(relayUri);
+      const found = await camerasDiscover();
+
+      setCameras(found);
+      setSearched(true);
+
+      if (found.length === 0) {
+        setNotice(t("No camera answered the search."));
       }
-
-      const relay = await videoRelayStart(address);
-
-      setRelayUri(address);
-      setAddress(relay.url);
-      setArrived(null);
-      setPlace(null);
-      setReport(null);
-      setDrawing(true);
-      setNotice(t("The stream is drawn through the relay."));
     } catch (cause) {
       setError(normaliseError(cause).message);
     } finally {
-      setRelayBusy(false);
+      setCameraBusy(false);
     }
   };
 
@@ -289,6 +304,19 @@ export function VideoSheet() {
   const drawable = canDraw(address);
   const relayable = canRelay(address);
 
+  /** What a discovered stream is called: its codec and the size it advertised. */
+  const streamLabel = (stream: CameraStream): string => {
+    const size =
+      stream.width !== null && stream.height !== null
+        ? `${stream.width}×${stream.height}`
+        : "";
+
+    return (
+      [stream.codec, size].filter((part) => part !== "").join(" ") ||
+      t("The stream")
+    );
+  };
+
   return (
     <div className={styles.backdrop} role="presentation" onClick={hide}>
       <div
@@ -327,6 +355,56 @@ export function VideoSheet() {
               <span className={styles.text}>{t("There is no link.")}</span>
             ) : null}
           </div>
+        </section>
+
+        <section className={styles.block}>
+          <p className={styles.text}>
+            {t(
+              "A camera that announces itself on this network can be found without typing its address. The search is asked on the local network and does not leave it, so a camera on another network is not found.",
+            )}
+          </p>
+
+          <div className={styles.row}>
+            <button
+              type="button"
+              className="button"
+              disabled={cameraBusy}
+              onClick={() => {
+                void searchCameras();
+              }}
+            >
+              {t("Search the network")}
+            </button>
+            {searched && cameras.length === 0 ? (
+              <span className={styles.text}>
+                {t("No camera answered the search.")}
+              </span>
+            ) : null}
+          </div>
+
+          {cameras.map((camera) => (
+            <div key={camera.id} className={styles.camera}>
+              <p className={styles.text}>
+                {camera.name} — {camera.address}:{camera.port}
+              </p>
+
+              <div className={styles.row}>
+                {camera.streams.map((stream) => (
+                  <button
+                    key={stream.url}
+                    type="button"
+                    className="button"
+                    disabled={relayBusy}
+                    onClick={() => {
+                      void startRelay(stream.url, `camera:${stream.url}`);
+                    }}
+                  >
+                    {streamLabel(stream)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
 
         <section className={styles.block}>

@@ -48,6 +48,7 @@ pub mod adsb_relay;
 pub mod apj;
 pub mod board;
 pub mod bootloader;
+pub mod cameras;
 pub mod checklist;
 pub mod coordinates;
 pub mod dfu;
@@ -841,6 +842,28 @@ impl AppState {
     /// Stops the relay for one address.
     pub fn video_relay_stop(&self, uri: &str) {
         self.video.stop(uri);
+    }
+
+    /// Searches the local network for cameras that announce themselves.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the platform's mDNS stack cannot be opened. An empty list is not an
+    /// error: it says that no camera answered.
+    pub async fn discover_cameras(
+        &self,
+        seconds: Option<f64>,
+    ) -> CommandResult<Vec<crate::cameras::CameraHost>> {
+        let timeout = seconds
+            .filter(|seconds| seconds.is_finite() && *seconds > 0.0)
+            .map_or(
+                crate::cameras::DEFAULT_SEARCH,
+                std::time::Duration::from_secs_f64,
+            );
+
+        crate::cameras::discover(timeout)
+            .await
+            .map_err(|error| CommandError::new(error.code(), error.to_string()))
     }
 
     /// The relays that are running.

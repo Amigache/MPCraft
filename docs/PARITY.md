@@ -1250,11 +1250,28 @@ service that asks for an account before it hands out a stream — the demo Wowza
 test that depends on somebody else's signup is a test that stops passing for a reason that has
 nothing to do with this code. The same area runs with the sidecar alone: with no `ffmpeg` on the
 `PATH` and `MPCRAFT_FFMPEG` unset, the binary beside the executable is the one that ran. Upstream
-draws through GStreamer, which also finds cameras by service discovery on the local network; that
-discovery is not ported, so the row stays partial. And the picture is fetched only when the operator
+draws through GStreamer. And the picture is fetched only when the operator
 says so, because the application makes no network call that nobody chose, while upstream draws as
 soon as a stream is picked. The sheet opens without a link for the same reason: an address typed by
 hand needs no camera behind it, and asking the camera still needs one, which the button there says.
+
+The **cameras that announce themselves** on the local network are found without typing an address:
+the sheet asks the network for the `_rtsp._udp` service Mission Planner resolves
+(`ExtLibs/Utilities/ZeroConf.cs`), and every camera it hears is listed with the name it gives itself,
+its address and port, and one button per size it advertised in its own text record. Upstream builds
+the address by putting the service's `PTR` after the port (`Controls/Video.cs`); here the path comes
+from the camera's `path` property, and a camera that says nothing about a size is still listed with
+one plain address rather than dropped because its text did not say how big the picture is.
+
+That search is link-local, which is why the area that reads it is not a service on the internet: the
+query goes to `224.0.0.251:5353` with a hop of one and no router forwards it, so a camera on another
+network cannot be found and no public demo can stand in for one. What was read here is an
+advertisement written by another implementation: `scripts/advertise-camera.py` registers the service
+with the `zeroconf` library — not the crate this reads — and the area found it at
+`192.168.1.136:8554` with the name, the path and both sizes, and built the two addresses from them.
+No physical camera has been discovered, and upstream's second probe — `_mavlink._udp`, which finds a
+vehicle to connect to — is not carried, because a station here is given its link by the operator; so
+the row stays partial.
 
 A place is read against the picture that is drawn, not against the box it is drawn in, and a click
 that falls in the band the letterboxing leaves over is refused rather than read as the nearest edge —
