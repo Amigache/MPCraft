@@ -1273,7 +1273,13 @@ path and the sizes, and built the addresses from them.
 The whole way was then read once with a real camera behind it: a Logitech Brio 100 on this machine
 was published as H.264 640 × 480 through `mediamtx`, the advertisement named that address, the search
 found it, and the relay drew the address it discovered — the loopback answered with
-`multipart/x-mixed-replace` and the body carried a JPEG. So what is asserted is that the address a
+`multipart/x-mixed-replace` and the body carried a JPEG. It was then drawn in the window, which is the
+same fact read from the other side: the sheet listed `MPCraft USB Camera — 192.168.1.136:8554`, the
+button for `H264 640×480` started a process, and the picture that arrived was the camera's. The row of
+sizes says both numbers — what the camera advertised and what arrived — and for a camera found on the
+network the first comes from its own text record, because a discovered camera has no descriptor
+arriving over MAVLink. What the process was is also read: the relay that ran was the sidecar beside
+the executable, not the `ffmpeg` installed on the machine. So what is asserted is that the address a
 camera advertised is one that plays, and not only that it was written down correctly. What is still
 missing is a camera that advertises itself: the advertisement here is this station's, and no physical
 IP camera has published `_rtsp._udp` on this network yet. Upstream's second probe — `_mavlink._udp`,

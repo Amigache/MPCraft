@@ -83,6 +83,11 @@ export function VideoSheet() {
     width: number;
     height: number;
   } | null>(null);
+  // The size a camera on the network advertised for the address being drawn, when one did.
+  const [advertised, setAdvertised] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [place, setPlace] = useState<PicturePlace | null>(null);
   const [report, setReport] = useState<string | null>(null);
 
@@ -126,6 +131,14 @@ export function VideoSheet() {
   const drawnStream =
     streams.find((stream) => keyOf(stream) === drawingKey) ?? null;
 
+  // What the address being drawn said about its size, from either half: a stream the vehicle's
+  // camera described, or one a camera on the network advertised. A discovered camera has no
+  // descriptor, so its text record is the only thing it said about itself.
+  const sized =
+    drawnStream !== null
+      ? { width: drawnStream.width, height: drawnStream.height }
+      : advertised;
+
   const toggle = async (stream: VideoStream) => {
     const name = stream.name || String(stream.streamId);
 
@@ -157,7 +170,11 @@ export function VideoSheet() {
    * described, an address typed by hand, a camera found on the network — so the relay is stopped
    * before another one starts, and the sheet never shows two processes running for one picture.
    */
-  const startRelay = async (uri: string, key: string | null) => {
+  const startRelay = async (
+    uri: string,
+    key: string | null,
+    said: { width: number; height: number } | null = null,
+  ) => {
     setRelayBusy(true);
     setError(null);
     setNotice(null);
@@ -172,6 +189,7 @@ export function VideoSheet() {
       setRelayUri(uri);
       setAddress(relay.url);
       setDrawingKey(key);
+      setAdvertised(said);
       setArrived(null);
       setPlace(null);
       setReport(null);
@@ -222,6 +240,7 @@ export function VideoSheet() {
       setRelayUri(null);
       setDrawing(false);
       setArrived(null);
+      setAdvertised(null);
       setNotice(t("The relay has stopped."));
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -396,7 +415,13 @@ export function VideoSheet() {
                     className="button"
                     disabled={relayBusy}
                     onClick={() => {
-                      void startRelay(stream.url, `camera:${stream.url}`);
+                      void startRelay(
+                        stream.url,
+                        `camera:${stream.url}`,
+                        stream.width !== null && stream.height !== null
+                          ? { width: stream.width, height: stream.height }
+                          : null,
+                      );
                     }}
                   >
                     {streamLabel(stream)}
@@ -504,9 +529,9 @@ export function VideoSheet() {
           <dl className={styles.facts}>
             <dt>{t("The size the camera said")}</dt>
             <dd>
-              {drawnStream === null
+              {sized === null
                 ? t("nothing was said for this address")
-                : `${formatCount(drawnStream.width)} × ${formatCount(drawnStream.height)}`}
+                : `${formatCount(sized.width)} × ${formatCount(sized.height)}`}
             </dd>
             <dt>{t("The size that arrived")}</dt>
             <dd>
@@ -524,9 +549,7 @@ export function VideoSheet() {
             <dd>{report ?? DASH}</dd>
           </dl>
 
-          {drawnStream !== null &&
-          arrived !== null &&
-          differs(drawnStream, arrived) ? (
+          {sized !== null && arrived !== null && differs(sized, arrived) ? (
             <p className={styles.text}>
               {t(
                 "The size the camera said is not the size that arrived, and both are shown rather than one of them.",
