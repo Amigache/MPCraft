@@ -1223,12 +1223,15 @@ build it was tested with. The sidecar is not in the repository: `scripts/fetch-f
 build of the platform being built into the folder the bundler copies, before anything is compiled,
 because the build script of the desktop crate copies it and a missing file is a failed build rather
 than a machine that has its own `ffmpeg`. The copy was read here: a build of the desktop crate wrote
-`ffmpeg.exe` beside `mpcraft.exe` in `target/debug`, and that is the file the relay runs. Which
-protocols that build carries is printed when it is fetched rather than assumed: the one read here is
-`6.0-essentials`, and it answers `rtsp` as a demuxer, `mpjpeg` as a muxer, and `rtmp`, `udp`, `tcp`,
-`http`, `https` and `srt` as protocols. The build is GPL-3.0, which this project already is, and its
-source is the FFmpeg project's; what a release still owes for it is the licence text beside the
-binary, which is not carried yet and is said here rather than left to be discovered.
+`ffmpeg.exe` beside `mpcraft.exe` in `target/debug`, and that is the file the relay runs. So was the
+installer the workflow writes: the MSI that the Windows job built lists `ffmpeg.exe` among its files,
+and it weighs 39.8 MB where the one without the sidecar weighed 11.5 MB — the binary is 81 MB on the
+disk and the cabinet carries it compressed. Which protocols that build carries is printed when it is
+fetched rather than assumed: the one read here is `6.0-essentials`, and it answers `rtsp` as a
+demuxer, `mpjpeg` as a muxer, and `rtmp`, `udp`, `tcp`, `http`, `https` and `srt` as protocols. The
+build is GPL-3.0, which this project already is, and its source is the FFmpeg project's; what a
+release still owes for it is the licence text beside the binary, which is not carried yet and is said
+here rather than left to be discovered.
 
 The relay was read against a camera that is not on this machine, which is the other half of what the
 loopback test proves: three public Axis cameras published for testing answered, and
