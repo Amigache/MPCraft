@@ -15,6 +15,7 @@ import type {
   ConnectionProfile,
   ConnectResponse,
   ConnectionStatus,
+  DiscoveredVehicle,
   Coordinates,
   DownloadedLog,
   DronecanReport,
@@ -1798,4 +1799,13 @@ export async function bleScan(): Promise<BleDevice[]> {
 /** Searches the local network for cameras that announce themselves. */
 export async function camerasDiscover(seconds?: number): Promise<CameraHost[]> {
   return call<CameraHost[]>("cameras_discover", { seconds: seconds ?? null });
+}
+
+/** Searches the local network for vehicles that announce themselves. */
+export async function vehiclesDiscover(
+  seconds?: number,
+): Promise<DiscoveredVehicle[]> {
+  return call<DiscoveredVehicle[]>("vehicles_discover", {
+    seconds: seconds ?? null,
+  });
 }

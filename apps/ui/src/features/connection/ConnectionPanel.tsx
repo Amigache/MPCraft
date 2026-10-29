@@ -5,10 +5,12 @@ import {
   listSerialPorts,
   selectVehicle,
   useConnection,
+  vehiclesDiscover,
 } from "../../lib/ipc/bridge";
 import type {
   BleDevice,
   CommandError,
+  DiscoveredVehicle,
   SerialPort,
   VehicleEvent,
 } from "../../lib/ipc/types";
@@ -70,6 +72,11 @@ export function ConnectionPanel() {
   const [bleDevices, setBleDevices] = useState<readonly BleDevice[]>([]);
   const [bleBusy, setBleBusy] = useState(false);
   const [bleError, setBleError] = useState<string | null>(null);
+  const [foundVehicles, setFoundVehicles] = useState<
+    readonly DiscoveredVehicle[]
+  >([]);
+  const [vehicleBusy, setVehicleBusy] = useState(false);
+  const [searchedVehicles, setSearchedVehicles] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const profiles = useProfilesStore((state) => state.profiles);
@@ -192,6 +199,20 @@ export function ConnectionPanel() {
       setBleError((cause as CommandError).message);
     } finally {
       setBleBusy(false);
+    }
+  };
+
+  const searchVehicles = async () => {
+    setVehicleBusy(true);
+    setChooseError(null);
+
+    try {
+      setFoundVehicles(await vehiclesDiscover());
+      setSearchedVehicles(true);
+    } catch (cause) {
+      setChooseError(cause as CommandError);
+    } finally {
+      setVehicleBusy(false);
     }
   };
 
@@ -329,6 +350,52 @@ export function ConnectionPanel() {
         <p className={styles.error} role="alert">
           {bleError}
         </p>
+      ) : null}
+
+      <div className={styles.pick}>
+        <button
+          type="button"
+          className="button"
+          disabled={vehicleBusy}
+          onClick={() => {
+            void searchVehicles();
+          }}
+        >
+          {t("Find a vehicle on the network")}
+        </button>
+      </div>
+
+      {searchedVehicles && foundVehicles.length === 0 ? (
+        <p className={styles.note}>{t("No vehicle answered the search.")}</p>
+      ) : null}
+
+      {foundVehicles.length > 0 ? (
+        <div className={styles.pick}>
+          <label className={styles.field}>
+            <span className={styles.label}>{t("Vehicle on the network")}</span>
+            <select
+              className="select"
+              value=""
+              aria-label={t("The vehicle found on the network")}
+              onChange={(event) => {
+                const found = foundVehicles.find(
+                  (vehicle) => vehicle.id === event.target.value,
+                );
+
+                if (found !== undefined) {
+                  setTarget(found.target);
+                }
+              }}
+            >
+              <option value="">{t("Choose a vehicle")}</option>
+              {foundVehicles.map((vehicle) => (
+                <option key={vehicle.id} value={vehicle.id}>
+                  {vehicle.name} ({vehicle.address}:{vehicle.port})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       ) : null}
 
       <div className={styles.row}>

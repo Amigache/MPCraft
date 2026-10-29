@@ -2189,6 +2189,20 @@ async fn cameras_discover(
     state.discover_cameras(seconds).await
 }
 
+/// Searches the local network for vehicles that announce themselves.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the platform's mDNS stack cannot be opened. An
+/// empty list is not an error: it says that no vehicle answered.
+#[tauri::command]
+async fn vehicles_discover(
+    state: State<'_, AppState>,
+    seconds: Option<f64>,
+) -> CommandResult<Vec<mpcraft_app::vehicles::DiscoveredVehicle>> {
+    state.discover_vehicles(seconds).await
+}
+
 /// Asks the camera of the vehicle what video streams it has.
 ///
 /// The camera answers with a URI, and the size and frame rate of each stream. The
@@ -4796,6 +4810,7 @@ fn main() {
             video_relay_stop,
             video_relays,
             cameras_discover,
+            vehicles_discover,
             gimbal_devices,
             set_gimbal_angles,
             slew_gimbal,

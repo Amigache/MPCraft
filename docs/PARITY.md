@@ -1282,9 +1282,25 @@ arriving over MAVLink. What the process was is also read: the relay that ran was
 the executable, not the `ffmpeg` installed on the machine. So what is asserted is that the address a
 camera advertised is one that plays, and not only that it was written down correctly. What is still
 missing is a camera that advertises itself: the advertisement here is this station's, and no physical
-IP camera has published `_rtsp._udp` on this network yet. Upstream's second probe — `_mavlink._udp`,
-which finds a vehicle to connect to — is not carried either, because a station here is given its link
-by the operator. The row stays partial for those two.
+IP camera has published `_rtsp._udp` on this network yet. The row stays partial for that one thing.
+
+The **vehicle that announces itself** is the other service upstream resolves, and it is carried now:
+the connection sheet asks the network for `_mavlink._udp` and lists what answered by the name the
+vehicle gives itself, with the target that opens it. Upstream connects from inside its handler after
+asking the operator (`MainV2.cs`, `ZeroConf.StartUDPMavlink`); here the search only reports, and the
+target the operator picks goes through the same connection path as an address typed by hand — so the
+state of the link is the one the rest of the window already shows, and nothing is opened that nobody
+chose. The address is the first one the service resolved to, IPv4 before IPv6, because that is what a
+domestic network hands out and what the station's UDP transport speaks.
+
+That search was read end to end on this machine, with a vehicle that answers:
+`scripts/advertise-vehicle.py` published `Bench` at `192.168.1.136:14560` with the `zeroconf`
+library, the search built `udp:192.168.1.136:14560` from it, and a session opened on that target was
+answered — the simulated vehicle saw the station at `192.168.1.136:53587` and replied as
+`VehicleId { system_id: 1, component_id: 1 }` (`scripts/simulated-vehicle.py`, whose framing is
+written from the specification rather than from the Rust one). What is not carried is upstream's habit
+of asking the same question every thirty seconds for the life of the program; here the operator asks
+when they want to look, which is the rule the rest of the interface follows.
 
 A place is read against the picture that is drawn, not against the box it is drawn in, and a click
 that falls in the band the letterboxing leaves over is refused rather than read as the nearest edge —
