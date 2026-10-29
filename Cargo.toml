@@ -12,6 +12,7 @@ members = [
     "crates/mpcraft-settings",
     "crates/mpcraft-plugin",
     "crates/mpcraft-winusb",
+    "crates/mpcraft-dronecan",
     "crates/mpcraft-ble",
     "crates/mpcraft-app",
     "crates/mpcraft-cli",

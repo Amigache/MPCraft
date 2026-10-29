@@ -3644,6 +3644,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mpcraft-dronecan"
+version = "0.1.4"
+dependencies = [
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "mpcraft-geo"
 version = "0.1.4"
 dependencies = [

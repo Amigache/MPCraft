@@ -1,0 +1,13 @@
+[package]
+name = "mpcraft-dronecan"
+description = "DroneCAN over CAN frames: the transport and the messages a station asks of a node."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
