@@ -39,6 +39,7 @@ mpcraft-settings = { path = "crates/mpcraft-settings" }
 mpcraft-plugin = { path = "crates/mpcraft-plugin" }
 mpcraft-winusb = { path = "crates/mpcraft-winusb" }
 mpcraft-ble = { path = "crates/mpcraft-ble" }
+mdns-sd = "0.21"
 mpcraft-app = { path = "crates/mpcraft-app" }
 mpcraft-cli = { path = "crates/mpcraft-cli" }
 

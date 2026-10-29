@@ -7,6 +7,7 @@ import type {
   BleDevice,
   BoardInfo,
   CameraDevice,
+  CameraHost,
   ChecklistEntry,
   CommandAnswer,
   CommandError,
@@ -1792,4 +1793,9 @@ export async function videoRelays(): Promise<VideoRelayInfo[]> {
 /** Scans for Bluetooth LE devices that carry a serial service. */
 export async function bleScan(): Promise<BleDevice[]> {
   return call<BleDevice[]>("ble_scan", {});
+}
+
+/** Searches the local network for cameras that announce themselves. */
+export async function camerasDiscover(seconds?: number): Promise<CameraHost[]> {
+  return call<CameraHost[]>("cameras_discover", { seconds: seconds ?? null });
 }

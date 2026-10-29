@@ -1567,6 +1567,11 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The relay has stopped.": "El repetidor se ha detenido.",
     "Play through the relay": "Reproducir a través del repetidor",
     "Stop the relay": "Parar el repetidor",
+    "A camera that announces itself on this network can be found without typing its address. The search is asked on the local network and does not leave it, so a camera on another network is not found.":
+      "Una cámara que se anuncia en esta red se puede encontrar sin escribir su dirección. La búsqueda se hace en la red local y no sale de ella, así que una cámara de otra red no aparece.",
+    "Search the network": "Buscar en la red",
+    "No camera answered the search.": "Ninguna cámara respondió a la búsqueda.",
+    "The stream": "El canal",
   },
 };
 

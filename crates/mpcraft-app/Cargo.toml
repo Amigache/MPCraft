@@ -37,6 +37,7 @@ mpcraft-transport = { workspace = true }
 mpcraft-vehicle = { workspace = true }
 mpcraft-winusb = { workspace = true }
 mpcraft-ble = { workspace = true }
+mdns-sd = { workspace = true }
 reqwest = { workspace = true }
 russh = { workspace = true }
 russh-sftp = { workspace = true }

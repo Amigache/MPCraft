@@ -85,6 +85,15 @@
   border-bottom: none;
 }
 
+/* One camera the search found, with the sizes it advertised. */
+.camera {
+  border-top: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
 .streamHead {
   align-items: center;
   display: flex;

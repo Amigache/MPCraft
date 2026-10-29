@@ -1557,3 +1557,33 @@ export interface BleDevice {
   /** The serial profile it carries: `nus`, `ffe1` or `unknown`. */
   readonly profile: string;
 }
+
+/** One way of asking a camera for a picture. */
+export interface CameraStream {
+  /** The codec the camera named, when it named one. */
+  readonly codec: string;
+  /** The width it advertised, when it advertised a size. */
+  readonly width: number | null;
+  /** The height it advertised, when it advertised a size. */
+  readonly height: number | null;
+  /** The address the relay reads. */
+  readonly url: string;
+}
+
+/** A camera that announced itself on the local network. */
+export interface CameraHost {
+  /** The instance name of the service. */
+  readonly id: string;
+  /** The name the camera gives itself. */
+  readonly name: string;
+  /** The host name it answers with. */
+  readonly host: string;
+  /** The address the stream is at. */
+  readonly address: string;
+  /** The port the stream is at. */
+  readonly port: number;
+  /** The path of the stream on that port, when it advertised one. */
+  readonly path: string;
+  /** The streams it advertised. */
+  readonly streams: readonly CameraStream[];
+}
