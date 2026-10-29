@@ -699,6 +699,120 @@ impl AppState {
         Ok(())
     }
 
+    /// The places the operator marked on the map.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when this machine has no configuration directory or when the settings
+    /// file cannot be read.
+    pub fn pois(&self) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+        let store = self.store()?;
+
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.pois)
+    }
+
+    /// Adds a place, unless the same place with the same name is already there.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the name is empty, when the place is not a place, or when the
+    /// settings cannot be read or written.
+    pub fn add_poi(
+        &self,
+        name: &str,
+        latitude: f64,
+        longitude: f64,
+    ) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+        let name = name.trim();
+
+        if name.is_empty() {
+            return Err(CommandError::invalid_request(
+                "a place of interest needs a name",
+            ));
+        }
+
+        if !latitude.is_finite()
+            || !longitude.is_finite()
+            || !(-90.0..=90.0).contains(&latitude)
+            || !(-180.0..=180.0).contains(&longitude)
+        {
+            return Err(CommandError::invalid_request(
+                "a place of interest needs a latitude and a longitude",
+            ));
+        }
+
+        let poi = mpcraft_settings::Poi {
+            name: name.to_owned(),
+            latitude,
+            longitude,
+        };
+
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        if !settings.pois.iter().any(|known| known.same(&poi)) {
+            settings.pois.push(poi);
+        }
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.pois)
+    }
+
+    /// Takes one place off the map.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the settings cannot be read or written.
+    pub fn remove_poi(
+        &self,
+        poi: &mpcraft_settings::Poi,
+    ) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.pois.retain(|known| !known.same(poi));
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.pois)
+    }
+
+    /// Takes every place off the map.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the settings cannot be read or written.
+    pub fn clear_pois(&self) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.pois.clear();
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        Ok(settings.pois)
+    }
+
     /// What the mirrors are doing.
     #[must_use]
     pub fn mirrors_status(&self) -> Vec<crate::mirrors::MirrorStatus> {

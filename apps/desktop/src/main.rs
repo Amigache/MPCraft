@@ -2761,6 +2761,55 @@ async fn set_signing_keys(
     Ok(status)
 }
 
+/// The places the operator marked on the map.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be read.
+#[tauri::command]
+async fn pois(state: State<'_, AppState>) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+    state.pois()
+}
+
+/// Adds a place to the map.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the name is empty, the place is not a place,
+/// or the settings cannot be read or written.
+#[tauri::command]
+async fn add_poi(
+    state: State<'_, AppState>,
+    name: String,
+    latitude: f64,
+    longitude: f64,
+) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+    state.add_poi(&name, latitude, longitude)
+}
+
+/// Takes a place off the map.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be read or written.
+#[tauri::command]
+async fn remove_poi(
+    state: State<'_, AppState>,
+    poi: mpcraft_settings::Poi,
+) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+    state.remove_poi(&poi)
+}
+
+/// Takes every place off the map.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be read or written.
+#[tauri::command]
+async fn clear_pois(state: State<'_, AppState>) -> CommandResult<Vec<mpcraft_settings::Poi>> {
+    state.clear_pois()
+}
+
 /// The rows of the mirrors and what each is doing.
 ///
 /// # Errors
@@ -4702,6 +4751,10 @@ fn main() {
             set_mirrors,
             start_mirror,
             stop_mirror,
+            pois,
+            add_poi,
+            remove_poi,
+            clear_pois,
             serial_control,
             diagnostics_bundle,
             list_parameters,

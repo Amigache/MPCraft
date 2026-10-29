@@ -962,6 +962,7 @@ mod tests {
             swarm_enabled: enabled,
             swarm_slots: slots,
             mirrors: Vec::new(),
+            pois: Vec::new(),
         }
     }
 

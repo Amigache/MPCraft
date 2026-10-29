@@ -143,6 +143,7 @@ export function MenuBar() {
   const showPlugins = useUiStore((state) => state.showPlugins);
   const showFormation = useUiStore((state) => state.showFormation);
   const showMirrors = useUiStore((state) => state.showMirrors);
+  const showPois = useUiStore((state) => state.showPois);
   const showSigning = useUiStore((state) => state.showSigning);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
@@ -975,6 +976,20 @@ export function MenuBar() {
           },
           // The rows are settings and are read without a link. What needs the link is starting
           // one, and the sheet says so.
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-pois",
+          label: t("The places of interest."),
+          onSelect: () => {
+            close();
+            showPois();
+          },
+          // The places are read from the settings, so the sheet opens without a link. Picking
+          // one on the map needs a screen with a map, and the sheet says so.
           disabled: false,
           checked: undefined,
           separator: false,

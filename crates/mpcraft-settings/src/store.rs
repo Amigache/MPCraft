@@ -10,6 +10,7 @@ use crate::error::SettingsError;
 use crate::keys::SigningKeyEntry;
 use crate::mirrors::MirrorSpec;
 use crate::plugins::PluginEntry;
+use crate::poi::Poi;
 use crate::profiles::ConnectionProfile;
 use crate::swarm::SwarmSlot;
 
@@ -83,6 +84,9 @@ pub struct Settings {
     /// A mirror is a setting, not a state: the rows are kept between two runs, and what is
     /// running is not, because there is no link until the station opens one.
     pub mirrors: Vec<MirrorSpec>,
+
+    /// The places the operator marked on the map.
+    pub pois: Vec<Poi>,
 }
 
 /// A store of the persisted settings.
@@ -332,6 +336,7 @@ mod tests {
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
                 mirrors: Vec::new(),
+                pois: Vec::new(),
                 connection_profiles: profiles.clone(),
             })
             .expect("the settings should be written");
@@ -402,6 +407,7 @@ mod tests {
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
                 mirrors: Vec::new(),
+                pois: Vec::new(),
                 connection_profiles: first.clone(),
             })
             .expect("the first write should succeed");
@@ -446,6 +452,7 @@ mod tests {
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
                 mirrors: Vec::new(),
+                pois: Vec::new(),
                 connection_profiles: Vec::new(),
             })
             .expect("the settings should be written");
@@ -474,6 +481,7 @@ mod tests {
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
                 mirrors: Vec::new(),
+                pois: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::auto_connect(
                     "SITL",
                     "udp:127.0.0.1:14550",
@@ -504,6 +512,7 @@ mod tests {
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
                 mirrors: Vec::new(),
+                pois: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::new("SITL", "udp:127.0.0.1:14550")],
             })
             .expect("the settings should be written");
@@ -555,6 +564,7 @@ mod tests {
                 swarm_enabled: true,
                 swarm_slots: slots.clone(),
                 mirrors: Vec::new(),
+                pois: Vec::new(),
                 connection_profiles: Vec::new(),
             })
             .expect("the settings should be written");
@@ -611,6 +621,25 @@ mod tests {
         };
 
         assert_eq!(directory.file_name().unwrap(), APP_DIRECTORY);
+    }
+
+    #[test]
+    fn the_places_of_interest_are_written_and_read_back() {
+        let directory = TempDir::new("pois");
+        let store = SettingsStore::new(directory.path());
+
+        let mut settings = Settings::default();
+        settings.pois.push(Poi {
+            name: "Gate".to_owned(),
+            latitude: -35.0,
+            longitude: 149.0,
+        });
+
+        store.save(&settings).expect("the settings are written");
+
+        let read = store.load().expect("the settings are read");
+
+        assert_eq!(read.pois, settings.pois);
     }
 
     #[test]

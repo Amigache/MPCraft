@@ -484,6 +484,22 @@ export interface UiStore {
   readonly showMirrors: () => void;
   /** Closes the sheet of the mirrors. */
   readonly hideMirrors: () => void;
+  /** Whether the sheet of the places of interest is open over the window. */
+  readonly poisOpen: boolean;
+  /** Opens the sheet of the places of interest. */
+  readonly showPois: () => void;
+  /** Closes the sheet of the places of interest. */
+  readonly hidePois: () => void;
+  /** Whether the next click on the map marks a place of interest. */
+  readonly poiPlacing: boolean;
+  /** The name the next place is given. */
+  readonly poiName: string;
+  /** Sets the name the next place is given. */
+  readonly setPoiName: (name: string) => void;
+  /** Arms the map for the next place, and closes the sheet. */
+  readonly startPoiPlacement: () => void;
+  /** Disarms the map without marking a place. */
+  readonly cancelPoiPlacement: () => void;
   /** Whether the sheet of the keys of the signed link is open over the window. */
   readonly signingOpen: boolean;
   /** Opens the sheet of the keys of the signed link. */
@@ -552,6 +568,9 @@ export const useUiStore = create<UiStore>((set, get) => ({
   pluginsOpen: false,
   formationOpen: false,
   mirrorsOpen: false,
+  poisOpen: false,
+  poiPlacing: false,
+  poiName: "Point",
   signingOpen: false,
   parameterGroups: [],
 
@@ -673,6 +692,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   showPlugins: () => set({ pluginsOpen: true }),
   showFormation: () => set({ formationOpen: true }),
   showMirrors: () => set({ mirrorsOpen: true }),
+  showPois: () => set({ poisOpen: true }),
   showSigning: () => set({ signingOpen: true }),
 
   showLog: () => get().setScreen("logs"),
@@ -696,6 +716,10 @@ export const useUiStore = create<UiStore>((set, get) => ({
   hidePlugins: () => set({ pluginsOpen: false }),
   hideFormation: () => set({ formationOpen: false }),
   hideMirrors: () => set({ mirrorsOpen: false }),
+  hidePois: () => set({ poisOpen: false }),
+  setPoiName: (poiName) => set({ poiName }),
+  startPoiPlacement: () => set({ poiPlacing: true, poisOpen: false }),
+  cancelPoiPlacement: () => set({ poiPlacing: false }),
   hideSigning: () => set({ signingOpen: false }),
 
   loadParameterGroups: async () => {
