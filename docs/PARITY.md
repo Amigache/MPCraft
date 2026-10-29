@@ -209,7 +209,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 10.3 | Internationalisation | `Strings.resx` + Crowdin | ✅ | 7 |
 | 10.4 | Unit system switching (metric / imperial) | `CurrentState.multiplier*` | ✅ | 1 |
 | 10.5 | Settings persistence | `ExtLibs/Utilities/Settings.cs` | ✅ | 0 |
-| 10.6 | Auto-updater | `Updater/` | 🔽 | 7 |
+| 10.6 | Auto-updater | `Updater/` | ✅ | 7 |
 | 10.7 | Crash handler / diagnostics bundle | `Program.cs` | ✅ | 7 |
 | 10.8 | Windows / Linux / macOS packaging | `wix/`, `Msi/` | ✅ | 7 |
 | 10.9 | Code signing & notarisation | `wix/` | 🔜 | 7 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 144 |
+| ✅ Done | 145 |
 | 🔜 Planned | 1 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 8 |
+| Partial (🟡 / 🔽) | 7 |
 
-The 144 rows marked done are the connection, transport, parameter, mission, command and
+The 145 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -1770,9 +1770,13 @@ signatures to the release, and `latest.json`; the endpoint
 version 0.1.1, the three platforms and their signatures, and each of the three asset addresses answers
 200. The first real run also found what the billing had hidden: the workspace did not compile on Linux
 or macOS, because `mpcraft-winusb` declared its Windows binding for every platform; the binding now
-travels with the platform, and the tag was made again. What is unproven is an installed copy updating
-itself, which needs a second release and a copy of the first, and there is one release. That is why the
-row stays partial.
+travels with the platform, and the tag was made again. What the tags after 0.1.2 showed is the whole
+flow: an installed 0.1.3 checked the release, asked with the dialog, downloaded 0.1.4, verified it
+against the public key, installed it and started again, and the installed binary reports 0.1.4. The
+first real run also found a defect the check had hidden: the bridge asked the dialog plugin for a
+command that no longer exists, so the check found the release and never asked; the command is
+`message` with the buttons it draws, and it was proved locally before the 0.1.3 release. The row is
+done.
 
 The **contract** is read from both sides now, because one document was spoken two ways and nothing read the
 two against each other. The pair that identifies a vehicle was written with underscores by the structs that
