@@ -858,7 +858,17 @@ impl<D: Device> Flash<D> {
         }
 
         self.address = address;
-        self.run_command(Command::SetAddressPointer, address).await
+
+        let answer = self
+            .run_command(Command::SetAddressPointer, address)
+            .await?;
+
+        // A new place starts a new run of blocks: the device counts the blocks of one write sequence from two,
+        // and a counter that kept going across an erase or a read would name the wrong place for the first run of
+        // the next sequence.
+        self.block = 2;
+
+        Ok(answer)
     }
 
     /// Erases one sector of the memory.
@@ -1041,6 +1051,42 @@ impl<D: Device> Flash<D> {
                 answer.first().copied().unwrap_or(0)
             ))
         })
+    }
+
+    /// Waits until the device is no longer busy.
+    ///
+    /// A command and a run of bytes both answer `GETSTATUS` with the busy flag and the number of milliseconds the
+    /// device wants before it is asked again; a caller that sends the next request at once is refused, which is what
+    /// this board does. The published readers poll until the answer is no longer busy, and this is that loop: the
+    /// wait the device asked for is honoured, and the loop is bounded so a device that never leaves a busy state is
+    /// reported rather than waited on forever.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the device refuses the status request, answers with a status that is not `OK`, or stays
+    /// busy past the bound.
+    pub async fn settle(&mut self) -> CommandResult<Answer> {
+        let mut answer = self.read_answer().await?;
+
+        for _ in 0..200 {
+            if !matches!(
+                answer.state,
+                State::DownloadBusy | State::DownloadSync | State::ManifestSync
+            ) {
+                return Ok(answer);
+            }
+
+            if answer.poll_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(u64::from(answer.poll_ms)))
+                    .await;
+            }
+
+            answer = self.read_answer().await?;
+        }
+
+        Err(CommandError::invalid_request(
+            "the device was still busy after two hundred readings of its status",
+        ))
     }
 
     /// One command on block 0, with its address.

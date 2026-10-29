@@ -439,6 +439,26 @@ async fn the_state_machine_walks_as_the_published_peer_implements_it() {
 }
 
 #[tokio::test]
+async fn a_busy_answer_is_polled_until_the_device_is_free() {
+    let peer = Peer::new(ARDUPILOT_LAYOUT);
+    let mut flash = Flash::open(peer, 4).await.expect("the peer answers");
+
+    let command = flash
+        .set_address(0x0800_0000)
+        .await
+        .expect("inside the peer's memory");
+    assert_eq!(
+        command.state,
+        State::DownloadBusy,
+        "the first answer is the busy one the write step already reads"
+    );
+
+    let settled = flash.settle().await.expect("the peer answers again");
+    assert_eq!(settled.state, State::DownloadIdle);
+    assert_eq!(settled.poll_ms, 0);
+}
+
+#[tokio::test]
 async fn a_refusal_happens_before_anything_reaches_the_wire() {
     let peer = Peer::new(ARDUPILOT_LAYOUT);
     let mut flash = Flash::open(peer, 4).await.expect("the peer answers");
@@ -513,6 +533,15 @@ async fn the_block_rule_is_a_place_and_not_an_index_of_a_buffer() {
 
     flash.write(&[0x02]).await.expect("a run on block 3");
     assert_eq!(flash.device().wire.last_value, 3);
+
+    // A second place starts counting again: the device numbers the blocks of one write sequence from two, so a
+    // counter that carried over would name a place the second sequence never meant.
+    flash
+        .set_address(0x0801_0000)
+        .await
+        .expect("the same sector boundary");
+    flash.write(&[0x03]).await.expect("a run on block 2");
+    assert_eq!(flash.device().wire.last_value, 2);
 }
 
 #[tokio::test]

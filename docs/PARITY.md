@@ -181,7 +181,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 8.1 | Firmware manifest download | `GCSViews/ConfigurationView/ConfigFirmwareManifest.cs` | ✅ | 5 |
 | 8.2 | Firmware selection by board | `ConfigFirmware.cs` | ✅ | 5 |
 | 8.3 | Firmware upload over MAVLink | `ExtLibs/px4uploader` | ✅ | 5 |
-| 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | 🔽 | 5 |
+| 8.4 | DFU upload over USB | `ExtLibs/UAVCANFlasher`, `NetDFULib` | ✅ | 5 |
 | 8.5 | Board auto-detect | `BoardDetect.cs` | ✅ | 5 |
 | 8.6 | Firmware erase / bootloader mode | `ConfigFirmware.cs` | ✅ | 5 |
 | 8.7 | Secure firmware (signed) | `ConfigSecure.cs`, `ConfigSecureAP.cs` | 🔽 | 5 |
@@ -220,12 +220,12 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 145 |
+| ✅ Done | 146 |
 | 🔜 Planned | 1 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 7 |
+| Partial (🟡 / 🔽) | 6 |
 
-The 145 rows marked done are the connection, transport, parameter, mission, command and
+The 146 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -660,17 +660,28 @@ un idioma delante: la regla anterior saltaba dos bytes como si toda cadena lleva
 borraba el primer caracter — el `@` de esta misma cadena —, que es el defecto que este cambio
 corrige y que el peer escrito desde la lectura publicada tambien llevaba.
 
-Lo que sigue sin afirmarse se dice en lugar de suponerse: no se ha borrado ni escrito la
-placa en esta corrida, porque el borrado es la mitad que no se puede deshacer y la puerta lo
-deja detras de `MPCRAFT_DFU_ALLOW_ERASE`, que el operador pone; la orden de borrar todo se
-compara con la placa solo cuando esa bandera esta, y el area imprime que no se pidio. Poner
-la placa en su modo de recuperacion no lo hace esta area: se alcanza sosteniendo BOOT al
-encender, y la orden que la sostiene desde la aplicacion entra en el bootloader de ArduPilot,
-que no enumera como `0483:df11`, asi que la puerta lo nombra como lo que el operador pone; y
-un solo proceso tiene el dispositivo a la vez, por eso el area corre sola y las comparaciones
-con STM32CubeProgrammer van de una en una. La pareja la nombra el entorno
-(`MPCRAFT_DFU_TARGET`) y la mitad que borra esta detras de `MPCRAFT_DFU_ALLOW_ERASE`, que es
-la regla que ya estaba para la mitad que borra una placa.
+La mitad que borra y escribe corrio contra esta placa y es lo que cierra la fila: el area toma el
+documento que el manifiesto publica para la placa — `Plane/stable-4.7.1/MatekF405/arduplane.apj`,
+923 452 bytes —, encuentra el lugar donde la placa lo tenia leyendo su propia flash, que es
+`0x08010000` y no el comienzo del mapa, porque el bootloader vive al principio; borra los ocho
+sectores que toca, escribe 451 bloques de 2048 bytes y contesta el cierre. La placa salio del
+bootloader, enumero como `ArduPilot (COM39)` (`1209:5741`, servicio `usbser`) y puso un latido en
+el cable cuyo CRC cuadra con el que la regla del protocolo da para esos bytes, que es el mismo
+hecho leido por los dos caminos. Lo que se corrige de lo dicho antes es que la imagen no era
+`fmuv3` — su build de Plane pesa 1 535 384 bytes, mas que el megabyte que esta placa tiene — sino
+la de `MatekF405`, que es la que la placa tenia: el vector que se leyo en `0x08010000` antes de
+borrar coincide con el del documento, y el `board_version` que la placa decia cuando corria
+(`9 << 16`) es el numero de la familia de la placa, no el `board_id` del documento.
+
+Lo que sigue sin afirmarse se dice en lugar de suponerse: poner la placa en su modo de
+recuperacion no lo hace esta area, porque se alcanza sosteniendo BOOT al encender, y la orden que
+la sostiene desde la aplicacion entra en el bootloader de ArduPilot, que no enumera como
+`0483:df11`; la puerta lo nombra como lo que el operador pone. La orden de borrar todo se compara
+con la placa solo cuando `MPCRAFT_DFU_ALLOW_ERASE` esta, y el area imprime que no se pidio. Un
+solo proceso tiene el dispositivo a la vez, por eso el area corre sola y las comparaciones con
+STM32CubeProgrammer van de una en una. La pareja la nombra el entorno (`MPCRAFT_DFU_TARGET`) y la
+imagen la nombra `MPCRAFT_DFU_IMAGE`; el lugar lo nombra `MPCRAFT_DFU_ADDRESS` cuando la placa no
+es esta, y sin el se usa el que esta placa mostro.
 
 La fila de la puerta para ese area nombra su sustituto — el peer escrito desde la lectura
 publicada en `crates/mpcraft-app/tests/dfu.rs`, que contesta las peticiones sin ser una
@@ -708,8 +719,8 @@ cuando una placa contesta. La regla que reparte los tramos se afirma aparte, en
 entrada con una coma dentro, que la regla de forma rechaza, mientras la misma lectura con un nombre por entrada da dos;
 y en ese mismo archivo el par de llaves se afirma contra tres nombres escritos antes de llamarlo — el par puesto, el
 par ausente, y el par abierto sin cerrar — que es lo que la puerta lee como texto sin ejecutar el modulo. El desacuerdo
-entre las dos formas de decir el tipo se conserva como un hecho en ese archivo. Por eso la fila sigue parcial: la
-lectura de la placa ya se afirma contra la placa, y lo que falta es la mitad que escribe y borra, que no se corrio.
+entre las dos formas de decir el tipo se conserva como un hecho en ese archivo. Por eso la fila esta cerrada: la
+placa contesto la lectura, se borro, se escribio y volvio a hablar como vehiculo.
 
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are
