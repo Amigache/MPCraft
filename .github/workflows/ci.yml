@@ -62,6 +62,18 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      # The desktop crate names the `ffmpeg` sidecar in its bundle, and the build script copies it
+      # beside the compiled binary, so every job that compiles that crate needs the file on the
+      # disk — a clippy run that finds it missing is a build that failed, not a lint that passed.
+      - name: Cache the ffmpeg sidecar
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/binaries
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/fetch-ffmpeg.js') }}
+
+      - name: Fetch the ffmpeg sidecar
+        run: node scripts/fetch-ffmpeg.js
+
       - name: Check the formatting
         run: cargo fmt --all -- --check
 
@@ -222,6 +234,19 @@ jobs:
 
       - name: Install the frontend dependencies
         run: npm ci
+
+      # The sidecar the installer carries: the build fetches it rather than the repository holding
+      # three static builds, and the cache keeps a runner from downloading it again for a change
+      # that did not touch the script naming it.
+      - name: Cache the ffmpeg sidecar
+        uses: actions/cache@v4
+        with:
+          path: ../desktop/binaries
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/fetch-ffmpeg.js') }}
+
+      - name: Fetch the ffmpeg sidecar
+        working-directory: .
+        run: node scripts/fetch-ffmpeg.js
 
       # Which platform the manifest of the updater names this runner's output with. It is derived
       # from the runner rather than assumed, because macos-latest is an ARM machine now and an

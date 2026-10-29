@@ -79,6 +79,10 @@ MPCraft/
 # Prerequisites: Rust stable, Node 20+, and the Tauri v2 system dependencies
 cargo install tauri-cli --version "^2"
 
+# The ffmpeg the installer carries: the desktop crate copies it beside the compiled binary, so a
+# build of the workspace needs the file, and a fresh clone does not have it.
+node scripts/fetch-ffmpeg.js
+
 # Rust workspace only (no UI) — fastest feedback loop
 cargo build --workspace
 cargo test --workspace
@@ -91,6 +95,10 @@ npm run launch
 # Installers for this platform, written under target/release/bundle
 npm run bundle
 ```
+
+`npm run launch` and `npm run bundle` fetch the sidecar themselves, so the line above is only for a
+`cargo` command run from the root. `--triple <target triple>` writes the build for another machine,
+which is what a cross-compiled bundle needs.
 
 ### Toolchain notes
 

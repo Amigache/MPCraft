@@ -9,6 +9,7 @@ _ref_missionplanner/
 # Tauri / frontend
 /apps/desktop/src-tauri/target/
 /apps/desktop/gen/
+/apps/desktop/binaries/
 /apps/ui/node_modules/
 /apps/ui/dist/
 /apps/ui/.vite/

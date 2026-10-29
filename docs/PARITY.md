@@ -1219,12 +1219,33 @@ one `ffmpeg` process per stream turns `rtsp`, `rtsps`, `rtmp`, `udp` or `srt` in
 loopback, and the same picture element draws that. The relay starts only when the operator asks,
 listens on `127.0.0.1` only, and is stopped when the sheet is closed. `ffmpeg` is looked for beside
 the executable — the sidecar the installer carries — and then on the `PATH`, so a release uses the
-build it was tested with. Upstream draws through GStreamer, which also finds cameras by service
-discovery on the local network; that discovery is not ported, so the row stays partial. And the
-picture is fetched only when the operator says so, because the application makes no network call
-that nobody chose, while upstream draws as soon as a stream is picked. The sheet opens without a
-link for the same reason: an address typed by hand needs no camera behind it, and asking the camera
-still needs one, which the button there says.
+build it was tested with. The sidecar is not in the repository: `scripts/fetch-ffmpeg.js` writes the
+build of the platform being built into the folder the bundler copies, before anything is compiled,
+because the build script of the desktop crate copies it and a missing file is a failed build rather
+than a machine that has its own `ffmpeg`. The copy was read here: a build of the desktop crate wrote
+`ffmpeg.exe` beside `mpcraft.exe` in `target/debug`, and that is the file the relay runs. Which
+protocols that build carries is printed when it is fetched rather than assumed: the one read here is
+`6.0-essentials`, and it answers `rtsp` as a demuxer, `mpjpeg` as a muxer, and `rtmp`, `udp`, `tcp`,
+`http`, `https` and `srt` as protocols. The build is GPL-3.0, which this project already is, and its
+source is the FFmpeg project's; what a release still owes for it is the licence text beside the
+binary, which is not carried yet and is said here rather than left to be discovered.
+
+The relay was read against a camera that is not on this machine, which is the other half of what the
+loopback test proves: three public Axis cameras published for testing answered, and
+`rtsp://132.239.12.145/axis-media/media.amp` — 1280 × 800, H.264 — was drawn through the same area,
+with the multipart content type and a JPEG body arriving at the loopback port. The service those
+addresses belong to is a university's published camera rather than a stream this project runs, so
+what the reading says is that the relay reaches the internet and decodes what it finds there; a
+service that asks for an account before it hands out a stream — the demo Wowza endpoint answers
+`403` on `SETUP`, and the free token service answers `401` without one — was not used, because a
+test that depends on somebody else's signup is a test that stops passing for a reason that has
+nothing to do with this code. The same area runs with the sidecar alone: with no `ffmpeg` on the
+`PATH` and `MPCRAFT_FFMPEG` unset, the binary beside the executable is the one that ran. Upstream
+draws through GStreamer, which also finds cameras by service discovery on the local network; that
+discovery is not ported, so the row stays partial. And the picture is fetched only when the operator
+says so, because the application makes no network call that nobody chose, while upstream draws as
+soon as a stream is picked. The sheet opens without a link for the same reason: an address typed by
+hand needs no camera behind it, and asking the camera still needs one, which the button there says.
 
 A place is read against the picture that is drawn, not against the box it is drawn in, and a click
 that falls in the band the letterboxing leaves over is refused rather than read as the nearest edge —

@@ -243,23 +243,33 @@ pub fn check_address(address: &str) -> Result<(), VideoError> {
 
 /// The `ffmpeg` this station runs.
 ///
-/// Three places are tried, in this order: the variable the environment names, which is how a
-/// portable installation and a test point at a build; a file beside the executable, which is where
-/// the installer puts a sidecar; and the `PATH`. The sidecar is preferred over the `PATH` so that a
+/// Three places are tried, in this order: the variable the environment names, which is how a portable
+/// installation and a test point at a build; a file beside the executable, which is where the
+/// installer puts a sidecar; and the `PATH`. The sidecar is preferred over the `PATH` so that a
 /// release carries the build it was tested with rather than whatever the machine happens to have.
 fn program() -> String {
-    if let Ok(program) = std::env::var(FFMPEG_PATH) {
-        return program;
+    let named = std::env::var(FFMPEG_PATH).ok();
+    let executable = std::env::current_exe().ok();
+
+    program_from(named.as_deref(), executable.as_deref())
+}
+
+/// The build named by one of those three places, chosen without touching the machine.
+///
+/// The choice is a function of two values so that it can be read rather than guessed at: a test hands
+/// it the names and gets back what the relay would run.
+#[must_use]
+pub fn program_from(named: Option<&str>, executable: Option<&std::path::Path>) -> String {
+    if let Some(program) = named {
+        return program.to_owned();
     }
 
-    if let Ok(executable) = std::env::current_exe() {
-        if let Some(folder) = executable.parent() {
-            for name in ["ffmpeg.exe", "ffmpeg"] {
-                let candidate = folder.join(name);
+    if let Some(folder) = executable.and_then(std::path::Path::parent) {
+        for name in ["ffmpeg.exe", "ffmpeg"] {
+            let candidate = folder.join(name);
 
-                if candidate.is_file() {
-                    return candidate.to_string_lossy().into_owned();
-                }
+            if candidate.is_file() {
+                return candidate.to_string_lossy().into_owned();
             }
         }
     }
@@ -447,5 +457,47 @@ mod tests {
         for address in ["", "file:///tmp/a.mp4", "camera", "rtsp://", "rtsp:///"] {
             assert!(check_address(address).is_err(), "{address} is refused");
         }
+    }
+
+    #[test]
+    fn the_build_beside_the_executable_is_the_one_that_runs() {
+        let folder = std::env::temp_dir().join(format!(
+            "mpcraft-ffmpeg-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+
+        std::fs::create_dir_all(&folder).expect("a folder for the test");
+        std::fs::write(folder.join("ffmpeg.exe"), b"not a build").expect("the file is written");
+
+        let executable = folder.join("mpcraft");
+        let chosen = program_from(None, Some(&executable));
+
+        assert_eq!(
+            chosen,
+            folder.join("ffmpeg.exe").to_string_lossy(),
+            "the sidecar the installer carries is what runs"
+        );
+
+        std::fs::remove_dir_all(&folder).ok();
+    }
+
+    #[test]
+    fn a_build_the_environment_names_is_used_whatever_sits_beside_the_executable() {
+        let chosen = program_from(
+            Some("/opt/ffmpeg/bin/ffmpeg"),
+            Some(std::path::Path::new("/opt/mpcraft/mpcraft")),
+        );
+
+        assert_eq!(chosen, "/opt/ffmpeg/bin/ffmpeg");
+    }
+
+    #[test]
+    fn nothing_is_guessed_when_no_build_is_named_or_beside_it() {
+        assert_eq!(program_from(None, None), "ffmpeg");
+        assert_eq!(
+            program_from(None, Some(std::path::Path::new("/opt/mpcraft/mpcraft"))),
+            "ffmpeg"
+        );
     }
 }
