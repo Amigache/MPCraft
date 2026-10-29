@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   normaliseError,
   trackPoint,
+  videoRelayStart,
+  videoRelayStop,
   videoStreamStart,
   videoStreams,
   videoStreamStop,
@@ -14,6 +16,7 @@ import { useLinkStore } from "../../lib/link/linkStore";
 import { useUiStore } from "../../lib/ui/uiStore";
 import {
   canDraw,
+  canRelay,
   placeFromClick,
   type PicturePlace,
 } from "../../lib/video/picture";
@@ -63,6 +66,8 @@ export function VideoSheet() {
   const [address, setAddress] = useState("");
   const [drawingKey, setDrawingKey] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
+  const [relayUri, setRelayUri] = useState<string | null>(null);
+  const [relayBusy, setRelayBusy] = useState(false);
 
   // The size that arrived is what the bytes say, and it is kept apart from the size the camera
   // said: for a stream the two are not the same thing.
@@ -95,6 +100,17 @@ export function VideoSheet() {
     }
   }, [linked, open, read]);
 
+  useEffect(() => {
+    if (open || relayUri === null) {
+      return;
+    }
+
+    // The sheet is closed, and a process that nobody is watching has no reason to run.
+    void videoRelayStop(relayUri);
+    setRelayUri(null);
+    setDrawing(false);
+  }, [open, relayUri]);
+
   if (!open) {
     return null;
   }
@@ -126,7 +142,85 @@ export function VideoSheet() {
     }
   };
 
+  const playFrom = async (stream: VideoStream) => {
+    setRelayBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      if (relayUri !== null) {
+        await videoRelayStop(relayUri);
+      }
+
+      const relay = await videoRelayStart(stream.uri);
+
+      setRelayUri(stream.uri);
+      setAddress(relay.url);
+      setDrawingKey(keyOf(stream));
+      setArrived(null);
+      setPlace(null);
+      setReport(null);
+      setDrawing(true);
+      setNotice(t("The stream is drawn through the relay."));
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setRelayBusy(false);
+    }
+  };
+
+  const playAddress = async () => {
+    setRelayBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      if (relayUri !== null) {
+        await videoRelayStop(relayUri);
+      }
+
+      const relay = await videoRelayStart(address);
+
+      setRelayUri(address);
+      setAddress(relay.url);
+      setArrived(null);
+      setPlace(null);
+      setReport(null);
+      setDrawing(true);
+      setNotice(t("The stream is drawn through the relay."));
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setRelayBusy(false);
+    }
+  };
+
+  const stopRelay = async () => {
+    if (relayUri === null) {
+      return;
+    }
+
+    setRelayBusy(true);
+
+    try {
+      await videoRelayStop(relayUri);
+      setRelayUri(null);
+      setDrawing(false);
+      setArrived(null);
+      setNotice(t("The relay has stopped."));
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setRelayBusy(false);
+    }
+  };
+
   const drawFrom = (stream: VideoStream) => {
+    if (canRelay(stream.uri)) {
+      void playFrom(stream);
+      return;
+    }
+
     setAddress(stream.uri);
     setDrawingKey(keyOf(stream));
     setArrived(null);
@@ -193,6 +287,7 @@ export function VideoSheet() {
   };
 
   const drawable = canDraw(address);
+  const relayable = canRelay(address);
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={hide}>
@@ -269,7 +364,31 @@ export function VideoSheet() {
             >
               {t("Draw the picture")}
             </button>
-            {!drawable ? (
+            {relayable ? (
+              <button
+                type="button"
+                className="button"
+                disabled={relayBusy}
+                onClick={() => {
+                  void playAddress();
+                }}
+              >
+                {t("Play through the relay")}
+              </button>
+            ) : null}
+            {relayUri !== null ? (
+              <button
+                type="button"
+                className="button"
+                disabled={relayBusy}
+                onClick={() => {
+                  void stopRelay();
+                }}
+              >
+                {t("Stop the relay")}
+              </button>
+            ) : null}
+            {!drawable && !relayable ? (
               <span className={styles.text}>
                 {t("This address is not one a picture element can render.")}
               </span>
@@ -385,7 +504,7 @@ export function VideoSheet() {
                         : t("Start the stream")}
                     </button>
 
-                    {canDraw(stream.uri) ? (
+                    {canDraw(stream.uri) || canRelay(stream.uri) ? (
                       <button
                         type="button"
                         className="button"

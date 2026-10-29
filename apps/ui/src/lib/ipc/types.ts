@@ -1537,3 +1537,13 @@ export interface Poi {
   /** Where it is. */
   readonly longitude: number;
 }
+
+/** A camera stream turned into an MJPEG picture on this machine. */
+export interface VideoRelayInfo {
+  /** The address of the camera the relay reads. */
+  readonly uri: string;
+  /** The address the picture element draws. */
+  readonly url: string;
+  /** The loopback port the relay listens on. */
+  readonly port: number;
+}

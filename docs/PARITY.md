@@ -1208,13 +1208,17 @@ start or stop it. The stream travels outside MAVLink, so the URI is what a separ
 player connects to.
 
 What is drawn inside MPCraft is what a picture element can render — an MJPEG stream or a single
-picture over `http` or `https` — and what speaks another way is said as one that cannot be drawn
-rather than tried, because there is no media runtime here. Upstream draws through GStreamer, which
-carries `rtsp`, and finds cameras by service discovery on the local network; neither is ported, so
-the row stays partial. And the picture is fetched only when the operator says so, because the
-application makes no network call that nobody chose, while upstream draws as soon as a stream is
-picked. The sheet opens without a link for the same reason: an address typed by hand needs no camera
-behind it, and asking the camera still needs one, which the button there says.
+picture over `http` or `https` — and the other schemes a camera publishes are handed to a relay:
+one `ffmpeg` process per stream turns `rtsp`, `rtsps`, `rtmp`, `udp` or `srt` into MJPEG on the
+loopback, and the same picture element draws that. The relay starts only when the operator asks,
+listens on `127.0.0.1` only, and is stopped when the sheet is closed. `ffmpeg` is looked for beside
+the executable — the sidecar the installer carries — and then on the `PATH`, so a release uses the
+build it was tested with. Upstream draws through GStreamer, which also finds cameras by service
+discovery on the local network; that discovery is not ported, so the row stays partial. And the
+picture is fetched only when the operator says so, because the application makes no network call
+that nobody chose, while upstream draws as soon as a stream is picked. The sheet opens without a
+link for the same reason: an address typed by hand needs no camera behind it, and asking the camera
+still needs one, which the button there says.
 
 A place is read against the picture that is drawn, not against the box it is drawn in, and a click
 that falls in the band the letterboxing leaves over is refused rather than read as the nearest edge —

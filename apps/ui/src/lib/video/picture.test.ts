@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canDraw, drawnSize, placeFromClick } from "./picture";
+import { canDraw, canRelay, drawnSize, placeFromClick } from "./picture";
 
 /** The box the picture is drawn in, for the test: a box of a different shape than the picture. */
 const BOX = { width: 640, height: 480 };
@@ -102,5 +102,25 @@ describe("what can be drawn as a picture", () => {
     // to, so it is said as one that cannot be drawn rather than guessed at.
     expect(canDraw("14550")).toBe(false);
     expect(canDraw("http://:8080/stream")).toBe(false);
+  });
+});
+
+describe("what the relay can turn into a picture", () => {
+  it("reads the schemes a camera publishes", () => {
+    for (const address of [
+      "rtsp://camera/live",
+      "rtsps://camera/live",
+      "rtmp://camera/live",
+      "udp://127.0.0.1:5600",
+      "srt://127.0.0.1:9000",
+    ]) {
+      expect(canRelay(address)).toBe(true);
+    }
+  });
+
+  it("does not claim a picture element's own address", () => {
+    expect(canRelay("http://camera/stream.mjpeg")).toBe(false);
+    expect(canRelay("ws://camera/live")).toBe(false);
+    expect(canRelay("camera")).toBe(false);
   });
 });

@@ -73,6 +73,7 @@ pub mod swarm;
 pub mod terrain;
 pub mod transponder;
 pub mod ulog;
+pub mod video;
 
 pub use checklist::{ChecklistEntry, ChecklistItem, Condition, Source};
 pub use coordinates::{Coordinates, Utm};
@@ -246,6 +247,13 @@ pub struct AppState {
     /// The rows are kept between two runs, but nothing is started by a row alone: a mirror is a
     /// decision the operator makes, the way a plugin is.
     pub mirrors: crate::mirrors::MirrorService,
+
+    ///
+    /// The live video the operator asked to see.
+    ///
+    /// A relay is a process and a loopback server for one camera address; nothing is started
+    /// until the operator says so.
+    pub video: crate::video::VideoRelayService,
 }
 
 impl Default for AppState {
@@ -293,6 +301,7 @@ impl Default for AppState {
             swarm,
             dronecan: crate::dronecan::DronecanService::new(),
             mirrors,
+            video: crate::video::VideoRelayService::default(),
         }
     }
 }
@@ -813,6 +822,33 @@ impl AppState {
         Ok(settings.pois)
     }
 
+    /// Starts the relay that turns a camera stream into a picture element's MJPEG.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the address is not one a relay can read, when `ffmpeg` is not on this
+    /// machine, or when the relay cannot be opened.
+    pub async fn video_relay_start(
+        &self,
+        uri: &str,
+    ) -> CommandResult<crate::video::VideoRelayInfo> {
+        self.video
+            .start(uri)
+            .await
+            .map_err(|error| CommandError::new(error.code(), error.to_string()))
+    }
+
+    /// Stops the relay for one address.
+    pub fn video_relay_stop(&self, uri: &str) {
+        self.video.stop(uri);
+    }
+
+    /// The relays that are running.
+    #[must_use]
+    pub fn video_relays(&self) -> Vec<crate::video::VideoRelayInfo> {
+        self.video.status()
+    }
+
     /// What the mirrors are doing.
     #[must_use]
     pub fn mirrors_status(&self) -> Vec<crate::mirrors::MirrorStatus> {
@@ -1296,6 +1332,7 @@ mod tests {
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
             mirrors: crate::mirrors::MirrorService::default(),
+            video: crate::video::VideoRelayService::default(),
         };
 
         assert!(state
@@ -1344,6 +1381,7 @@ mod tests {
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
             mirrors: crate::mirrors::MirrorService::default(),
+            video: crate::video::VideoRelayService::default(),
         };
 
         // The hand: sixty-four characters are thirty-two bytes, and `zz` is not a pair of the
@@ -1434,6 +1472,7 @@ mod tests {
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
             mirrors: crate::mirrors::MirrorService::default(),
+            video: crate::video::VideoRelayService::default(),
         };
 
         let request = crate::swarm::SwarmRequest {
@@ -1485,6 +1524,7 @@ mod tests {
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
             mirrors: crate::mirrors::MirrorService::default(),
+            video: crate::video::VideoRelayService::default(),
         };
 
         let error = state

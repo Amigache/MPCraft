@@ -2134,6 +2134,47 @@ async fn dronecan_scan(
     state.dronecan.scan(&session, vehicle).await
 }
 
+/// Starts the relay that turns a camera stream into an MJPEG picture.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the address is not one a relay can read, when
+/// `ffmpeg` is not on this machine, or when the relay cannot be opened.
+#[tauri::command]
+async fn video_relay_start(
+    state: State<'_, AppState>,
+    uri: String,
+) -> CommandResult<mpcraft_app::video::VideoRelayInfo> {
+    state.video_relay_start(&uri).await
+}
+
+/// Stops the relay for one address.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn video_relay_stop(
+    state: State<'_, AppState>,
+    uri: String,
+) -> CommandResult<Vec<mpcraft_app::video::VideoRelayInfo>> {
+    state.video_relay_stop(&uri);
+
+    Ok(state.video_relays())
+}
+
+/// The relays that are running.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn video_relays(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<mpcraft_app::video::VideoRelayInfo>> {
+    Ok(state.video_relays())
+}
+
 /// Asks the camera of the vehicle what video streams it has.
 ///
 /// The camera answers with a URI, and the size and frame rate of each stream. The
@@ -4722,6 +4763,9 @@ fn main() {
             video_streams,
             video_stream_start,
             video_stream_stop,
+            video_relay_start,
+            video_relay_stop,
+            video_relays,
             gimbal_devices,
             set_gimbal_angles,
             slew_gimbal,
