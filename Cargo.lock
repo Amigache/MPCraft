@@ -3555,6 +3555,7 @@ dependencies = [
  "getrandom 0.2.17",
  "mdns-sd",
  "mpcraft-ble",
+ "mpcraft-dronecan",
  "mpcraft-geo",
  "mpcraft-link",
  "mpcraft-log",

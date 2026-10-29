@@ -17,10 +17,20 @@
 
 use std::sync::Arc;
 
+use mpcraft_dronecan::{
+    encode, CanId, DataType, ExecuteOpcode, GetSetRequest, GetSetResponse, Kind, NodeInfo,
+    ParameterValue, RestartNode, NOMINAL_PRIORITY,
+};
 use mpcraft_link::{DronecanNode, Session, VehicleId};
 use serde::Serialize;
 
-use crate::error::CommandResult;
+use crate::error::{CommandError, CommandResult};
+
+/// The node id this station speaks as on a bus.
+///
+/// DroneCAN numbers its nodes 1 to 127, and a ground station is one of them: it has to have a number
+/// to send a service request, and 127 is the last one, which is where a station belongs.
+const STATION_NODE_ID: u8 = 127;
 
 /// How many times the ask goes out on one link: once at open, and once more for a status that has no
 /// matching information.
@@ -59,6 +69,80 @@ pub fn should_ask(asked: usize, nodes: &[DronecanNode]) -> bool {
 pub struct DronecanService {
     inner: Arc<std::sync::Mutex<Inner>>,
 }
+
+/// One parameter of a node, as the sheet shows it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeParameter {
+    /// The name the node gives it.
+    pub name: String,
+    /// The value it holds.
+    pub value: String,
+    /// The value it had before anybody changed it.
+    pub default_value: String,
+    /// The smallest value it accepts, when the node says.
+    pub min_value: String,
+    /// The largest value it accepts, when the node says.
+    pub max_value: String,
+}
+
+/// How long one exchange with a node is given.
+///
+/// A node on a bus answers in milliseconds; the budget is what a station waiting on a link with
+/// other traffic gives it before saying it did not answer.
+const CALL_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1_500);
+
+/// What a node says it is, as the interface shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeInfoView {
+    /// The name the node gives itself.
+    pub name: String,
+    /// Seconds since it started.
+    pub uptime_sec: u32,
+    /// How it is, in the dictionary's words when it has them.
+    pub health: String,
+    /// What it is doing, in the dictionary's words when it has them.
+    pub mode: String,
+    /// The major version of its software.
+    pub software_major: u8,
+    /// The minor version of its software.
+    pub software_minor: u8,
+    /// The major version of its hardware.
+    pub hardware_major: u8,
+    /// The minor version of its hardware.
+    pub hardware_minor: u8,
+    /// The 128-bit id that is unique to it, in hexadecimal.
+    pub unique_id: String,
+}
+
+impl NodeInfoView {
+    /// Reads the view out of what the node answered.
+    #[must_use]
+    pub fn of(info: &NodeInfo) -> Self {
+        Self {
+            name: info.name.clone(),
+            uptime_sec: info.status.uptime_sec,
+            health: mpcraft_link::health_name(info.status.health)
+                .map_or_else(|| info.status.health.to_string(), str::to_owned),
+            mode: mpcraft_link::mode_name(info.status.mode)
+                .map_or_else(|| info.status.mode.to_string(), str::to_owned),
+            software_major: info.software_major,
+            software_minor: info.software_minor,
+            hardware_major: info.hardware_major,
+            hardware_minor: info.hardware_minor,
+            unique_id: info
+                .unique_id
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        }
+    }
+}
+
+/// How many parameters a listing reads before it stops, so an answer that never empties cannot
+/// keep the sheet waiting for ever.
+const MAX_PARAMETERS: usize = 512;
 
 #[derive(Default)]
 struct Inner {
@@ -134,6 +218,236 @@ impl DronecanService {
             sent_now: ask_now,
             error,
         })
+    }
+
+    /// Reads what a node says it is, over a bus the vehicle forwards.
+    ///
+    /// The forwarding is asked for every time rather than remembered: it is a command the vehicle
+    /// either honours at this moment or does not, and a station that assumed it still held would be
+    /// reading a bus that had stopped being forwarded.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the request, when the node does not answer, or
+    /// when what it answered is not the information this crate knows.
+    pub async fn node_info(
+        &self,
+        session: &Arc<Session>,
+        vehicle: VehicleId,
+        bus: u8,
+        node: u8,
+    ) -> CommandResult<NodeInfo> {
+        let answer = self
+            .ask(
+                session,
+                vehicle,
+                bus,
+                node,
+                &[],
+                (Kind::Response, DataType::GetNodeInfo),
+            )
+            .await?;
+
+        NodeInfo::decode(&answer).ok_or_else(|| {
+            CommandError::new(
+                CommandError::CODE_INTERNAL,
+                "the node's information could not be read",
+            )
+        })
+    }
+
+    /// Lists the parameters a node holds.
+    ///
+    /// The list is read by index, which is what the standard says an index is for: a station asks
+    /// for 0, 1, 2 and so on until the node answers with no name. Each read is one exchange, and the
+    /// count is bounded so a node that never empties cannot hold the sheet.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry a request, or when a node that answered before
+    /// stops answering in the middle of its list.
+    pub async fn parameters(
+        &self,
+        session: &Arc<Session>,
+        vehicle: VehicleId,
+        bus: u8,
+        node: u8,
+    ) -> CommandResult<Vec<NodeParameter>> {
+        let mut parameters = Vec::new();
+
+        for index in 0..MAX_PARAMETERS {
+            let request = GetSetRequest::list(index as u16);
+            let answer = self
+                .ask(
+                    session,
+                    vehicle,
+                    bus,
+                    node,
+                    &request.encode(),
+                    (Kind::Response, DataType::ParameterGetSet),
+                )
+                .await?;
+
+            let Some(read) = GetSetResponse::decode(&answer) else {
+                return Err(CommandError::new(
+                    CommandError::CODE_INTERNAL,
+                    "a parameter could not be read",
+                ));
+            };
+
+            // The standard says an empty name means there is no such parameter, which is how a
+            // node ends its list.
+            if read.name.is_empty() {
+                break;
+            }
+
+            parameters.push(NodeParameter {
+                name: read.name,
+                value: read.value.describe(),
+                default_value: read.default_value.describe(),
+                min_value: read.min_value.describe(),
+                max_value: read.max_value.describe(),
+            });
+        }
+
+        Ok(parameters)
+    }
+
+    /// Writes one parameter, and reads back what the node stored.
+    ///
+    /// A node may clamp what it is given, so the answer is what it holds rather than what was asked
+    /// for — which is the value the operator has to see.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the request, when the node does not answer, or
+    /// when it answers with no name, which is how it says it has no such parameter.
+    pub async fn write_parameter(
+        &self,
+        session: &Arc<Session>,
+        vehicle: VehicleId,
+        bus: u8,
+        node: u8,
+        name: &str,
+        value: ParameterValue,
+    ) -> CommandResult<NodeParameter> {
+        let request = GetSetRequest::write(name, value);
+        let answer = self
+            .ask(
+                session,
+                vehicle,
+                bus,
+                node,
+                &request.encode(),
+                (Kind::Response, DataType::ParameterGetSet),
+            )
+            .await?;
+
+        let Some(read) = GetSetResponse::decode(&answer) else {
+            return Err(CommandError::new(
+                CommandError::CODE_INTERNAL,
+                "the node's answer could not be read",
+            ));
+        };
+
+        if read.name.is_empty() {
+            return Err(CommandError::new(
+                CommandError::CODE_REJECTED,
+                format!("the node has no parameter called {name}"),
+            ));
+        }
+
+        Ok(NodeParameter {
+            name: read.name,
+            value: read.value.describe(),
+            default_value: read.default_value.describe(),
+            min_value: read.min_value.describe(),
+            max_value: read.max_value.describe(),
+        })
+    }
+
+    /// Asks a node to keep what it holds across a power cycle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the request, or when the node does not answer.
+    pub async fn save_parameters(
+        &self,
+        session: &Arc<Session>,
+        vehicle: VehicleId,
+        bus: u8,
+        node: u8,
+    ) -> CommandResult<()> {
+        self.ask(
+            session,
+            vehicle,
+            bus,
+            node,
+            &ExecuteOpcode::Save.encode(),
+            (Kind::Response, DataType::ParameterExecuteOpcode),
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Restarts a node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link cannot carry the request, or when the node does not answer.
+    pub async fn restart_node(
+        &self,
+        session: &Arc<Session>,
+        vehicle: VehicleId,
+        bus: u8,
+        node: u8,
+    ) -> CommandResult<()> {
+        self.ask(
+            session,
+            vehicle,
+            bus,
+            node,
+            &RestartNode.encode(),
+            (Kind::Response, DataType::RestartNode),
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Asks a node one thing and hands back the bytes it answered with.
+    ///
+    /// The frames are cut here, from the id the bus expects: the request is a service request from
+    /// this station's own node id to the node being asked, at the nominal priority.
+    async fn ask(
+        &self,
+        session: &Arc<Session>,
+        vehicle: VehicleId,
+        bus: u8,
+        node: u8,
+        payload: &[u8],
+        expect: (Kind, DataType),
+    ) -> CommandResult<Vec<u8>> {
+        session
+            .forward_can(vehicle, bus)
+            .await
+            .map_err(CommandError::from)?;
+
+        let can_id = CanId::service(
+            NOMINAL_PRIORITY,
+            expect.1.id() as u8,
+            true,
+            node,
+            STATION_NODE_ID,
+        );
+
+        let frames = encode(can_id, 0, payload, expect.1.signature());
+
+        session
+            .dronecan_call(vehicle, bus, node, &frames, expect, CALL_TIMEOUT)
+            .await
+            .map_err(CommandError::from)
     }
 
     /// What the station has asked, without reading the bus.
@@ -216,4 +530,29 @@ mod tests {
 
         assert!(!should_ask(1, &[said]));
     }
+}
+
+/// What a value typed into the sheet is, read the way a node would read it.
+///
+/// A parameter's type is its name in the node's own model and is not carried by the read, so the
+/// station reads what looks like a whole number as one, what looks like a number with a point as a
+/// real, and anything else as text. The node is what decides in the end: its answer says what it
+/// stored, and that is what the sheet shows after a write.
+#[must_use]
+pub fn value_of(text: &str) -> ParameterValue {
+    let text = text.trim();
+
+    if text.is_empty() {
+        return ParameterValue::Empty;
+    }
+
+    if let Ok(value) = text.parse::<i64>() {
+        return ParameterValue::Integer(value);
+    }
+
+    if let Ok(value) = text.parse::<f32>() {
+        return ParameterValue::Real(value);
+    }
+
+    ParameterValue::Text(text.to_owned())
 }

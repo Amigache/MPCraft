@@ -1601,3 +1601,39 @@ export interface DiscoveredVehicle {
   /** The target that opens it, in the specification the backend parses. */
   readonly target: string;
 }
+
+/** What a node of a DroneCAN bus says it is. */
+export interface NodeInfoView {
+  /** The name the node gives itself. */
+  readonly name: string;
+  /** Seconds since it started. */
+  readonly uptimeSec: number;
+  /** How it is, in the dictionary's words when it has them. */
+  readonly health: string;
+  /** What it is doing, in the dictionary's words when it has them. */
+  readonly mode: string;
+  /** The major version of its software. */
+  readonly softwareMajor: number;
+  /** The minor version of its software. */
+  readonly softwareMinor: number;
+  /** The major version of its hardware. */
+  readonly hardwareMajor: number;
+  /** The minor version of its hardware. */
+  readonly hardwareMinor: number;
+  /** The 128-bit id that is unique to it, in hexadecimal. */
+  readonly uniqueId: string;
+}
+
+/** One parameter of a node, as the node answered it. */
+export interface NodeParameter {
+  /** The name the node gives it. */
+  readonly name: string;
+  /** The value it holds. */
+  readonly value: string;
+  /** The value it had before anybody changed it. */
+  readonly defaultValue: string;
+  /** The smallest value it accepts, when the node says. */
+  readonly minValue: string;
+  /** The largest value it accepts, when the node says. */
+  readonly maxValue: string;
+}
