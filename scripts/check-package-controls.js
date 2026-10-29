@@ -14,12 +14,14 @@ import { check } from "./check-package.js";
 
 const FILES = {
   uiPackage: "apps/ui/package.json",
+  desktopPackage: "apps/desktop/package.json",
   config: "apps/desktop/tauri.conf.json",
   windowsConfig: "apps/desktop/tauri.windows.conf.json",
   linuxConfig: "apps/desktop/tauri.linux.conf.json",
   macosConfig: "apps/desktop/tauri.macos.conf.json",
   updaterConfig: "apps/desktop/tauri.updater.conf.json",
   workflow: ".github/workflows/ci.yml",
+  fetchScript: "scripts/fetch-ffmpeg.js",
 };
 
 const root = new URL("../", import.meta.url);
@@ -62,18 +64,18 @@ function replaceEverywhere(source, pattern, replacement) {
 }
 
 /**
- * Changes the bundle job only. The workflow holds two matrices that name the same three systems and
- * two jobs that install the same webview libraries, so a change applied to the first occurrence
- * would disturb the job before this one and leave the one being tested as it was.
+ * Changes one job only. The workflow holds two matrices that name the same three systems and two
+ * jobs that install the same webview libraries, so a change applied to the first occurrence would
+ * disturb the job before the one being tested and leave the one under test as it was.
  */
-function inBundleJob(source, change) {
+function inJob(source, id, change) {
   /* A checkout on Windows writes the file with CRLF; the job is found by its line, so the ending
      is normalized before the lines are compared. */
   const lines = source.replaceAll("\r\n", "\n").split("\n");
-  const at = lines.findIndex((line) => line === "  bundle:");
+  const at = lines.findIndex((line) => line === `  ${id}:`);
 
   if (at === -1) {
-    return { error: "the workflow has no bundle job" };
+    return { error: `the workflow has no ${id} job` };
   }
 
   let end = lines.length;
@@ -96,6 +98,11 @@ function inBundleJob(source, change) {
     ...changed.split("\n"),
     ...lines.slice(end),
   ].join("\n");
+}
+
+/** The bundle job. */
+function inBundleJob(source, change) {
+  return inJob(source, "bundle", change);
 }
 
 const checks = [];
@@ -247,6 +254,69 @@ const cases = [
       }),
     },
     expect: /does not turn the update artifacts on/,
+  },
+  {
+    claim: "a bundle that carries no ffmpeg sidecar is caught",
+    mutated: {
+      ...docs,
+      [FILES.config]: edit(FILES.config, (doc) => {
+        delete doc.bundle.externalBin;
+      }),
+    },
+    expect: /carries no binaries\/ffmpeg sidecar/,
+  },
+  {
+    claim: "a fetch script that names no build for one platform is caught",
+    mutated: {
+      ...docs,
+      [FILES.fetchScript]: replace(
+        docs[FILES.fetchScript],
+        'triple: "aarch64-apple-darwin"',
+        'triple: "aarch64-apple-nowhere"',
+      ),
+    },
+    expect: /does not name the aarch64-apple-darwin build/,
+  },
+  {
+    claim:
+      "a stage that builds the application without fetching the sidecar is caught",
+    mutated: {
+      ...docs,
+      [FILES.desktopPackage]: edit(FILES.desktopPackage, (doc) => {
+        doc.scripts.build = "npm --prefix ../ui run build";
+      }),
+    },
+    expect: /the build stage does not fetch the sidecar/,
+  },
+  {
+    claim:
+      "a job that compiles the workspace without fetching the sidecar is caught",
+    mutated: {
+      ...docs,
+      [FILES.workflow]: inJob(docs[FILES.workflow], "rust", (job) =>
+        replaceEverywhere(
+          job,
+          "node scripts/fetch-ffmpeg.js",
+          "node scripts/never.js",
+        ),
+      ),
+    },
+    expect: /the rust job does not fetch the ffmpeg sidecar/,
+  },
+  {
+    claim:
+      "the other job that compiles the workspace is read for the sidecar too",
+    mutated: {
+      ...docs,
+      [FILES.workflow]: inJob(docs[FILES.workflow], "sitl", (job) =>
+        replaceEverywhere(
+          job,
+          "node scripts/fetch-ffmpeg.js",
+          "node scripts/never.js",
+        ),
+      ),
+    },
+    expect: /the sitl job does not fetch the ffmpeg sidecar/,
   },
   {
     claim: "a workflow that leaves one platform out is caught",

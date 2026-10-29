@@ -5,14 +5,17 @@
  * An installer is written by a chain that no gate can run cheaply on three platforms: an entry
  * that moves to the folder holding `tauri.conf.json`, the metadata the bundler writes into the
  * package, an icon for each platform the package is built on, a target list for each of the three,
- * and a workflow that builds them where each platform builds them. This reads those documents and
- * asserts the chain: the entry names the CLI as something npm can find and runs it from the folder
- * that holds the configuration, the bundle is active and carries the metadata a package shows, every
- * icon it lists is on the disk, each platform packages the installers that platform has, and the
- * workflow runs the entry on all three and keeps what it wrote.
+ * a sidecar that travels beside the executable, and a workflow that builds them where each platform
+ * builds them. This reads those documents and asserts the chain: the entry names the CLI as
+ * something npm can find and runs it from the folder that holds the configuration, the bundle is
+ * active and carries the metadata a package shows, every icon it lists is on the disk, each platform
+ * packages the installers that platform has, the `ffmpeg` sidecar is declared and named for every
+ * platform by a script the stages run, and the workflow runs the entry on all three and keeps what
+ * it wrote.
  *
  * What this buys, and what it does not. It cannot build an installer, so it cannot say that one
- * exists; it reads the workflow as text, so it cannot say that a runner accepts it; and it says
+ * exists; it reads the workflow as text, so it cannot say that a runner accepts it; it does not
+ * download the sidecar, so it cannot say that the build the script names is reachable; and it says
  * nothing about signing or notarisation, which is row 10.9 and needs a certificate only the operator
  * holds.
  */
@@ -26,13 +29,36 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 /** Which document is which, by the path the repository gives it. */
 const FILES = {
   uiPackage: "apps/ui/package.json",
+  desktopPackage: "apps/desktop/package.json",
   config: "apps/desktop/tauri.conf.json",
   windowsConfig: "apps/desktop/tauri.windows.conf.json",
   linuxConfig: "apps/desktop/tauri.linux.conf.json",
   macosConfig: "apps/desktop/tauri.macos.conf.json",
   updaterConfig: "apps/desktop/tauri.updater.conf.json",
   workflow: ".github/workflows/ci.yml",
+  fetchScript: "scripts/fetch-ffmpeg.js",
 };
+
+/** The documents this reads as text rather than as JSON. */
+const TEXT = new Set(["workflow", "fetchScript"]);
+
+/**
+ * The sidecar the installer carries, and the builds the fetch script has to name for it.
+ *
+ * A sidecar is declared once and written per platform: `binaries/ffmpeg` is the name the bundler
+ * copies, and the file it copies is `ffmpeg-<target triple>`. A platform the script does not name is
+ * an installer with no video, which is why each build is read rather than assumed.
+ */
+const SIDECAR = "binaries/ffmpeg";
+
+const SIDECAR_TRIPLES = [
+  "x86_64-pc-windows-msvc",
+  "x86_64-pc-windows-gnu",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+];
 
 const CLI = "@tauri-apps/cli";
 
@@ -150,7 +176,7 @@ export function check(texts, icons) {
   const documents = {};
 
   for (const [key, path] of Object.entries(FILES)) {
-    if (key === "workflow") {
+    if (TEXT.has(key)) {
       continue;
     }
 
@@ -307,6 +333,70 @@ export function check(texts, icons) {
     }
   }
 
+  /* The sidecar the installer carries: declared in the bundle, named for every platform the three
+     build on, run by the stages that compile the crate, and fetched by the job that does the same on
+     the runner. A build script that copies a sidecar fails when the file is absent, so an installer
+     with video is a chain rather than one line of configuration. */
+  const sidecars = Array.isArray(bundle.externalBin) ? bundle.externalBin : [];
+
+  facts.sidecar = { declared: sidecars, triples: [], introducedBy: [] };
+
+  if (!sidecars.includes(SIDECAR)) {
+    faults.push(`the bundle carries no ${SIDECAR} sidecar`);
+  }
+
+  const fetch = texts[FILES.fetchScript] ?? "";
+
+  // The table, not the prose: a triple named in a comment is a sentence about a build, and what the
+  // bundler reads is the row the script writes the file from.
+  const named = [...fetch.matchAll(/triple:\s*"([^"]+)"/g)].map(
+    (found) => found[1],
+  );
+
+  facts.sidecar.triples = named;
+
+  for (const triple of SIDECAR_TRIPLES) {
+    if (!named.includes(triple)) {
+      faults.push(`the fetch script does not name the ${triple} build`);
+    }
+  }
+
+  const desktopScripts = Object.entries(
+    documents.desktopPackage?.scripts ?? {},
+  ).filter(([, line]) => line.includes("scripts/fetch-ffmpeg.js"));
+
+  facts.sidecar.introducedBy = desktopScripts.map(([name]) => name);
+
+  if (desktopScripts.length === 0) {
+    faults.push(
+      `${FILES.desktopPackage} runs no script that fetches the sidecar`,
+    );
+  }
+
+  for (const stage of ["dev", "build"]) {
+    const line = documents.desktopPackage?.scripts?.[stage] ?? "";
+
+    if (!line.includes("scripts/fetch-ffmpeg.js")) {
+      faults.push(
+        `the ${stage} stage does not fetch the sidecar before the application is built`,
+      );
+    }
+  }
+
+  // Both jobs compile the workspace, and the desktop crate's build script copies the sidecar: one of
+  // them finding the file missing is a build that failed, so each is read rather than the first.
+  for (const id of ["rust", "sitl"]) {
+    const job = jobBlock(texts[FILES.workflow], id);
+
+    if (job === null) {
+      faults.push(`${FILES.workflow} has no ${id} job`);
+    } else if (!/node scripts\/fetch-ffmpeg\.js/.test(job)) {
+      faults.push(
+        `the ${id} job does not fetch the ffmpeg sidecar before it compiles the workspace`,
+      );
+    }
+  }
+
   /* The update: the public key the application checks an archive with, and the two documents that
      turn the update artifacts on for a tag and leave them off for a change. */
   const updater = config.plugins?.updater;
@@ -413,7 +503,7 @@ if (
         verdict: result.faults.length === 0 ? "PASS" : "FAIL",
         faults: result.faults,
         limit:
-          "this reads the documents as they are written. It does not run cargo or npm, does not build an installer, and cannot say that a runner accepts the workflow; it says nothing about signing or notarisation, which needs a certificate only the operator holds.",
+          "this reads the documents as they are written. It does not run cargo or npm, does not build an installer, does not download the sidecar it names, and cannot say that a runner accepts the workflow; it says nothing about signing or notarisation, which needs a certificate only the operator holds.",
       },
       null,
       2,

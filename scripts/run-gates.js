@@ -383,12 +383,14 @@ const GATES = [
     cwd: ROOT,
     reads: [
       "apps/ui/package.json",
+      "apps/desktop/package.json",
       "apps/desktop/tauri.conf.json",
       "apps/desktop/tauri.windows.conf.json",
       "apps/desktop/tauri.linux.conf.json",
       "apps/desktop/tauri.macos.conf.json",
       "apps/desktop/tauri.updater.conf.json",
       "apps/desktop/icons/",
+      "scripts/fetch-ffmpeg.js",
       ".github/workflows/ci.yml",
     ],
     control:

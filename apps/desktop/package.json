@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.4",
   "scripts": {
-    "dev": "npm --prefix ../ui run dev",
-    "build": "npm --prefix ../ui run build"
+    "sidecar": "node ../../scripts/fetch-ffmpeg.js",
+    "dev": "node ../../scripts/fetch-ffmpeg.js && npm --prefix ../ui run dev",
+    "build": "node ../../scripts/fetch-ffmpeg.js && npm --prefix ../ui run build"
   }
 }
