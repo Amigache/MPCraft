@@ -22,10 +22,13 @@ async fn the_adapter_lists_the_devices_it_can_see() {
         .await
         .expect("the adapter answers");
 
-    println!("{} devices with a name", devices.len());
+    println!("{} devices", devices.len());
 
     for device in &devices {
-        println!("  {} {} ({})", device.address, device.name, device.profile);
+        println!(
+            "  {} '{}' ({})",
+            device.address, device.name, device.profile
+        );
         assert!(!device.address.is_empty(), "an address is not empty");
     }
 }
@@ -54,5 +57,46 @@ async fn the_named_device_opens_and_reports_its_profile() {
         Ok(Ok(count)) => println!("the device notified {count} bytes without being asked"),
         Ok(Err(error)) => println!("the device refused the read: {error}"),
         Err(_) => println!("the device was quiet"),
+    }
+}
+
+#[tokio::test]
+async fn the_named_device_takes_bytes_and_answers() {
+    if std::env::var("MPCRAFT_BLE_LIVE").ok().as_deref() != Some("1") {
+        return;
+    }
+
+    let Some(address) = std::env::var("MPCRAFT_BLE_ADDRESS").ok() else {
+        println!("MPCRAFT_BLE_ADDRESS does not name a device, so none is written to");
+        return;
+    };
+
+    let mut transport = open(&address).await.expect("the device opens");
+    let text = b"MPCraft BLE";
+
+    transport
+        .write(text)
+        .await
+        .expect("the device takes the bytes");
+    println!(
+        "wrote {} bytes: {}",
+        text.len(),
+        String::from_utf8_lossy(text)
+    );
+
+    // The other side is the operator: in nRF Connect the TX characteristic is given a value and
+    // notified, and this side reads it. The wait is long enough for a person to do that.
+    let mut buffer = [0_u8; 128];
+
+    match tokio::time::timeout(Duration::from_secs(60), transport.read(&mut buffer)).await {
+        Ok(Ok(0)) => println!("the device closed the notification stream"),
+        Ok(Ok(count)) => println!(
+            "the device notified {} bytes: {:02x?} ({})",
+            count,
+            &buffer[..count],
+            String::from_utf8_lossy(&buffer[..count])
+        ),
+        Ok(Err(error)) => println!("the device refused the read: {error}"),
+        Err(_) => println!("no notification arrived in sixty seconds"),
     }
 }
