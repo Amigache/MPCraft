@@ -1553,6 +1553,13 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Open the flight data or the plan to pick a place on the map.":
       "Abra los datos de vuelo o el plan para elegir un lugar en el mapa.",
     "No places yet.": "Todavía no hay lugares.",
+
+    // The sheet of video.
+    "The stream is drawn through the relay.":
+      "El canal se dibuja a través del repetidor.",
+    "The relay has stopped.": "El repetidor se ha detenido.",
+    "Play through the relay": "Reproducir a través del repetidor",
+    "Stop the relay": "Parar el repetidor",
   },
 };
 

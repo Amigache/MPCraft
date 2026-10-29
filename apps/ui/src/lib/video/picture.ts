@@ -129,3 +129,24 @@ export function canDraw(address: string): boolean {
 
   return host.length > 0;
 }
+
+/**
+ * Whether the address is a stream a relay can turn into a picture.
+ *
+ * A picture element cannot read RTSP, RTMP or a raw transport; `ffmpeg` can, and the relay
+ * serves the result as MJPEG. The list is the schemes the relay knows, and an address with
+ * another one is not guessed at.
+ */
+export function canRelay(address: string): boolean {
+  const text = address.trim().toLowerCase();
+
+  return [
+    "rtsp://",
+    "rtsps://",
+    "rtmp://",
+    "rtmps://",
+    "udp://",
+    "srt://",
+    "tcp://",
+  ].some((scheme) => text.startsWith(scheme));
+}

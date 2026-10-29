@@ -71,6 +71,7 @@ import type {
   VehicleKey,
   VehicleLog,
   VehicleRequest,
+  VideoRelayInfo,
   VideoStream,
   ZoomOption,
 } from "./types";
@@ -1770,4 +1771,19 @@ export async function removePoi(poi: Poi): Promise<Poi[]> {
 /** Takes every place off the map. */
 export async function clearPois(): Promise<Poi[]> {
   return call<Poi[]>("clear_pois", {});
+}
+
+/** Starts the relay that turns a camera stream into an MJPEG picture. */
+export async function videoRelayStart(uri: string): Promise<VideoRelayInfo> {
+  return call<VideoRelayInfo>("video_relay_start", { uri });
+}
+
+/** Stops the relay for one address. */
+export async function videoRelayStop(uri: string): Promise<VideoRelayInfo[]> {
+  return call<VideoRelayInfo[]>("video_relay_stop", { uri });
+}
+
+/** The relays that are running. */
+export async function videoRelays(): Promise<VideoRelayInfo[]> {
+  return call<VideoRelayInfo[]>("video_relays", {});
 }
