@@ -196,21 +196,26 @@ pub trait Device: Send + Sync {
     fn describe(&self) -> String;
 }
 
-/// Reads a string descriptor as the interface writes it: the length, the type, the language, and the text
-/// in UTF-16 little-endian.
+/// Reads a string descriptor as the interface writes it: the length, the type, and the text in UTF-16
+/// little-endian. The language is not part of a string of an index other than zero; only the descriptor that lists
+/// the languages carries it.
 ///
 /// # Errors
 ///
 /// Returns an error when the shape is not what the format says it is.
 pub fn read_string(bytes: &[u8]) -> DeviceResult<String> {
-    if bytes.len() < 4 || bytes[1] != 3 {
+    if bytes.len() < 2 || bytes[1] != 3 {
         return Err(DeviceError::BadAnswer {
             number: 0x06,
             reason: "the bytes are not a string descriptor".to_owned(),
         });
     }
 
-    let body = &bytes[2 + 2..];
+    // The header is the length and the type. The language is not here: a string descriptor of an index other than
+    // zero carries the text straight after the type, and the language only appears in string zero, which is the list
+    // of languages and not a string to show. Dropping two bytes as a language here took the first character of every
+    // string with it, which is how the board's own geometry lost the `@` it starts with.
+    let body = &bytes[2..];
 
     if (body.len() & 1) != 0 {
         return Err(DeviceError::BadAnswer {
@@ -278,15 +283,16 @@ mod tests {
 
     #[test]
     fn a_string_is_read_from_the_utf16_the_interface_writes_it_in() {
-        // Written from the rule of the format rather than taken from a decoder: the length, the type 3,
-        // the language, and the text in pairs.
+        // Written from the rule of the format rather than taken from a decoder: the length, the type 3, and the
+        // text in pairs. The first character is the `@` the geometry of an STM32 starts with, which is what a
+        // reader that took the first two bytes for a language used to lose.
         let text = "@Internal Flash /0x08000000";
         let units: Vec<u8> = text
             .encode_utf16()
             .flat_map(|unit| unit.to_le_bytes())
             .collect();
 
-        let mut bytes = vec![units.len() as u8 + 4, 3, 0x09, 0x04];
+        let mut bytes = vec![units.len() as u8 + 2, 3];
         bytes.extend(units);
 
         assert_eq!(read_string(&bytes).unwrap(), text);
@@ -294,12 +300,10 @@ mod tests {
 
     #[test]
     fn an_odd_number_of_bytes_that_arrived_cannot_be_read_as_whole_characters() {
-        // The header is four bytes — the length, the type, and the language — so the text is what follows, and
-        // three bytes of it is not a whole character. The declared length is not what decides this: the reader
-        // reads the bytes that arrived, which is the same rule the DFU document carries for a field that lies
-        // about its own size.
-        let error =
-            read_string(&[7, 3, 0x09, 0x04, b'a', b'b', b'c']).expect_err("an odd number of bytes");
+        // The header is two bytes - the length and the type - so the text is what follows, and three bytes of it
+        // is not a whole character. The declared length is not what decides this: the reader reads the bytes that
+        // arrived, which is the same rule the DFU document carries for a field that lies about its own size.
+        let error = read_string(&[5, 3, b'a', b'b', b'c']).expect_err("an odd number of bytes");
 
         assert_eq!(error.code(), "device_bad_answer");
     }

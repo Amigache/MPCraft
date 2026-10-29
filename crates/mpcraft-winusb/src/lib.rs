@@ -198,21 +198,32 @@ pub const PYDFU_LIBUSB_CLASS: &str = "88bae032-5a81-49f0-bc3d-a4ff138216d6";
 /// The same name read through a second published implementation: Windows' own class-install INF for this kind of
 /// device (`c_usbdevice.inf`) writes it as its `ClassGUID`. So on this machine there is one class name and not two,
 /// and the agreement between pydfu's filter and the class installer is a fact about two implementations that were
-/// not built from each other. What decides whether an instance can be read is not the class name but the value the
-/// install writes on the device itself ([`INTERFACE_GUID_VALUE`]), and this board has none, which is why the list
-/// answers with no rows even though its service says `WinUSB`.
+/// not built from each other. Which names an instance answers under is the installation's fact: this board answers
+/// rows under the standard WinUSB interface and the published package's, and none under its class, which is why the
+/// binding asks each name rather than deciding by the class.
 pub const WINDOWS_USBDEVICE_CLASS: &str = "88bae032-5a81-49f0-bc3d-a4ff138216d6";
 
 /// The name WinUSB samples write as a device-interface guid. What was said before about this is corrected here: it
-/// is not a class key on this machine, and interfaces are not published under it — a row exists for an instance only
-/// when the install wrote the per-device value below. The earlier paragraph read this name as the class WinUSB
-/// publishes under, and the live area repeated that as an expectation, which is why the comparison now says what the
-/// list answers instead of what a name should answer.
+/// is not the class key on this machine, and no interface is published under it here — the row answers under the
+/// standard name below — so the live area reads it as a fact about the install rather than as the name to open.
 pub const WINUSB_CLASS: &str = "a5dcbf13-4437-40bb-9a12-8e18f591d448";
 
-/// The value a class install writes on the device itself, named as the published class-install INF names it. This is
-/// the fact that makes a row exist for one instance; a service name alone does not, which is what this machine shows
-/// on this board: the service says `WinUSB` and the list gives no row.
+/// The device-interface class Windows registers for a WinUSB device when the driver is installed by Zadig or by the
+/// published samples: `DEE824EF-...`. It is the name the published WinUSB readers open — Mission Planner's own
+/// `CommsWinUSB.cs` searches this and the class below — and it is not the USB device interface (`A5DCBF10-...`),
+/// which also publishes a row but is not owned by WinUSB: `WinUsb_Initialize` answers 6 for it.
+pub const WINUSB_DEVICE_INTERFACE: &str = "dee824ef-729b-4a0e-9c14-b7117d33a817";
+
+/// The interface class the published package for this board names (`01105872-...`), which is registered when that
+/// package installs the driver. It is a second name next to the standard WinUSB interface, and this machine answers a
+/// row under it for the board; the binding tries both before the names the value carries and the class.
+pub const PUBLISHED_PACKAGE_INTERFACE: &str = "01105872-bf45-43be-8b67-3c0f2b8cf0d9";
+
+/// The value a class install writes on the device itself, named as the published class-install INF names it: it
+/// decides under which name an installation registers an interface, and a service name alone does not. This board
+/// answered two names after the operator wrote them, and the row opened here is the one registered under the
+/// standard WinUSB interface; the value and the row stay apart because writing it does not register anything by
+/// itself.
 pub const INTERFACE_GUID_VALUE: &str = "DeviceInterfaceGUIDs";
 
 /// Two spellings of one fact, kept apart because they come from different sides. What an `AddReg` line of a
@@ -295,7 +306,7 @@ pub fn guid_parts(name: &str) -> Option<(u32, u16, u16, [u8; 8])> {
 
 /// What a device that is there says about itself: the instance, the two names the registry gives the same fact —
 /// the class-install key and the service behind it, which are not the same thing and cannot be read as one — the
-/// compatible ids the element carries, and the interface path it publishes, or nothing when it publishes none.
+/// compatible ids the element carries, the interface name a row was found under, and the path it publishes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
     /// The instance id as the bus writes it.
@@ -303,6 +314,13 @@ pub struct Found {
     /// The class name the element says it belongs to, as the call wrote it — which is compared with the two
     /// published class names above rather than assumed from either.
     pub class: String,
+    /// The interface name a row was found under: the standard WinUSB device interface, the published package's
+    /// interface, one the install wrote on the device, or the class the element reports. `None` when no name answered
+    /// with a row.
+    pub interface: Option<String>,
+    /// Every row found for the instance, as the interface name and the path it publishes. `WinUsb_Initialize` can
+    /// refuse a path that is a device interface but not the WinUSB one, so the caller tries each until one opens.
+    pub candidates: Vec<(String, String)>,
     /// What the element says the class-install key is, read through `SPDRP_DRIVER`. That property names the key
     /// rather than the driver, so it can never be the name this binding compares with [`OUR_DRIVER`].
     pub class_key: String,
@@ -314,8 +332,7 @@ pub struct Found {
     /// kind by the pair 0xFE and 1; here the pair appears inside the declaration as text, which is a third reading
     /// of the same fact and is read by [`pair_from_ids`] rather than assumed from a row.
     pub compatible_ids: String,
-    /// The device interface path, as the call wrote it, or nothing when the instance publishes no interface —
-    /// which is what this machine answers today for this board under both class names above.
+    /// The device interface path, as the call wrote it, or nothing when none of the names above answered with a row.
     pub path: Option<String>,
 }
 
@@ -393,13 +410,14 @@ pub mod bus {
     use windows::Win32::Devices::DeviceAndDriverInstallation::*;
     use windows::Win32::Devices::Usb::*;
     use windows::Win32::Foundation::{
-        CloseHandle, ERROR_SUCCESS, GENERIC_READ, GENERIC_WRITE, HANDLE,
+        CloseHandle, ERROR_IO_PENDING, ERROR_SUCCESS, GENERIC_READ, GENERIC_WRITE, HANDLE,
     };
     use windows::Win32::Storage::FileSystem::*;
     use windows::Win32::System::Registry::{
         RegCloseKey, RegEnumValueW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE,
         KEY_READ, REG_VALUE_TYPE,
     };
+    use windows::Win32::System::IO::OVERLAPPED;
 
     use mpcraft_transport::bluetooth::{BluetoothError, MapRow};
     use mpcraft_transport::device::{
@@ -409,7 +427,7 @@ pub mod bus {
     use super::{
         as_text, as_wide, classify_open_failure, detail_room, entries_of, enumerator, guid_parts,
         is_our_driver, name_without_the_pair, nul_terminated, Found, Target, INTERFACE_GUID_VALUE,
-        NO_MORE_ITEMS, SERIALCOMM_KEY,
+        NO_MORE_ITEMS, PUBLISHED_PACKAGE_INTERFACE, SERIALCOMM_KEY, WINUSB_DEVICE_INTERFACE,
     };
 
     /// The call that answers for a registry property, named so that a refusal can say which dictionary its number
@@ -513,15 +531,54 @@ pub mod bus {
 
             let guid = info.ClassGuid;
             let class = format!("{guid:?}");
-            let rows = rows_for_class(&class, instance)?;
+
+            // A row answers under the name the installation registered it with, and that is not always the class
+            // the element reports: Windows and Zadig register the standard WinUSB device interface, a per-device
+            // value may name others, and the class is the last fallback. The names are tried in that order, and the
+            // first one with a row is the interface this binding opens.
+            let mut names: Vec<String> = vec![
+                WINUSB_DEVICE_INTERFACE.to_owned(),
+                PUBLISHED_PACKAGE_INTERFACE.to_owned(),
+            ];
+
+            for entry in interface_guid_names(instance).entries {
+                let name = name_without_the_pair(&entry)
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| entry.clone());
+
+                if guid_parts(&name).is_some() {
+                    names.push(name);
+                }
+            }
+
+            names.push(class.clone());
+
+            let mut candidates: Vec<(String, String)> = Vec::new();
+            let mut tried: Vec<String> = Vec::new();
+
+            for name in names {
+                if tried.iter().any(|seen| seen.eq_ignore_ascii_case(&name)) {
+                    continue;
+                }
+
+                tried.push(name.clone());
+
+                for path in rows_for_class(&name, instance)? {
+                    candidates.push((name.clone(), path));
+                }
+            }
+
+            let first = candidates.first().cloned();
 
             let found = Found {
                 instance: instance.to_owned(),
                 class,
+                interface: first.as_ref().map(|(name, _)| name.clone()),
+                candidates,
                 class_key: read_property(set, &info, instance, SPDRP_DRIVER)?,
                 service: read_property(set, &info, instance, SPDRP_SERVICE)?,
                 compatible_ids: read_property(set, &info, instance, SPDRP_COMPATIBLEIDS)?,
-                path: rows.first().map(String::from),
+                path: first.map(|(_, path)| path),
             };
 
             let _ = SetupDiDestroyDeviceInfoList(set);
@@ -571,11 +628,10 @@ pub mod bus {
     /// enumeration, because the two are different readings of the same fact and the list answers with a Config
     /// Manager number rather than with a result.
     ///
-    /// What this machine answers today for this board is no rows for either published name, which is why the
-    /// descriptor, the string index and the state cannot be read through this binding: there is nothing to open. The
-    /// reason is the value read by [`interface_guid_value`], not the class name — pydfu's name and the name Windows'
-    /// own class-install INF writes are the same string here — and a published reader finds the same nothing, since
-    /// pydfu filters on its class and gets no row for this instance either, so that is said rather than assumed.
+    /// What this machine answers for this board is no rows under its class or the sample name, and a row under each
+    /// of the standard WinUSB interface and the published package, which is why the caller asks every name rather
+    /// than deciding by one. A reader that filters on pydfu's class alone finds no row here either, which is why the
+    /// class and the interface are kept as two readings of the same install.
     ///
     /// The name arrives as the value writes it, which may carry the pair, so the pair is read before the parts and the
     /// two refusals are named apart: a name that opens the pair without closing it is a different fact from a name
@@ -644,9 +700,9 @@ pub mod bus {
     /// The value a class install writes on the device itself, read through the key these APIs write it under: the
     /// instance path as the registry stores it, which is `SYSTEM\CurrentControlSet\Enum\` plus what the bus writes.
     ///
-    /// This is the fact that decides whether a row can exist for an instance, and it is a different fact from the
-    /// service name: this board answers `WinUSB` for the service and nothing for this value, which is why the list
-    /// gives no rows. The published package for this board has a branch that says so — `[NoDeviceInterfaceGUID]`,
+    /// This is one of the facts about an instance's rows, and it is a different fact from the service name: this
+    /// board answers `WinUSB` for the service, two names for this value, and rows under the standard WinUSB
+    /// interface. The published package for this board has a branch that avoids the value — `[NoDeviceInterfaceGUID]`,
     /// "Avoids adding a DeviceInterfaceGUID for generic driver" — so the agreement between the published source and
     /// what this machine holds is what the live area reads, not a guess about which branch an install took.
     ///
@@ -1005,6 +1061,87 @@ pub mod bus {
     unsafe impl Send for Handle {}
     unsafe impl Sync for Handle {}
 
+    /// Opens one interface path and initialises WinUSB on it, closing the handles it took when a later step fails.
+    ///
+    /// A path can be a device interface that is not the one WinUSB owns, and the call then answers `6`
+    /// (`ERROR_INVALID_HANDLE`); the caller tries the other rows, so nothing is left open here.
+    fn open_path(
+        address: &str,
+        path: &str,
+    ) -> DeviceResult<(
+        HANDLE,
+        WINUSB_INTERFACE_HANDLE,
+        USB_INTERFACE_DESCRIPTOR,
+        FunctionalDescriptor,
+    )> {
+        unsafe {
+            let path = nul_terminated(path);
+
+            let handle = CreateFileW(
+                PCWSTR(path.as_ptr()),
+                (GENERIC_READ | GENERIC_WRITE).0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                None,
+                OPEN_EXISTING,
+                FILE_FLAG_OVERLAPPED,
+                None,
+            )
+            .map_err(|error| {
+                classify_open_failure(address, "CreateFileW", number(error.code().0))
+            })?;
+
+            let mut interface = WINUSB_INTERFACE_HANDLE::default();
+
+            if let Err(error) = WinUsb_Initialize(handle, &mut interface) {
+                let _ = CloseHandle(handle);
+
+                return Err(classify_open_failure(
+                    address,
+                    "WinUsb_Initialize",
+                    number(error.code().0),
+                ));
+            }
+
+            let mut settings = USB_INTERFACE_DESCRIPTOR::default();
+
+            if let Err(error) = WinUsb_QueryInterfaceSettings(interface, 0, &mut settings) {
+                let _ = WinUsb_Free(interface);
+                let _ = CloseHandle(handle);
+
+                return Err(classify_open_failure(
+                    address,
+                    "WinUsb_QueryInterfaceSettings",
+                    number(error.code().0),
+                ));
+            }
+
+            // The functional descriptor of this interface is read from the configuration descriptor, which is how
+            // the published reader finds it: this board stalls a direct GET_DESCRIPTOR for 0x2100, and answers the
+            // same nine bytes as an extra descriptor of its interface. A board that does answer the direct request
+            // is still read through it, so both readings are kept.
+            let config = control_read(interface, 0x06, 0x0200, 255)?;
+
+            let from_config = functional_descriptor_in(&config);
+
+            let descriptor = match from_config {
+                Ok(descriptor) => descriptor,
+                Err(from_config_error) => match control_read(interface, 0x06, 0x2100, 9)
+                    .and_then(|bytes| FunctionalDescriptor::read(&bytes))
+                {
+                    Ok(descriptor) => descriptor,
+                    Err(_) => {
+                        let _ = WinUsb_Free(interface);
+                        let _ = CloseHandle(handle);
+
+                        return Err(from_config_error);
+                    }
+                },
+            };
+
+            Ok((handle, interface, settings, descriptor))
+        }
+    }
+
     impl Handle {
         /// Opens the interface the enumeration found.
         ///
@@ -1025,71 +1162,45 @@ pub mod bus {
                 });
             }
 
-            // Nothing is opened here, so this refusal falls before anything travels: the instance is there and is
-            // bound to the right service, but it publishes no interface that could be read.
-            let Some(path) = found.path.as_ref() else {
+            if found.candidates.is_empty() {
                 return Err(DeviceError::NotOurs {
                     address: target.as_string(),
                     reason: format!(
-                        "publishes no device interface under the class it says it is in ({})",
+                        "publishes no device interface under the WinUSB name, the names the install wrote, or the class it says it is in ({})",
                         found.class
                     ),
                 });
-            };
-
-            unsafe {
-                let path = nul_terminated(path);
-
-                let handle = CreateFileW(
-                    PCWSTR(path.as_ptr()),
-                    (GENERIC_READ | GENERIC_WRITE).0,
-                    FILE_SHARE_MODE(0),
-                    None,
-                    OPEN_EXISTING,
-                    FILE_FLAGS_AND_ATTRIBUTES(0),
-                    None,
-                )
-                .map_err(|error| {
-                    classify_open_failure(
-                        &target.as_string(),
-                        "CreateFileW",
-                        number(error.code().0),
-                    )
-                })?;
-
-                let mut interface = WINUSB_INTERFACE_HANDLE::default();
-
-                WinUsb_Initialize(handle, &mut interface).map_err(|error| {
-                    classify_open_failure(
-                        &target.as_string(),
-                        "WinUsb_Initialize",
-                        number(error.code().0),
-                    )
-                })?;
-
-                let mut settings = USB_INTERFACE_DESCRIPTOR::default();
-
-                WinUsb_QueryInterfaceSettings(interface, 0, &mut settings).map_err(|error| {
-                    classify_open_failure(
-                        &target.as_string(),
-                        "WinUsb_QueryInterfaceSettings",
-                        number(error.code().0),
-                    )
-                })?;
-
-                let descriptor = FunctionalDescriptor::read(&control_read(interface, 0x06, 0, 9)?)?;
-
-                Ok(Self {
-                    found,
-                    descriptor,
-                    handle,
-                    interface,
-                    number: settings.bInterfaceNumber,
-                    string_index: settings.iInterface,
-                    class: settings.bInterfaceClass,
-                    subclass: settings.bInterfaceSubClass,
-                })
             }
+
+            // Windows publishes several interfaces for one device, and WinUSB initialises only the one it owns: the
+            // standard USB interface answers a row that CreateFileW opens and WinUsb_Initialize then refuses with 6.
+            // So every row is tried, and the first one that initialises is the interface.
+            let candidates = found.candidates.clone();
+            let mut last: Option<(String, DeviceError)> = None;
+
+            for (name, path) in &candidates {
+                match open_path(&target.as_string(), path) {
+                    Ok((handle, interface, settings, descriptor)) => {
+                        return Ok(Self {
+                            found,
+                            descriptor,
+                            handle,
+                            interface,
+                            number: settings.bInterfaceNumber,
+                            string_index: settings.iInterface,
+                            class: settings.bInterfaceClass,
+                            subclass: settings.bInterfaceSubClass,
+                        });
+                    }
+                    Err(error) => last = Some((name.clone(), error)),
+                }
+            }
+
+            let (name, error) = last.expect("a candidate was listed");
+            Err(DeviceError::NotOurs {
+                address: target.as_string(),
+                reason: format!("no interface opened; the last was {name}: {error}"),
+            })
         }
 
         /// What the enumeration said about the device this interface is.
@@ -1130,9 +1241,10 @@ pub mod bus {
             going_out: bool,
         ) -> WINUSB_SETUP_PACKET {
             // The direction bit comes from the published reader: a class request to an interface is 0x21 going out
-            // and 0x81 coming back, which is what the request shape does not say and the wire has to.
+            // and 0xA1 coming back — 0x81 is a standard request to an interface, which is not what a DFU class
+            // request is — and the request shape does not say it, so the wire has to.
             WINUSB_SETUP_PACKET {
-                RequestType: if going_out { 0x21 } else { 0x81 },
+                RequestType: if going_out { 0x21 } else { 0xA1 },
                 Request: request,
                 Value: value,
                 Index: u16::from(self.number),
@@ -1157,30 +1269,101 @@ pub mod bus {
     /// system answered with has nowhere to travel inside that code, so it is not carried here; it is what the live
     /// area prints when a board answers, and the area says that a refusal read through this API is not the same as
     /// a refusal known to be a stall.
+    /// One control transfer on the overlapped handle. WinUSB requires an `OVERLAPPED` when the handle was opened
+    /// with `FILE_FLAG_OVERLAPPED`; a null one is answered as a general failure (31) rather than as a stall, which is
+    /// what this machine showed. A transfer that is pending is waited for and read through the same structure.
+    fn control_transfer(
+        interface: WINUSB_INTERFACE_HANDLE,
+        packet: WINUSB_SETUP_PACKET,
+        buffer: Option<&mut [u8]>,
+        read: &mut u32,
+    ) -> DeviceResult<()> {
+        unsafe {
+            let overlapped = OVERLAPPED::default();
+
+            match WinUsb_ControlTransfer(
+                interface,
+                packet,
+                buffer,
+                Some(read as *mut u32),
+                Some(&overlapped as *const OVERLAPPED),
+            ) {
+                Ok(()) => Ok(()),
+                Err(error) if number(error.code().0) == ERROR_IO_PENDING.0 => {
+                    WinUsb_GetOverlappedResult(interface, &overlapped, read, true).map_err(|_| {
+                        DeviceError::Stalled {
+                            number: packet.Request,
+                        }
+                    })
+                }
+                Err(_) => Err(DeviceError::Stalled {
+                    number: packet.Request,
+                }),
+            }
+        }
+    }
+
+    /// The DFU functional descriptor (type `0x21`) inside a configuration descriptor, which is where the published
+    /// reader finds it. The walk is by `bLength`, because the descriptors of a configuration are a flat stream and
+    /// the interface's extra descriptors follow it; a length of zero would walk nowhere, so it is refused rather
+    /// than read as the next descriptor.
+    fn functional_descriptor_in(config: &[u8]) -> DeviceResult<FunctionalDescriptor> {
+        let mut at = 0_usize;
+
+        while at + 2 <= config.len() {
+            let length = usize::from(config[at]);
+            let kind = config[at + 1];
+
+            if length < 2 {
+                break;
+            }
+
+            if kind == 0x21 && length >= 9 && at + 9 <= config.len() {
+                return FunctionalDescriptor::read(&config[at..at + 9]);
+            }
+
+            at += length;
+        }
+
+        Err(DeviceError::BadAnswer {
+            number: 0x06,
+            reason: "the configuration descriptor carries no DFU functional descriptor".to_owned(),
+        })
+    }
+
     fn control_read(
         interface: WINUSB_INTERFACE_HANDLE,
         request: u8,
         value: u16,
         length: u16,
     ) -> DeviceResult<Vec<u8>> {
-        unsafe {
-            let mut buffer = vec![0_u8; usize::from(length)];
-            let mut read = 0_u32;
+        control_read_index(interface, request, value, 0, length)
+    }
 
-            let packet = WINUSB_SETUP_PACKET {
-                RequestType: 0x81,
-                Request: request,
-                Value: value,
-                Index: 0,
-                Length: length,
-            };
+    /// The same read with a `wIndex`, which a string descriptor needs: the index carries the language, and a device
+    /// that is asked for a string with no language stalls the request.
+    fn control_read_index(
+        interface: WINUSB_INTERFACE_HANDLE,
+        request: u8,
+        value: u16,
+        index: u16,
+        length: u16,
+    ) -> DeviceResult<Vec<u8>> {
+        let mut buffer = vec![0_u8; usize::from(length)];
+        let mut read = 0_u32;
 
-            WinUsb_ControlTransfer(interface, packet, Some(&mut buffer), Some(&mut read), None)
-                .map_err(|_| DeviceError::Stalled { number: request })?;
+        let packet = WINUSB_SETUP_PACKET {
+            RequestType: 0x80,
+            Request: request,
+            Value: value,
+            Index: index,
+            Length: length,
+        };
 
-            buffer.truncate(usize::try_from(read).unwrap_or(buffer.len()));
-            Ok(buffer)
-        }
+        control_transfer(interface, packet, Some(&mut buffer), &mut read)?;
+
+        buffer.truncate(usize::try_from(read).unwrap_or(buffer.len()));
+        Ok(buffer)
     }
 
     /// The number inside an `HRESULT`: `0x8007007A` is 122, which is what makes the low word the fact and the
@@ -1206,35 +1389,30 @@ pub mod bus {
                 });
             };
 
-            unsafe {
-                WinUsb_ControlTransfer(
-                    self.interface,
-                    self.packet(number, value, length, true),
-                    Some(&mut payload.to_vec()),
-                    None,
-                    None,
-                )
-                .map_err(|_| DeviceError::Stalled { number })
-            }
+            let mut buffer = payload.to_vec();
+            let mut written = 0_u32;
+
+            control_transfer(
+                self.interface,
+                self.packet(number, value, length, true),
+                Some(&mut buffer),
+                &mut written,
+            )
         }
 
         async fn receive(&mut self, number: u8, value: u16, length: u16) -> DeviceResult<Vec<u8>> {
-            unsafe {
-                let mut buffer = vec![0_u8; usize::from(length)];
-                let mut read = 0_u32;
+            let mut buffer = vec![0_u8; usize::from(length)];
+            let mut read = 0_u32;
 
-                WinUsb_ControlTransfer(
-                    self.interface,
-                    self.packet(number, value, length, false),
-                    Some(&mut buffer),
-                    Some(&mut read),
-                    None,
-                )
-                .map_err(|_| DeviceError::Stalled { number })?;
+            control_transfer(
+                self.interface,
+                self.packet(number, value, length, false),
+                Some(&mut buffer),
+                &mut read,
+            )?;
 
-                buffer.truncate(usize::try_from(read).unwrap_or(buffer.len()));
-                Ok(buffer)
-            }
+            buffer.truncate(usize::try_from(read).unwrap_or(buffer.len()));
+            Ok(buffer)
         }
 
         async fn string(&mut self, index: u16) -> DeviceResult<String> {
@@ -1245,7 +1423,24 @@ pub mod bus {
                 });
             };
 
-            let bytes = control_read(self.interface, 0x06, u16::from(byte), 256)?;
+            // A string descriptor is asked for as (0x03 << 8) | index, with the language in wIndex; asking for the
+            // bare index is a different descriptor and this board stalls it. The language is read from string zero
+            // rather than written here, because a board with another one would refuse a request that names this one.
+            let languages = control_read_index(self.interface, 0x06, 0x0300, 0, 255)?;
+
+            let language = languages
+                .get(2..4)
+                .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+                .unwrap_or(0x0409);
+
+            let bytes = control_read_index(
+                self.interface,
+                0x06,
+                0x0300 | u16::from(byte),
+                language,
+                256,
+            )?;
+
             read_string(&bytes)
         }
 
@@ -1256,6 +1451,50 @@ pub mod bus {
                 u32::from(self.number),
                 self.found.service
             )
+        }
+    }
+
+    #[cfg(test)]
+    mod configuration {
+        use super::functional_descriptor_in;
+
+        /// The configuration descriptor this board answered, all fifty-four bytes of it: the header, the four
+        /// alternate settings of the one interface, and the functional descriptor after them. It is written here as
+        /// the board wrote it so that the walk is compared with what a device says rather than with bytes this test
+        /// chose; the direct GET_DESCRIPTOR for the same nine bytes is what the board stalls.
+        const BOARD: &[u8] = &[
+            9, 0x02, 0x36, 0x00, 1, 1, 0x00, 0xC0, 0x32, //
+            9, 0x04, 0, 0, 0, 0xFE, 0x01, 0x02, 4, //
+            9, 0x04, 0, 1, 0, 0xFE, 0x01, 0x02, 5, //
+            9, 0x04, 0, 2, 0, 0xFE, 0x01, 0x02, 6, //
+            9, 0x04, 0, 3, 0, 0xFE, 0x01, 0x02, 7, //
+            9, 0x21, 0x0B, 0xFF, 0x00, 0x00, 0x08, 0x1A, 0x01,
+        ];
+
+        #[test]
+        fn the_functional_descriptor_is_read_after_the_alternate_settings() {
+            let descriptor = functional_descriptor_in(BOARD).expect("the board writes one");
+
+            assert_eq!(descriptor.attributes, 0x0B);
+            assert_eq!(descriptor.detach_timeout, 255);
+            assert_eq!(descriptor.transfer_size, 2048);
+            assert_eq!(descriptor.version, 0x011A);
+        }
+
+        #[test]
+        fn a_configuration_without_one_is_refused_rather_than_read_past() {
+            // The same bytes with the functional descriptor taken out, which is a device that does not speak DFU.
+            let without = &BOARD[..45];
+
+            assert!(functional_descriptor_in(without).is_err());
+        }
+
+        #[test]
+        fn a_length_of_zero_stops_the_walk_rather_than_standing_still() {
+            let mut broken = BOARD.to_vec();
+            broken[9] = 0;
+
+            assert!(functional_descriptor_in(&broken).is_err());
         }
     }
 }
