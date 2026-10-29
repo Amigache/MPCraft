@@ -22,11 +22,15 @@ and it is not copied into new text. This applies to `docs/PARITY.md` as much as 
 | `develop` | Where the changes meet. Everything lands here first. |
 | `<area>/<topic>` | One change: `ui/plan-editor`, `link/heartbeat-timeout`, `docs/release` |
 
-A change goes: **a branch from `develop` → a pull request to `develop` → `develop` → a pull request
-to `main`**. A change may also be made directly on `develop` when it is a small one that is still
-proved on the machine. Direct pushes to either branch are refused by the repository, and a pull
-request to `main` that does not come from `develop` is refused by the check `The flow of the
-branches`.
+A change goes: **a branch from `develop` → a pull request to `develop` → `develop`**. That is where it
+stays. A change may also be made directly on `develop` when it is a small one that is still proved on
+the machine. Direct pushes to either branch are refused by the repository.
+
+A pull request to `main` is not part of landing a change: it is opened only when the maintainer asks
+for one, because merging it is what starts the next release. The app is still being developed, so
+many changes collect on `develop` between two versions; opening a pull request to `main` per change
+would announce work the maintainer has not chosen to release. The check `The flow of the branches`
+still refuses a pull request to `main` that does not come from `develop`.
 
 ## Nothing is pushed until it is proved locally
 
