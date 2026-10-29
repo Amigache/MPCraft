@@ -128,7 +128,9 @@ export function FirmwareSheet() {
         }
 
         setManifest(read);
-        setBoard(read.boards[0]?.name ?? "");
+        // Nothing is picked for the operator: the manifest names hundreds of boards, and a row chosen here
+        // would be a file for a board nobody selected. Upstream leaves the choice open when several match.
+        setBoard("");
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
@@ -158,8 +160,9 @@ export function FirmwareSheet() {
     (entry) => entry.platform === platform,
   );
 
-  // The version and the platform follow the vehicle, and the first of each is the one
-  // that is wanted.
+  // The version and the board follow the vehicle, and are left to the operator when there is more than one:
+  // a row picked here would be the first of a list rather than the one the operator means. Upstream does the
+  // same when several match.
   useEffect(() => {
     if (chosen === undefined) {
       return;
@@ -168,7 +171,9 @@ export function FirmwareSheet() {
     setVersion((before) =>
       chosen.versions.some((entry) => entry.version === before)
         ? before
-        : (chosen.versions[0]?.version ?? ""),
+        : chosen.versions.length === 1
+          ? (chosen.versions[0]?.version ?? "")
+          : "",
     );
   }, [chosen]);
 
@@ -180,7 +185,9 @@ export function FirmwareSheet() {
     setPlatform((before) =>
       chosenVersion.files.some((entry) => entry.platform === before)
         ? before
-        : (chosenVersion.files[0]?.platform ?? ""),
+        : chosenVersion.files.length === 1
+          ? (chosenVersion.files[0]?.platform ?? "")
+          : "",
     );
   }, [chosenVersion]);
 
@@ -439,6 +446,7 @@ export function FirmwareSheet() {
                   setBoard(event.target.value);
                 }}
               >
+                <option value="">{t("Choose a vehicle")}</option>
                 {(manifest?.boards ?? []).map((entry) => (
                   <option key={entry.name} value={entry.name}>
                     {entry.name}
@@ -457,6 +465,7 @@ export function FirmwareSheet() {
                   setVersion(event.target.value);
                 }}
               >
+                <option value="">{t("Choose a version")}</option>
                 {(chosen?.versions ?? []).map((entry) => (
                   <option key={entry.version} value={entry.version}>
                     {entry.version}
@@ -475,6 +484,7 @@ export function FirmwareSheet() {
                   setPlatform(event.target.value);
                 }}
               >
+                <option value="">{t("Choose a board")}</option>
                 {(chosenVersion?.files ?? []).map((entry) => (
                   <option key={entry.platform} value={entry.platform}>
                     {entry.platform}

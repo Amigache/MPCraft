@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { fileNameOf } from "../../lib/files/name";
 import { pickSavePath } from "../../lib/ipc/dialog";
 import { formatCount } from "../../lib/format";
 import { ftpList, ftpRead, normaliseError } from "../../lib/ipc/bridge";
@@ -46,12 +47,6 @@ function showSize(bytes: number): string {
 }
 
 /** The name of the file as it is written to the disk. */
-function fileNameOf(path: string): string {
-  const parts = path.split("/").filter((part) => part.length > 0);
-
-  return parts[parts.length - 1] ?? "file";
-}
-
 export function FilesSheet() {
   const open = useUiStore((state) => state.filesOpen);
   const hide = useUiStore((state) => state.hideFiles);

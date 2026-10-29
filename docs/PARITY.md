@@ -5,7 +5,8 @@ Feature-by-feature comparison with Mission Planner. Every upstream feature must 
 
 **Legend:** ✅ Done · 🔜 Planned (phase) · ⬜ Dropped · 🟡 Partial · 🔽 Partial, the work is under way
 
-Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_missionplanner/`).
+Reference: `ardupilot/MissionPlanner` at commit `82dd96d` (reviewed from `_ref_missionplanner/` on 2026-10-29;
+the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the published repository does not have).
 
 ---
 
@@ -33,6 +34,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔽 | 5 |
 | 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
 | 1.20 | Serial passthrough (`SERIAL_CONTROL`) | `MAVLinkSerialPort.cs` | ✅ | 5 |
+| 1.21 | Mirror the link to serial / TCP / UDP | `Controls/SerialOutputPass.cs`, `MAVLinkInterface.Mirror` | 🔜 | 5 |
 
 ## 2. Flight data & telemetry
 
@@ -173,6 +175,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | ✅ | 5 |
 | 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | ✅ | 5 |
 | 7.14 | ADS-B relay to other stations | `MainV2.ADSBRunner` | ✅ | 5 |
+| 7.15 | Points of interest saved and drawn on the map | `Utilities/POI.cs` | 🔜 | 2 |
 
 ## 8. Firmware & flashing
 
@@ -221,7 +224,7 @@ Reference: `ardupilot/MissionPlanner` at commit `1f4a2e0` (analysed from `_ref_m
 | Status | Count |
 | --- | --- |
 | ✅ Done | 146 |
-| 🔜 Planned | 1 |
+| 🔜 Planned | 3 |
 | ⬜ Dropped | 2 |
 | Partial (🟡 / 🔽) | 6 |
 
@@ -311,7 +314,11 @@ heights of the squares, read from the cells that are open.
 The **firmware** of the vehicles is chosen from the Setup menu: the manifest that
 ArduPilot publishes is read, and the operator picks the vehicle, the version and the
 board, and the file of that board is fetched to the disk. The file is the firmware of
-the autopilot, the one that is written to a board.
+the autopilot, the one that is written to a board. Nothing is picked for the operator: the
+version and the board follow the vehicle and are chosen only when the list has one entry, so
+a manifest with several matches does not open on a row nobody chose. Upstream's selection
+drops the Xamarin control for a dialog that filters the manifest and does not preselect when
+several rows match (`Controls/FirmwareSelectionForm.cs`), and that rule is what this follows.
 
 The **firmware** can also be written to a board, from the same sheet: the board has to
 be in its bootloader, and the file is written to it over the port serie — the board is
@@ -725,7 +732,12 @@ placa contesto la lectura, se borro, se escribio y volvio a hablar como vehiculo
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are
 listed the way the vehicle says them, the operator walks into them, and a file is
-brought to the disk of the computer. The protocol is written by hand as well — the header of
+brought to the disk of the computer. The name the vehicle gives the file is reduced to its
+last component before it is offered to the save dialog, on either separator, and a component
+that is `.` or `..` is not offered at all: the vehicle chooses the name, and it does not
+choose the place. Upstream made the same reduction with `Path.GetFileName` before writing a
+downloaded file (`Controls/MavFTPUI.cs`); here the operator still chooses the place, so the
+rule keeps the vehicle from choosing where the dialog starts. The protocol is written by hand as well — the header of
 the transfer, the opcodes, and the payload of each answer — because the message is the 110th and
 the seed is worked out by the rule rather than copied from the generator. What was said before
 about this is corrected now: the compiled dialect does carry the 110th, the 310th and the 311th,
@@ -794,7 +806,10 @@ one the payload of a `MISSION_ITEM_INT` message.
 
 The **board** that is on the other end of the link is told by the output it prints when
 it starts, and that output is already captured: the link keeps the text that is not
-part of a MAVLink frame, and the board is recognised in it. The name it is given is the
+part of a MAVLink frame, and the board is recognised in it. The longest name wins, because a
+board that says `Pixhawk6C` also contains the older `Pixhawk`, and the model is not the
+family; the table carries the boards the manifest names, including the Pixhawk 5X, 6C and
+6X that upstream added to its hardware list. The name it is given is the
 one the manifest of the firmware uses, so that the board that is detected is the one
 the firmware is chosen for.
 
@@ -1104,6 +1119,15 @@ happened at. Clicking a row moves the flight to that moment, so the grid, the ma
 the play-back are the same thing seen from three sides. The **graph** is the fourth
 side of it: a log that is being played back is what the graph draws, and the line that
 says where the play-head is is the moment the grid and the map are showing too.
+
+The **vehicle of a log** is chosen from the heartbeats the file holds, with the rule the live
+link uses: a heartbeat from a ground station is not a vehicle, and the station that recorded the
+flight may be in the same file. Without that choice the last heartbeat would set the armed state
+and the mode, so a log whose station reported its own heartbeat after the vehicle would show the
+flight disarmed and in mode zero. The play-back is fed the chosen vehicle alone, so a second
+board's packets stay in their own slot rather than being mixed into the flight. This is the fix
+upstream made in `FlightData.cs` (`getHeartBeat` skips the station, and the chosen ids become the
+current ones), read from the published source rather than copied from a symptom.
 
 The grid **names the columns whose type the published table does not give**, so that a value kept
 as the text of the file does not look like a number the reader read badly. The names come from the
