@@ -1392,6 +1392,17 @@ pub mod bus {
             let mut buffer = payload.to_vec();
             let mut written = 0_u32;
 
+            // A request with no bytes is how the device is told to apply what was written, and WinUSB is given no
+            // buffer for it rather than a pointer to an empty one.
+            if buffer.is_empty() {
+                return control_transfer(
+                    self.interface,
+                    self.packet(number, value, length, true),
+                    None,
+                    &mut written,
+                );
+            }
+
             control_transfer(
                 self.interface,
                 self.packet(number, value, length, true),

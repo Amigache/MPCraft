@@ -34,6 +34,7 @@
 
 #![cfg(all(feature = "hardware-tests", windows))]
 
+use mpcraft_app::apj::FirmwareImage;
 use mpcraft_app::dfu::{Flash, Layout, State};
 use mpcraft_transport::device::{Device, FunctionalDescriptor};
 use mpcraft_winusb::bus::Handle;
@@ -521,4 +522,161 @@ async fn a_board_on_the_bus_says_what_a_scripted_peer_cannot() {
     } else {
         println!("the erase was not asked for, so the two forms are not compared with this board");
     }
+}
+
+/// The published image is written to the board and applied.
+///
+/// This is the half that cannot be undone: the board is erased before anything is written, so it runs only when the
+/// operator names both the image and the flag that allows it. What it proves is not the shape of the requests — the
+/// peer in `tests/dfu.rs` carries that — but that this board answers them and applies the bytes the document carries:
+/// the image is read through the same reader the firmware sheet uses, and the board leaves the bootloader for the
+/// firmware when the manifest is answered.
+///
+/// ```text
+/// MPCRAFT_DFU_TARGET=0483:df11 \
+/// MPCRAFT_DFU_IMAGE=C:\path\to\arduplane.apj \
+/// MPCRAFT_DFU_ALLOW_ERASE=1 \
+/// cargo test -p mpcraft-app --features hardware-tests --test dfu_live -- --test-threads=1 --nocapture
+/// ```
+#[tokio::test]
+async fn the_published_image_is_written_and_applied() {
+    let Some(path) = std::env::var_os("MPCRAFT_DFU_IMAGE") else {
+        println!(
+            "MPCRAFT_DFU_IMAGE does not name an image, so nothing is erased and nothing is written; \
+             the scripted peer carries the shape of these requests"
+        );
+        return;
+    };
+
+    assert!(
+        std::env::var("MPCRAFT_DFU_ALLOW_ERASE").is_ok(),
+        "the write half erases the board first, so it runs only when MPCRAFT_DFU_ALLOW_ERASE names it"
+    );
+
+    let document = std::fs::read(&path).expect("the image the environment names is readable");
+    let file =
+        FirmwareImage::read(&document).expect("the file is the document the manifest publishes");
+
+    println!(
+        "image {} bytes for board {} from {}",
+        file.image_size,
+        file.board_id,
+        path.to_string_lossy()
+    );
+
+    let target = target();
+    let handle = Handle::open(&target).expect("the board answers as an interface to open");
+    let index = handle.string_index();
+    let mut flash = Flash::open(handle, u16::from(index))
+        .await
+        .expect("the board answers with its memory");
+
+    // The first request a search sends is a command, and a board that an earlier read left in `dfuUPLOAD-IDLE` refuses
+    // that until it is aborted; the abort is what makes the state the run starts from a fact rather than an assumption.
+    flash
+        .abort()
+        .await
+        .expect("the board is idle before the search");
+    println!("state after abort: {:?}", flash.state().await);
+
+    let base = flash.layout().base;
+    let total = flash
+        .layout()
+        .sectors
+        .iter()
+        .map(|sector| sector.size)
+        .sum::<u32>();
+    let transfer = usize::from(flash.descriptor().transfer_size);
+
+    // Where the image goes is the place the bootloader jumps to, not the start of the flash: the bootloader lives at
+    // the start, and this board's firmware was read with STM32CubeProgrammer at 0x08010000, where its first vector
+    // matched the document's. The environment may name another place; the default is that one.
+    let place = match std::env::var("MPCRAFT_DFU_ADDRESS") {
+        Ok(text) => {
+            let text = text.trim_start_matches("0x");
+
+            u32::from_str_radix(text, 16).expect("the address the environment names is hexadecimal")
+        }
+        Err(_) => base + 0x0001_0000,
+    };
+
+    println!("the image goes at 0x{place:08x}");
+
+    flash
+        .abort()
+        .await
+        .expect("the board is idle before the erase");
+    println!("state before the erase: {:?}", flash.state().await);
+
+    assert!(
+        place + file.image.len() as u32 <= base + total,
+        "the image is {} bytes and the memory from 0x{place:08x} is {}",
+        file.image.len(),
+        base + total - place
+    );
+
+    // Every sector the image touches is erased; the sectors before it hold the bootloader and are left alone.
+    let touches: Vec<u32> = flash
+        .layout()
+        .sectors
+        .iter()
+        .filter(|sector| {
+            sector.address < place + file.image.len() as u32 && sector.address + sector.size > place
+        })
+        .map(|sector| sector.address)
+        .collect();
+
+    for address in touches {
+        let answer = flash
+            .erase_sector(address)
+            .await
+            .expect("the board erases the sector");
+
+        // The erase runs while the device is busy; the next request waits for the answer to clear.
+        flash.settle().await.expect("the board finishes erasing");
+
+        println!("erased 0x{address:08x}: {:?}", answer.state);
+    }
+
+    flash
+        .set_address(place)
+        .await
+        .expect("the board takes the place the image starts at");
+
+    flash
+        .settle()
+        .await
+        .expect("the board is ready for the first run");
+
+    let mut written = 0_usize;
+
+    for chunk in file.image.chunks(transfer) {
+        flash
+            .write(chunk)
+            .await
+            .expect("the board takes the run of bytes");
+
+        flash
+            .settle()
+            .await
+            .expect("the board is ready for the next run");
+
+        written += chunk.len();
+
+        if written % (transfer * 64) < transfer {
+            println!("wrote {written} of {} bytes", file.image.len());
+        }
+    }
+
+    println!(
+        "wrote {} bytes in {} blocks",
+        written,
+        file.image.len().div_ceil(transfer)
+    );
+
+    let answer = flash
+        .finish()
+        .await
+        .expect("the board applies what was written");
+    println!("applied: {answer:?}");
 }
