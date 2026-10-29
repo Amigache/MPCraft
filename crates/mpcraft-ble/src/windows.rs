@@ -144,14 +144,19 @@ pub async fn scan(timeout: Duration) -> Result<Vec<BleDevice>, BleError> {
             .or(properties.advertisement_name)
             .unwrap_or_default();
 
-        if name.is_empty() {
+        let profile = advertised_profile(&properties.services).to_owned();
+
+        // A device with no name is still listed when it carries one of the serial profiles, because
+        // the phone that advertises a test service does not always write a local name; an unnamed
+        // device with no profile is not something this station can use.
+        if name.is_empty() && profile == "unknown" {
             continue;
         }
 
         found.push(BleDevice {
             address: properties.address.to_string(),
             name,
-            profile: advertised_profile(&properties.services).to_owned(),
+            profile,
         });
     }
 
@@ -196,12 +201,10 @@ pub async fn open(address: &str) -> Result<Box<dyn Transport>, BleError> {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
-    let _ = adapter.stop_scan().await;
-
     let peripheral = peripheral.ok_or_else(|| BleError::NotFound(address.clone()))?;
 
     peripheral
-        .connect()
+        .connect_with_timeout(Duration::from_secs(10))
         .await
         .map_err(|error| BleError::Platform(error.to_string()))?;
     peripheral
@@ -209,6 +212,7 @@ pub async fn open(address: &str) -> Result<Box<dyn Transport>, BleError> {
         .await
         .map_err(|error| BleError::Platform(error.to_string()))?;
 
+    let _ = adapter.stop_scan().await;
     let characteristics: Vec<Characteristic> = peripheral.characteristics().into_iter().collect();
     let services: Vec<Uuid> = peripheral.services().into_iter().map(|s| s.uuid).collect();
 
