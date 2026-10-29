@@ -1527,3 +1527,13 @@ export interface MirrorStatus {
   /** The last failure, when there was one. */
   readonly error: string | null;
 }
+
+/** A place the operator marked on the map. */
+export interface Poi {
+  /** What the operator calls the place. */
+  readonly name: string;
+  /** Where it is. */
+  readonly latitude: number;
+  /** Where it is. */
+  readonly longitude: number;
+}

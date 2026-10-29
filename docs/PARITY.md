@@ -175,7 +175,7 @@ the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the pub
 | 7.12 | Geo-referenced image placement | `ExtLibs/GeoRef/*` | ✅ | 5 |
 | 7.13 | ADS-B display layer | `ExtLibs/Utilities/adsb.cs` | ✅ | 5 |
 | 7.14 | ADS-B relay to other stations | `MainV2.ADSBRunner` | ✅ | 5 |
-| 7.15 | Points of interest saved and drawn on the map | `Utilities/POI.cs` | 🔜 | 2 |
+| 7.15 | Points of interest saved and drawn on the map | `Utilities/POI.cs` | ✅ | 2 |
 
 ## 8. Firmware & flashing
 
@@ -223,12 +223,12 @@ the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the pub
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 147 |
-| 🔜 Planned | 2 |
+| ✅ Done | 148 |
+| 🔜 Planned | 1 |
 | ⬜ Dropped | 2 |
 | Partial (🟡 / 🔽) | 6 |
 
-The 147 rows marked done are the connection, transport, parameter, mission, command and
+The 148 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -1172,6 +1172,13 @@ service for the tiles: it asks the program, which takes them from the folder the
 operator has brought, from the disk where the ones that were fetched are kept, and from
 the service when it is in neither. A map that is drawn without a signal is a map that is
 drawn with the pictures that are on the disk.
+
+The **places of interest** are marked on the map from Setup: a name and a place, kept in the
+settings file between two runs and drawn on the map of the flight and of the plan. A place is
+picked by arming the map and clicking, or typed when the window is not on a screen with a map.
+Adding a place with a name that is already at that position is one place, which is the rule
+upstream applies when its file is loaded more than once (`Utilities/POI.cs`), and a place can
+be taken off one at a time or all at once.
 
 The **traffic of the air** is drawn on the map: a vehicle with a receiver for it sends
 what it hears, and the aircraft around it are marked with the name they say. The traffic

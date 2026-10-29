@@ -14,6 +14,8 @@ import { NtripSheet } from "../../features/ntrip/NtripSheet";
 import { TransponderSheet } from "../../features/transponder/TransponderSheet";
 import { AdsbSheet } from "../../features/adsb/AdsbSheet";
 import { MirrorsSheet } from "../../features/mirrors/MirrorsSheet";
+import { PoiSheet } from "../../features/poi/PoiSheet";
+import { usePoiStore } from "../../lib/poi/poiStore";
 import { DronecanSheet } from "../../features/dronecan/DronecanSheet";
 import { CameraSheet } from "../../features/camera/CameraSheet";
 import { PictureSheet } from "../../features/pictures/PictureSheet";
@@ -46,6 +48,13 @@ import styles from "./AppShell.module.css";
 export function AppShell() {
   const theme = useUiStore((state) => state.theme);
   const screen = useUiStore((state) => state.screen);
+  const loadPois = usePoiStore((state) => state.load);
+
+  // The places of interest are drawn by the map, which is on a screen that may not have been
+  // opened yet: they are read once when the window starts, not when the sheet is opened.
+  useEffect(() => {
+    void loadPois();
+  }, [loadPois]);
 
   // The theme is a property of the document, not of a component: the whole
   // interface reads it, and the sheets over the window are of it too.
@@ -71,7 +80,8 @@ export function AppShell() {
       state.picturesOpen ||
       state.pluginsOpen ||
       state.formationOpen ||
-      state.signingOpen,
+      state.signingOpen ||
+      state.poisOpen,
   );
 
   return (
@@ -106,6 +116,7 @@ export function AppShell() {
       <TransponderSheet />
       <AdsbSheet />
       <MirrorsSheet />
+      <PoiSheet />
       <DronecanSheet />
       <VideoSheet />
       <CameraSheet />

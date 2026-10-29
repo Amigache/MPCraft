@@ -31,6 +31,7 @@ import { usePlanStore } from "../../lib/plan/planStore";
 import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
 import { usePictureStore } from "../../lib/georef/pictureStore";
+import { usePoiStore } from "../../lib/poi/poiStore";
 import { lineOf, useLogTrackStore } from "../../lib/logs/logTrackStore";
 import { DEFAULT_CENTRE, DEFAULT_ZOOM, TRACK_LIMIT } from "./mapStyle";
 import {
@@ -226,6 +227,8 @@ export function FlightMap() {
 
   /** The markers of the traffic of the air, by the address of the aircraft. */
   const traffic = useRef(new Map<string, maplibregl.Marker>());
+  /** The markers of the places of interest, by the name and place of each. */
+  const poiMarkers = useRef(new Map<string, maplibregl.Marker>());
   const fitted = useRef<{
     readonly editor: boolean;
     readonly count: number;
@@ -697,6 +700,19 @@ export function FlightMap() {
     // the tool is armed, and it adds an item to the plan, when the editor is armed for
     // it.
     instance.on("click", (event) => {
+      // A click marks a place of interest when the sheet armed the map for it. The point is
+      // added before the other tools look at the click, because the operator said what this
+      // click is for.
+      if (useUiStore.getState().poiPlacing) {
+        const name = useUiStore.getState().poiName;
+
+        useUiStore.getState().cancelPoiPlacement();
+        void usePoiStore
+          .getState()
+          .add(name, event.lngLat.lat, event.lngLat.lng);
+        return;
+      }
+
       const going = useUiStore.getState().mapGoing;
 
       if (going) {
@@ -725,6 +741,7 @@ export function FlightMap() {
     // ref can point at something else, and the markers that this effect put on the map are the ones
     // it has to take off.
     const markers = items.current;
+    const places = poiMarkers.current;
 
     return () => {
       observer.disconnect();
@@ -734,6 +751,10 @@ export function FlightMap() {
         entry.marker.remove();
       }
       markers.clear();
+      for (const place of places.values()) {
+        place.remove();
+      }
+      places.clear();
       instance.remove();
       map.current = null;
       loaded.current = false;
@@ -812,6 +833,47 @@ export function FlightMap() {
       }
     }
   }, [adsb, ready]);
+
+  // The places of interest: a place is a name and a position, and it is drawn on both the map of
+  // the flight and the map of the plan because the store is the same one.
+  const pois = usePoiStore((state) => state.points);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !ready) {
+      return;
+    }
+
+    const seen = new Set<string>();
+
+    for (const poi of pois) {
+      const key = `${poi.name}|${poi.latitude}|${poi.longitude}`;
+      seen.add(key);
+
+      let marker = poiMarkers.current.get(key);
+
+      if (marker === undefined) {
+        const element = document.createElement("div");
+        element.className = styles.poi ?? "";
+        element.textContent = poi.name;
+
+        marker = new maplibregl.Marker({ element, anchor: "bottom" });
+        marker.setLngLat([poi.longitude, poi.latitude]);
+
+        poiMarkers.current.set(key, marker);
+        marker.addTo(instance);
+      }
+
+      marker.setLngLat([poi.longitude, poi.latitude]);
+    }
+
+    for (const [key, marker] of poiMarkers.current) {
+      if (!seen.has(key)) {
+        marker.remove();
+        poiMarkers.current.delete(key);
+      }
+    }
+  }, [pois, ready]);
 
   // The pictures: the place the file itself carries and the place the log says the vehicle was
   // when each picture was made, drawn apart because they are known in two different ways.

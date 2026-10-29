@@ -45,6 +45,7 @@ import type {
   ParameterDifference,
   ParameterMetadata,
   PartialUpdateInfo,
+  Poi,
   PicturePlace,
   Plan,
   PlanItem,
@@ -1745,4 +1746,28 @@ export async function startMirror(key: string): Promise<MirrorStatus[]> {
 /** Stops one of the mirrors. */
 export async function stopMirror(key: string): Promise<MirrorStatus[]> {
   return call<MirrorStatus[]>("stop_mirror", { key });
+}
+
+/** The places the operator marked on the map. */
+export async function pois(): Promise<Poi[]> {
+  return call<Poi[]>("pois", {});
+}
+
+/** Adds a place to the map. */
+export async function addPoi(
+  name: string,
+  latitude: number,
+  longitude: number,
+): Promise<Poi[]> {
+  return call<Poi[]>("add_poi", { name, latitude, longitude });
+}
+
+/** Takes a place off the map. */
+export async function removePoi(poi: Poi): Promise<Poi[]> {
+  return call<Poi[]>("remove_poi", { poi });
+}
+
+/** Takes every place off the map. */
+export async function clearPois(): Promise<Poi[]> {
+  return call<Poi[]>("clear_pois", {});
 }

@@ -1538,6 +1538,21 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The rows are saved.": "Las filas están guardadas.",
     "Add a row": "Añadir una fila",
     "Save the rows": "Guardar las filas",
+
+    // The sheet of the places of interest.
+    "The places of interest": "Los lugares de interés",
+    "The places of interest.": "Los lugares de interés.",
+    "A place is drawn on the map of the flight and of the plan, and it is kept between two runs.":
+      "Un lugar se dibuja en el mapa del vuelo y del plan, y se conserva entre dos ejecuciones.",
+    "The name of the place": "El nombre del lugar",
+    "The latitude of the place": "La latitud del lugar",
+    "The longitude of the place": "La longitud del lugar",
+    "Pick on the map": "Elegir en el mapa",
+    "Add the place": "Añadir el lugar",
+    "Clear the places": "Quitar los lugares",
+    "Open the flight data or the plan to pick a place on the map.":
+      "Abra los datos de vuelo o el plan para elegir un lugar en el mapa.",
+    "No places yet.": "Todavía no hay lugares.",
   },
 };
 
