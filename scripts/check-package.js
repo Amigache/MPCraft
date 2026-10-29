@@ -383,14 +383,18 @@ export function check(texts, icons) {
     }
   }
 
-  const rustJob = jobBlock(texts[FILES.workflow], "rust");
+  // Both jobs compile the workspace, and the desktop crate's build script copies the sidecar: one of
+  // them finding the file missing is a build that failed, so each is read rather than the first.
+  for (const id of ["rust", "sitl"]) {
+    const job = jobBlock(texts[FILES.workflow], id);
 
-  if (rustJob === null) {
-    faults.push(`${FILES.workflow} has no rust job`);
-  } else if (!/node scripts\/fetch-ffmpeg\.js/.test(rustJob)) {
-    faults.push(
-      `the job that compiles the workspace does not fetch the ffmpeg sidecar`,
-    );
+    if (job === null) {
+      faults.push(`${FILES.workflow} has no ${id} job`);
+    } else if (!/node scripts\/fetch-ffmpeg\.js/.test(job)) {
+      faults.push(
+        `the ${id} job does not fetch the ffmpeg sidecar before it compiles the workspace`,
+      );
+    }
   }
 
   /* The update: the public key the application checks an archive with, and the two documents that

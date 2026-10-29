@@ -154,6 +154,17 @@ jobs:
             patchelf \
             pkg-config
 
+      # The desktop crate names the `ffmpeg` sidecar in its bundle, and its build script copies the file
+      # beside the compiled binary: a workspace that compiles it without the file is a build that fails.
+      - name: Cache the ffmpeg sidecar
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/binaries
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/fetch-ffmpeg.js') }}
+
+      - name: Fetch the ffmpeg sidecar
+        run: node scripts/fetch-ffmpeg.js
+
       - name: Run the half that needs no vehicle
         run: cargo test --workspace
 

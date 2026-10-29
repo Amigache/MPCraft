@@ -301,7 +301,22 @@ const cases = [
         ),
       ),
     },
-    expect: /does not fetch the ffmpeg sidecar/,
+    expect: /the rust job does not fetch the ffmpeg sidecar/,
+  },
+  {
+    claim:
+      "the other job that compiles the workspace is read for the sidecar too",
+    mutated: {
+      ...docs,
+      [FILES.workflow]: inJob(docs[FILES.workflow], "sitl", (job) =>
+        replaceEverywhere(
+          job,
+          "node scripts/fetch-ffmpeg.js",
+          "node scripts/never.js",
+        ),
+      ),
+    },
+    expect: /the sitl job does not fetch the ffmpeg sidecar/,
   },
   {
     claim: "a workflow that leaves one platform out is caught",
