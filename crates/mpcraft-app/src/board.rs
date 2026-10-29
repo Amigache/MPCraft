@@ -25,6 +25,9 @@ const KNOWN_BOARDS: &[&str] = &[
     "KakuteF4Mini",
     "Pixhawk4",
     "Pixhawk4S",
+    "Pixhawk5X",
+    "Pixhawk6C",
+    "Pixhawk6X",
     "PixhawkCube",
     "Pixhawk4Cube",
     "Pixhawk",
@@ -51,17 +54,27 @@ const KNOWN_BOARDS: &[&str] = &[
 /// a board says `Cube Black` as well as `CubeBlack`.
 #[must_use]
 pub fn detect(lines: &[String]) -> Option<String> {
+    let mut best: Option<(&str, usize)> = None;
+
     for line in lines {
         let haystack = plain(line);
 
         for board in KNOWN_BOARDS {
-            if haystack.contains(&plain(board)) {
-                return Some((*board).to_owned());
+            let needle = plain(board);
+
+            if needle.is_empty() || !haystack.contains(&needle) {
+                continue;
+            }
+
+            // The longest name wins: a board that says `Pixhawk6C` also contains `Pixhawk`, and the generic
+            // name is not the model. The order of the table therefore does not decide what a board is.
+            if best.is_none_or(|(_, length)| needle.len() > length) {
+                best = Some((board, needle.len()));
             }
         }
     }
 
-    None
+    best.map(|(board, _)| (*board).to_owned())
 }
 
 /// A piece of text, without the spaces and without the case.
@@ -100,6 +113,17 @@ mod tests {
     fn the_board_is_found_however_it_is_written() {
         let lines = vec!["ChibiOS: Starting on  cube black  board".to_owned()];
         assert_eq!(detect(&lines).as_deref(), Some("CubeBlack"));
+    }
+
+    #[test]
+    fn a_specific_board_is_not_read_as_the_generic_one() {
+        let lines = vec!["Detected Pixhawk6C".to_owned()];
+
+        assert_eq!(
+            detect(&lines).as_deref(),
+            Some("Pixhawk6C"),
+            "the model contains the generic name, and the model is what the board is"
+        );
     }
 
     #[test]

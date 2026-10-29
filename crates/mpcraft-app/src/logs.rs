@@ -21,14 +21,16 @@ use std::fs::File;
 use std::path::Path;
 use std::time::Duration;
 
+use mpcraft_link::heartbeat::{Heartbeat, HeartbeatCollector, HEARTBEAT_ID, HIGH_LATENCY2_ID};
 use mpcraft_link::TelemetryAggregator;
 use mpcraft_log::TlogReader;
 use mpcraft_mavlink::dialect::message_name;
 use mpcraft_mavlink::MavCmd;
+use mpcraft_mavlink::MavMessage;
 use mpcraft_mavlink::Message;
 use mpcraft_mission::{MissionItem, MissionItemId, MissionType, Plan};
 use mpcraft_vehicle::graph::{self, History, Sample};
-use mpcraft_vehicle::Telemetry;
+use mpcraft_vehicle::{Telemetry, VehicleId};
 
 use crate::error::{CommandError, CommandResult};
 use crate::graphs::{SeriesData, SeriesPoints};
@@ -809,6 +811,42 @@ pub fn samples_csv(path: &Path, name: &str) -> CommandResult<String> {
         .map_err(|error| CommandError::internal(format!("the samples are not text: {error}")))
 }
 
+/// The vehicle a log belongs to, chosen from the heartbeats it holds.
+///
+/// The rule is the one the live link uses, so a recording ground station (`MAV_TYPE_GCS`) is not read as the
+/// vehicle: a log written by a station whose own heartbeat is in the file would otherwise report the armed state
+/// and the mode of that station, which are zero.
+fn primary_of(path: &Path) -> CommandResult<Option<VehicleId>> {
+    let file = File::open(path).map_err(|error| {
+        CommandError::invalid_request(format!("the log could not be opened: {error}"))
+    })?;
+
+    let mut reader = TlogReader::new(file);
+    let mut heartbeats = HeartbeatCollector::new();
+
+    while let Some(record) = reader
+        .next_record()
+        .map_err(|error| CommandError::invalid_request(error.to_string()))?
+    {
+        let (message_id, mav_type) = match &record.message {
+            MavMessage::HEARTBEAT(heartbeat) => (HEARTBEAT_ID, Some(heartbeat.mavtype)),
+            MavMessage::HIGH_LATENCY2(_) => (HIGH_LATENCY2_ID, None),
+            _ => continue,
+        };
+
+        let _ = heartbeats.observe(Heartbeat {
+            system_id: record.sender.system_id,
+            component_id: record.sender.component_id,
+            message_id,
+            mav_type,
+        });
+    }
+
+    Ok(heartbeats
+        .select()
+        .map(|heartbeat| VehicleId::new(heartbeat.system_id, heartbeat.component_id)))
+}
+
 /// A flight that is being played back.
 ///
 /// The log is read once, and the telemetry of the flight is kept as it was: every
@@ -833,12 +871,22 @@ impl Playback {
     ///
     /// Returns an error when the file cannot be read, or when it does not hold a log.
     pub fn open(path: &Path) -> CommandResult<Self> {
+        // The log names the vehicle in its heartbeats, and the recording ground station may be in the same
+        // log. The vehicle is chosen first, with the rule the live link uses - a ground station is not a
+        // vehicle - so the state of the flight is not overwritten by the heartbeat of the station that
+        // recorded it. What follows is the same aggregator the link feeds, with the chosen vehicle as its view.
+        let primary = primary_of(path)?;
+
         let file = File::open(path).map_err(|error| {
             CommandError::invalid_request(format!("the log could not be opened: {error}"))
         })?;
 
         let mut reader = TlogReader::new(file);
         let mut aggregator = TelemetryAggregator::new();
+
+        if let Some(primary) = primary {
+            aggregator.set_primary(primary);
+        }
 
         let mut samples: Vec<(Duration, Telemetry)> = Vec::new();
 
@@ -993,9 +1041,9 @@ fn read_history(path: &Path) -> CommandResult<History> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mpcraft_mavlink::dialect::messages::ATTITUDE_DATA;
+    use mpcraft_mavlink::dialect::messages::{ATTITUDE_DATA, HEARTBEAT_DATA};
     use mpcraft_mavlink::frame::MavHeader;
-    use mpcraft_mavlink::MavMessage;
+    use mpcraft_mavlink::{MavAutopilot, MavMessage, MavModeFlag, MavType};
 
     /// A frame of an attitude, as it goes over the wire.
     fn attitude_frame(roll: f32, pitch: f32) -> Vec<u8> {
@@ -1013,6 +1061,32 @@ mod tests {
             &message,
             MavHeader {
                 system_id: 1,
+                component_id: 1,
+                sequence: 0,
+            },
+        )
+    }
+
+    /// A heartbeat from one board, with the state it reports.
+    fn heartbeat_frame(system_id: u8, mav_type: MavType, armed: bool, custom_mode: u32) -> Vec<u8> {
+        let base_mode = if armed {
+            MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED
+        } else {
+            MavModeFlag::empty()
+        };
+
+        let message = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
+            custom_mode,
+            mavtype: mav_type,
+            autopilot: MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
+            base_mode,
+            ..Default::default()
+        });
+
+        mpcraft_mavlink::frame::encode_v2(
+            &message,
+            MavHeader {
+                system_id,
                 component_id: 1,
                 sequence: 0,
             },
@@ -1047,6 +1121,50 @@ mod tests {
         write_tlog(&path, &records);
 
         path
+    }
+
+    #[test]
+    fn a_ground_station_heartbeat_does_not_take_the_flight_from_the_vehicle() {
+        let path = std::env::temp_dir().join("mpcraft-test-playback-gcs.tlog");
+
+        // The vehicle reports armed in mode 5, and the station that recorded the log reports its own heartbeat,
+        // which says zero for both. The last frame is the station's, which is what makes the test fail if the
+        // playback reads the mixed view rather than the vehicle the log names.
+        let records = vec![
+            (
+                1_000_000,
+                heartbeat_frame(1, MavType::MAV_TYPE_FIXED_WING, true, 5),
+            ),
+            (1_200_000, attitude_frame(0.1, 0.0)),
+            (
+                1_400_000,
+                heartbeat_frame(255, MavType::MAV_TYPE_GCS, false, 0),
+            ),
+            (
+                1_600_000,
+                heartbeat_frame(1, MavType::MAV_TYPE_FIXED_WING, true, 5),
+            ),
+            (
+                1_800_000,
+                heartbeat_frame(255, MavType::MAV_TYPE_GCS, false, 0),
+            ),
+        ];
+
+        write_tlog(&path, &records);
+
+        let mut playback = Playback::open(&path).expect("the log is read");
+        let telemetry = playback.seek(10.0);
+
+        assert_eq!(
+            telemetry.armed,
+            Some(true),
+            "the armed state is the vehicle's, not the station's"
+        );
+        assert_eq!(
+            telemetry.mode.map(|mode| mode.custom_mode),
+            Some(5),
+            "the mode is the vehicle's, not the zero the station reports"
+        );
     }
 
     #[test]
