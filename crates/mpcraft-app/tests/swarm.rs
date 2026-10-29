@@ -222,6 +222,7 @@ async fn the_loop_tells_each_member_what_the_hand_computed() {
             mpcraft_settings::SwarmSlot::with_offset("3:1", 0.0, 40.0, 5.0),
             mpcraft_settings::SwarmSlot::with_offset("4:1", 0.0, 40.0, 0.0),
         ],
+        mirrors: Vec::new(),
     };
 
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
@@ -430,6 +431,7 @@ async fn the_loop_ticks_on_its_own_and_stops_when_it_is_told_to() {
         swarm_slots: vec![mpcraft_settings::SwarmSlot::with_offset(
             "2:1", 0.0, 0.0, 0.0,
         )],
+        mirrors: Vec::new(),
     };
 
     let service = SwarmService::new();

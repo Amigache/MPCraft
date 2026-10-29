@@ -34,7 +34,7 @@ the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the pub
 | 1.18 | Bluetooth LE transport | `ExtLibs/Comms/CommsBLE.cs` | 🔽 | 5 |
 | 1.19 | File / tlog replay as a transport | `ExtLibs/Comms/CommsFile.cs` | ✅ | 0 |
 | 1.20 | Serial passthrough (`SERIAL_CONTROL`) | `MAVLinkSerialPort.cs` | ✅ | 5 |
-| 1.21 | Mirror the link to serial / TCP / UDP | `Controls/SerialOutputPass.cs`, `MAVLinkInterface.Mirror` | 🔜 | 5 |
+| 1.21 | Mirror the link to serial / TCP / UDP | `Controls/SerialOutputPass.cs`, `MAVLinkInterface.Mirror` | ✅ | 5 |
 
 ## 2. Flight data & telemetry
 
@@ -223,12 +223,12 @@ the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the pub
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 146 |
-| 🔜 Planned | 3 |
+| ✅ Done | 147 |
+| 🔜 Planned | 2 |
 | ⬜ Dropped | 2 |
 | Partial (🟡 / 🔽) | 6 |
 
-The 146 rows marked done are the connection, transport, parameter, mission, command and
+The 147 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -825,6 +825,15 @@ program talks to what is on it. The port, the speed and the time the vehicle wai
 chosen, and the text that is written goes as it is. What comes back from the port is
 shown in the same sheet: the vehicle answers with the bytes its port had, and they are
 read as they came.
+
+The **link can be copied** to another program, from Setup: a second station, a recorder or a
+script follows the flight without a link of its own. Each row names a serial port, a TCP
+connection or a UDP socket, opened here or waited for, and every byte the station reads from
+the vehicle is written to it; a row that writes also puts what the other program sends back on
+the link. Upstream keeps the same list in `Controls/SerialOutputPass.cs`, and the rows are kept
+in the settings file between two runs. The copy is best effort, as it is there: a program that
+stops reading loses chunks rather than stopping the link, and what a row is doing is read from
+the station rather than remembered by the sheet.
 
 The **keys** of a signed link are kept in the settings file, next to the connection
 profiles, and the file is meant to be edited by hand: every key has a name and its

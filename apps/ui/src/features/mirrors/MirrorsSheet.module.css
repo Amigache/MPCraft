@@ -1,0 +1,117 @@
+﻿.backdrop {
+  align-items: flex-start;
+  background: var(--colour-overlay);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: calc(var(--space-3) + var(--bar-height)) var(--space-3)
+    var(--space-3);
+  position: fixed;
+  z-index: 60;
+}
+
+.panel {
+  background: var(--colour-surface);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px var(--colour-shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: auto;
+  width: min(760px, 100%);
+}
+
+.header {
+  align-items: center;
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  margin: 0;
+}
+
+.header button {
+  margin-left: auto;
+}
+
+.block {
+  border-bottom: 1px solid var(--colour-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.text {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.rowFields {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+}
+
+.check {
+  align-items: center;
+  display: flex;
+  gap: 2px;
+}
+
+.rowActions {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.count {
+  color: var(--colour-text-faint);
+  font-size: var(--font-xs);
+  margin-left: auto;
+}
+
+.error {
+  color: var(--colour-danger);
+  font-size: var(--font-xs);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}

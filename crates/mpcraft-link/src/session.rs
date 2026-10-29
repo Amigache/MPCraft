@@ -230,6 +230,14 @@ enum Command {
         /// Where to report the outcome.
         respond: oneshot::Sender<Result<(), LinkError>>,
     },
+    /// Receives every chunk of bytes the reader takes off the transport.
+    ///
+    /// A mirror is a byte-level copy, so what it receives is the stream as it arrived rather than
+    /// the frames after parsing: the other program gets the same bytes the vehicle sent.
+    Mirror {
+        /// Where the chunks are delivered.
+        respond: oneshot::Sender<mpsc::Receiver<Vec<u8>>>,
+    },
     /// Stop the session.
     Stop,
 }
@@ -825,6 +833,25 @@ impl Session {
         wait.await.map_err(|_| LinkError::SessionClosed)?
     }
 
+    /// Receives every chunk of bytes the reader takes off the transport.
+    ///
+    /// This is what a mirror copies: the bytes as they arrived, before any frame is parsed. The
+    /// receiver is closed when the session stops, so a task that reads it ends with the link.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session is closed.
+    pub async fn mirror_bytes(&self) -> Result<mpsc::Receiver<Vec<u8>>, LinkError> {
+        let (respond, wait) = oneshot::channel();
+
+        self.commands
+            .send(Command::Mirror { respond })
+            .await
+            .map_err(|_| LinkError::SessionClosed)?;
+
+        wait.await.map_err(|_| LinkError::SessionClosed)
+    }
+
     /// Waits for a message that satisfies the predicate.
     ///
     /// # Errors
@@ -1330,6 +1357,7 @@ async fn run_reader(
     let mut pending: Vec<PendingRequest> = Vec::new();
     let mut pending_raw: Vec<PendingRaw> = Vec::new();
     let mut collections: Vec<PendingCollection> = Vec::new();
+    let mut mirror_sinks: Vec<mpsc::Sender<Vec<u8>>> = Vec::new();
 
     let mut last_announce = Instant::now();
 
@@ -1395,6 +1423,11 @@ async fn run_reader(
                         let _ = respond.send(Err(LinkError::UnknownVehicle(vehicle)));
                     }
                 }
+                Command::Mirror { respond } => {
+                    let (sink, receiver) = mpsc::channel(32);
+                    mirror_sinks.push(sink);
+                    let _ = respond.send(receiver);
+                }
                 Command::Stop => {
                     stopped.store(true, Ordering::Relaxed);
                     let _ = state_tx.send(context.snapshot(false));
@@ -1422,6 +1455,21 @@ async fn run_reader(
             }
             Ok(Ok(count)) => {
                 let now = Instant::now();
+
+                // The mirrors receive the stream as it arrived, before it is parsed: a program that
+                // follows the link gets the same bytes the vehicle sent, not a re-encoding of the
+                // frames. A mirror that has stopped reading is dropped rather than allowed to grow
+                // without a bound; a slow one is allowed to fall behind by the channel's capacity.
+                if !mirror_sinks.is_empty() {
+                    let chunk = buffer[..count].to_vec();
+
+                    mirror_sinks.retain(|sink| {
+                        matches!(
+                            sink.try_send(chunk.clone()),
+                            Ok(()) | Err(mpsc::error::TrySendError::Full(_))
+                        )
+                    });
+                }
 
                 frames.clear();
                 if parser.feed(&buffer[..count], &mut frames).is_ok() {

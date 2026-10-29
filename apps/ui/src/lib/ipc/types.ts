@@ -1491,3 +1491,39 @@ export interface ConnectRequest {
   /** The connection target, for example `udp:127.0.0.1:14550`. */
   readonly target: string;
 }
+
+/** How a mirror reaches the other program. */
+export type MirrorProtocol = "serial" | "tcp" | "udp";
+
+/** Which side of a mirror opens the connection. */
+export type MirrorDirection = "inbound" | "outbound";
+
+/** One way the link is copied to another program. */
+export interface MirrorSpec {
+  /** How the mirror reaches the other program. */
+  readonly protocol: MirrorProtocol;
+  /** Which side opens the connection. */
+  readonly direction: MirrorDirection;
+  /** The name of a serial port, or the number of a TCP or UDP socket. */
+  readonly port: string;
+  /** The baud rate of a serial port, or the host of an outbound TCP or UDP mirror. */
+  readonly extra: string;
+  /** Whether what the mirror receives is written back to the vehicle. */
+  readonly write: boolean;
+}
+
+/** One mirror, as the sheet shows it. */
+export interface MirrorStatus {
+  /** The name the row is known by. */
+  readonly key: string;
+  /** What the row says. */
+  readonly spec: MirrorSpec;
+  /** Whether its task is running. */
+  readonly running: boolean;
+  /** How many bytes were copied to it. */
+  readonly sent: number;
+  /** How many bytes it sent back to the vehicle. */
+  readonly received: number;
+  /** The last failure, when there was one. */
+  readonly error: string | null;
+}

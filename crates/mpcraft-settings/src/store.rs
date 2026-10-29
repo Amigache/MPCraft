@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::SettingsError;
 use crate::keys::SigningKeyEntry;
+use crate::mirrors::MirrorSpec;
 use crate::plugins::PluginEntry;
 use crate::profiles::ConnectionProfile;
 use crate::swarm::SwarmSlot;
@@ -76,6 +77,12 @@ pub struct Settings {
 
     /// The places the vehicles are given in the formation.
     pub swarm_slots: Vec<SwarmSlot>,
+
+    /// The ways the link is copied to another program.
+    ///
+    /// A mirror is a setting, not a state: the rows are kept between two runs, and what is
+    /// running is not, because there is no link until the station opens one.
+    pub mirrors: Vec<MirrorSpec>,
 }
 
 /// A store of the persisted settings.
@@ -324,6 +331,7 @@ mod tests {
                 swarm_leader: None,
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
+                mirrors: Vec::new(),
                 connection_profiles: profiles.clone(),
             })
             .expect("the settings should be written");
@@ -393,6 +401,7 @@ mod tests {
                 swarm_leader: None,
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
+                mirrors: Vec::new(),
                 connection_profiles: first.clone(),
             })
             .expect("the first write should succeed");
@@ -436,6 +445,7 @@ mod tests {
                 swarm_leader: None,
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
+                mirrors: Vec::new(),
                 connection_profiles: Vec::new(),
             })
             .expect("the settings should be written");
@@ -463,6 +473,7 @@ mod tests {
                 swarm_leader: None,
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
+                mirrors: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::auto_connect(
                     "SITL",
                     "udp:127.0.0.1:14550",
@@ -492,6 +503,7 @@ mod tests {
                 swarm_leader: None,
                 swarm_enabled: false,
                 swarm_slots: Vec::new(),
+                mirrors: Vec::new(),
                 connection_profiles: vec![ConnectionProfile::new("SITL", "udp:127.0.0.1:14550")],
             })
             .expect("the settings should be written");
@@ -542,6 +554,7 @@ mod tests {
                 swarm_leader: Some("1:1".to_owned()),
                 swarm_enabled: true,
                 swarm_slots: slots.clone(),
+                mirrors: Vec::new(),
                 connection_profiles: Vec::new(),
             })
             .expect("the settings should be written");

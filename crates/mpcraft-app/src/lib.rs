@@ -60,6 +60,7 @@ pub mod graphs;
 pub mod http;
 pub mod live_kml;
 pub mod logs;
+pub mod mirrors;
 pub mod ntrip;
 pub mod operations;
 pub mod plugins;
@@ -238,12 +239,20 @@ pub struct AppState {
     /// count belongs to the link it was made on, because a link that was restored after dropping is a
     /// new bus.
     pub dronecan: crate::dronecan::DronecanService,
+
+    ///
+    /// The link copied to another program.
+    ///
+    /// The rows are kept between two runs, but nothing is started by a row alone: a mirror is a
+    /// decision the operator makes, the way a plugin is.
+    pub mirrors: crate::mirrors::MirrorService,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         let tiles = TileService::new(tile_cache_dir());
         let swarm = crate::swarm::SwarmService::new();
+        let mirrors = crate::mirrors::MirrorService::default();
 
         // What the operator wrote is read once, so that the map draws with the folder it was
         // given and the formation starts with the places it was left with.
@@ -256,6 +265,7 @@ impl Default for AppState {
                 // yet, and a task that ticks before anything is connected would decide from
                 // nothing. The first moment it can decide is the moment a link is open.
                 swarm.apply(&settings);
+                mirrors.set_specs(settings.mirrors.clone());
 
                 if let Some(folder) = settings.map_injection_folder {
                     tiles.set_injection(Some(std::path::PathBuf::from(folder)));
@@ -282,6 +292,7 @@ impl Default for AppState {
             )),
             swarm,
             dronecan: crate::dronecan::DronecanService::new(),
+            mirrors,
         }
     }
 }
@@ -688,6 +699,91 @@ impl AppState {
         Ok(())
     }
 
+    /// What the mirrors are doing.
+    #[must_use]
+    pub fn mirrors_status(&self) -> Vec<crate::mirrors::MirrorStatus> {
+        self.mirrors.status()
+    }
+
+    /// Saves the rows of the mirrors and stops the ones that are no longer there.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the settings cannot be read or written.
+    pub fn set_mirrors(
+        &self,
+        specs: &[mpcraft_settings::MirrorSpec],
+    ) -> CommandResult<Vec<crate::mirrors::MirrorStatus>> {
+        let store = self.store()?;
+
+        let mut settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        settings.mirrors = specs.to_vec();
+
+        store
+            .save(&settings)
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        self.mirrors.set_specs(specs.to_vec());
+
+        Ok(self.mirrors.status())
+    }
+
+    /// Starts one of the saved rows against the link that is open.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the row is not one of the saved ones, when there is no link, or when
+    /// the endpoint cannot be opened.
+    pub async fn start_mirror(
+        &self,
+        key: &str,
+    ) -> CommandResult<Vec<crate::mirrors::MirrorStatus>> {
+        let spec = self.mirrors.find(key).ok_or_else(|| {
+            CommandError::invalid_request(format!("there is no mirror called {key}"))
+        })?;
+
+        let session = self
+            .supervisor
+            .session()
+            .ok_or_else(CommandError::not_connected)?;
+
+        self.mirrors
+            .start(session, &spec)
+            .await
+            .map_err(|error| CommandError::new(error.code(), error.to_string()))?;
+
+        Ok(self.mirrors.status())
+    }
+
+    /// Stops one of the rows.
+    #[must_use]
+    pub fn stop_mirror(&self, key: &str) -> Vec<crate::mirrors::MirrorStatus> {
+        self.mirrors.stop(key);
+
+        self.mirrors.status()
+    }
+
+    /// Puts the saved rows into the service without starting anything.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when this machine has no configuration directory or when the settings file
+    /// cannot be read.
+    pub fn apply_mirrors(&self) -> CommandResult<()> {
+        let store = self.store()?;
+
+        let settings = store
+            .load()
+            .map_err(|error| CommandError::settings(error.to_string()))?;
+
+        self.mirrors.set_specs(settings.mirrors);
+
+        Ok(())
+    }
+
     /// What the formation is doing.
     #[must_use]
     pub fn swarm_status(&self) -> crate::swarm::SwarmStatus {
@@ -1085,6 +1181,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            mirrors: crate::mirrors::MirrorService::default(),
         };
 
         assert!(state
@@ -1132,6 +1229,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            mirrors: crate::mirrors::MirrorService::default(),
         };
 
         // The hand: sixty-four characters are thirty-two bytes, and `zz` is not a pair of the
@@ -1221,6 +1319,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            mirrors: crate::mirrors::MirrorService::default(),
         };
 
         let request = crate::swarm::SwarmRequest {
@@ -1271,6 +1370,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            mirrors: crate::mirrors::MirrorService::default(),
         };
 
         let error = state

@@ -961,6 +961,7 @@ mod tests {
             swarm_leader: leader.map(|name| name.to_owned()),
             swarm_enabled: enabled,
             swarm_slots: slots,
+            mirrors: Vec::new(),
         }
     }
 

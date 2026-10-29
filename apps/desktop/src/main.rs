@@ -40,6 +40,10 @@ async fn connect(
     state: State<'_, AppState>,
     req: ConnectRequest,
 ) -> CommandResult<ConnectResponse> {
+    // A mirror belongs to the link it copies. A new link is a new stream, so the tasks of the old
+    // one are stopped rather than left writing into a session that is gone.
+    state.mirrors.stop_all();
+
     let handle = app.clone();
     let feeder = state.inner().clone();
 
@@ -80,6 +84,8 @@ async fn connect(
 /// Returns a `CommandError` when the link cannot be closed.
 #[tauri::command]
 async fn disconnect(app: AppHandle, state: State<'_, AppState>) -> CommandResult<ConnectResponse> {
+    state.mirrors.stop_all();
+
     let response = state.supervisor.disconnect().await?;
 
     // A plugin that holds a file has to be told that the link is gone.
@@ -2755,6 +2761,58 @@ async fn set_signing_keys(
     Ok(status)
 }
 
+/// The rows of the mirrors and what each is doing.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn mirrors_status(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<mpcraft_app::mirrors::MirrorStatus>> {
+    Ok(state.mirrors_status())
+}
+
+/// Saves the rows of the mirrors.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the settings cannot be read or written.
+#[tauri::command]
+async fn set_mirrors(
+    state: State<'_, AppState>,
+    specs: Vec<mpcraft_settings::MirrorSpec>,
+) -> CommandResult<Vec<mpcraft_app::mirrors::MirrorStatus>> {
+    state.set_mirrors(&specs)
+}
+
+/// Starts one of the saved mirrors against the open link.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the row is not one of
+/// the saved ones, or when the endpoint cannot be opened.
+#[tauri::command]
+async fn start_mirror(
+    state: State<'_, AppState>,
+    key: String,
+) -> CommandResult<Vec<mpcraft_app::mirrors::MirrorStatus>> {
+    state.start_mirror(&key).await
+}
+
+/// Stops one of the mirrors.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn stop_mirror(
+    state: State<'_, AppState>,
+    key: String,
+) -> CommandResult<Vec<mpcraft_app::mirrors::MirrorStatus>> {
+    Ok(state.stop_mirror(&key))
+}
+
 /// What the formation is doing: the places as they were written, the decision, and what the last
 /// tick told.
 ///
@@ -4640,6 +4698,10 @@ fn main() {
             set_signing_keys,
             swarm_status,
             set_swarm_settings,
+            mirrors_status,
+            set_mirrors,
+            start_mirror,
+            stop_mirror,
             serial_control,
             diagnostics_bundle,
             list_parameters,

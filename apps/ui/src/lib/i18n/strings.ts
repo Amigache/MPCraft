@@ -1519,6 +1519,25 @@ const bundles: Record<Locale, Record<string, string>> = {
     Motor: "Motor",
     "Open this link when the application starts":
       "Abrir este enlace cuando la aplicación arranca",
+    // The sheet of the mirrors.
+    "The serial output": "La salida serie",
+    "The serial output.": "La salida serie.",
+    "Each row copies the link to another program. A row that writes also puts what it receives back on the link.":
+      "Cada fila copia el enlace a otro programa. Una fila que escribe también devuelve al enlace lo que recibe.",
+    Protocol: "Protocolo",
+    "How the mirror reaches the other program":
+      "Cómo llega el espejo al otro programa",
+    "Which side opens the connection": "Qué lado abre la conexión",
+    "The port of the mirror": "El puerto del espejo",
+    Host: "Servidor",
+    "The host of the mirror": "El servidor del espejo",
+    "The baud rate of the port": "La velocidad en baudios del puerto",
+    "Write back": "Escribir de vuelta",
+    Go: "Iniciar",
+    Remove: "Quitar",
+    "The rows are saved.": "Las filas están guardadas.",
+    "Add a row": "Añadir una fila",
+    "Save the rows": "Guardar las filas",
   },
 };
 
