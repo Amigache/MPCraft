@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  bleScan,
   listSerialPorts,
   selectVehicle,
   useConnection,
 } from "../../lib/ipc/bridge";
 import type {
+  BleDevice,
   CommandError,
   SerialPort,
   VehicleEvent,
@@ -65,6 +67,9 @@ export function ConnectionPanel() {
   const [ports, setPorts] = useState<readonly SerialPort[]>([]);
   const [portsState, setPortsState] = useState<PortsState>("loading");
   const [portsError, setPortsError] = useState<CommandError | null>(null);
+  const [bleDevices, setBleDevices] = useState<readonly BleDevice[]>([]);
+  const [bleBusy, setBleBusy] = useState(false);
+  const [bleError, setBleError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const profiles = useProfilesStore((state) => state.profiles);
@@ -177,6 +182,19 @@ export function ConnectionPanel() {
     }
   };
 
+  const scanBle = async () => {
+    setBleBusy(true);
+    setBleError(null);
+
+    try {
+      setBleDevices(await bleScan());
+    } catch (cause) {
+      setBleError((cause as CommandError).message);
+    } finally {
+      setBleBusy(false);
+    }
+  };
+
   return (
     <div className={styles.panel}>
       <label className={styles.field}>
@@ -271,6 +289,45 @@ export function ConnectionPanel() {
         <p className={styles.error} role="alert">
           <span className={styles.code}>{portsError.code}</span>{" "}
           {portsError.message}
+        </p>
+      ) : null}
+
+      <div className={styles.pick}>
+        <button
+          type="button"
+          className="button"
+          disabled={bleBusy}
+          onClick={() => {
+            void scanBle();
+          }}
+        >
+          {t("Scan for Bluetooth LE")}
+        </button>
+        <label className={styles.field}>
+          <span className={styles.label}>{t("Bluetooth LE device")}</span>
+          <select
+            className="select"
+            value=""
+            aria-label={t("The Bluetooth LE device to connect to")}
+            onChange={(event) => {
+              if (event.target.value !== "") {
+                setTarget(`gatt:${event.target.value}`);
+              }
+            }}
+          >
+            <option value="">{t("Choose a device")}</option>
+            {bleDevices.map((device) => (
+              <option key={device.address} value={device.address}>
+                {device.name} ({device.address}) — {device.profile}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {bleError !== null ? (
+        <p className={styles.error} role="alert">
+          {bleError}
         </p>
       ) : null}
 

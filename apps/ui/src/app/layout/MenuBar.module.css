@@ -166,8 +166,12 @@
   border: 1px solid var(--colour-border-strong);
   border-radius: var(--radius);
   box-shadow: 0 16px 48px var(--colour-shadow);
+  max-height: 76vh;
+  max-width: 92vw;
   min-width: 320px;
+  overflow-y: auto;
   padding: var(--space-3);
+  width: 360px;
 }
 
 .dialogHead {

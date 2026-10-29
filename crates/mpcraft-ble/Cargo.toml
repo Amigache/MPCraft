@@ -1,0 +1,24 @@
+[package]
+name = "mpcraft-ble"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Bluetooth LE serial transport for MPCraft"
+
+[dependencies]
+mpcraft-transport = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+btleplug = "0.13.5"
+
+[target.'cfg(windows)'.dependencies.uuid]
+version = "1"

@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use mpcraft_link::{BoardOutput, LinkError, Session, SessionOptions, SessionState, SigningSetup};
-use mpcraft_transport::ConnectionSpec;
+use mpcraft_transport::{ConnectionScheme, ConnectionSpec};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{watch, Notify};
 
@@ -236,6 +236,20 @@ impl Connector for TransportConnector {
         spec: &ConnectionSpec,
         options: SessionOptions,
     ) -> Result<Session, LinkError> {
+        // A GATT device is opened by the platform stack this crate binds, and the session is built
+        // around the transport it hands back. The transport layer says that it does not open one,
+        // because the API is asynchronous in a way a byte carrier does not need to know.
+        if spec.scheme == ConnectionScheme::Gatt {
+            let transport = mpcraft_ble::open(&spec.target)
+                .await
+                .map_err(std::io::Error::from)?;
+            let session = Session::with_transport(transport, options);
+
+            session.announce().await;
+
+            return Ok(session);
+        }
+
         Session::connect(spec, options).await
     }
 }

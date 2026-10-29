@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type {
   AdsbRelayStatus,
+  BleDevice,
   BoardInfo,
   CameraDevice,
   ChecklistEntry,
@@ -1786,4 +1787,9 @@ export async function videoRelayStop(uri: string): Promise<VideoRelayInfo[]> {
 /** The relays that are running. */
 export async function videoRelays(): Promise<VideoRelayInfo[]> {
   return call<VideoRelayInfo[]>("video_relays", {});
+}
+
+/** Scans for Bluetooth LE devices that carry a serial service. */
+export async function bleScan(): Promise<BleDevice[]> {
+  return call<BleDevice[]>("ble_scan", {});
 }

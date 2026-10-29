@@ -2851,6 +2851,21 @@ async fn clear_pois(state: State<'_, AppState>) -> CommandResult<Vec<mpcraft_set
     state.clear_pois()
 }
 
+/// Scans for Bluetooth LE devices that carry a serial service.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when this machine has no Bluetooth LE adapter or when
+/// the platform refuses the scan.
+#[tauri::command]
+async fn ble_scan(state: State<'_, AppState>) -> CommandResult<Vec<mpcraft_ble::BleDevice>> {
+    let _ = state;
+
+    mpcraft_ble::scan(std::time::Duration::from_secs(4))
+        .await
+        .map_err(|error| CommandError::internal(error.to_string()))
+}
+
 /// The rows of the mirrors and what each is doing.
 ///
 /// # Errors
@@ -4795,6 +4810,7 @@ fn main() {
             set_mirrors,
             start_mirror,
             stop_mirror,
+            ble_scan,
             pois,
             add_poi,
             remove_poi,
