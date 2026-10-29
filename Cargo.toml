@@ -12,6 +12,7 @@ members = [
     "crates/mpcraft-settings",
     "crates/mpcraft-plugin",
     "crates/mpcraft-winusb",
+    "crates/mpcraft-ble",
     "crates/mpcraft-app",
     "crates/mpcraft-cli",
     "apps/desktop",
@@ -37,6 +38,7 @@ mpcraft-log = { path = "crates/mpcraft-log" }
 mpcraft-settings = { path = "crates/mpcraft-settings" }
 mpcraft-plugin = { path = "crates/mpcraft-plugin" }
 mpcraft-winusb = { path = "crates/mpcraft-winusb" }
+mpcraft-ble = { path = "crates/mpcraft-ble" }
 mpcraft-app = { path = "crates/mpcraft-app" }
 mpcraft-cli = { path = "crates/mpcraft-cli" }
 

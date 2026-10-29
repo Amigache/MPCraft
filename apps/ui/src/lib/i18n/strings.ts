@@ -1554,6 +1554,13 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Abra los datos de vuelo o el plan para elegir un lugar en el mapa.",
     "No places yet.": "Todavía no hay lugares.",
 
+    // The Bluetooth LE devices.
+    "Scan for Bluetooth LE": "Buscar dispositivos Bluetooth LE",
+    "Bluetooth LE device": "Dispositivo Bluetooth LE",
+    "The Bluetooth LE device to connect to":
+      "El dispositivo Bluetooth LE al que conectarse",
+    "Choose a device": "Elija un dispositivo",
+
     // The sheet of video.
     "The stream is drawn through the relay.":
       "El canal se dibuja a través del repetidor.",

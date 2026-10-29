@@ -17,7 +17,7 @@
 //!
 //! ```text
 //! spec      := scheme ":" target [ "|" option [ "|" option ]* ]
-//! scheme    := "serial" | "ble" | "udp" | "tcp" | "file"
+//! scheme    := "serial" | "ble" | "gatt" | "udp" | "tcp" | "file"
 //! option    := key [ "=" value ]
 //! ```
 //!
@@ -27,6 +27,7 @@
 //! | --- | --- | --- |
 //! | `serial` | the port name | `:<baud rate>` |
 //! | `ble` | the port name the machine's map answers with for a Bluetooth channel | `:<driver rate>` |
+//! | `gatt` | the address of a Bluetooth LE device, as the platform writes it | — |
 //! | `udp` | `<host>:<port>` | — |
 //! | `tcp` | `<host>:<port>` | — |
 //! | `file` | a filesystem path | — |
@@ -57,6 +58,8 @@ pub enum ConnectionScheme {
     Serial,
     /// A Bluetooth serial channel, which is a COM port with a reading beside it.
     Bluetooth,
+    /// A Bluetooth LE device reached through its GATT serial service.
+    Gatt,
     /// UDP.
     Udp,
     /// TCP.
@@ -72,6 +75,7 @@ impl ConnectionScheme {
         match self {
             Self::Serial => "serial",
             Self::Bluetooth => "ble",
+            Self::Gatt => "gatt",
             Self::Udp => "udp",
             Self::Tcp => "tcp",
             Self::File => "file",
@@ -92,6 +96,7 @@ impl FromStr for ConnectionScheme {
         match value.to_ascii_lowercase().as_str() {
             "serial" => Ok(Self::Serial),
             "ble" => Ok(Self::Bluetooth),
+            "gatt" => Ok(Self::Gatt),
             "udp" => Ok(Self::Udp),
             "tcp" => Ok(Self::Tcp),
             "file" => Ok(Self::File),
@@ -206,6 +211,10 @@ impl ConnectionSpec {
             }
             ConnectionScheme::File => {
                 // The whole target is the path; it may contain colons.
+                target
+            }
+            ConnectionScheme::Gatt => {
+                // The target is the address of the device, and its colons are part of it.
                 target
             }
         };

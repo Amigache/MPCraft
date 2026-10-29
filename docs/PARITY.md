@@ -969,12 +969,16 @@ la puerta nombra esa escritura como lo que el operador pone.
 Lo que no se puede afirmar aquí se dice en lugar de suponerse: ningún periférico emparejado en
 esta máquina anuncia el servicio Nordic UART `6e400001-b5a3-f393-e0a9-e50e24dcca9e`, así que el
 filtro de enumeración de upstream no encuentra nada para `Makeblock_LE001b1062c13c` (contesta
-cuatro servicios y ninguno es ese), y la mitad GATT no está portada porque no se lleva un runtime
-— el sandbox de plugins es el único lugar donde se permite llevar uno —, así que no hay escaneo,
-no hay lista de periféricos y no hay característica que escribir o leer, y la regla del nombre que
-upstream construye (`BLE_<identificador>_<dirección sin separadores>`) se conserva como dato: por
-una puerto COM la máquina nombra el puerto, y esa regla solo dice lo que un lector con el camino
-GATT habría escrito para el mismo periférico. Dos diferencias se conservan como diferencias:
+cuatro servicios y ninguno es ese), y la mitad GATT se lleva ahora en Windows a través de
+`btleplug`, que usa la pila del sistema sin meter un motor de lenguaje en el proceso: el servicio
+Nordic UART (`6e400001`) y el `FFE1` del HM-10 se descubren, se escribe en su característica y se
+leen sus notificaciones, y el escaneo lista los dispositivos con nombre. Lo que falta para cerrar
+la fila es la validación contra un periférico que haga de eco —la aplicación y sus pruebas
+unitarias ya están—, y el camino no se lleva en Linux ni en macOS, donde la fila sigue parcial. La
+regla del nombre que upstream construye (`BLE_<identificador>_<dirección sin separadores>`) se
+conserva como dato: por una puerto COM la máquina nombra el puerto, y esa regla solo dice lo que un
+lector con el camino GATT habría escrito para el mismo periférico. Dos diferencias se conservan
+como diferencias:
 upstream lleva una velocidad en su clase BLE donde su propio camino no tiene velocidad ninguna, y
 su `toggleDTR()` está vacío porque esa clase no tiene línea; aquí una puerto COM sí la tiene, así
 que `dtr` y `nodtr` significan lo que dicen, con el valor de la casa todavía bajo, y la velocidad

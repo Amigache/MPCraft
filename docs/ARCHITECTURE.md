@@ -479,8 +479,9 @@ downsamples rather than replays raw samples.
   privilege the run has, and that refusal is the fact that keeps upstream's enumeration filter outside what can be
   asserted here. Nothing is opened on a port that belongs to a module that may be using it, and both refusals at
   the rules — a row with no device behind it, a row that is not the shape a reader can read — fall before anything
-  travels on the cable. The GATT half is not carried because it would need a runtime, which only the plugin sandbox
-  is allowed to carry.
+  travels on the cable. The GATT half is carried on Windows through `btleplug`, which uses the system's Bluetooth
+  stack rather than a language runtime; the Nordic UART and the HM-10 `FFE1` profile are read, and Linux and macOS
+  do not carry the path.
 - A board in its bootloader is named by the environment as the pair the bus writes it
   (`MPCRAFT_DFU_TARGET`), not as a connection specification, because it answers requests rather than
   moving bytes. The half that erases runs only when the operator names it with a flag

@@ -1547,3 +1547,13 @@ export interface VideoRelayInfo {
   /** The loopback port the relay listens on. */
   readonly port: number;
 }
+
+/** A Bluetooth LE device that carries a serial service. */
+export interface BleDevice {
+  /** The address of the device, as the platform writes it. */
+  readonly address: string;
+  /** The name the device advertises. */
+  readonly name: string;
+  /** The serial profile it carries: `nus`, `ffe1` or `unknown`. */
+  readonly profile: string;
+}

@@ -76,6 +76,8 @@ pub enum TransportKind {
     Serial,
     /// A Bluetooth serial channel: a COM port with the reading that says which device it belongs to.
     Bluetooth,
+    /// A Bluetooth LE device reached through its GATT serial service.
+    Gatt,
     /// UDP, in either client or server mode.
     Udp,
     /// TCP, in either client or server mode.
@@ -91,6 +93,7 @@ impl fmt::Display for TransportKind {
         let name = match self {
             Self::Serial => "serial",
             Self::Bluetooth => "bluetooth",
+            Self::Gatt => "gatt",
             Self::Udp => "udp",
             Self::Tcp => "tcp",
             Self::File => "file",
@@ -176,6 +179,10 @@ pub async fn open(spec: &ConnectionSpec) -> std::io::Result<Box<dyn Transport>> 
             spec.options.baud_rate,
             spec.options.dtr_on_open,
         )?)),
+        ConnectionScheme::Gatt => Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "a GATT device is opened by the application, not by the transport layer",
+        )),
         ConnectionScheme::Udp => {
             let port = spec.port().unwrap_or_default();
             let host = spec.host().unwrap_or_default();
