@@ -147,7 +147,7 @@ the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the pub
 | 6.3 | MAVLink `.tlog` parser | `Log/MavlinkLog.cs` | ✅ | 4 |
 | 6.4 | PX4 ULog parser | `ExtLibs/Utilities/ULog.cs` (upstream: unwired) | ✅ | 4 |
 | 6.5 | Log download over MAVLink | `Log/LogDownloadMavLink.cs` | ✅ | 4 |
-| 6.6 | Log download over SCP | `Log/LogDownloadscp.cs` | 🔽 | 5 |
+| 6.6 | Log download over SCP | `Log/LogDownloadscp.cs` | ✅ | 5 |
 | 6.7 | Log browser — message tree + sample grid | `Log/LogBrowse.cs` | ✅ | 4 |
 | 6.8 | Log graphing with multi-axis | `LogBrowse.CreateChart` | ✅ | 4 |
 | 6.9 | Graph preset definitions | `graphs/mavgraphs.xml` | ✅ | 4 |
@@ -223,12 +223,12 @@ the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the pub
 
 | Status | Count |
 | --- | --- |
-| ✅ Done | 148 |
+| ✅ Done | 149 |
 | 🔜 Planned | 1 |
 | ⬜ Dropped | 2 |
-| Partial (🟡 / 🔽) | 6 |
+| Partial (🟡 / 🔽) | 5 |
 
-The 148 rows marked done are the connection, transport, parameter, mission, command and
+The 149 rows marked done are the connection, transport, parameter, mission, command and
 plugin layers, and the flight data window that uses them. The transports, the heartbeat
 negotiation, the vehicle registry, the loss accounting, the board-output capture, the
 parameter protocol, the mission protocol, the command executor and the file formats all
@@ -1820,10 +1820,11 @@ is missing a part is refused rather than filled in with a default that would rea
 name with a separator, or one that is `.` or `..`, is refused before a local file is created, so a
 companion cannot name a place outside the folder the operator chose. The key the companion presents is
 accepted rather than compared with one remembered from before, and only a password is read; both are
-said in the sheet rather than hidden. What is not asserted is a companion: there is no SSH server on
-this machine, so the tests read the address, the selection of the `.bin` names and the safe name
-against values written down before the functions were called, and the connection itself only
-compiles. That is why the row stays partial.
+said in the sheet rather than hidden. A live area reads a server that is really there: an SSH server
+in a container (`atmoz/sftp`) was given two logs and a text file, and the area listed the two logs
+and copied both, with the sizes agreeing with the listing. That is an SSH server rather than a
+companion computer, and it is said as what it is: this machine has no companion, so what the area
+proves is the session, the listing and the bytes, not a particular companion's filesystem.
 
 The **update of the application** is wired to the releases of the repository now. A tag builds the
 three platforms with the update archives on, signs each archive with the key whose public half the
