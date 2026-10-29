@@ -1229,9 +1229,15 @@ and it weighs 39.8 MB where the one without the sidecar weighed 11.5 MB — the 
 disk and the cabinet carries it compressed. Which protocols that build carries is printed when it is
 fetched rather than assumed: the one read here is `6.0-essentials`, and it answers `rtsp` as a
 demuxer, `mpjpeg` as a muxer, and `rtmp`, `udp`, `tcp`, `http`, `https` and `srt` as protocols. The
-build is GPL-3.0, which this project already is, and its source is the FFmpeg project's; what a
-release still owes for it is the licence text beside the binary, which is not carried yet and is said
-here rather than left to be discovered.
+build is GPL-3.0, which this project already is, and its source is the FFmpeg project's. What a
+distributor owes for that is carried too: `licenses/ffmpeg-NOTICE.txt` says which program the file is,
+which build it is, where its source is published and under which licence, and `licenses/GPL-3.0.txt`
+is the licence itself, unaltered. Both are named as resources of the bundle, so the installer writes
+them beside the application on Windows and into the resources of the bundle on macOS. What was read
+here is the MSI the Windows job built: its tables name `ffmpeg.exe`, `ffmpeg-NOTICE.txt` and
+`GPL-3.0.txt`, and a build of the desktop crate wrote the three of them into `target/debug`
+together. The packaging gate reads the chain — the notice and the text declared and on the disk —
+with two known-bad cases shown firing.
 
 The relay was read against a camera that is not on this machine, which is the other half of what the
 loopback test proves: three public Axis cameras published for testing answered, and

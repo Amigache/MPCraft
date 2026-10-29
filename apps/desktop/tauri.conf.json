@@ -38,6 +38,10 @@
     "longDescription": "MPCraft is a ground control station for ArduPilot and PX4: live telemetry, mission planning, parameter configuration, log analysis and firmware tools, in one application on Windows, Linux and macOS.",
     "license": "GPL-3.0-or-later",
     "externalBin": ["binaries/ffmpeg"],
+    "resources": {
+      "../../licenses/ffmpeg-NOTICE.txt": "ffmpeg-NOTICE.txt",
+      "../../licenses/GPL-3.0.txt": "GPL-3.0.txt"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

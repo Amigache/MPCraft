@@ -1,0 +1,59 @@
+MPCraft carries FFmpeg beside the application
+=============================================
+
+What travels
+------------
+
+`ffmpeg` is not part of MPCraft. It is a program of the FFmpeg project, and MPCraft runs it to turn
+the stream of a camera into the picture the video sheet draws. The installer of MPCraft carries a
+build of it so that a release works on a machine that never installed one; the file sits beside the
+executable, as `ffmpeg.exe` on Windows and `ffmpeg` on Linux and macOS.
+
+The build
+---------
+
+    FFmpeg 6.0, "essentials" build published by gyan.dev
+    https://www.gyan.dev/ffmpeg/builds/
+    ffmpeg-<target triple>[.exe], fetched by scripts/fetch-ffmpeg.js
+
+This build declares `--enable-gpl` and `--enable-version3` in its own configuration line, which is
+what makes it GPL-3.0 rather than LGPL. The version is written beside the file as
+`ffmpeg-<target triple>.txt` when it is fetched, so the exact build an installation carries can be
+read from the installation itself.
+
+Its licence
+-----------
+
+    FFmpeg is free software: you can redistribute it and/or modify it under the terms of the GNU
+    General Public License as published by the Free Software Foundation, either version 3 of the
+    License, or (at your option) any later version.
+
+    FFmpeg is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+    the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+The full text of that licence travels beside this notice, in `GPL-3.0.txt`. It is the copy the Free
+Software Foundation publishes, taken from https://www.gnu.org/licenses/gpl-3.0.txt, and it is not
+altered.
+
+Its source
+----------
+
+The corresponding source of the program is published by the FFmpeg project:
+
+    https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz
+    https://ffmpeg.org/download.html
+
+The build itself is published by gyan.dev, which also names the compiler and the configuration the
+binary was built with:
+
+    https://www.gyan.dev/ffmpeg/builds/
+
+MPCraft's own source is at https://github.com/Amigache/MPCraft, under GPL-3.0-or-later.
+
+What this notice does not claim
+-------------------------------
+
+It does not say that every library the build was linked against is GPL: the configuration line of the
+binary is the list, and libraries under other free licences are named there and in the FFmpeg
+documentation. It does not ship the source of those libraries either; it says where the source of the
+program is published, which is what the licence asks a distributor to do.

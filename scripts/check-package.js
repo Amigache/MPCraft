@@ -60,6 +60,24 @@ const SIDECAR_TRIPLES = [
   "x86_64-apple-darwin",
 ];
 
+/**
+ * What a distributor of the binary owes: the notice that says which program it is and where its
+ * source is published, and the text of the licence the notice names.
+ *
+ * The source is read relative to the configuration, which is where Tauri resolves a resource from,
+ * and the second name is the same file as the repository holds it, for the reading of the disk.
+ */
+const LICENCES = [
+  {
+    source: "../../licenses/ffmpeg-NOTICE.txt",
+    onDisk: "licenses/ffmpeg-NOTICE.txt",
+  },
+  {
+    source: "../../licenses/GPL-3.0.txt",
+    onDisk: "licenses/GPL-3.0.txt",
+  },
+];
+
 const CLI = "@tauri-apps/cli";
 
 /** The categories the bundler accepts, read from its own configuration type. */
@@ -159,7 +177,7 @@ function jobBlock(text, id) {
   return block.join("\n");
 }
 
-export function check(texts, icons) {
+export function check(texts, icons, disk = new Set()) {
   const faults = [];
   const facts = {};
 
@@ -397,6 +415,32 @@ export function check(texts, icons) {
     }
   }
 
+  /* What a distributor owes for the binary: the notice and the licence text travel in the package,
+     and the files they are written from are in the repository rather than named and missing. */
+  const resources = bundle.resources;
+
+  facts.licences = [];
+
+  if (
+    resources === undefined ||
+    typeof resources !== "object" ||
+    Array.isArray(resources)
+  ) {
+    faults.push(`the bundle carries no licence beside the ffmpeg sidecar`);
+  } else {
+    for (const { source, onDisk } of LICENCES) {
+      facts.licences.push(onDisk);
+
+      if (!(source in resources)) {
+        faults.push(`the bundle does not carry ${source}`);
+      }
+
+      if (!disk.has(onDisk)) {
+        faults.push(`${onDisk} is not on the disk`);
+      }
+    }
+  }
+
   /* The update: the public key the application checks an archive with, and the two documents that
      turn the update artifacts on for a tag and leave them off for a change. */
   const updater = config.plugins?.updater;
@@ -494,7 +538,13 @@ if (
       : [],
   );
 
-  const result = check(texts, icons);
+  const disk = new Set(
+    LICENCES.map((licence) => licence.onDisk).filter((path) =>
+      existsSync(resolve(ROOT, path)),
+    ),
+  );
+
+  const result = check(texts, icons, disk);
 
   console.log(
     JSON.stringify(
