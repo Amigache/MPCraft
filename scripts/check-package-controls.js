@@ -8,7 +8,7 @@
  * accepts the workflow; signing and notarisation are outside of what any of them reads.
  */
 
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 
 import { check } from "./check-package.js";
 
@@ -36,6 +36,17 @@ const icons = new Set(
   readdirSync(new URL("apps/desktop/icons/", root)).map(
     (name) => `icons/${name}`,
   ),
+);
+
+/** The licence files the repository holds, for the reading of the disk. */
+const disk = new Set(
+  ["licenses/ffmpeg-NOTICE.txt", "licenses/GPL-3.0.txt"].filter((path) => {
+    try {
+      return statSync(new URL(path, root)).isFile();
+    } catch {
+      return false;
+    }
+  }),
 );
 
 /** Edits one JSON document and hands it back as text, as the file would be written. */
@@ -108,7 +119,7 @@ function inBundleJob(source, change) {
 const checks = [];
 
 // The known-good case, before anything is disturbed.
-const good = check(docs, icons);
+const good = check(docs, icons, disk);
 
 checks.push({
   claim:
@@ -319,6 +330,23 @@ const cases = [
     expect: /the sitl job does not fetch the ffmpeg sidecar/,
   },
   {
+    claim: "a bundle that carries no licence beside the sidecar is caught",
+    mutated: {
+      ...docs,
+      [FILES.config]: edit(FILES.config, (doc) => {
+        delete doc.bundle.resources;
+      }),
+    },
+    expect: /carries no licence beside the ffmpeg sidecar/,
+  },
+  {
+    claim:
+      "a licence the bundle names and the repository does not hold is caught",
+    mutated: docs,
+    disk: new Set([...disk].filter((path) => path !== "licenses/GPL-3.0.txt")),
+    expect: /licenses\/GPL-3\.0\.txt is not on the disk/,
+  },
+  {
     claim: "a workflow that leaves one platform out is caught",
     mutated: {
       ...docs,
@@ -392,7 +420,7 @@ for (const entry of cases) {
     continue;
   }
 
-  const result = check(entry.mutated, entry.icons ?? icons);
+  const result = check(entry.mutated, entry.icons ?? icons, entry.disk ?? disk);
   const fired = result.faults.filter((line) => entry.expect.test(line));
 
   /* The mutation has to be caught by the rule it is meant to test, and nothing else may speak. */

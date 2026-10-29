@@ -390,6 +390,7 @@ const GATES = [
       "apps/desktop/tauri.macos.conf.json",
       "apps/desktop/tauri.updater.conf.json",
       "apps/desktop/icons/",
+      "licenses/",
       "scripts/fetch-ffmpeg.js",
       ".github/workflows/ci.yml",
     ],
