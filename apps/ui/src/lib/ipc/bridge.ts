@@ -34,6 +34,8 @@ import type {
   MapProvider,
   MessageSamples,
   MavCommand,
+  MirrorSpec,
+  MirrorStatus,
   NtripStatus,
   OutputFunction,
   OsdSlot,
@@ -1721,4 +1723,26 @@ export function useLinkState(): StateEvent {
   }, []);
 
   return state;
+}
+
+/** The rows of the mirrors and what each is doing. */
+export async function mirrorsStatus(): Promise<MirrorStatus[]> {
+  return call<MirrorStatus[]>("mirrors_status", {});
+}
+
+/** Saves the rows of the mirrors. */
+export async function setMirrors(
+  specs: readonly MirrorSpec[],
+): Promise<MirrorStatus[]> {
+  return call<MirrorStatus[]>("set_mirrors", { specs });
+}
+
+/** Starts one of the saved mirrors against the open link. */
+export async function startMirror(key: string): Promise<MirrorStatus[]> {
+  return call<MirrorStatus[]>("start_mirror", { key });
+}
+
+/** Stops one of the mirrors. */
+export async function stopMirror(key: string): Promise<MirrorStatus[]> {
+  return call<MirrorStatus[]>("stop_mirror", { key });
 }

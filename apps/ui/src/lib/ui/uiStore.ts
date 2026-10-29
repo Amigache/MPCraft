@@ -478,6 +478,12 @@ export interface UiStore {
   readonly showFormation: () => void;
   /** Closes the sheet of the formation. */
   readonly hideFormation: () => void;
+  /** Whether the sheet of the mirrors of the link is open over the window. */
+  readonly mirrorsOpen: boolean;
+  /** Opens the sheet of the mirrors. */
+  readonly showMirrors: () => void;
+  /** Closes the sheet of the mirrors. */
+  readonly hideMirrors: () => void;
   /** Whether the sheet of the keys of the signed link is open over the window. */
   readonly signingOpen: boolean;
   /** Opens the sheet of the keys of the signed link. */
@@ -545,6 +551,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   picturesOpen: false,
   pluginsOpen: false,
   formationOpen: false,
+  mirrorsOpen: false,
   signingOpen: false,
   parameterGroups: [],
 
@@ -665,6 +672,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   showPictures: () => set({ picturesOpen: true }),
   showPlugins: () => set({ pluginsOpen: true }),
   showFormation: () => set({ formationOpen: true }),
+  showMirrors: () => set({ mirrorsOpen: true }),
   showSigning: () => set({ signingOpen: true }),
 
   showLog: () => get().setScreen("logs"),
@@ -687,6 +695,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   hidePictures: () => set({ picturesOpen: false }),
   hidePlugins: () => set({ pluginsOpen: false }),
   hideFormation: () => set({ formationOpen: false }),
+  hideMirrors: () => set({ mirrorsOpen: false }),
   hideSigning: () => set({ signingOpen: false }),
 
   loadParameterGroups: async () => {

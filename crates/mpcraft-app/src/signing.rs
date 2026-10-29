@@ -147,6 +147,7 @@ mod tests {
             swarm_leader: None,
             swarm_enabled: false,
             swarm_slots: Vec::new(),
+            mirrors: Vec::new(),
         }
     }
 

@@ -13,6 +13,7 @@ import { OsdSheet } from "../../features/osd/OsdSheet";
 import { NtripSheet } from "../../features/ntrip/NtripSheet";
 import { TransponderSheet } from "../../features/transponder/TransponderSheet";
 import { AdsbSheet } from "../../features/adsb/AdsbSheet";
+import { MirrorsSheet } from "../../features/mirrors/MirrorsSheet";
 import { DronecanSheet } from "../../features/dronecan/DronecanSheet";
 import { CameraSheet } from "../../features/camera/CameraSheet";
 import { PictureSheet } from "../../features/pictures/PictureSheet";
@@ -104,6 +105,7 @@ export function AppShell() {
       <NtripSheet />
       <TransponderSheet />
       <AdsbSheet />
+      <MirrorsSheet />
       <DronecanSheet />
       <VideoSheet />
       <CameraSheet />

@@ -59,6 +59,7 @@
 
 mod error;
 mod keys;
+mod mirrors;
 mod plugins;
 mod profiles;
 mod store;
@@ -66,6 +67,7 @@ mod swarm;
 
 pub use error::SettingsError;
 pub use keys::SigningKeyEntry;
+pub use mirrors::{MirrorDirection, MirrorProtocol, MirrorSpec};
 pub use plugins::PluginEntry;
 pub use profiles::ConnectionProfile;
 pub use store::{platform_config_dir, Settings, SettingsStore};

@@ -142,6 +142,7 @@ export function MenuBar() {
   const showPictures = useUiStore((state) => state.showPictures);
   const showPlugins = useUiStore((state) => state.showPlugins);
   const showFormation = useUiStore((state) => state.showFormation);
+  const showMirrors = useUiStore((state) => state.showMirrors);
   const showSigning = useUiStore((state) => state.showSigning);
 
   // Whether the web server is running: the menu says so, and the entry stops it.
@@ -960,6 +961,20 @@ export function MenuBar() {
           // The places an operator wrote are read from the file, so the sheet opens without a
           // vehicle on the wire: a fleet is often set up before any board is on the link. What
           // needs a link is the loop, and the sheet says so rather than pretending to send orders.
+          disabled: false,
+          checked: undefined,
+          separator: false,
+          hint: "",
+        },
+        {
+          id: "setup-mirrors",
+          label: t("The serial output."),
+          onSelect: () => {
+            close();
+            showMirrors();
+          },
+          // The rows are settings and are read without a link. What needs the link is starting
+          // one, and the sheet says so.
           disabled: false,
           checked: undefined,
           separator: false,
