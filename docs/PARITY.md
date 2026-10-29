@@ -1233,9 +1233,11 @@ build is GPL-3.0, which this project already is, and its source is the FFmpeg pr
 distributor owes for that is carried too: `licenses/ffmpeg-NOTICE.txt` says which program the file is,
 which build it is, where its source is published and under which licence, and `licenses/GPL-3.0.txt`
 is the licence itself, unaltered. Both are named as resources of the bundle, so the installer writes
-them beside the application on Windows and into the resources of the bundle on macOS, and a build of
-the desktop crate was read writing them beside `ffmpeg.exe`. The packaging gate reads that chain — the
-notice and the text declared and on the disk — with two known-bad cases shown firing.
+them beside the application on Windows and into the resources of the bundle on macOS. What was read
+here is the MSI the Windows job built: its tables name `ffmpeg.exe`, `ffmpeg-NOTICE.txt` and
+`GPL-3.0.txt`, and a build of the desktop crate wrote the three of them into `target/debug`
+together. The packaging gate reads the chain — the notice and the text declared and on the disk —
+with two known-bad cases shown firing.
 
 The relay was read against a camera that is not on this machine, which is the other half of what the
 loopback test proves: three public Axis cameras published for testing answered, and
