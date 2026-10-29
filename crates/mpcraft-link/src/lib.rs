@@ -59,6 +59,7 @@
 
 pub mod adsb;
 pub mod camera;
+pub mod can;
 pub mod commands;
 pub mod dronecan;
 pub mod error;

@@ -3671,6 +3671,7 @@ dependencies = [
  "arc-swap",
  "bytes",
  "dashmap",
+ "mpcraft-dronecan",
  "mpcraft-mavlink",
  "mpcraft-mission",
  "mpcraft-params",
