@@ -35,7 +35,7 @@ use std::time::{Duration, Instant};
 use mpcraft_mavlink::dialect::Dialect;
 use mpcraft_mavlink::frame::{MavHeader, SIGNATURE_LEN};
 use mpcraft_mavlink::signing::{SigningKey, SigningKeyring, TimestampSource};
-use mpcraft_mavlink::{Frame, FrameParser, MavMessage, MavlinkVersion, Message};
+use mpcraft_mavlink::{Frame, FrameParser, MavMessage, MavType, MavlinkVersion, Message};
 use mpcraft_params::ParameterStore;
 use mpcraft_transport::{ConnectionSpec, Transport};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -423,6 +423,14 @@ impl SessionContext {
                 MavMessage::HEARTBEAT(heartbeat) => Some(heartbeat.mavtype),
                 _ => None,
             };
+
+            // A ground station on the wire is not a vehicle. A second station, or the router that
+            // joins several simulated vehicles into one link, announces itself as one, and counting
+            // it says the link carries more boards than it does. The selection already skips a
+            // station; the registry did not, so the window listed it as a vehicle with no state.
+            if mav_type == Some(MavType::MAV_TYPE_GCS) {
+                return;
+            }
 
             let _ = self.heartbeats.observe(Heartbeat {
                 system_id: frame.system_id,

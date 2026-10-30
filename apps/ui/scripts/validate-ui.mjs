@@ -152,10 +152,15 @@ if (((await mapState()).plan ?? 0) < 2) {
   }
 }
 
+// A vehicle may hold no plan at all — ArduPilot starts with none — and then there is nothing to
+// arrive and no item to fly to. What is not allowed is a plan that is in the vehicle and not on the
+// screen, which is why the expectation is said rather than assumed.
+const expectPlan = process.env.MPCRAFT_EXPECT_PLAN !== "0";
+
 const connected = await mapState();
 check(
-  "the plan arrived from the vehicle",
-  (connected.plan ?? 0) >= 2,
+  expectPlan ? "the plan arrived from the vehicle" : "the vehicle holds no plan yet",
+  expectPlan ? (connected.plan ?? 0) >= 2 : (connected.plan ?? 0) === 0,
   `${connected.plan} points`,
 );
 check(
@@ -165,8 +170,8 @@ check(
 );
 check(
   "the line to the current item is drawn",
-  (connected.target ?? 0) === 2,
-  `${connected.target} points`,
+  expectPlan ? (connected.target ?? 0) === 2 : true,
+  expectPlan ? `${connected.target} points` : "no plan, so no leg to draw",
 );
 
 const footer = await page.locator("footer").innerText();
