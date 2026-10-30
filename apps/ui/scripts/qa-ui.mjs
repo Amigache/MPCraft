@@ -136,7 +136,7 @@ check(
 
 // ---------------------------------------------------------------- screens
 
-for (const [index, name] of [
+for (const name of [
   "Datos del vuelo",
   "Plan",
   "Configuración",
