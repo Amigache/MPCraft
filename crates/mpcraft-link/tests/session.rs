@@ -318,6 +318,10 @@ async fn a_station_on_the_link_is_not_counted_as_a_vehicle() {
     assert!(seen, "the vehicle was never heard");
 
     let state = session.state();
-    assert_eq!(state.vehicles.len(), 1, "the station was counted as a vehicle");
+    assert_eq!(
+        state.vehicles.len(),
+        1,
+        "the station was counted as a vehicle"
+    );
     assert_eq!(state.vehicles[0].id.system_id, 1);
 }

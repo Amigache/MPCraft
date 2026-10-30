@@ -136,12 +136,7 @@ check(
 
 // ---------------------------------------------------------------- screens
 
-for (const name of [
-  "Datos del vuelo",
-  "Plan",
-  "Configuración",
-  "Registros",
-]) {
+for (const name of ["Datos del vuelo", "Plan", "Configuración", "Registros"]) {
   await page.getByRole("tab", { name }).click();
   await page.waitForTimeout(900);
 
@@ -340,6 +335,18 @@ check(
   "the plan comes back from the vehicle",
   returned === drawn,
   `${drawn} up, ${returned} back`,
+);
+
+// ArduPilot names the encoding it wants when it is asked the old way, and the name is the fault:
+// a station that asks for the capabilities first never reads it.
+await page.getByRole("tab", { name: "Mensajes" }).click();
+await page.waitForTimeout(500);
+const told = await page.locator("main aside").innerText();
+check(
+  "the plan was asked for in the encoding the vehicle wants",
+  !/use MISSION_REQUEST_INT/i.test(told),
+  told.split("\n").find((line) => /MISSION_REQUEST_INT/i.test(line)) ??
+    "no complaint from the vehicle",
 );
 
 // ---------------------------------------------------------------- parameters
