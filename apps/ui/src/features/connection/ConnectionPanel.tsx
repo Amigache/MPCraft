@@ -123,6 +123,14 @@ export function ConnectionPanel() {
   };
 
   // The ports of the machine. They are read when the panel opens.
+  /**
+   * Reads the ports the machine has, and keeps reading them.
+   *
+   * A board is often plugged in after the sheet is open, and a list read once would keep saying the
+   * machine has no ports while the one that was just connected is sitting there. The list is read
+   * every two seconds while the sheet is open, which is cheap (it is a registry read) and is what
+   * makes the list show a port that appeared a moment ago.
+   */
   useEffect(() => {
     let cancelled = false;
 
@@ -134,6 +142,7 @@ export function ConnectionPanel() {
         }
         setPorts(found);
         setPortsState("ready");
+        setPortsError(null);
       } catch (cause) {
         if (!cancelled) {
           setPortsError(cause as CommandError);
@@ -144,8 +153,13 @@ export function ConnectionPanel() {
 
     void read();
 
+    const timer = window.setInterval(() => {
+      void read();
+    }, 2000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -292,6 +306,28 @@ export function ConnectionPanel() {
             ))}
           </select>
         </label>
+      </div>
+
+      <div className={styles.row}>
+        <button
+          type="button"
+          className="button"
+          onClick={() => {
+            setPortsState("loading");
+            setPortsError(null);
+            void listSerialPorts()
+              .then((found) => {
+                setPorts(found);
+                setPortsState("ready");
+              })
+              .catch((cause: CommandError) => {
+                setPortsError(cause);
+                setPortsState("failed");
+              });
+          }}
+        >
+          {t("Look for the serial ports again")}
+        </button>
       </div>
 
       {portsState === "loading" ? (

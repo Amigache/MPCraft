@@ -58,15 +58,15 @@ describe("the serial target", () => {
   });
 
   it("leaves a target of another kind alone", () => {
-    expect(withBaud("udp:127.0.0.1:14550", 115200)).toBe(
-      "udp:127.0.0.1:14550",
-    );
+    expect(withBaud("udp:127.0.0.1:14550", 115200)).toBe("udp:127.0.0.1:14550");
   });
 });
 
 describe("the rate that is left to the program", () => {
   it("is written on the target", () => {
-    expect(withAutoBaud("serial:COM3:57600")).toBe("serial:COM3:57600|baud=auto");
+    expect(withAutoBaud("serial:COM3:57600")).toBe(
+      "serial:COM3:57600|baud=auto",
+    );
   });
 
   it("replaces the rate that was there", () => {
@@ -86,20 +86,23 @@ describe("the rate that is left to the program", () => {
   });
 
   it("leaves the device of the target alone", () => {
-    expect(parseSerialTarget("serial:COM3:57600|baud=auto")?.device).toBe("COM3");
+    expect(parseSerialTarget("serial:COM3:57600|baud=auto")?.device).toBe(
+      "COM3",
+    );
   });
 });
 
-describe("the rates an autopilot uses", () => {  it("are the usual ones", () => {
-    expect(BAUD_RATES).toContain(57600);
-    expect(BAUD_RATES).toContain(115200);
-    expect(BAUD_RATES).toContain(230400);
-    expect(BAUD_RATES).toContain(460800);
-    expect(BAUD_RATES).toContain(921600);
-    expect(BAUD_RATES).toContain(14400);
-    expect(BAUD_RATES).toContain(38400);
-    expect(BAUD_RATES).toContain(19200);
-    expect(BAUD_RATES).toContain(9600);
-    expect(BAUD_RATES).toHaveLength(9);
+describe("the rates an autopilot uses", () => {
+  it("are the ones Mission Planner offers, slowest first", () => {
+    // The list ConnectionControl offers: a port left at 9600 and a link at 921600 are both one
+    // choice away, and the order runs from the slowest to the fastest so the list reads as a scale.
+    expect(BAUD_RATES).toEqual([
+      1200, 2400, 4800, 9600, 19200, 38400, 57600, 111100, 115200, 230400,
+      250000, 460800, 500000, 921600, 1000000, 1500000, 2000000, 3000000,
+    ]);
+
+    for (let index = 1; index < BAUD_RATES.length; index += 1) {
+      expect(BAUD_RATES[index]).toBeGreaterThan(BAUD_RATES[index - 1] ?? 0);
+    }
   });
 });

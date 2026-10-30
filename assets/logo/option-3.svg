@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>MPCraft — option 3: the waypoint and the craft</title>
+  <desc>A route of three waypoints, the last one a pin, with a small quadcopter flying it.</desc>
+  <path d="M96 416 C 170 300, 250 300, 316 214 S 400 120, 430 96"
+        fill="none" stroke="#22d3ee" stroke-width="24" stroke-linecap="round" stroke-dasharray="2 30" />
+  <g fill="#0b1622" stroke="#22d3ee" stroke-width="18">
+    <circle cx="96" cy="416" r="26" />
+    <circle cx="316" cy="214" r="26" />
+  </g>
+  <path d="M430 40 a 56 56 0 1 1 -0.1 0 z" fill="#f59e0b" />
+  <circle cx="430" cy="96" r="22" fill="#0b1622" />
+  <g transform="translate(150 150)" fill="#22d3ee">
+    <circle cx="0" cy="0" r="26" />
+    <rect x="-8" y="-8" width="16" height="16" rx="4" fill="#0b1622" />
+    <path d="M26 0 L54 0" stroke="#22d3ee" stroke-width="14" stroke-linecap="round" />
+    <path d="M-26 0 L-54 0" stroke="#22d3ee" stroke-width="14" stroke-linecap="round" />
+    <path d="M0 26 L0 54" stroke="#22d3ee" stroke-width="14" stroke-linecap="round" />
+    <path d="M0 -26 L0 -54" stroke="#22d3ee" stroke-width="14" stroke-linecap="round" />
+  </g>
+</svg>

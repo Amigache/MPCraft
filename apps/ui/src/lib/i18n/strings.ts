@@ -1600,6 +1600,7 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Un adaptador CAN en un puerto serie es la otra forma de llegar al bus: ningún vehículo tiene que reenviarlo. Abra el puerto y lea un nodo por su número.",
     "The port the adapter is on": "El puerto en el que está el adaptador",
     "The rate of the bus": "La velocidad del bus",
+    "Look for the serial ports again": "Buscar los puertos serie otra vez",
     "Open the adapter": "Abrir el adaptador",
     "Close the adapter": "Cerrar el adaptador",
     "The node to read": "El nodo que leer",

@@ -74,8 +74,16 @@ export function withAutoBaud(target: string): string {
 }
 
 /** The rate at which the ports of this machine are opened. */
+/**
+ * The rates a serial port can be opened at, in the order a station offers them.
+ *
+ * The list is the one Mission Planner offers (`ConnectionControl`): every rate a board or an
+ * adapter in common use speaks, from the slowest to the fastest, so a port that was left at
+ * 9600 and a link that runs at 921600 are both one choice away.
+ */
 export const BAUD_RATES: readonly number[] = [
-  57600, 115200, 230400, 460800, 921600, 14400, 38400, 19200, 9600,
+  1200, 2400, 4800, 9600, 19200, 38400, 57600, 111100, 115200, 230400, 250000,
+  460800, 500000, 921600, 1000000, 1500000, 2000000, 3000000,
 ];
 
 /**
@@ -100,7 +108,8 @@ export function parseSerialTarget(target: string): SerialTarget | null {
     return null;
   }
 
-  const rate = parts[1] === undefined ? Number.NaN : Number.parseInt(parts[1], 10);
+  const rate =
+    parts[1] === undefined ? Number.NaN : Number.parseInt(parts[1], 10);
   const baud = Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_BAUD;
 
   return { device, baud };

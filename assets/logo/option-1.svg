@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>MPCraft — option 1: the craft and its route</title>
+  <desc>A quadcopter seen from above, with a dashed route running to it and a waypoint at its tail.</desc>
+  <g fill="none" stroke="#22d3ee" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M352 352 L392 392" />
+    <path d="M352 160 L392 120" />
+    <path d="M160 352 L120 392" />
+    <path d="M160 160 L120 120" />
+    <circle cx="380" cy="380" r="34" />
+    <circle cx="380" cy="132" r="34" />
+    <circle cx="132" cy="380" r="34" />
+    <circle cx="132" cy="132" r="34" />
+  </g>
+  <rect x="196" y="196" width="120" height="120" rx="28" fill="#0b1622" stroke="#22d3ee" stroke-width="26" />
+  <g stroke="#f59e0b" stroke-width="18" stroke-linecap="round" stroke-dasharray="2 34">
+    <path d="M60 452 L452 452" transform="translate(0 -18)" />
+  </g>
+  <circle cx="60" cy="434" r="16" fill="#f59e0b" />
+</svg>
