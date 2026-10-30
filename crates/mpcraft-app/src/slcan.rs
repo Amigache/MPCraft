@@ -15,6 +15,10 @@ use std::time::Duration;
 use mpcraft_dronecan::can::{encode, CanId, Kind, Reassembler};
 use mpcraft_dronecan::messages::DataType;
 use mpcraft_dronecan::slcan::{close_line, encode as encode_slcan, open_lines, Decoder};
+use mpcraft_dronecan::{ExecuteOpcode, GetSetRequest, GetSetResponse, ParameterValue, RestartNode};
+use serde::Serialize;
+
+use crate::dronecan::NodeParameter;
 use mpcraft_transport::Transport;
 
 use crate::error::CommandError;
@@ -155,6 +159,142 @@ impl SlcanBus {
     }
 }
 
+/// What the station knows about the adapter it has open.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlcanStatus {
+    /// The port the adapter is on.
+    pub port: String,
+    /// The rate the bus was opened at.
+    pub rate: u32,
+}
+
+impl SlcanBus {
+    /// The calls the sheet makes, the same ones the forwarded bus has.
+    ///
+    /// They live here rather than in the service because the bus is a port this station holds open
+    /// rather than a link somebody else keeps: the request goes out on the port, and the answer comes
+    /// back to whoever reads it next.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the port cannot be written, or when the node does not answer.
+    pub async fn parameters(
+        &mut self,
+        node: u8,
+        maximum: usize,
+    ) -> Result<Vec<NodeParameter>, CommandError> {
+        let mut parameters = Vec::new();
+
+        for index in 0..maximum {
+            let request = GetSetRequest::list(index as u16);
+            let answer = self
+                .call(
+                    node,
+                    &request.encode(),
+                    DataType::ParameterGetSet,
+                    call_timeout(),
+                )
+                .await?;
+
+            let Some(read) = GetSetResponse::decode(&answer) else {
+                return Err(CommandError::internal("a parameter could not be read"));
+            };
+
+            if read.name.is_empty() {
+                break;
+            }
+
+            parameters.push(NodeParameter {
+                name: read.name,
+                value: read.value.describe(),
+                default_value: read.default_value.describe(),
+                min_value: read.min_value.describe(),
+                max_value: read.max_value.describe(),
+            });
+        }
+
+        Ok(parameters)
+    }
+
+    /// Writes one parameter, and hands back what the node stored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the port cannot be written, when the node does not answer, or when it
+    /// answers with no name, which is how it says it has no such parameter.
+    pub async fn write_parameter(
+        &mut self,
+        node: u8,
+        name: &str,
+        value: ParameterValue,
+    ) -> Result<NodeParameter, CommandError> {
+        let request = GetSetRequest::write(name, value);
+        let answer = self
+            .call(
+                node,
+                &request.encode(),
+                DataType::ParameterGetSet,
+                call_timeout(),
+            )
+            .await?;
+
+        let Some(read) = GetSetResponse::decode(&answer) else {
+            return Err(CommandError::internal(
+                "the node's answer could not be read",
+            ));
+        };
+
+        if read.name.is_empty() {
+            return Err(CommandError::new(
+                CommandError::CODE_REJECTED,
+                format!("the node has no parameter called {name}"),
+            ));
+        }
+
+        Ok(NodeParameter {
+            name: read.name,
+            value: read.value.describe(),
+            default_value: read.default_value.describe(),
+            min_value: read.min_value.describe(),
+            max_value: read.max_value.describe(),
+        })
+    }
+
+    /// Asks the node to keep what it holds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the port cannot be written, or when the node does not answer.
+    pub async fn save_parameters(&mut self, node: u8) -> Result<(), CommandError> {
+        self.call(
+            node,
+            &ExecuteOpcode::Save.encode(),
+            DataType::ParameterExecuteOpcode,
+            call_timeout(),
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Restarts the node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the port cannot be written, or when the node does not answer.
+    pub async fn restart_node(&mut self, node: u8) -> Result<(), CommandError> {
+        self.call(
+            node,
+            &RestartNode.encode(),
+            DataType::RestartNode,
+            call_timeout(),
+        )
+        .await?;
+
+        Ok(())
+    }
+}
 impl Drop for SlcanBus {
     fn drop(&mut self) {
         // The line that closes the bus is written by `close`, which is asynchronous; a station that

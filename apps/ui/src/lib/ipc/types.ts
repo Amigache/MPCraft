@@ -1637,3 +1637,11 @@ export interface NodeParameter {
   /** The largest value it accepts, when the node says. */
   readonly maxValue: string;
 }
+
+/** A serial port opened in SLCAN mode, which is the other way to a CAN bus. */
+export interface SlcanStatus {
+  /** The port the adapter is on. */
+  readonly port: string;
+  /** The rate the bus was opened at. */
+  readonly rate: number;
+}

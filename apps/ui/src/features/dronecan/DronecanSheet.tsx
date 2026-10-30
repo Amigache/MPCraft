@@ -5,6 +5,12 @@ import {
   dronecanRestartNode,
   dronecanSaveParameters,
   dronecanScan,
+  dronecanSlcanClose,
+  dronecanSlcanOpen,
+  dronecanSlcanParameters,
+  dronecanSlcanRestartNode,
+  dronecanSlcanSaveParameters,
+  dronecanSlcanWriteParameter,
   dronecanWriteParameter,
   normaliseError,
 } from "../../lib/ipc/bridge";
@@ -12,6 +18,7 @@ import type {
   DronecanNode,
   DronecanReport,
   NodeParameter,
+  SlcanStatus,
 } from "../../lib/ipc/types";
 import { DASH, formatCount } from "../../lib/format";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
@@ -50,11 +57,19 @@ export function DronecanSheet() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /** The node whose parameters are open, as the pair the bus knows it by. */
+  /** The node whose parameters are open, and which way they are reached by. */
   const [openNode, setOpenNode] = useState<{
     systemId: number;
     componentId: number;
+    via: "link" | "adapter";
   } | null>(null);
+
+  /** The adapter the operator opened, when one is. */
+  const [adapter, setAdapter] = useState<SlcanStatus | null>(null);
+  const [port, setPort] = useState("COM3");
+  const [rate, setRate] = useState(500000);
+  const [adapterNode, setAdapterNode] = useState(42);
+  const [adapterBusy, setAdapterBusy] = useState(false);
   const [parameters, setParameters] = useState<readonly NodeParameter[]>([]);
   const [bus, setBus] = useState(1);
   const [busyParameters, setBusyParameters] = useState(false);
@@ -62,18 +77,23 @@ export function DronecanSheet() {
   const [note, setNote] = useState<string | null>(null);
 
   const loadParameters = useCallback(
-    async (which: { systemId: number; componentId: number }, on: number) => {
+    async (
+      which: { systemId: number; componentId: number; via: "link" | "adapter" },
+      on: number,
+    ) => {
       setBusyParameters(true);
       setError(null);
       setNote(null);
 
       try {
         setParameters(
-          await dronecanParameters(
-            { systemId: which.systemId, componentId: which.componentId },
-            on,
-            which.componentId,
-          ),
+          which.via === "adapter"
+            ? await dronecanSlcanParameters(which.componentId)
+            : await dronecanParameters(
+                { systemId: which.systemId, componentId: which.componentId },
+                on,
+                which.componentId,
+              ),
         );
       } catch (cause) {
         setError(normaliseError(cause).message);
@@ -83,6 +103,42 @@ export function DronecanSheet() {
     },
     [],
   );
+
+  const openAdapter = async () => {
+    setAdapterBusy(true);
+    setError(null);
+    setNote(null);
+
+    try {
+      const opened = await dronecanSlcanOpen(port, rate);
+
+      setAdapter(opened);
+      setNote(
+        t("The adapter on {port} is open at {rate} bits per second.", {
+          port: opened.port,
+          rate: formatCount(opened.rate),
+        }),
+      );
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setAdapterBusy(false);
+    }
+  };
+
+  const closeAdapter = async () => {
+    setAdapterBusy(true);
+
+    try {
+      await dronecanSlcanClose();
+      setAdapter(null);
+      setNote(t("The adapter is closed."));
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setAdapterBusy(false);
+    }
+  };
 
   const read = useCallback(async () => {
     if (!linked) {
@@ -122,13 +178,24 @@ export function DronecanSheet() {
     setNote(null);
 
     try {
-      const stored = await dronecanWriteParameter(
-        { systemId: openNode.systemId, componentId: openNode.componentId },
-        bus,
-        openNode.componentId,
-        name,
-        drafts[name] ?? "",
-      );
+      const written = drafts[name] ?? "";
+      const stored =
+        openNode.via === "adapter"
+          ? await dronecanSlcanWriteParameter(
+              openNode.componentId,
+              name,
+              written,
+            )
+          : await dronecanWriteParameter(
+              {
+                systemId: openNode.systemId,
+                componentId: openNode.componentId,
+              },
+              bus,
+              openNode.componentId,
+              name,
+              written,
+            );
 
       setNote(
         t("The node stored {name} = {value}.", {
@@ -156,11 +223,15 @@ export function DronecanSheet() {
     setNote(null);
 
     try {
-      await dronecanSaveParameters(
-        { systemId: openNode.systemId, componentId: openNode.componentId },
-        bus,
-        openNode.componentId,
-      );
+      if (openNode.via === "adapter") {
+        await dronecanSlcanSaveParameters(openNode.componentId);
+      } else {
+        await dronecanSaveParameters(
+          { systemId: openNode.systemId, componentId: openNode.componentId },
+          bus,
+          openNode.componentId,
+        );
+      }
       setNote(t("The node was asked to keep what it holds."));
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -179,11 +250,15 @@ export function DronecanSheet() {
     setNote(null);
 
     try {
-      await dronecanRestartNode(
-        { systemId: openNode.systemId, componentId: openNode.componentId },
-        bus,
-        openNode.componentId,
-      );
+      if (openNode.via === "adapter") {
+        await dronecanSlcanRestartNode(openNode.componentId);
+      } else {
+        await dronecanRestartNode(
+          { systemId: openNode.systemId, componentId: openNode.componentId },
+          bus,
+          openNode.componentId,
+        );
+      }
       setNote(t("The node was asked to restart."));
     } catch (cause) {
       setError(normaliseError(cause).message);
@@ -318,6 +393,7 @@ export function DronecanSheet() {
                         setOpenNode({
                           systemId: node.vehicle.systemId,
                           componentId: node.vehicle.componentId,
+                          via: "link",
                         });
                         setParameters([]);
                         setDrafts({});
@@ -325,6 +401,7 @@ export function DronecanSheet() {
                           {
                             systemId: node.vehicle.systemId,
                             componentId: node.vehicle.componentId,
+                            via: "link",
                           },
                           bus,
                         );
@@ -339,6 +416,102 @@ export function DronecanSheet() {
           )}
         </section>
 
+        <section className={styles.block}>
+          <p className={styles.text}>
+            {t(
+              "A CAN adapter on a serial port is the other way to the bus: no vehicle has to forward it. Open the port, then read a node by its number.",
+            )}
+          </p>
+
+          <div className={styles.row}>
+            <label className="field">
+              <span>{t("The port the adapter is on")}</span>
+              <input
+                type="text"
+                value={port}
+                onChange={(event) => {
+                  setPort(event.target.value);
+                }}
+              />
+            </label>
+            <label className="field">
+              <span>{t("The rate of the bus")}</span>
+              <select
+                className="select"
+                value={rate}
+                onChange={(event) => {
+                  setRate(Number(event.target.value));
+                }}
+              >
+                {[
+                  10000, 20000, 50000, 100000, 125000, 250000, 500000, 800000,
+                  1000000,
+                ].map((value) => (
+                  <option key={value} value={value}>
+                    {formatCount(value)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="button"
+              disabled={adapterBusy || adapter !== null}
+              onClick={() => {
+                void openAdapter();
+              }}
+            >
+              {t("Open the adapter")}
+            </button>
+            <button
+              type="button"
+              className="button"
+              disabled={adapterBusy || adapter === null}
+              onClick={() => {
+                void closeAdapter();
+              }}
+            >
+              {t("Close the adapter")}
+            </button>
+          </div>
+
+          {adapter !== null ? (
+            <div className={styles.row}>
+              <label className="field">
+                <span>{t("The node to read")}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={127}
+                  value={adapterNode}
+                  onChange={(event) => {
+                    setAdapterNode(Number(event.target.value) || 1);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="button"
+                disabled={busyParameters}
+                onClick={() => {
+                  setOpenNode({
+                    systemId: 0,
+                    componentId: adapterNode,
+                    via: "adapter",
+                  });
+                  setParameters([]);
+                  setDrafts({});
+                  void loadParameters(
+                    { systemId: 0, componentId: adapterNode, via: "adapter" },
+                    bus,
+                  );
+                }}
+              >
+                {t("Read its parameters")}
+              </button>
+            </div>
+          ) : null}
+        </section>
         {openNode !== null ? (
           <section className={styles.block}>
             <div className={styles.headline}>

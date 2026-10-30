@@ -65,6 +65,7 @@ import type {
   SignedFirmware,
   SigningKeyEvent,
   SigningStatus,
+  SlcanStatus,
   StateEvent,
   StreamAnswer,
   SwarmRequest,
@@ -1863,4 +1864,52 @@ export async function dronecanRestartNode(
   node: number,
 ): Promise<void> {
   return call<void>("dronecan_restart_node", { req, bus, node });
+}
+
+/** Opens a serial port in SLCAN mode. */
+export async function dronecanSlcanOpen(
+  port: string,
+  rate: number,
+): Promise<SlcanStatus> {
+  return call<SlcanStatus>("dronecan_slcan_open", { port, rate });
+}
+
+/** Closes the adapter, when one is open. */
+export async function dronecanSlcanClose(): Promise<void> {
+  return call<void>("dronecan_slcan_close", {});
+}
+
+/** The adapter that is open, when one is. */
+export async function dronecanSlcanStatus(): Promise<SlcanStatus | null> {
+  return call<SlcanStatus | null>("dronecan_slcan_status", {});
+}
+
+/** Lists a node's parameters through the adapter. */
+export async function dronecanSlcanParameters(
+  node: number,
+): Promise<NodeParameter[]> {
+  return call<NodeParameter[]>("dronecan_slcan_parameters", { node });
+}
+
+/** Writes one parameter through the adapter, and reads back what the node stored. */
+export async function dronecanSlcanWriteParameter(
+  node: number,
+  name: string,
+  value: string,
+): Promise<NodeParameter> {
+  return call<NodeParameter>("dronecan_slcan_write_parameter", {
+    node,
+    name,
+    value,
+  });
+}
+
+/** Asks a node to keep what it holds, through the adapter. */
+export async function dronecanSlcanSaveParameters(node: number): Promise<void> {
+  return call<void>("dronecan_slcan_save_parameters", { node });
+}
+
+/** Restarts a node, through the adapter. */
+export async function dronecanSlcanRestartNode(node: number): Promise<void> {
+  return call<void>("dronecan_slcan_restart_node", { node });
 }

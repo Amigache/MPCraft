@@ -246,6 +246,15 @@ pub struct AppState {
     pub dronecan: crate::dronecan::DronecanService,
 
     ///
+    /// The adapter the operator opened, when one is: the other way to a CAN bus.
+    ///
+    /// The status it was opened with is kept beside the bus so the interface can say which port and
+    /// which rate it is holding.
+    pub slcan: std::sync::Arc<
+        tokio::sync::Mutex<Option<(crate::slcan::SlcanStatus, crate::slcan::SlcanBus)>>,
+    >,
+
+    ///
     /// The link copied to another program.
     ///
     /// The rows are kept between two runs, but nothing is started by a row alone: a mirror is a
@@ -304,6 +313,7 @@ impl Default for AppState {
             )),
             swarm,
             dronecan: crate::dronecan::DronecanService::new(),
+            slcan: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             mirrors,
             video: crate::video::VideoRelayService::default(),
         }
@@ -891,6 +901,125 @@ impl AppState {
             .map_err(|error| CommandError::new(error.code(), error.to_string()))
     }
 
+    /// Opens a serial port in SLCAN mode, and keeps the bus it reaches.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the rate is not one the protocol numbers, when the port cannot be
+    /// opened, or when it cannot be written.
+    pub async fn slcan_open(
+        &self,
+        port: &str,
+        rate: u32,
+    ) -> CommandResult<crate::slcan::SlcanStatus> {
+        let spec = mpcraft_transport::ConnectionSpec::parse(&format!("serial:{port}:{rate}"))
+            .map_err(|error| CommandError::invalid_request(error.to_string()))?;
+
+        let transport = mpcraft_transport::open(&spec).await.map_err(|error| {
+            CommandError::internal(format!("the port {port} could not be opened: {error}"))
+        })?;
+
+        let bus = crate::slcan::SlcanBus::open(transport, rate).await?;
+
+        let status = crate::slcan::SlcanStatus {
+            port: port.to_owned(),
+            rate,
+        };
+
+        let mut slot = self.slcan.lock().await;
+
+        if let Some((_, mut previous)) = slot.take() {
+            previous.close().await;
+        }
+
+        *slot = Some((status.clone(), bus));
+
+        Ok(status)
+    }
+
+    /// Closes the adapter, when one is open.
+    pub async fn slcan_close(&self) {
+        let mut slot = self.slcan.lock().await;
+
+        if let Some((_, mut bus)) = slot.take() {
+            bus.close().await;
+        }
+    }
+
+    /// The adapter that is open, when one is.
+    pub async fn slcan_status(&self) -> Option<crate::slcan::SlcanStatus> {
+        self.slcan
+            .lock()
+            .await
+            .as_ref()
+            .map(|(status, _)| status.clone())
+    }
+
+    /// Lists a node's parameters through the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no adapter is open, or when the node does not answer.
+    pub async fn slcan_parameters(
+        &self,
+        node: u8,
+    ) -> CommandResult<Vec<crate::dronecan::NodeParameter>> {
+        let mut slot = self.slcan.lock().await;
+        let (_, bus) = slot
+            .as_mut()
+            .ok_or_else(|| CommandError::invalid_request("no adapter is open"))?;
+
+        bus.parameters(node, 512).await
+    }
+
+    /// Writes a parameter through the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no adapter is open, or when the node refuses or does not answer.
+    pub async fn slcan_write_parameter(
+        &self,
+        node: u8,
+        name: &str,
+        value: &str,
+    ) -> CommandResult<crate::dronecan::NodeParameter> {
+        let mut slot = self.slcan.lock().await;
+        let (_, bus) = slot
+            .as_mut()
+            .ok_or_else(|| CommandError::invalid_request("no adapter is open"))?;
+
+        bus.write_parameter(node, name, crate::dronecan::value_of(value))
+            .await
+    }
+
+    /// Asks a node to keep what it holds, through the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no adapter is open, or when the node does not answer.
+    pub async fn slcan_save_parameters(&self, node: u8) -> CommandResult<()> {
+        let mut slot = self.slcan.lock().await;
+        let (_, bus) = slot
+            .as_mut()
+            .ok_or_else(|| CommandError::invalid_request("no adapter is open"))?;
+
+        bus.save_parameters(node).await
+    }
+
+    /// Restarts a node, through the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no adapter is open, or when the node does not answer.
+    pub async fn slcan_restart_node(&self, node: u8) -> CommandResult<()> {
+        let mut slot = self.slcan.lock().await;
+        let (_, bus) = slot
+            .as_mut()
+            .ok_or_else(|| CommandError::invalid_request("no adapter is open"))?;
+
+        bus.restart_node(node).await
+    }
+
     /// The relays that are running.
     #[must_use]
     pub fn video_relays(&self) -> Vec<crate::video::VideoRelayInfo> {
@@ -1379,6 +1508,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            slcan: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             mirrors: crate::mirrors::MirrorService::default(),
             video: crate::video::VideoRelayService::default(),
         };
@@ -1428,6 +1558,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            slcan: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             mirrors: crate::mirrors::MirrorService::default(),
             video: crate::video::VideoRelayService::default(),
         };
@@ -1519,6 +1650,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            slcan: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             mirrors: crate::mirrors::MirrorService::default(),
             video: crate::video::VideoRelayService::default(),
         };
@@ -1571,6 +1703,7 @@ mod tests {
             )),
             swarm: crate::swarm::SwarmService::new(),
             dronecan: crate::dronecan::DronecanService::new(),
+            slcan: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             mirrors: crate::mirrors::MirrorService::default(),
             video: crate::video::VideoRelayService::default(),
         };
