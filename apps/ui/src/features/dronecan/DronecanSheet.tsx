@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { dronecanScan, normaliseError } from "../../lib/ipc/bridge";
-import type { DronecanNode, DronecanReport } from "../../lib/ipc/types";
+import {
+  dronecanParameters,
+  dronecanRestartNode,
+  dronecanSaveParameters,
+  dronecanScan,
+  dronecanWriteParameter,
+  normaliseError,
+} from "../../lib/ipc/bridge";
+import type {
+  DronecanNode,
+  DronecanReport,
+  NodeParameter,
+} from "../../lib/ipc/types";
 import { DASH, formatCount } from "../../lib/format";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
 import { useLinkStore } from "../../lib/link/linkStore";
@@ -39,6 +50,40 @@ export function DronecanSheet() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** The node whose parameters are open, as the pair the bus knows it by. */
+  const [openNode, setOpenNode] = useState<{
+    systemId: number;
+    componentId: number;
+  } | null>(null);
+  const [parameters, setParameters] = useState<readonly NodeParameter[]>([]);
+  const [bus, setBus] = useState(1);
+  const [busyParameters, setBusyParameters] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [note, setNote] = useState<string | null>(null);
+
+  const loadParameters = useCallback(
+    async (which: { systemId: number; componentId: number }, on: number) => {
+      setBusyParameters(true);
+      setError(null);
+      setNote(null);
+
+      try {
+        setParameters(
+          await dronecanParameters(
+            { systemId: which.systemId, componentId: which.componentId },
+            on,
+            which.componentId,
+          ),
+        );
+      } catch (cause) {
+        setError(normaliseError(cause).message);
+      } finally {
+        setBusyParameters(false);
+      }
+    },
+    [],
+  );
+
   const read = useCallback(async () => {
     if (!linked) {
       return;
@@ -66,6 +111,86 @@ export function DronecanSheet() {
       window.clearInterval(timer);
     };
   }, [open, read]);
+
+  const writeParameter = async (name: string) => {
+    if (openNode === null) {
+      return;
+    }
+
+    setBusyParameters(true);
+    setError(null);
+    setNote(null);
+
+    try {
+      const stored = await dronecanWriteParameter(
+        { systemId: openNode.systemId, componentId: openNode.componentId },
+        bus,
+        openNode.componentId,
+        name,
+        drafts[name] ?? "",
+      );
+
+      setNote(
+        t("The node stored {name} = {value}.", {
+          name: stored.name,
+          value: stored.value,
+        }),
+      );
+      setDrafts((current) => ({ ...current, [name]: "" }));
+
+      await loadParameters(openNode, bus);
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusyParameters(false);
+    }
+  };
+
+  const saveParameters = async () => {
+    if (openNode === null) {
+      return;
+    }
+
+    setBusyParameters(true);
+    setError(null);
+    setNote(null);
+
+    try {
+      await dronecanSaveParameters(
+        { systemId: openNode.systemId, componentId: openNode.componentId },
+        bus,
+        openNode.componentId,
+      );
+      setNote(t("The node was asked to keep what it holds."));
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusyParameters(false);
+    }
+  };
+
+  const restartNode = async () => {
+    if (openNode === null) {
+      return;
+    }
+
+    setBusyParameters(true);
+    setError(null);
+    setNote(null);
+
+    try {
+      await dronecanRestartNode(
+        { systemId: openNode.systemId, componentId: openNode.componentId },
+        bus,
+        openNode.componentId,
+      );
+      setNote(t("The node was asked to restart."));
+    } catch (cause) {
+      setError(normaliseError(cause).message);
+    } finally {
+      setBusyParameters(false);
+    }
+  };
 
   if (!open) {
     return null;
@@ -183,11 +308,164 @@ export function DronecanSheet() {
                     <dt>{t("The commit the build came from")}</dt>
                     <dd>{node.swVcsCommit ?? DASH}</dd>
                   </dl>
+
+                  <div className={styles.row}>
+                    <button
+                      type="button"
+                      className="button"
+                      disabled={busyParameters}
+                      onClick={() => {
+                        setOpenNode({
+                          systemId: node.vehicle.systemId,
+                          componentId: node.vehicle.componentId,
+                        });
+                        setParameters([]);
+                        setDrafts({});
+                        void loadParameters(
+                          {
+                            systemId: node.vehicle.systemId,
+                            componentId: node.vehicle.componentId,
+                          },
+                          bus,
+                        );
+                      }}
+                    >
+                      {t("Its parameters")}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
+
+        {openNode !== null ? (
+          <section className={styles.block}>
+            <div className={styles.headline}>
+              <span className={styles.name}>
+                {t("The parameters of the node")} {openNode.componentId}
+              </span>
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setOpenNode(null);
+                  setParameters([]);
+                }}
+              >
+                {t("Close the parameters")}
+              </button>
+            </div>
+
+            <div className={styles.row}>
+              <label className="field">
+                <span>{t("The bus it is on")}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={3}
+                  value={bus}
+                  onChange={(event) => {
+                    setBus(Number(event.target.value) || 1);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="button"
+                disabled={busyParameters}
+                onClick={() => {
+                  void loadParameters(openNode, bus);
+                }}
+              >
+                {t("Read them again")}
+              </button>
+            </div>
+
+            {busyParameters && parameters.length === 0 ? (
+              <p className={styles.text}>{t("The node is being asked.")}</p>
+            ) : null}
+
+            {parameters.length === 0 && !busyParameters ? (
+              <p className={styles.text}>
+                {t("The node named no parameters, or it did not answer.")}
+              </p>
+            ) : null}
+
+            {parameters.map((parameter) => (
+              <div key={parameter.name} className={styles.parameter}>
+                <div className={styles.headline}>
+                  <span className={styles.name}>{parameter.name}</span>
+                  <span className={styles.pair}>{parameter.value}</span>
+                </div>
+
+                <dl className={styles.facts}>
+                  <dt>{t("Before anybody changed it")}</dt>
+                  <dd>{parameter.defaultValue || DASH}</dd>
+                  <dt>{t("What it accepts")}</dt>
+                  <dd>
+                    {parameter.minValue || DASH} … {parameter.maxValue || DASH}
+                  </dd>
+                </dl>
+
+                <div className={styles.row}>
+                  <input
+                    className="input"
+                    aria-label={t("The new value of {name}", {
+                      name: parameter.name,
+                    })}
+                    value={drafts[parameter.name] ?? ""}
+                    placeholder={parameter.value}
+                    onChange={(event) => {
+                      setDrafts((current) => ({
+                        ...current,
+                        [parameter.name]: event.target.value,
+                      }));
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={
+                      busyParameters ||
+                      (drafts[parameter.name] ?? "").trim() === ""
+                    }
+                    onClick={() => {
+                      void writeParameter(parameter.name);
+                    }}
+                  >
+                    {t("Write it")}
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <div className={styles.row}>
+              <button
+                type="button"
+                className="button"
+                disabled={busyParameters}
+                onClick={() => {
+                  void saveParameters();
+                }}
+              >
+                {t("Keep them across a power cycle")}
+              </button>
+              <button
+                type="button"
+                className="button"
+                disabled={busyParameters}
+                onClick={() => {
+                  void restartNode();
+                }}
+              >
+                {t("Restart the node")}
+              </button>
+            </div>
+
+            {note !== null ? <p className={styles.note}>{note}</p> : null}
+          </section>
+        ) : null}
 
         {error !== null ? (
           <p className={styles.error} role="alert">

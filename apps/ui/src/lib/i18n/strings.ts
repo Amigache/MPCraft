@@ -1576,6 +1576,25 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Una cámara que se anuncia en esta red se puede encontrar sin escribir su dirección. La búsqueda se hace en la red local y no sale de ella, así que una cámara de otra red no aparece.",
     "Search the network": "Buscar en la red",
     "No camera answered the search.": "Ninguna cámara respondió a la búsqueda.",
+    // The parameters of a DroneCAN node.
+    "Its parameters": "Sus parámetros",
+    "The parameters of the node": "Los parámetros del nodo",
+    "Close the parameters": "Cerrar los parámetros",
+    "The bus it is on": "El bus en el que está",
+    "Read them again": "Leerlos otra vez",
+    "The node is being asked.": "Se está preguntando al nodo.",
+    "The node named no parameters, or it did not answer.":
+      "El nodo no nombró ningún parámetro, o no respondió.",
+    "Before anybody changed it": "Antes de que nadie lo cambiara",
+    "What it accepts": "Lo que acepta",
+    "The new value of {name}": "El valor nuevo de {name}",
+    "Write it": "Escribirlo",
+    "Keep them across a power cycle": "Conservarlos al quitar la corriente",
+    "Restart the node": "Reiniciar el nodo",
+    "The node stored {name} = {value}.": "El nodo guardó {name} = {value}.",
+    "The node was asked to keep what it holds.":
+      "Se pidió al nodo que conserve lo que tiene.",
+    "The node was asked to restart.": "Se pidió al nodo que se reinicie.",
     "The stream": "El canal",
   },
 };

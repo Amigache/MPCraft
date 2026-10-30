@@ -916,9 +916,33 @@ the counts are written by the formatting module, as they are everywhere else.
 
 What the scripted peer can answer is what is asserted here: two nodes report themselves, one answers
 with what it is and the other does not, so the second reading asks and the third puts nothing on the
-wire, and the count starts again on a second link. What cannot be asserted is said rather than
-assumed: there is no physical CAN bus on this machine, so nothing here proves that a real node
-answers, and the row stays partial. The sheet is measured at 1920x1080 and at 1024x640 in Spanish.
+wire, and the count starts again on a second link.
+
+The **bus is also spoken to directly**, which is what upstream does and what the first half of this
+row did not: the station asks the vehicle to forward a CAN bus (`MAV_CMD_CAN_FORWARD`) and carries
+DroneCAN in `CAN_FRAME` messages, so a node can be read and changed rather than waited on. The
+protocol lives in `mpcraft-dronecan` — the 29-bit identifier read the way `libcanard` reads it, one
+frame for a payload of up to seven bytes and a split transfer with the checksum seeded by the type's
+signature for anything longer, and the two checksums each checked against the value its catalogue
+publishes. The five types a sheet needs are named with the signatures a second implementation
+computes from the DSDL (`pydronecan`): what a node is, its parameters, the opcode that saves them,
+and the restart. A parameter is read by index until the node stops naming them, written by name, and
+what the sheet shows after a write is what the node stored rather than what was asked — a node
+clamps, and the operator has to see what it holds.
+
+That whole way was read against a node that is not this code: `scripts/dronecan-node.py` is a
+MAVLink vehicle on a UDP port with one DroneCAN node behind a forwarded bus, written from the DSDL
+and the transport specification rather than from the Rust crate — its own bit packer, its own
+framing, its own checksum. What the area read on this machine: the node `com.example.bench` saying
+software 1:2 and hardware 4:5; three parameters (`BENCH_GAIN` 15, `BENCH_LABEL` bench, `BENCH_RATE`
+2.5); a write of `BENCH_GAIN` = 21 answered with 21 by the node; the save and the restart accepted;
+and a name the node does not hold refused rather than stored.
+
+What cannot be asserted is said rather than assumed: there is no physical CAN bus on this machine, so
+nothing here proves that a node of a real vehicle answers, and the part of the standard upstream also
+carries and this does not — the SLCAN path, a serial port a node is reached through when the
+autopilot is not forwarding — stays unported. The row stays partial for those two. The sheet is
+measured at 1920x1080 and at 1024x640 in Spanish.
 
 La **placa Bluetooth** se alcanza por el camino que no pide un runtime: un canal serie de
 Bluetooth es una puerto COM, y los bytes los mueve el mismo código que los mueve para
