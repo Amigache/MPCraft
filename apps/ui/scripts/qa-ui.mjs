@@ -141,7 +141,7 @@ for (const name of [
   "Plan",
   "Configuración",
   "Registros",
-].entries()) {
+]) {
   await page.getByRole("tab", { name }).click();
   await page.waitForTimeout(900);
 
