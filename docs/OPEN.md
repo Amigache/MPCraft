@@ -139,10 +139,10 @@ Apple Developer account, so it cannot be done in this repository without the ope
 
 ## One thing still pending in the tree itself
 
-**`docs/PARITY.md` mixes languages.** The rows are written in English, but several paragraphs — the
-whole DFU account and the Bluetooth one — were written in Spanish and never translated. The project's
-rule is English everywhere; this is a real inconsistency, not a decision, and it is the next thing to
-close. It is text only: nothing depends on it.
+**`docs/PARITY.md` mixes languages.** The rows are written in English and the Bluetooth account has been
+translated; the **DFU account** is still in Spanish, which is the last block. The project's rule is
+English everywhere, so it is a real inconsistency rather than a decision, and it is text only: nothing
+depends on it.
 
 ---
 
