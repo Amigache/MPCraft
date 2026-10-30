@@ -59,8 +59,12 @@ async fn a_node_behind_a_forwarded_bus_answers() {
 
     println!(
         "the node {} says {:?}, software {}:{}, hardware {}:{}",
-        info.name, info.status, info.software_major, info.software_minor,
-        info.hardware_major, info.hardware_minor
+        info.name,
+        info.status,
+        info.software_major,
+        info.software_minor,
+        info.hardware_major,
+        info.hardware_minor
     );
 
     assert_eq!(info.name, "com.example.bench");
@@ -80,7 +84,10 @@ async fn a_node_behind_a_forwarded_bus_answers() {
     for parameter in &parameters {
         println!(
             "  {} = {} (default {}, {}..{})",
-            parameter.name, parameter.value, parameter.default_value, parameter.min_value,
+            parameter.name,
+            parameter.value,
+            parameter.default_value,
+            parameter.min_value,
             parameter.max_value
         );
     }
@@ -101,14 +108,7 @@ async fn a_node_behind_a_forwarded_bus_answers() {
     }
 
     let written = service
-        .write_parameter(
-            &session,
-            vehicle,
-            BUS,
-            NODE,
-            "BENCH_GAIN",
-            value_of("21"),
-        )
+        .write_parameter(&session, vehicle, BUS, NODE, "BENCH_GAIN", value_of("21"))
         .await
         .expect("the node takes the value");
 

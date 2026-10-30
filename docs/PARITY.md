@@ -1912,15 +1912,27 @@ A bootloader is not signed: it carries the three keys every ArduPilot bootloader
 operator's own after them, which is what the board checks the autopilot image with. The key is read
 from the form the published signer writes (`PRIVATE_KEYV1:` and the seed in base64) or from a PKCS#8
 PEM, and the application never writes it anywhere it was not asked to; a key it generates is written
-where the operator chose, with the public half beside it. The tests are two facts that are not this
+where the operator chose, with the public half beside it.
+
+What was signed can also be **checked**: the station reads a signed `.apj`, finds the block the way the
+signer finds it, verifies the Ed25519 signature against a public key and compares the SHA-512 it
+computes with the one the document carries. A signature that does not agree is not an error of the
+reading — the document was read and what it says does not hold — so a file that cannot be read and a
+file whose signature is wrong are two different facts, which the reader keeps apart. The public key is
+read from the form the signer writes (`PUBLIC_KEYV1:`), the same way the private one is. The tests are
+five facts: a signed document is accepted by the reader, a signature made by another key is not, a byte
+changed after signing is not, a SHA-512 edited after signing is a second thing that does not hold while
+the signature still does, and the public key survives its own form.
+
+The signing tests are two facts that are not this
 crate agreeing with itself: the seed, the public key and the signature of an empty message are the
 values RFC 8032 publishes, and the signature and the SHA-512 of the fixture are what the platform's
 own Ed25519 gives for the same bytes, so the place of the block and what is signed are checked
 against a signer that was not built from this one. What is not carried is the hosted half of
 `ConfigSecure.cs`: signing through the vendor's service needs an account and a call to a third party,
 and the offline signer makes the same document without either. And no board with secure boot was
-flashed here, because there is none on this machine, so the row stays partial: the signer is done,
-and what is left is the service and the board.
+flashed here, because there is none on this machine, so the row stays partial: the signer and the
+reader are done, and what is left is the service and the board.
 
 The **logs of a companion computer** are listed and brought over SSH now, which is what the published
 client does under the name of SCP: it opens an SFTP session, keeps the files whose name ends in `.bin`

@@ -478,6 +478,31 @@ pub struct DronecanStatus {
     pub error: Option<String>,
 }
 
+/// What a value typed into the sheet is, read the way a node would read it.
+///
+/// A parameter's type is its name in the node's own model and is not carried by the read, so the
+/// station reads what looks like a whole number as one, what looks like a number with a point as a
+/// real, and anything else as text. The node is what decides in the end: its answer says what it
+/// stored, and that is what the sheet shows after a write.
+#[must_use]
+pub fn value_of(text: &str) -> ParameterValue {
+    let text = text.trim();
+
+    if text.is_empty() {
+        return ParameterValue::Empty;
+    }
+
+    if let Ok(value) = text.parse::<i64>() {
+        return ParameterValue::Integer(value);
+    }
+
+    if let Ok(value) = text.parse::<f32>() {
+        return ParameterValue::Real(value);
+    }
+
+    ParameterValue::Text(text.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -530,29 +555,4 @@ mod tests {
 
         assert!(!should_ask(1, &[said]));
     }
-}
-
-/// What a value typed into the sheet is, read the way a node would read it.
-///
-/// A parameter's type is its name in the node's own model and is not carried by the read, so the
-/// station reads what looks like a whole number as one, what looks like a number with a point as a
-/// real, and anything else as text. The node is what decides in the end: its answer says what it
-/// stored, and that is what the sheet shows after a write.
-#[must_use]
-pub fn value_of(text: &str) -> ParameterValue {
-    let text = text.trim();
-
-    if text.is_empty() {
-        return ParameterValue::Empty;
-    }
-
-    if let Ok(value) = text.parse::<i64>() {
-        return ParameterValue::Integer(value);
-    }
-
-    if let Ok(value) = text.parse::<f32>() {
-        return ParameterValue::Real(value);
-    }
-
-    ParameterValue::Text(text.to_owned())
 }
