@@ -952,110 +952,104 @@ adapter, which this machine does not have; nor is it wired to a command or the s
 path is therefore carried as a client and a codec, not as a screen. The sheet is
 measured at 1920x1080 and at 1024x640 in Spanish.
 
-La **placa Bluetooth** se alcanza por el camino que no pide un runtime: un canal serie de
-Bluetooth es una puerto COM, y los bytes los mueve el mismo código que los mueve para
-cualquier otra puerto, porque la pertenencia no cambia lo que viaja. Lo que decide qué fila
-pertenece a Bluetooth son tres hechos, cada uno con una fuente publicada que no es este
-archivo: `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM` es lo que un lector lee para listar puertos —
-el `SerialPort` de Microsoft lo abre (`System/sys/system/IO/ports/SerialPort.cs`) —, así que una
-fila es siempre el nombre del dispositivo y el puerto que contesta; la pertenencia viene del
-**prefijo** que el servicio RFCOMM escribe en ese mapa y del servicio que la instalación ligó a
-la instancia (`BTHMODEM`, como las listas publicadas lo escriben), y no de la clase, porque una
-fila serie no dice la clase Bluetooth: dice la clase Ports
-(`{4d36e978-e325-11ce-bfc1-08002be10318}`), y una fila de manos libres dice la clase audio
-(`{4d36e97d-e325-11ce-bfc1-08002be10318}`) con otro servicio detrás (`BthHFEnum`), así que una
-regla que decidiera por la clase no diría nada sobre los puertos que le preguntaron; y el
-perfil que lleva la corriente es `00001101-…` (zephyr lo nombra en su propia ayuda de SPP),
-mientras las filas de esta máquina contestan perfiles de audio, AVRCP y manos libres, que no
-llevan corriente. SuperCollider muestra por qué el prefijo completo es la regla: su parser casa
-cualquier nombre de puerto, así que un par virtual nombrado `com0comBluetooth0` sería leído como
-fila de Bluetooth por una comparación más floja, y aquí se rechaza. Un grupo de ceros no nombra
-nada: es lo que una instalación deja donde nada se escribió, no un valor que la máquina decidió,
-y esta máquina muestra las dos mitades de una misma fila a la vez — `LOCALMFG&0000` junto a doce
-ceros para la fila que da COM41 —, así que la lectura rechaza en lugar de inventar una dirección,
-con su propio código (`bluetooth_no_device_named`), que dice algo distinto de
-`bluetooth_row_not_the_shape`: una cosa es una fila que la máquina presenta sin dispositivo
-detrás y otra es un texto que el lector no puede leer; y las dos negativas caen antes de que nada
-viaje por el cable, que es lo que el peer scriptado muestra, porque nada viajó antes de la
-lectura.
+The **Bluetooth board** is reached by the path that needs no runtime: a Bluetooth serial channel is a
+COM port, and the bytes are moved by the same code that moves them for any other port, because
+belonging to Bluetooth does not change what travels. What decides which row belongs to Bluetooth is
+three facts, each with a published source that is not this file: `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`
+is what a reader reads to list ports — Microsoft's `SerialPort` opens it
+(`System/sys/system/IO/ports/SerialPort.cs`) — so a row is always the device name and the port that
+answers; the belonging comes from the **prefix** the RFCOMM service writes in that map and from the
+service the installation bound to the instance (`BTHMODEM`, as the published lists write it), and not
+from the class, because a serial row does not say the Bluetooth class: it says the Ports class
+(`{4d36e978-e325-11ce-bfc1-08002be10318}`), and a hands-free row says the audio class
+(`{4d36e97d-e325-11ce-bfc1-08002be10318}`) with another service behind it (`BthHFEnum`), so a rule
+that decided by class would say nothing about the ports it was asked about; and the profile that
+carries current is `00001101-…` (zephyr names it in its own SPP help), while this machine's rows
+answer audio, AVRCP and hands-free profiles, which carry none. SuperCollider shows why the whole
+prefix is the rule: its parser matches any port name, so a virtual pair named `com0comBluetooth0`
+would be read as a Bluetooth row by a looser comparison, and it is refused here. A group of zeros names
+nothing: it is what an installation leaves where nothing was written, not a value the machine decided,
+and this machine shows both halves of one row at once — `LOCALMFG&0000` beside twelve zeros for the row
+that gives COM41 — so the reading refuses rather than inventing an address, with its own code
+(`bluetooth_no_device_named`), which says something different from `bluetooth_row_not_the_shape`: one
+thing is a row the machine presents with no device behind it and the other is a text the reader cannot
+read; and both refusals fall before anything travels on the cable, which is what the scripted peer
+shows, because nothing travelled before the reading.
 
-El área viva (`crates/mpcraft-app/tests/bluetooth_live.rs`, detrás de `hardware-tests` y
-`windows`) lee lo que la máquina contesta hoy, y cada estado se sostiene como dato en lugar de
-afirmar un resultado esperado: el mapa contestó siete filas y dos llevan el prefijo del servicio
-(`\Device\BthModem0` = COM40 para el módulo Matek, `\Device\BthModem1` = COM41), con los números
-atribuidos a la llamada que los contestó a través del diccionario de esa llamada —
-`RegOpenKeyExW` dio 0 para la clave y `RegEnumValueW` dio 259 (no hay más elementos) al final del
-bucle, los dos por el diccionario Win32, que es el que este vínculo nombra para esas llamadas y
-no para las `CM_*` —, así que un conteo no vale solo: lo que terminó la lista se conserva con él y
-un paro por el propio límite (512) se dice como hueco. Para la instancia que el entorno nombra
-(`MPCRAFT_BT_ROW`) la máquina escribe `ClassGUID` `{4d36e978-e325-11ce-bfc1-08002be10318}` y
-`Service` `BTHMODEM`, que es el nombre que las listas publicadas escriben, y el nombre de clase
-que `tdibth.inf` lee en esta máquina es el mismo que Microsoft usa como
-`System.Devices.Aep.ProtocolId` en su propio ejemplo de enumeración: dos implementaciones que no
-se hicieron la una desde la otra, así que el acuerdo entre los dos caminos es un hecho y no una
-regla escrita dos veces. Bajo ese nombre la instancia publica cero filas, que es lo que se espera
-cuando la instalación no escribió el valor que decide que una fila exista, y aquí se lee sin
-elevación porque leer una clave de dispositivo no la pide; escribir esa clave sí la pide, y por eso
-la puerta nombra esa escritura como lo que el operador pone.
+The live area (`crates/mpcraft-app/tests/bluetooth_live.rs`, behind `hardware-tests` and `windows`)
+reads what the machine answers today, and each state is held as data rather than as an expected
+result: the map answered seven rows and two carry the service prefix (`\Device\BthModem0` = COM40 for
+the Matek module, `\Device\BthModem1` = COM41), with the numbers attributed to the call that answered
+them through that call's dictionary — `RegOpenKeyExW` gave 0 for the key and `RegEnumValueW` gave 259
+(no more items) at the end of the loop, both through the Win32 dictionary, which is the one this
+binding names for those calls and not for the `CM_*` ones — so a count does not stand alone: what ended
+the list is kept with it, and a stop at the bound itself (512) is said as a gap. For the instance the
+environment names (`MPCRAFT_BT_ROW`) the machine writes `ClassGUID`
+`{4d36e978-e325-11ce-bfc1-08002be10318}` and `Service` `BTHMODEM`, which is the name the published
+lists write, and the class name `tdibth.inf` reads on this machine is the same one Microsoft uses as
+`System.Devices.Aep.ProtocolId` in its own enumeration example: two implementations that were not
+built one from the other, so the agreement between the two paths is a fact and not a rule written
+twice. Under that name the instance publishes zero rows, which is what is expected when the
+installation did not write the value that decides that a row exists, and here it is read without
+elevation because reading a device key does not ask for it; writing that key does, which is why the
+gate names that write as what the operator supplies.
 
-Lo que no se puede afirmar aquí se dice en lugar de suponerse: ningún periférico emparejado en
-esta máquina anuncia el servicio Nordic UART `6e400001-b5a3-f393-e0a9-e50e24dcca9e`, así que el
-filtro de enumeración de upstream no encuentra nada para `Makeblock_LE001b1062c13c` (contesta
-cuatro servicios y ninguno es ese), y la mitad GATT se lleva ahora en Windows a través de
-`btleplug`, que usa la pila del sistema sin meter un motor de lenguaje en el proceso: el servicio
-Nordic UART (`6e400001`) y el `FFE1` del HM-10 se descubren, se escribe en su característica y se
-leen sus notificaciones, y el escaneo lista los dispositivos con nombre o con uno de los perfiles.
-La validación se hizo con nRF Connect haciendo de periférico: el escaneo vio el servicio NUS, la
-conexión abrió, la escritura `MPCraft BLE` llegó a la característica RX y una notificación `hola`
-volvió por la TX. Eso prueba las dos direcciones del camino, pero es un periférico de prueba y no
-un vehículo: lo que falta para cerrar la fila es la telemetría real por BLE y el camino en Linux y
-macOS, donde el transporte dice que no se lleva. La regla del nombre que upstream construye
-(`BLE_<identificador>_<dirección sin separadores>`) se conserva como dato: por una puerto COM la
-máquina nombra el puerto, y esa regla solo dice lo que un lector con el camino GATT habría escrito
-para el mismo periférico. Dos diferencias se conservan como diferencias:
-upstream lleva una velocidad en su clase BLE donde su propio camino no tiene velocidad ninguna, y
-su `toggleDTR()` está vacío porque esa clase no tiene línea; aquí una puerto COM sí la tiene, así
-que `dtr` y `nodtr` significan lo que dicen, con el valor de la casa todavía bajo, y la velocidad
-se conserva para el esquema `ble` como el número que se da al driver, que el medio no usa, mientras
-`baud=auto` se rechaza (`SpecError::UnknownOption`) porque una búsqueda de velocidades es una
-opción que promete lo que el medio no puede contestar. Lo que el peer scriptado puede responder es
-lo que se afirma en `crates/mpcraft-app/tests/bluetooth_peer.rs`: `Ok(0)` al final del stream en
-lugar de un error, la escritura que casa tres bytes a la vez y repite hasta completar el buffer, y
-la lectura de la fila que sobrevive a un reconnect, porque la fila es lo que se le dijo al operador
-sobre el puerto y un reintento no puede convertirla en otro hecho. Lo que no puede mostrar es lo
-que una máquina escribe sobre sí misma, por eso la fila sigue parcial, y la puerta nombra ese
-sustituto; el control lo lee con un transcripto donde la mitad scriptada pasó y el área que lee la
-máquina falló, con las dos mitades leídas como sus propios informes, que es lo que hace que un
-verde del peer no valga por un área que no leyó ninguna fila. Y nada se abre en COM40: esa puerto
-pertenece a un módulo que puede estar usándola.
+What cannot be asserted here is said rather than assumed: no peripheral paired on this machine
+announces the Nordic UART service `6e400001-b5a3-f393-e0a9-e50e24dcca9e`, so upstream's enumeration
+filter finds nothing for `Makeblock_LE001b1062c13c` (it answers four services and none is that one),
+and the GATT half is carried on Windows now through `btleplug`, which uses the system stack without
+putting a language runtime in the process: the Nordic UART service (`6e400001`) and the HM-10's `FFE1`
+are discovered, written to and read from, and the scan lists the devices with a name or with one of
+the profiles. The validation was done with nRF Connect acting as the peripheral: the scan saw the NUS
+service, the connection opened, the write `MPCraft BLE` reached the RX characteristic and a `hola`
+notification came back through TX. That proves both directions of the path, but it is a test
+peripheral and not a vehicle: what is missing to close the row is real telemetry over BLE and the path
+on Linux and macOS, where the transport says it is not carried. The rule for the name upstream builds
+(`BLE_<identifier>_<address without separators>`) is kept as data: over a COM port the machine names
+the port, and that rule only says what a reader with the GATT path would have written for the same
+peripheral. Two differences are kept as differences: upstream carries a rate in its BLE class where its
+own path has no rate at all, and its `toggleDTR()` is empty because that class has no line; here a COM
+port does have one, so `dtr` and `nodtr` mean what they say, with the house value still low, and the
+rate is kept for the `ble` scheme as the number given to the driver, which the medium does not use,
+while `baud=auto` is refused (`SpecError::UnknownOption`) because searching for rates is an option
+that promises what the medium cannot answer. What the scripted peer can answer is what
+`crates/mpcraft-app/tests/bluetooth_peer.rs` asserts: `Ok(0)` at the end of the stream instead of an
+error, the write that matches three bytes at a time and repeats until the buffer is complete, and the
+reading of the row that survives a reconnect, because the row is what the operator was told about the
+port and a retry cannot turn it into another fact. What it cannot show is what a machine writes about
+itself, which is why the row stays partial, and the gate names that stand-in; the control reads it with
+a transcript where the scripted half passed and the area that reads the machine failed, the two halves
+read as their own reports, which is what makes a green of the peer not stand for an area that read no
+row. And nothing is opened on COM40: that port belongs to a module that may be using it.
 
-El mapa lista puertos, así que una periferica que solo habla GATT no tiene fila: esta máquina la escribe
-bajo `BTHLE\Dev_001b1062c13c` — tres instancias de servicio, ninguna es el perfil serie — y no bajo el
-enumerador del que salen las filas RFCOMM, por eso la regla rechaza esa ruta en lugar de inventar el
-enumerador, y ninguna de las siete filas nombra esa dirección, porque una fila del mapa nunca lleva una
-dirección: lleva el nombre del dispositivo y el puerto, y la mitad del dispositivo solo puede venir de la
-ruta de la instancia. Lo que sí puede cerrar la fila es lo que la máquina escribiría para un dispositivo que
-ofrece el perfil Serial Port: el soporte está aquí (`mdmbtmdm.inf`, servicio `BTHMODEM`) y los perfiles que
-las filas contestan son `1101`, `110B`, `110E` y `111E`, pero solo `1101` lleva corriente, y ese es un perfil
-clásico, así que nRF Connect no puede escribir esa fila — es una herramienta GATT — mientras una app de
-terminal serie sobre el teléfono sí podría, porque eso es lo que hace que Android publique el perfil por SDP.
-Con esa fila escrita el área lee lo mismo que lee hoy, pero por una instancia que la máquina escribió para un
-dispositivo que decidió emparejar, y los números siguen atribuidos a la llamada que los contestó; lo que
-falta entonces es abrir la puerto, que es lo que el operador dice, porque esa puerto pertenece a un
-dispositivo que puede estar usándola, y sin abrir nada los bytes cruzarían por un peer escrito para responder
-en lugar de por un canal.
+The map lists ports, so a peripheral that speaks only GATT has no row: this machine writes it under
+`BTHLE\Dev_001b1062c13c` — three service instances, none of them the serial profile — and not under
+the enumerator the RFCOMM rows come from, which is why the rule refuses that path instead of inventing
+the enumerator, and none of the seven rows names that address, because a row of the map never carries
+an address: it carries the device name and the port, and the device half can only come from the
+instance path. What could close the row is what the machine would write for a device that offers the
+Serial Port profile: the support is here (`mdmbtmdm.inf`, service `BTHMODEM`) and the profiles the
+rows answer are `1101`, `110B`, `110E` and `111E`, but only `1101` carries current, and that is a
+classic profile, so nRF Connect cannot write that row — it is a GATT tool — while a serial terminal
+app on the phone could, because that is what makes Android publish the profile over SDP. With that row
+written the area reads the same as today, but through an instance the machine wrote for a device it
+decided to pair, and the numbers stay attributed to the call that answered them; what is missing then
+is opening the port, which is what the operator says, because that port belongs to a device that may
+be using it, and without opening anything the bytes would cross through a peer written to answer
+instead of through a channel.
 
-La lectura que nombra los servicios de un periférico emparejado vive dentro del subkey `Properties` de su
-instancia, y ese subkey contesta 5 por el diccionario Win32 de `RegOpenKeyExW` — el mismo 5 que el camino de
-abrir llama `HANDLE_HELD`, porque el diccionario pertenece a la llamada y no al número — mientras las claves de
-la instancia se leen sin elevación: la ruta que la máquina escribe para
-`BTHLE\Dev_001b1062c13c\b&548bea1&0&001b1062c13c` dice la clase Bluetooth (`{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}`)
-con el servicio `BthLEEnum`, que no es el de una fila serie, así que esta instancia no es un canal por el que
-viajan bytes aunque diga el nombre de Bluetooth. Las dos rutas son dos lecturas y se mantienen aparte: la carpeta
-que la clave del dispositivo llama por su nombre contesta 2 (no hay nada ahí), que es otra cosa que la negativa,
-y por eso cada número se nombra junto a la llamada que lo contestó. Lo que cerraría la fila es una lectura
-elevada de esa clave, o el permiso del operador para abrir la puerto de un dispositivo que ofrece el perfil
-serie, y ninguna de las dos depende de este archivo.
+The reading that names the services of a paired peripheral lives inside the `Properties` subkey of its
+instance, and that subkey answers 5 through the Win32 dictionary of `RegOpenKeyExW` — the same 5 the
+opening path calls `HANDLE_HELD`, because the dictionary belongs to the call and not to the number —
+while the instance keys are read without elevation: the path the machine writes for
+`BTHLE\Dev_001b1062c13c\b&548bea1&0&001b1062c13c` says the Bluetooth class
+(`{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}`) with the service `BthLEEnum`, which is not the one of a
+serial row, so this instance is not a channel bytes travel through even though it says the name of
+Bluetooth. The two paths are two readings and are kept apart: the folder the device key calls by its
+name answers 2 (there is nothing there), which is another thing than the refusal, and that is why each
+number is named beside the call that answered it. What would close the row is an elevated reading of
+that key, or the operator's permission to open the port of a device that offers the serial profile, and
+neither depends on this file.
 
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the
