@@ -939,9 +939,15 @@ software 1:2 and hardware 4:5; three parameters (`BENCH_GAIN` 15, `BENCH_LABEL` 
 and a name the node does not hold refused rather than stored.
 
 What cannot be asserted is said rather than assumed: there is no physical CAN bus on this machine, so
-nothing here proves that a node of a real vehicle answers, and the part of the standard upstream also
-carries and this does not — the SLCAN path, a serial port a node is reached through when the
-autopilot is not forwarding — stays unported. The row stays partial for those two. The sheet is
+nothing here proves that a node of a real vehicle answers. The **second way in** upstream has — a
+serial port in SLCAN mode, an adapter of the Lawicel family that writes each frame as a line of text —
+is carried: `mpcraft-dronecan::slcan` writes and reads those lines (an extended frame as
+`T` with eight hexadecimal digits, the rate asked for by the code the protocol numbers, and what the
+adapter says about itself counted rather than read as traffic), and `mpcraft-app::slcan` opens a port
+with the rate and the bus command and asks a node through it. That client is tested against a scripted
+adapter — a port that answers with the lines written down before the call — and not against a real
+adapter, which this machine does not have; nor is it wired to a command or the sheet yet. The SLCAN
+path is therefore carried as a client and a codec, not as a screen. The sheet is
 measured at 1920x1080 and at 1024x640 in Spanish.
 
 La **placa Bluetooth** se alcanza por el camino que no pide un runtime: un canal serie de

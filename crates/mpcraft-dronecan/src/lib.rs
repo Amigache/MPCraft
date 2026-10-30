@@ -24,6 +24,7 @@ pub mod bits;
 pub mod can;
 pub mod crc;
 pub mod messages;
+pub mod slcan;
 
 pub use can::NOMINAL_PRIORITY;
 pub use can::{encode, signature_bytes, CanId, Frame, Kind, Reassembler, Received, Tail};
@@ -31,3 +32,4 @@ pub use messages::{
     DataType, ExecuteOpcode, GetSetRequest, GetSetResponse, NodeInfo, NodeStatus, ParameterValue,
     RestartNode,
 };
+pub use slcan::{close_line, open_lines, speed_code, Decoder as SlcanDecoder};
