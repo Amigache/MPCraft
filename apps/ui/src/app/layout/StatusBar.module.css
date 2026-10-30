@@ -9,6 +9,16 @@
   padding: 0 var(--space-3);
 }
 
+/* The readings sit at the right edge of the bar, whatever the message on the left says: a number
+   that moves about because a message grew is a number nobody can find twice. */
+.measurements {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-4);
+  margin-left: auto;
+}
+
 .message {
   color: var(--colour-text-dim);
   flex: 1 1 auto;

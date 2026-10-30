@@ -75,8 +75,11 @@ import styles from "./FlightMap.module.css";
 /** The identifier of the source of the track. */
 const TRACK_SOURCE = "track";
 
-/** The identifier of the source of the line that shows where the vehicle is going. */
+/** The identifier of the source of the line that shows where the vehicle is pointing. */
 const COURSE_SOURCE = "course";
+
+/** The identifier of the source of the line that runs to the item being flown to. */
+const TARGET_SOURCE = "target";
 
 /** The identifier of the source of the plan. */
 const PLAN_SOURCE = "plan";
@@ -124,8 +127,7 @@ function usable(
     return false;
   }
   return (
-    Number.isFinite(position.lat) &&
-    Number.isFinite(position.lng) &&
+    isPlace(position.lat, position.lng) &&
     position.lat >= -90 &&
     position.lat <= 90 &&
     position.lng >= -180 &&
@@ -166,6 +168,23 @@ function setSourceData(
 }
 
 /**
+ * Whether a place is a place the map can draw.
+ *
+ * A vehicle without a fix reports zero for both coordinates, and so does a plan item that was
+ * never given one. The point `0°, 0°` is in the Gulf of Guinea, where no vehicle of this station
+ * is: a line drawn to it runs from wherever the plan is to the middle of the ocean, which is a
+ * line that means nothing. Mission Planner treats the same pair as "no position", and so does
+ * this.
+ */
+function isPlace(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    (Math.abs(lat) > 1e-9 || Math.abs(lng) > 1e-9)
+  );
+}
+
+/**
  * The items of a plan that carry a place.
  *
  * A command that does not fly to a place — a delay, a change of speed — has zeroes in
@@ -177,7 +196,7 @@ function positioned(
   commands: readonly MavCommand[],
 ): PlanItem[] {
   return items.filter((item) => {
-    if (!Number.isFinite(item.x) || !Number.isFinite(item.y)) {
+    if (!isPlace(item.x, item.y)) {
       return false;
     }
     if (commands.length === 0) {
@@ -191,8 +210,36 @@ function positioned(
 /** The coordinates of the items of a plan that carry a position. */
 function coordinatesOf(items: readonly PlanItem[]): [number, number][] {
   return items
-    .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
+    .filter((item) => isPlace(item.x, item.y))
     .map((item) => [item.y, item.x] as [number, number]);
+}
+
+/**
+ * The item of the plan the vehicle is flying to.
+ *
+ * The vehicle says which item it is on; the plan says where that item is. An item without a place
+ * is not a target — a delay is on the way, not somewhere — so the first item with a place is used
+ * when the one the vehicle names has none.
+ */
+function currentTarget(telemetry: Telemetry): PlanItem | null {
+  const mission = usePlanStore.getState().plans.mission;
+  if (mission === null) {
+    return null;
+  }
+
+  const items = mission.items.filter((item) => isPlace(item.x, item.y));
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  const seq = telemetry.mission?.seq ?? 0;
+
+  return (
+    items.find((item) => item.seq === seq) ??
+    items.find((item) => item.seq > 0) ??
+    null
+  );
 }
 
 /**
@@ -353,6 +400,7 @@ export function FlightMap() {
   const kind = usePlanStore((state) => state.kind);
   const plan = usePlanStore((state) => state.plans[kind]);
   const vehicles = useLinkStore((state) => state.vehicles);
+  const linkStatus = useLinkStore((state) => state.status);
   /** The family of the vehicle the station speaks to, as the link reported it. */
   const vehicleKind = chosenVehicle(vehicles)?.kind ?? null;
 
@@ -448,6 +496,9 @@ export function FlightMap() {
 
     const vehicle = document.createElement("div");
     vehicle.className = styles.vehicle ?? "";
+    // A link that is not open has no vehicle to draw. The marker is placed at the centre of the
+    // map before anything is known, and a mark sitting there would say a vehicle is there.
+    vehicle.hidden = true;
     // What the board is drawn as: the family the link reported, or the delta it falls back on
     // before a heartbeat has said what the board is.
     vehicle.innerHTML = vehicleIcon(
@@ -486,6 +537,14 @@ export function FlightMap() {
           geometry: { type: "LineString", coordinates: [] },
         },
       });
+      instance.addSource(TARGET_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [] },
+        },
+      });
       instance.addSource(PLAN_SOURCE, {
         type: "geojson",
         data: {
@@ -517,11 +576,7 @@ export function FlightMap() {
       });
       instance.addSource(HOME_SOURCE, {
         type: "geojson",
-        data: {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "Point", coordinates: [0, 0] },
-        },
+        data: { type: "FeatureCollection", features: [] },
       });
 
       // The traffic of the air: what the vehicle has heard.
@@ -579,17 +634,30 @@ export function FlightMap() {
         },
       });
 
-      // Where the vehicle is going: a short line along the course it is making good. It is
-      // drawn under the plan, because it is a reading of the vehicle and the plan is the plan.
+      // The two lines Mission Planner draws from the vehicle: the heading it is pointing at, in
+      // the colour of a heading, and the line that runs to the item it is flying to. They are
+      // drawn under the plan, because they are readings of the vehicle and the plan is the plan.
       instance.addLayer({
         id: "course-line",
         type: "line",
         source: COURSE_SOURCE,
         layout: { "line-cap": "round" },
         paint: {
-          "line-color": "#00c896",
+          "line-color": "#f85149",
           "line-width": 2,
-          "line-opacity": 0.7,
+          "line-opacity": 0.8,
+        },
+      });
+
+      instance.addLayer({
+        id: "target-line",
+        type: "line",
+        source: TARGET_SOURCE,
+        layout: { "line-cap": "round" },
+        paint: {
+          "line-color": "#d29922",
+          "line-width": 1.5,
+          "line-opacity": 0.9,
         },
       });
 
@@ -1103,6 +1171,19 @@ export function FlightMap() {
     };
   }, [menu]);
 
+  // A vehicle that is not on the link is not drawn. The mark says where the vehicle is, and the
+  // last place it was is not where it is: a station with no link has nothing to point at.
+  useEffect(() => {
+    const element = marker.current?.getElement();
+    if (
+      element &&
+      linkStatus !== "connected" &&
+      linkStatus !== "reconnecting"
+    ) {
+      element.hidden = true;
+    }
+  }, [linkStatus]);
+
   // The mark of the vehicle, by the family it belongs to. The element is kept and only its
   // drawing is replaced, so a board that says what it is a moment after it is heard changes from
   // the delta to its own shape without the marker being taken off the map.
@@ -1123,55 +1204,96 @@ export function FlightMap() {
         return;
       }
 
-      // The place the vehicle started from, when it has reported one.
+      // The place the vehicle started from, when it has reported one. A home that was never set
+      // is reported as zero, and a mark at `0°, 0°` is a home in the Gulf of Guinea that no
+      // vehicle has.
       const home = telemetry.home;
+      const homePlace = home !== null && isPlace(home.lat, home.lng);
       if (loaded.current && home !== lastHome.current) {
         lastHome.current = home;
         setSourceData(instance, HOME_SOURCE, {
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "Point",
-            coordinates: home ? [home.lng, home.lat] : [0, 0],
-          },
+          type: "FeatureCollection",
+          features: homePlace
+            ? [
+                {
+                  type: "Feature",
+                  properties: {},
+                  geometry: {
+                    type: "Point",
+                    coordinates: [home.lng, home.lat],
+                  },
+                },
+              ]
+            : [],
         });
       }
 
-      if (!usable(position)) {
+      // A vehicle is drawn where it says it is, and a vehicle that has no fix says it is nowhere.
+      // The home it reports is the other place it is known to be: an operator watches the board
+      // it will come back to, so the mark sits there rather than nowhere.
+      const place = usable(position)
+        ? { lat: position.lat, lng: position.lng }
+        : homePlace
+          ? { lat: home.lat, lng: home.lng }
+          : null;
+
+      const element = marker.current?.getElement();
+
+      if (place === null) {
+        if (element) {
+          element.hidden = true;
+        }
+        for (const id of [COURSE_SOURCE, TARGET_SOURCE]) {
+          setSourceData(instance, id, {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [] },
+          });
+        }
         return;
       }
 
-      const point: [number, number] = [position.lng, position.lat];
+      const point: [number, number] = [place.lng, place.lat];
       marker.current?.setLngLat(point);
 
-      const heading = telemetry.attitude?.yaw;
-      if (typeof heading === "number") {
-        marker.current?.setRotation(heading);
+      if (element) {
+        element.hidden = false;
       }
 
-      // The line of the course. A vehicle that is moving is drawn along the direction it is
-      // making good, which is not the way its nose points when the wind pushes it sideways; a
-      // vehicle that is standing still keeps its heading, with a short line, because which way
-      // it is facing is worth seeing before it moves.
-      const speed = telemetry.velocity?.groundSpeed ?? 0;
-      const moving = Number.isFinite(speed) && speed > 0.5;
-      const bearing = moving
-        ? (Math.atan2(
-            telemetry.velocity?.east ?? 0,
-            telemetry.velocity?.north ?? 0,
-          ) *
-            180) /
-          Math.PI
-        : (heading ?? 0);
-      const metres = moving ? Math.min(2_000, Math.max(60, speed * 6)) : 60;
+      // The line of the heading: the direction the nose points, not the direction the vehicle is
+      // travelling — with a wind from the side the two are not the same, and the operator wants
+      // to see both. It is short, and the same length whatever the speed.
+      const heading = telemetry.attitude?.yaw ?? 0;
+      marker.current?.setRotation(heading);
 
       const course = instance.getSource(COURSE_SOURCE);
       if (course) {
-        const line = courseLine(position.lat, position.lng, bearing, metres);
+        const line = courseLine(place.lat, place.lng, heading, 150);
         setSourceData(instance, COURSE_SOURCE, {
           type: "Feature",
           properties: {},
           geometry: { type: "LineString", coordinates: [line.start, line.end] },
+        });
+      }
+
+      // The line to the item the plan is flying to: the leg being flown now, which is what the
+      // vehicle is being steered to rather than where it happens to point.
+      const target = currentTarget(telemetry);
+      const targetSource = instance.getSource(TARGET_SOURCE);
+      if (targetSource) {
+        setSourceData(instance, TARGET_SOURCE, {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates:
+              target === null
+                ? []
+                : [
+                    [place.lng, place.lat],
+                    [target.y, target.x],
+                  ],
+          },
         });
       }
 
@@ -1839,14 +1961,16 @@ export function FlightMap() {
       </div>
 
       <p className={styles.caption}>
-        {vehicles.length > 0
-          ? t(
-              vehicles.length === 1
-                ? "{count} vehicle on the link"
-                : "{count} vehicles on the link",
-              { count: vehicles.length },
-            )
-          : t("No vehicle on the link")}
+        {linkStatus === "connected" || linkStatus === "reconnecting"
+          ? vehicles.length > 0
+            ? t(
+                vehicles.length === 1
+                  ? "{count} vehicle on the link"
+                  : "{count} vehicles on the link",
+                { count: vehicles.length },
+              )
+            : t("No vehicle on the link")
+          : null}
       </p>
     </div>
   );
