@@ -101,6 +101,15 @@ pub struct SessionOptions {
     pub poll_interval: Duration,
     /// How long to wait for a vehicle to answer during the handshake.
     pub connect_timeout: Duration,
+    /// How long a link that has heard the vehicle may stay quiet.
+    ///
+    /// A port stays open when the board stops answering — a board that was restarted, or one
+    /// that left MAVLink for its bootloader, keeps the port the operating system gave it — so
+    /// without this the reader waits for a vehicle that is no longer there, and the station goes
+    /// on saying it is connected. It is only counted once a vehicle has been heard: a station
+    /// listening on a UDP port for a vehicle that has not arrived yet has not gone quiet, it has
+    /// not started. `Duration::ZERO` turns the check off.
+    pub silence_timeout: Duration,
     /// The keys of the link, when the link is signed.
     pub signing: Option<SigningSetup>,
 }
@@ -124,6 +133,9 @@ impl Default for SessionOptions {
         Self {
             poll_interval: Duration::from_millis(10),
             connect_timeout: Duration::from_secs(30),
+            // Mission Planner treats five seconds without a heartbeat as a link that has gone.
+            // Six leaves room for a slow one without making the operator wait.
+            silence_timeout: Duration::from_secs(6),
             signing: None,
         }
     }
@@ -1440,7 +1452,27 @@ async fn run_reader(
         let read = tokio::time::timeout(options.poll_interval, transport.read(&mut buffer)).await;
 
         match read {
-            Err(_elapsed) => continue,
+            Err(_elapsed) => {
+                // A link that has heard the vehicle and then gone quiet is not a link. The port
+                // stays open because the operating system has no reason to close it, so a board
+                // that was restarted — or one that left MAVLink for its bootloader — would leave
+                // the station saying it is connected to a vehicle that is no longer speaking.
+                if !options.silence_timeout.is_zero() {
+                    if let Some(last) = context.last_packet_at {
+                        if last.elapsed() >= options.silence_timeout {
+                            tracing::warn!(
+                                silent_for = ?last.elapsed(),
+                                "the vehicle has gone quiet: the link is closed"
+                            );
+                            stopped.store(true, Ordering::Relaxed);
+                            let _ = state_tx.send(context.snapshot(false));
+                            return;
+                        }
+                    }
+                }
+
+                continue;
+            }
             Ok(Ok(0)) => {
                 // The peer closed the link cleanly. Any board output that arrived with the
                 // last read is collected before the state is published.

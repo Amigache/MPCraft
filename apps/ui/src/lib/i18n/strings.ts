@@ -1287,6 +1287,8 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Fetch the tiles": "Pedir las fichas",
     "Click the map to add a waypoint":
       "Pulsa el mapa para añadir un punto del plan",
+    "the vehicle answered {result} to {command}. The link was closed: the board is in its bootloader now.":
+      "el vehículo contestó {result} a {command}. El enlace se cerró: la placa está ya en su bootloader.",
     "The map menu": "El menú del mapa",
     "Send the vehicle here": "Mandar el vehículo aquí",
     "Add a waypoint here": "Añadir un punto del plan aquí",

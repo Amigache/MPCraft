@@ -3670,6 +3670,7 @@ name = "mpcraft-link"
 version = "0.1.4"
 dependencies = [
  "arc-swap",
+ "async-trait",
  "bytes",
  "dashmap",
  "mpcraft-dronecan",
