@@ -3,7 +3,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useLocaleStore } from "../../lib/i18n/localeStore";
-import { normaliseError, prefetchTiles } from "../../lib/ipc/bridge";
+import {
+  normaliseError,
+  prefetchTiles,
+  setHomePosition,
+} from "../../lib/ipc/bridge";
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
 import type {
   GeoPoint,
@@ -237,6 +241,16 @@ export function FlightMap() {
   } | null>(null);
 
   const [failure, setFailure] = useState<string | null>(null);
+
+  /** The menu of the map, so a press inside it is told apart from a press elsewhere. */
+  const menuElement = useRef<HTMLDivElement | null>(null);
+  /** The menu of the map: where the right button was pressed, and what is under it. */
+  const [menu, setMenu] = useState<{
+    readonly x: number;
+    readonly y: number;
+    readonly lng: number;
+    readonly lat: number;
+  } | null>(null);
 
   const t = useLocaleStore((state) => state.t);
   /**
@@ -740,6 +754,19 @@ export function FlightMap() {
       editor.addAt(event.lngLat.lat, event.lngLat.lng);
     });
 
+    // The right button opens the menu of the map at the place it was pressed. The menu is the
+    // station's: what an operator reaches for without leaving the map — send the vehicle there,
+    // add an item of the plan, move the home, centre the map, take the coordinates away.
+    instance.on("contextmenu", (event) => {
+      event.preventDefault();
+      setMenu({
+        x: event.point.x,
+        y: event.point.y,
+        lng: event.lngLat.lng,
+        lat: event.lngLat.lat,
+      });
+    });
+
     const observer = new ResizeObserver(() => {
       instance.resize();
     });
@@ -961,6 +988,40 @@ export function FlightMap() {
       install.current?.();
     });
   }, [mapProvider, sources]);
+
+  // The menu of the map closes on anything that is not the menu: a click elsewhere, or Escape.
+  // It is closed before the action is read rather than after, so an action that opens a sheet
+  // does not leave the menu behind it.
+  useEffect(() => {
+    if (menu === null) {
+      return;
+    }
+
+    const close = (event: PointerEvent) => {
+      // A press inside the menu is the operator choosing something: closing on it would take
+      // the button away before the click it belongs to arrives.
+      if (
+        event.target instanceof Node &&
+        menuElement.current?.contains(event.target)
+      ) {
+        return;
+      }
+      setMenu(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenu(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", escape);
+
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [menu]);
 
   // The mark of the vehicle, by the family it belongs to. The element is kept and only its
   // drawing is replaced, so a board that says what it is a moment after it is heard changes from
@@ -1309,6 +1370,22 @@ export function FlightMap() {
     instance.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 600 });
   }, [commands, editorOpen, plan, ready, shown]);
 
+  // The menu stays inside the map: a right click near the right or the bottom edge would
+  // otherwise open a menu that is half outside the window.
+  const menuPlacement =
+    menu === null
+      ? null
+      : {
+          left: Math.max(
+            8,
+            Math.min(menu.x, (container.current?.clientWidth ?? 0) - 232),
+          ),
+          top: Math.max(
+            8,
+            Math.min(menu.y, (container.current?.clientHeight ?? 0) - 248),
+          ),
+        };
+
   return (
     <div className={styles.map}>
       <div className={styles.canvas} ref={container} />
@@ -1387,6 +1464,106 @@ export function FlightMap() {
           {showControls ? t("Hide controls") : t("Show controls")}
         </button>
       </div>
+
+      {menu !== null && menuPlacement !== null ? (
+        <div
+          className={styles.menu}
+          style={{ left: menuPlacement.left, top: menuPlacement.top }}
+          role="menu"
+          aria-label={t("The map menu")}
+          ref={menuElement}
+        >
+          <p className={styles.menuWhere}>
+            {menu.lat.toFixed(5)}, {menu.lng.toFixed(5)}
+          </p>
+
+          {vehicles.length > 0 ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              onClick={() => {
+                const altitude = liveTelemetry.value.position?.alt ?? 0;
+                void flyTo(menu.lat, menu.lng, altitude);
+                setMenu(null);
+              }}
+            >
+              {t("Send the vehicle here")}
+            </button>
+          ) : null}
+
+          {editorOpen ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              onClick={() => {
+                usePlanEditorStore.getState().addAt(menu.lat, menu.lng);
+                setMenu(null);
+              }}
+            >
+              {t("Add a waypoint here")}
+            </button>
+          ) : null}
+
+          {vehicles.length > 0 ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              onClick={() => {
+                const altitude = liveTelemetry.value.position?.alt ?? 0;
+                void setHomePosition({
+                  lat: menu.lat,
+                  lng: menu.lng,
+                  alt: altitude,
+                });
+                setMenu(null);
+              }}
+            >
+              {t("Move the home here")}
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.menuItem}
+            onClick={() => {
+              const instance = map.current;
+              if (instance) {
+                instance.easeTo({
+                  center: [menu.lng, menu.lat],
+                  duration: 400,
+                });
+              }
+              setMenu(null);
+            }}
+          >
+            {t("Centre the map here")}
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.menuItem}
+            onClick={() => {
+              const text = `${menu.lat.toFixed(6)}, ${menu.lng.toFixed(6)}`;
+              void navigator.clipboard
+                ?.writeText(text)
+                .then(() => {
+                  setNotice(t("The coordinates were copied."));
+                })
+                .catch(() => {
+                  setNotice(t("The coordinates could not be copied."));
+                });
+              setMenu(null);
+            }}
+          >
+            {t("Copy the coordinates")}
+          </button>
+        </div>
+      ) : null}
 
       <div className={styles.messages}>
         {saving ? (

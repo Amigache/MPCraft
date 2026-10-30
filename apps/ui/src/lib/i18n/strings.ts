@@ -1287,6 +1287,15 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Fetch the tiles": "Pedir las fichas",
     "Click the map to add a waypoint":
       "Pulsa el mapa para añadir un punto del plan",
+    "The map menu": "El menú del mapa",
+    "Send the vehicle here": "Mandar el vehículo aquí",
+    "Add a waypoint here": "Añadir un punto del plan aquí",
+    "Move the home here": "Mover el origen aquí",
+    "Centre the map here": "Centrar el mapa aquí",
+    "Copy the coordinates": "Copiar las coordenadas",
+    "The coordinates were copied.": "Las coordenadas se copiaron.",
+    "The coordinates could not be copied.":
+      "Las coordenadas no se pudieron copiar.",
     "The map could not be drawn: {failure}":
       "El mapa no se pudo dibujar: {failure}",
     "The sources of tiles could not be read.":
