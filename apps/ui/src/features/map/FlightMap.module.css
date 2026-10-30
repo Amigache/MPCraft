@@ -12,21 +12,26 @@
 
 /* The vehicle: a wedge that points where the vehicle is going. */
 
+/* The vehicle.
+ *
+ * The element is an empty box on the coordinate: the drawing inside it is the shape of the
+ * family the vehicle belongs to, centred on that box, and it turns with the heading because the
+ * marker turns. One arrow for every board was the reason a rover and a quadcopter looked alike. */
 .vehicle {
   background: transparent;
+  color: var(--colour-accent);
   height: 0;
   width: 0;
 }
 
-.vehicle::before {
-  border-bottom: 9px solid var(--colour-accent);
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  content: "";
-  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
-  left: -7px;
+.vehicle svg {
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+  height: 30px;
+  left: -15px;
+  overflow: visible;
   position: absolute;
-  top: -9px;
+  top: -15px;
+  width: 30px;
 }
 
 /* An aircraft of the traffic that the vehicle has heard.

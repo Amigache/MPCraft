@@ -13,7 +13,7 @@ import type {
   PlanItem,
   Telemetry,
 } from "../../lib/ipc/types";
-import { useLinkStore } from "../../lib/link/linkStore";
+import { chosenVehicle, useLinkStore } from "../../lib/link/linkStore";
 import { useCommandStore } from "../../lib/plan/commandStore";
 import { carriesPosition, commandOf } from "../../lib/plan/planItems";
 import {
@@ -41,6 +41,7 @@ import {
   styleOf,
 } from "./providers";
 import { registerTileProtocol } from "./tiles";
+import { vehicleIcon } from "./vehicleIcons";
 import styles from "./FlightMap.module.css";
 
 /**
@@ -321,6 +322,8 @@ export function FlightMap() {
   const kind = usePlanStore((state) => state.kind);
   const plan = usePlanStore((state) => state.plans[kind]);
   const vehicles = useLinkStore((state) => state.vehicles);
+  /** The family of the vehicle the station speaks to, as the link reported it. */
+  const vehicleKind = chosenVehicle(vehicles)?.kind ?? null;
 
   const editorOpen = useUiStore((state) => state.screen === "plan");
   const draft = usePlanEditorStore((state) => state.draft);
@@ -414,6 +417,11 @@ export function FlightMap() {
 
     const vehicle = document.createElement("div");
     vehicle.className = styles.vehicle ?? "";
+    // What the board is drawn as: the family the link reported, or the delta it falls back on
+    // before a heartbeat has said what the board is.
+    vehicle.innerHTML = vehicleIcon(
+      chosenVehicle(useLinkStore.getState().vehicles)?.kind ?? null,
+    );
     // The marker is a graphic, not a control: the map library would otherwise make it
     // a button, and a button that cannot be pressed is a lie to a screen reader.
     vehicle.setAttribute("role", "presentation");
@@ -953,6 +961,16 @@ export function FlightMap() {
       install.current?.();
     });
   }, [mapProvider, sources]);
+
+  // The mark of the vehicle, by the family it belongs to. The element is kept and only its
+  // drawing is replaced, so a board that says what it is a moment after it is heard changes from
+  // the delta to its own shape without the marker being taken off the map.
+  useEffect(() => {
+    const element = marker.current?.getElement();
+    if (element) {
+      element.innerHTML = vehicleIcon(vehicleKind);
+    }
+  }, [vehicleKind]);
 
   // The position, the heading and the track, written into the map directly.
   useEffect(() => {
