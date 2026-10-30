@@ -916,9 +916,39 @@ the counts are written by the formatting module, as they are everywhere else.
 
 What the scripted peer can answer is what is asserted here: two nodes report themselves, one answers
 with what it is and the other does not, so the second reading asks and the third puts nothing on the
-wire, and the count starts again on a second link. What cannot be asserted is said rather than
-assumed: there is no physical CAN bus on this machine, so nothing here proves that a real node
-answers, and the row stays partial. The sheet is measured at 1920x1080 and at 1024x640 in Spanish.
+wire, and the count starts again on a second link.
+
+The **bus is also spoken to directly**, which is what upstream does and what the first half of this
+row did not: the station asks the vehicle to forward a CAN bus (`MAV_CMD_CAN_FORWARD`) and carries
+DroneCAN in `CAN_FRAME` messages, so a node can be read and changed rather than waited on. The
+protocol lives in `mpcraft-dronecan` — the 29-bit identifier read the way `libcanard` reads it, one
+frame for a payload of up to seven bytes and a split transfer with the checksum seeded by the type's
+signature for anything longer, and the two checksums each checked against the value its catalogue
+publishes. The five types a sheet needs are named with the signatures a second implementation
+computes from the DSDL (`pydronecan`): what a node is, its parameters, the opcode that saves them,
+and the restart. A parameter is read by index until the node stops naming them, written by name, and
+what the sheet shows after a write is what the node stored rather than what was asked — a node
+clamps, and the operator has to see what it holds.
+
+That whole way was read against a node that is not this code: `scripts/dronecan-node.py` is a
+MAVLink vehicle on a UDP port with one DroneCAN node behind a forwarded bus, written from the DSDL
+and the transport specification rather than from the Rust crate — its own bit packer, its own
+framing, its own checksum. What the area read on this machine: the node `com.example.bench` saying
+software 1:2 and hardware 4:5; three parameters (`BENCH_GAIN` 15, `BENCH_LABEL` bench, `BENCH_RATE`
+2.5); a write of `BENCH_GAIN` = 21 answered with 21 by the node; the save and the restart accepted;
+and a name the node does not hold refused rather than stored.
+
+What cannot be asserted is said rather than assumed: there is no physical CAN bus on this machine, so
+nothing here proves that a node of a real vehicle answers. The **second way in** upstream has — a
+serial port in SLCAN mode, an adapter of the Lawicel family that writes each frame as a line of text —
+is carried: `mpcraft-dronecan::slcan` writes and reads those lines (an extended frame as
+`T` with eight hexadecimal digits, the rate asked for by the code the protocol numbers, and what the
+adapter says about itself counted rather than read as traffic), and `mpcraft-app::slcan` opens a port
+with the rate and the bus command and asks a node through it. That client is tested against a scripted
+adapter — a port that answers with the lines written down before the call — and not against a real
+adapter, which this machine does not have; nor is it wired to a command or the sheet yet. The SLCAN
+path is therefore carried as a client and a codec, not as a screen. The sheet is
+measured at 1920x1080 and at 1024x640 in Spanish.
 
 La **placa Bluetooth** se alcanza por el camino que no pide un runtime: un canal serie de
 Bluetooth es una puerto COM, y los bytes los mueve el mismo código que los mueve para
@@ -1888,15 +1918,27 @@ A bootloader is not signed: it carries the three keys every ArduPilot bootloader
 operator's own after them, which is what the board checks the autopilot image with. The key is read
 from the form the published signer writes (`PRIVATE_KEYV1:` and the seed in base64) or from a PKCS#8
 PEM, and the application never writes it anywhere it was not asked to; a key it generates is written
-where the operator chose, with the public half beside it. The tests are two facts that are not this
+where the operator chose, with the public half beside it.
+
+What was signed can also be **checked**: the station reads a signed `.apj`, finds the block the way the
+signer finds it, verifies the Ed25519 signature against a public key and compares the SHA-512 it
+computes with the one the document carries. A signature that does not agree is not an error of the
+reading — the document was read and what it says does not hold — so a file that cannot be read and a
+file whose signature is wrong are two different facts, which the reader keeps apart. The public key is
+read from the form the signer writes (`PUBLIC_KEYV1:`), the same way the private one is. The tests are
+five facts: a signed document is accepted by the reader, a signature made by another key is not, a byte
+changed after signing is not, a SHA-512 edited after signing is a second thing that does not hold while
+the signature still does, and the public key survives its own form.
+
+The signing tests are two facts that are not this
 crate agreeing with itself: the seed, the public key and the signature of an empty message are the
 values RFC 8032 publishes, and the signature and the SHA-512 of the fixture are what the platform's
 own Ed25519 gives for the same bytes, so the place of the block and what is signed are checked
 against a signer that was not built from this one. What is not carried is the hosted half of
 `ConfigSecure.cs`: signing through the vendor's service needs an account and a call to a third party,
 and the offline signer makes the same document without either. And no board with secure boot was
-flashed here, because there is none on this machine, so the row stays partial: the signer is done,
-and what is left is the service and the board.
+flashed here, because there is none on this machine, so the row stays partial: the signer and the
+reader are done, and what is left is the service and the board.
 
 The **logs of a companion computer** are listed and brought over SSH now, which is what the published
 client does under the name of SCP: it opens an SFTP session, keeps the files whose name ends in `.bin`

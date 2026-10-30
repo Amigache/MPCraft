@@ -2134,6 +2134,136 @@ async fn dronecan_scan(
     state.dronecan.scan(&session, vehicle).await
 }
 
+/// Asks a node of a forwarded CAN bus what it is.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the node does not
+/// answer.
+#[tauri::command]
+async fn dronecan_node_info(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    bus: u8,
+    node: u8,
+) -> CommandResult<mpcraft_app::dronecan::NodeInfoView> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    let info = state
+        .dronecan
+        .node_info(&session, vehicle, bus, node)
+        .await?;
+
+    Ok(mpcraft_app::dronecan::NodeInfoView::of(&info))
+}
+
+/// Lists the parameters a node of a forwarded CAN bus holds.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the node does not
+/// answer.
+#[tauri::command]
+async fn dronecan_parameters(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    bus: u8,
+    node: u8,
+) -> CommandResult<Vec<mpcraft_app::dronecan::NodeParameter>> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    state
+        .dronecan
+        .parameters(&session, vehicle, bus, node)
+        .await
+}
+
+/// Writes one parameter of a node, and hands back what the node stored.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, when the node refuses the
+/// name, or when it does not answer.
+#[tauri::command]
+async fn dronecan_write_parameter(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    bus: u8,
+    node: u8,
+    name: String,
+    value: String,
+) -> CommandResult<mpcraft_app::dronecan::NodeParameter> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+    let value = mpcraft_app::dronecan::value_of(&value);
+
+    state
+        .dronecan
+        .write_parameter(&session, vehicle, bus, node, &name, value)
+        .await
+}
+
+/// Asks a node to keep what it holds across a power cycle.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the node does not
+/// answer.
+#[tauri::command]
+async fn dronecan_save_parameters(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    bus: u8,
+    node: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    state
+        .dronecan
+        .save_parameters(&session, vehicle, bus, node)
+        .await
+}
+
+/// Restarts a node of a forwarded CAN bus.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when there is no link, or when the node does not
+/// answer.
+#[tauri::command]
+async fn dronecan_restart_node(
+    state: State<'_, AppState>,
+    req: VehicleRequest,
+    bus: u8,
+    node: u8,
+) -> CommandResult<()> {
+    let vehicle = resolve_vehicle(&state, &req)?;
+    let session = state
+        .supervisor
+        .session()
+        .ok_or_else(CommandError::not_connected)?;
+
+    state
+        .dronecan
+        .restart_node(&session, vehicle, bus, node)
+        .await
+}
+
 /// Starts the relay that turns a camera stream into an MJPEG picture.
 ///
 /// # Errors
@@ -4803,6 +4933,11 @@ fn main() {
             adsb_relay_stop,
             adsb_relay_status,
             dronecan_scan,
+            dronecan_node_info,
+            dronecan_parameters,
+            dronecan_write_parameter,
+            dronecan_save_parameters,
+            dronecan_restart_node,
             video_streams,
             video_stream_start,
             video_stream_stop,

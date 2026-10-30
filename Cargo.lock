@@ -3555,6 +3555,7 @@ dependencies = [
  "getrandom 0.2.17",
  "mdns-sd",
  "mpcraft-ble",
+ "mpcraft-dronecan",
  "mpcraft-geo",
  "mpcraft-link",
  "mpcraft-log",
@@ -3644,6 +3645,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mpcraft-dronecan"
+version = "0.1.4"
+dependencies = [
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "mpcraft-geo"
 version = "0.1.4"
 dependencies = [
@@ -3663,6 +3672,7 @@ dependencies = [
  "arc-swap",
  "bytes",
  "dashmap",
+ "mpcraft-dronecan",
  "mpcraft-mavlink",
  "mpcraft-mission",
  "mpcraft-params",

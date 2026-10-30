@@ -311,6 +311,168 @@ pub fn sign_apj(document: &[u8], key: &SigningKey) -> CommandResult<SignedDocume
     })
 }
 
+/// What a check of a signed document found.
+///
+/// A signature that does not agree is not an error of the reading: the document was read, and what it
+/// says does not hold. The two are kept apart so the interface can say which one happened — a file
+/// that cannot be read is a different fact from a file whose signature is wrong.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifiedFirmware {
+    /// The number of bytes the image holds, as the document says and as it is.
+    pub image_size: usize,
+    /// Whether the signature the image carries was made by the key it was checked against.
+    pub signature_ok: bool,
+    /// Whether the SHA-512 of what was signed is the one the document carries.
+    ///
+    /// `None` when the document carries no number to compare with, which is not the same as a number
+    /// that does not match.
+    pub sha_ok: Option<bool>,
+    /// The SHA-512 of what was signed, in hexadecimal, as this crate computed it.
+    pub sha: String,
+}
+
+/// Checks the signature of a signed `.apj` against a public key.
+///
+/// The image is unpacked from the document, the block is found the way the signer finds it, and what
+/// the block says is checked: its length, the version the signature is written with, and the
+/// signature itself over everything outside the block. The SHA-512 the document carries is compared
+/// with the one computed here, so a number that was edited after signing is a second thing that does
+/// not hold rather than being taken on trust.
+///
+/// # Errors
+///
+/// Returns an error when the document cannot be read, when the image is not the length the document
+/// says, when there is no descriptor, or when the block is not the shape this format gives it.
+pub fn verify_apj(
+    document: &[u8],
+    public_key: &[u8; KEY_LENGTH],
+) -> CommandResult<VerifiedFirmware> {
+    use ed25519_dalek::{Signature, VerifyingKey};
+
+    let value: serde_json::Value = serde_json::from_slice(document).map_err(|error| {
+        CommandError::invalid_request(format!(
+            "the file is not the document of the firmware: {error}"
+        ))
+    })?;
+
+    let declared = value
+        .get("image_size")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| {
+            CommandError::invalid_request("the document says no image size".to_owned())
+        })? as usize;
+
+    let packed = value
+        .get("image")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| CommandError::invalid_request("the document carries no image".to_owned()))?;
+
+    let packed = base64_bytes(packed).map_err(|error| {
+        CommandError::invalid_request(format!("the image is not base64: {error}"))
+    })?;
+
+    let image = unpack(&packed).map_err(|error| {
+        CommandError::invalid_request(format!("the image could not be unpacked: {error}"))
+    })?;
+
+    if image.len() != declared {
+        return Err(CommandError::invalid_request(format!(
+            "the document says {declared} bytes and the image inside it holds {}",
+            image.len()
+        )));
+    }
+
+    let at = find(&image, &APJ_DESCRIPTOR).ok_or_else(|| {
+        CommandError::invalid_request(
+            "the image carries no descriptor, so it is not one this reader knows".to_owned(),
+        )
+    })?;
+
+    let block = at + APJ_DESCRIPTOR.len();
+
+    if image.len() < block + SIGNATURE_BLOCK {
+        return Err(CommandError::invalid_request(
+            "the image ends before the block the signature lives in".to_owned(),
+        ));
+    }
+
+    let length_at = block + BLOCK_LENGTH_AT;
+    let length = u32::from_le_bytes(
+        image[length_at..length_at + 4]
+            .try_into()
+            .map_err(|_| CommandError::internal("the length of the block could not be read"))?,
+    ) as usize;
+    let version = u64::from_le_bytes(
+        image[length_at + 4..length_at + 12]
+            .try_into()
+            .map_err(|_| CommandError::internal("the version of the block could not be read"))?,
+    );
+
+    if length != SIGNATURE_LENGTH + 8 || version != SIGNATURE_VERSION {
+        return Err(CommandError::invalid_request(format!(
+            "the signature block is not one this format gives: it says {length} bytes of version {version}"
+        )));
+    }
+
+    let signature_at = length_at + 12;
+    let signature: [u8; SIGNATURE_LENGTH] = image[signature_at..signature_at + SIGNATURE_LENGTH]
+        .try_into()
+        .map_err(|_| CommandError::internal("the signature could not be read"))?;
+
+    let message = signed_region(&image, block);
+    let sha = Sha512::digest(&message);
+
+    let signature_ok = VerifyingKey::from_bytes(public_key)
+        .map(|key| {
+            key.verify_strict(&message, &Signature::from_bytes(&signature))
+                .is_ok()
+        })
+        .unwrap_or(false);
+
+    let sha_ok = value
+        .get("sha")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|said| base64_bytes(said).ok())
+        .map(|said| said == sha.as_slice());
+
+    Ok(VerifiedFirmware {
+        image_size: image.len(),
+        signature_ok,
+        sha_ok,
+        sha: sha.iter().map(|byte| format!("{byte:02x}")).collect(),
+    })
+}
+
+/// Reads a public key from the form the published signer writes beside a key.
+///
+/// # Errors
+///
+/// Returns an error when the text is not that form, or when the key inside it is not thirty-two
+/// bytes.
+pub fn read_public_key(text: &str) -> CommandResult<[u8; KEY_LENGTH]> {
+    let text = text.trim();
+    let packed = text
+        .strip_prefix("PUBLIC_KEYV1:")
+        .ok_or_else(|| {
+            CommandError::invalid_request(
+                "a public key is written as PUBLIC_KEYV1: and the key in base64".to_owned(),
+            )
+        })?
+        .trim();
+
+    let bytes = base64_bytes(packed).map_err(|error| {
+        CommandError::invalid_request(format!("the public key is not base64: {error}"))
+    })?;
+
+    bytes.try_into().map_err(|_| {
+        CommandError::invalid_request(format!(
+            "a public key is {KEY_LENGTH} bytes and this one is {}",
+            packed.len()
+        ))
+    })
+}
+
 /// Writes the keys a bootloader trusts into its block.
 ///
 /// The three keys every ArduPilot bootloader carries are written first, and the operator's own key
@@ -521,6 +683,131 @@ mod tests {
 
         assert_eq!(hex(&key.public_key()), RFC_PUBLIC);
         assert_eq!(hex(&key.sign(b"")), RFC_SIGNATURE);
+    }
+
+    #[test]
+    fn a_document_the_signer_made_is_the_one_the_reader_accepts() {
+        let image = fixture_image();
+        let key = fixture_key();
+
+        let document = format!(
+            r#"{{"board_id": 9, "image_size": {}, "image": "{}"}}"#,
+            image.len(),
+            base64_text(&pack(&image).expect("the image is packed"))
+        );
+
+        let signed = sign_apj(document.as_bytes(), &key).expect("the document is signed");
+        let checked =
+            verify_apj(&signed.document, &key.public_key()).expect("the document is read");
+
+        assert!(
+            checked.signature_ok,
+            "the signature is the one this key made"
+        );
+        assert_eq!(
+            checked.sha_ok,
+            Some(true),
+            "the number the document carries is the one computed"
+        );
+        assert_eq!(checked.image_size, image.len());
+        assert_eq!(
+            checked.sha,
+            signed
+                .sha
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        );
+    }
+
+    #[test]
+    fn a_signature_made_by_another_key_is_not_accepted() {
+        let image = fixture_image();
+        let document = format!(
+            r#"{{"image_size": {}, "image": "{}"}}"#,
+            image.len(),
+            base64_text(&pack(&image).expect("the image is packed"))
+        );
+
+        let signed = sign_apj(document.as_bytes(), &fixture_key()).expect("the document is signed");
+
+        let other = SigningKey::from_seed([7_u8; 32]);
+        let checked =
+            verify_apj(&signed.document, &other.public_key()).expect("the document is read");
+
+        assert!(!checked.signature_ok, "another key did not sign this");
+    }
+
+    #[test]
+    fn an_image_changed_after_signing_is_not_accepted() {
+        let image = fixture_image();
+        let document = format!(
+            r#"{{"image_size": {}, "image": "{}"}}"#,
+            image.len(),
+            base64_text(&pack(&image).expect("the image is packed"))
+        );
+
+        let key = fixture_key();
+        let signed = sign_apj(document.as_bytes(), &key).expect("the document is signed");
+
+        // One byte of what was signed is changed, and the document is written again with the image
+        // as it now is: the signature no longer covers the bytes it says it does.
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&signed.document).expect("the signed form is a document");
+        let mut changed = unpack(
+            &base64_bytes(value["image"].as_str().expect("the image is a string"))
+                .expect("the image is base64"),
+        )
+        .expect("the image is unpacked");
+
+        let last = changed.len() - 1;
+        changed[last] ^= 0xFF;
+        let repacked = pack(&changed).expect("the image is packed again");
+        value["image"] = serde_json::Value::String(base64_text(&repacked));
+
+        let rewritten = serde_json::to_vec(&value).expect("the document is written");
+        let checked = verify_apj(&rewritten, &key.public_key()).expect("the document is read");
+
+        assert!(
+            !checked.signature_ok,
+            "the bytes are not the ones that were signed"
+        );
+    }
+
+    #[test]
+    fn a_number_edited_after_signing_is_a_second_thing_that_does_not_hold() {
+        let image = fixture_image();
+        let document = format!(
+            r#"{{"image_size": {}, "image": "{}"}}"#,
+            image.len(),
+            base64_text(&pack(&image).expect("the image is packed"))
+        );
+
+        let key = fixture_key();
+        let signed = sign_apj(document.as_bytes(), &key).expect("the document is signed");
+
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&signed.document).expect("the signed form is a document");
+        value["sha"] = serde_json::Value::String(base64_text(&[0_u8; 64]));
+
+        let rewritten = serde_json::to_vec(&value).expect("the document is written");
+        let checked = verify_apj(&rewritten, &key.public_key()).expect("the document is read");
+
+        // The signature still holds — it is over the image — and the number does not.
+        assert!(checked.signature_ok);
+        assert_eq!(checked.sha_ok, Some(false));
+    }
+
+    #[test]
+    fn a_public_key_is_read_from_the_form_the_signer_writes() {
+        let key = fixture_key();
+        let read = read_public_key(&key.public_key_dat()).expect("the key is read");
+
+        assert_eq!(read, key.public_key());
+        assert_eq!(hex(&read), RFC_PUBLIC);
+
+        assert!(read_public_key("not a key").is_err());
+        assert!(read_public_key("PUBLIC_KEYV1:AAAA").is_err());
     }
 
     #[test]

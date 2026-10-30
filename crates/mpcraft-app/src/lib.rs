@@ -69,6 +69,7 @@ pub mod plugins;
 pub mod scp;
 pub mod secure;
 pub mod signing;
+pub mod slcan;
 pub mod streams;
 pub mod supervisor;
 pub mod swarm;

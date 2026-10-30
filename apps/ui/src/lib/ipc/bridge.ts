@@ -39,6 +39,8 @@ import type {
   MavCommand,
   MirrorSpec,
   MirrorStatus,
+  NodeInfoView,
+  NodeParameter,
   NtripStatus,
   OutputFunction,
   OsdSlot,
@@ -1808,4 +1810,57 @@ export async function vehiclesDiscover(
   return call<DiscoveredVehicle[]>("vehicles_discover", {
     seconds: seconds ?? null,
   });
+}
+
+/** Asks a node of a forwarded CAN bus what it is. */
+export async function dronecanNodeInfo(
+  req: VehicleRequest,
+  bus: number,
+  node: number,
+): Promise<NodeInfoView> {
+  return call<NodeInfoView>("dronecan_node_info", { req, bus, node });
+}
+
+/** Lists the parameters a node of a forwarded CAN bus holds. */
+export async function dronecanParameters(
+  req: VehicleRequest,
+  bus: number,
+  node: number,
+): Promise<NodeParameter[]> {
+  return call<NodeParameter[]>("dronecan_parameters", { req, bus, node });
+}
+
+/** Writes one parameter of a node, and reads back what it stored. */
+export async function dronecanWriteParameter(
+  req: VehicleRequest,
+  bus: number,
+  node: number,
+  name: string,
+  value: string,
+): Promise<NodeParameter> {
+  return call<NodeParameter>("dronecan_write_parameter", {
+    req,
+    bus,
+    node,
+    name,
+    value,
+  });
+}
+
+/** Asks a node to keep what it holds across a power cycle. */
+export async function dronecanSaveParameters(
+  req: VehicleRequest,
+  bus: number,
+  node: number,
+): Promise<void> {
+  return call<void>("dronecan_save_parameters", { req, bus, node });
+}
+
+/** Restarts a node of a forwarded CAN bus. */
+export async function dronecanRestartNode(
+  req: VehicleRequest,
+  bus: number,
+  node: number,
+): Promise<void> {
+  return call<void>("dronecan_restart_node", { req, bus, node });
 }
