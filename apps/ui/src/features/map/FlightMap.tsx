@@ -31,6 +31,7 @@ import {
   onPlanScreen,
   usePlanEditorStore,
 } from "../../lib/plan/planEditorStore";
+import { insertionPoints, loiterCircles } from "../../lib/plan/overlays";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -75,6 +76,9 @@ const PLAN_SOURCE = "plan";
 
 /** The identifier of the source of the items of the plan. */
 const ITEMS_SOURCE = "plan-items";
+
+/** The identifier of the source of the circles the items of a plan fly around. */
+const PLAN_CIRCLES_SOURCE = "plan-circles";
 
 /** The identifier of the source of the polygon of a fence. */
 const FENCE_SOURCE = "fence";
@@ -201,7 +205,11 @@ const MAX_MARKERS = 150;
  * elements in the document: the map would crawl. Only the items that are in the view are
  * given a marker, and the rest are drawn when the map comes to them.
  */
-function inView(bounds: maplibregl.LngLatBounds, item: PlanItem): boolean {
+function inView(
+  bounds: maplibregl.LngLatBounds,
+  lat: number,
+  lng: number,
+): boolean {
   const west = bounds.getWest();
   const east = bounds.getEast();
   const south = bounds.getSouth();
@@ -211,10 +219,10 @@ function inView(bounds: maplibregl.LngLatBounds, item: PlanItem): boolean {
   const marginY = (north - south) * 0.25;
 
   return (
-    item.y >= west - marginX &&
-    item.y <= east + marginX &&
-    item.x >= south - marginY &&
-    item.x <= north + marginY
+    lng >= west - marginX &&
+    lng <= east + marginX &&
+    lat >= south - marginY &&
+    lat <= north + marginY
   );
 }
 
@@ -229,6 +237,8 @@ export function FlightMap() {
   const last = useRef<[number, number] | null>(null);
   const lastHome = useRef<Telemetry["home"] | undefined>(undefined);
   const items = useRef(new Map<number, ItemMarker>());
+  /** The `+` between two items, by the item the new one goes after. */
+  const inserts = useRef(new Map<number, maplibregl.Marker>());
 
   /** The markers of the traffic of the air, by the address of the aircraft. */
   const traffic = useRef(new Map<string, maplibregl.Marker>());
@@ -481,6 +491,11 @@ export function FlightMap() {
           geometry: { type: "Polygon", coordinates: [] },
         },
       });
+      instance.addSource(PLAN_CIRCLES_SOURCE, {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
       instance.addSource(CIRCLES_SOURCE, {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
@@ -549,6 +564,22 @@ export function FlightMap() {
         },
       });
 
+      // The line of the plan is drawn twice: a dark halo under a light dashed stroke. The
+      // dashes are what an operator reads as "planned, not flown" — the track is the solid
+      // line — and the halo is what keeps both of them legible over a pale map and a satellite
+      // one, which no single colour does.
+      instance.addLayer({
+        id: "plan-halo",
+        type: "line",
+        source: PLAN_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#0d1117",
+          "line-width": 4.5,
+          "line-opacity": 0.45,
+        },
+      });
+
       instance.addLayer({
         id: "plan-line",
         type: "line",
@@ -556,9 +587,24 @@ export function FlightMap() {
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": "#e6edf3",
+          "line-width": 2,
+          "line-opacity": 0.95,
+          "line-dasharray": [3, 2],
+        },
+      });
+
+      // The circles the loiter items are flown around: the radius of the turn, which is a
+      // number in the grid and a shape on the map.
+      instance.addLayer({
+        id: "plan-circles",
+        type: "line",
+        source: PLAN_CIRCLES_SOURCE,
+        layout: { "line-join": "round" },
+        paint: {
+          "line-color": "#00c896",
           "line-width": 1.5,
-          "line-opacity": 0.65,
-          "line-dasharray": [2, 2],
+          "line-opacity": 0.85,
+          "line-dasharray": [3, 2],
         },
       });
 
@@ -777,6 +823,7 @@ export function FlightMap() {
     // it has to take off.
     const markers = items.current;
     const places = poiMarkers.current;
+    const between = inserts.current;
 
     return () => {
       observer.disconnect();
@@ -786,6 +833,10 @@ export function FlightMap() {
         entry.marker.remove();
       }
       markers.clear();
+      for (const middle of between.values()) {
+        middle.remove();
+      }
+      between.clear();
       for (const place of places.values()) {
         place.remove();
       }
@@ -1143,6 +1194,25 @@ export function FlightMap() {
       });
     }
 
+    // The circles the loiter items are flown around, which are in a mission and not in a fence.
+    const planCircles = instance.getSource(PLAN_CIRCLES_SOURCE);
+    if (planCircles) {
+      setSourceData(instance, PLAN_CIRCLES_SOURCE, {
+        type: "FeatureCollection",
+        features:
+          shown.kind === "mission"
+            ? loiterCircles(shown.items, commands).map((circle) => ({
+                type: "Feature",
+                properties: { seq: circle.seq },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [circleRing({ ...circle, included: true })],
+                },
+              }))
+            : [],
+      });
+    }
+
     // The polygon of the fence, and the circles that are in it or out of it.
     const ring = shown.kind === "fence" ? ringOf(shown.items) : null;
 
@@ -1196,6 +1266,10 @@ export function FlightMap() {
         entry.marker.remove();
       }
       items.current.clear();
+      for (const marker of inserts.current.values()) {
+        marker.remove();
+      }
+      inserts.current.clear();
       return;
     }
 
@@ -1209,7 +1283,7 @@ export function FlightMap() {
       if (drawn >= MAX_MARKERS) {
         break;
       }
-      if (!inView(bounds, item)) {
+      if (!inView(bounds, item.x, item.y)) {
         continue;
       }
 
@@ -1284,11 +1358,75 @@ export function FlightMap() {
       }
     }
 
+    // The `+` between two items, the way Mission Planner puts one on every leg: a press adds a
+    // waypoint at the middle of that leg without moving anything else. They are buttons of
+    // their own rather than marks of the map, because they are pressed rather than read.
+    const seenInserts = new Set<number>();
+    let insertsDrawn = 0;
+
+    for (const place of insertionPoints(places)) {
+      if (insertsDrawn >= MAX_MARKERS) {
+        break;
+      }
+      if (!inView(bounds, place.lat, place.lng)) {
+        continue;
+      }
+
+      seenInserts.add(place.after);
+      insertsDrawn += 1;
+
+      let marker = inserts.current.get(place.after);
+      if (marker === undefined) {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = styles.insert ?? "";
+        element.textContent = "+";
+        element.title = t("Add a waypoint between the two");
+        element.setAttribute("aria-label", t("Add a waypoint between the two"));
+
+        element.addEventListener("click", (event) => {
+          event.stopPropagation();
+
+          // The place is read from the plan as it stands, not from the closure: the leg may
+          // have been dragged since this button was made.
+          const editor = usePlanEditorStore.getState();
+          const at = insertionPoints(
+            positioned(editor.draft, useCommandStore.getState().commands),
+          ).find((entry) => entry.after === place.after);
+
+          if (at === undefined) {
+            return;
+          }
+
+          editor.select(at.after);
+          editor.addAt(at.lat, at.lng);
+        });
+
+        const created = new maplibregl.Marker({
+          element,
+          anchor: "center",
+        });
+        created.setLngLat([place.lng, place.lat]);
+        created.addTo(instance);
+        inserts.current.set(place.after, created);
+        marker = created;
+      }
+
+      marker.setLngLat([place.lng, place.lat]);
+    }
+
+    for (const [after, marker] of inserts.current) {
+      if (!seenInserts.has(after)) {
+        marker.remove();
+        inserts.current.delete(after);
+      }
+    }
+
     // The operator is told when the map is not showing every item of the plan.
     usePlanEditorStore.getState().setMarked(drawn, places.length);
     // The plan on the screen is the plan being edited only while the editor is the screen that is
     // open, so the guard is part of what this callback reads.
-  }, [editorOpen]);
+  }, [editorOpen, t]);
 
   // The markers are drawn when the plan changes.
   useEffect(() => {

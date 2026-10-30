@@ -24,6 +24,38 @@
   width: 0;
 }
 
+/* The `+` between two items of the plan.
+ *
+ * Mission Planner puts one on every leg, and pressing it adds a waypoint there. It is a control
+ * rather than a mark: a circle with a border, which grows under the pointer because it is small
+ * enough to sit on a line. */
+.insert {
+  align-items: center;
+  background: rgba(13, 17, 23, 0.85);
+  border: 1px solid var(--colour-accent);
+  border-radius: 50%;
+  color: var(--colour-accent);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  transition: transform 120ms ease;
+  width: 18px;
+}
+
+.insert:hover,
+.insert:focus-visible {
+  background: var(--colour-accent);
+  color: var(--colour-accent-ink);
+  outline: none;
+  transform: scale(1.25);
+}
+
 /* The menu of the map.
  *
  * It is the station's own menu, drawn where the right button was pressed: a short list that

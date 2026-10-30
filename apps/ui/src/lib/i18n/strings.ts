@@ -1290,6 +1290,7 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The map menu": "El menú del mapa",
     "Send the vehicle here": "Mandar el vehículo aquí",
     "Add a waypoint here": "Añadir un punto del plan aquí",
+    "Add a waypoint between the two": "Añadir un punto del plan entre los dos",
     "Move the home here": "Mover el origen aquí",
     "Centre the map here": "Centrar el mapa aquí",
     "Copy the coordinates": "Copiar las coordenadas",
