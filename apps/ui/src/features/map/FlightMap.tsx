@@ -529,7 +529,15 @@ export function FlightMap() {
           geometry: { type: "LineString", coordinates: [] },
         },
       });
-      instance.addSource(COURSE_SOURCE, {
+      // The map is left where a test can reach it, in a development build only. What the map draws
+    // is a WebGL canvas, so the only way to read it from a script is to ask the map: the zoom it
+    // is at, and the features each source holds.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mpcraftMap?: maplibregl.Map }).__mpcraftMap =
+        instance;
+    }
+
+    instance.addSource(COURSE_SOURCE, {
         type: "geojson",
         data: {
           type: "Feature",
@@ -1662,14 +1670,18 @@ export function FlightMap() {
       return;
     }
 
+    // While the plan is being edited the map is where the operator put it: adding a point or
+    // dragging one is not a reason to move the view, and a map that re-framed itself on every
+    // press would zoom in and out under the hand that is drawing. The editor frames the plan
+    // once, when it opens.
     const last = fitted.current;
-    if (
-      last !== null &&
-      last.editor === editorOpen &&
-      last.count === shown.items.length &&
-      (editorOpen || last.plan === plan)
-    ) {
-      return;
+    if (last !== null && last.editor === editorOpen) {
+      if (editorOpen) {
+        return;
+      }
+      if (last.count === shown.items.length && last.plan === plan) {
+        return;
+      }
     }
 
     fitted.current = {

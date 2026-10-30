@@ -43,7 +43,9 @@ export function ServoPanel() {
   // is made only when the link is open — and then once, because the vehicle does not say what its
   // relays are on its own. What the panel draws afterwards is what the event carries.
   const status = useLinkStore((state) => state.status);
-  const open = status === "connected";
+  const vehicles = useLinkStore((state) => state.vehicles.length);
+  // The report is the vehicle's, and a port with nobody on it has none to ask for.
+  const open = status === "connected" && vehicles > 0;
 
   useEffect(() => {
     if (!open) {

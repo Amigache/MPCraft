@@ -25,7 +25,12 @@ export function App() {
   // open a moment before there is a vehicle on it, so the plan is read when the vehicle
   // appears rather than when the link opens.
   useEffect(() => {
-    if (status === "connected" && vehicles > 0 && plan === null) {
+    // An empty plan is a plan that has not been read either: a session that was opened before the
+    // vehicle answered leaves an empty plan behind, and a station that only asks once would never
+    // show what the vehicle holds.
+    const empty = plan === null || plan.items.length === 0;
+
+    if (status === "connected" && vehicles > 0 && empty) {
       void download("mission");
     }
   }, [status, vehicles, plan, download]);
