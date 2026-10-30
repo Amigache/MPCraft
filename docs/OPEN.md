@@ -50,10 +50,9 @@ client, tested against a scripted adapter.
 
 1. **A real bus.** No CAN bus or SLCAN adapter has been opened here. What the evidence proves is the
    protocol against another implementation, not that a node of a vehicle answers.
-2. **SLCAN on screen.** `crates/mpcraft-app/src/slcan.rs` opens a port and asks a node, but nothing
-   calls it: there is no command and no button. Wiring it means a `dronecan_slcan_open(port, rate)`
-   command that keeps the bus in `AppState`, the same calls the forwarded path has, and a field in the
-   sheet for the port and the rate.
+2. ~~**SLCAN on screen.**~~ It has an entry now: `dronecan_slcan_open`/`_close`/`_status` keep the bus in
+   `AppState`, the five calls have their `dronecan_slcan_*` commands, and the sheet has a section for
+   the port, the rate and the node, with the same table the forwarded bus uses.
 
 **Where.** `crates/mpcraft-dronecan/` (`can.rs`, `bits.rs`, `messages.rs`, `crc.rs`, `slcan.rs`),
 `crates/mpcraft-link/src/can.rs`, `crates/mpcraft-app/src/dronecan.rs`, `crates/mpcraft-app/src/slcan.rs`,
@@ -138,13 +137,12 @@ Apple Developer account, so it cannot be done in this repository without the ope
 
 ---
 
-## Two things that are pending in the tree itself
+## One thing still pending in the tree itself
 
-1. **The SLCAN client has no way in.** Described under 5.27: the code is there, tested, and nothing
-   calls it.
-2. **`docs/PARITY.md` mixes languages.** The rows are written in English, but several paragraphs —
-   mostly the Bluetooth and DFU ones — were written in Spanish and never translated. The project's rule
-   is English everywhere; this is a real inconsistency, not a decision.
+**`docs/PARITY.md` mixes languages.** The rows are written in English, but several paragraphs — the
+whole DFU account and the Bluetooth one — were written in Spanish and never translated. The project's
+rule is English everywhere; this is a real inconsistency, not a decision, and it is the next thing to
+close. It is text only: nothing depends on it.
 
 ---
 

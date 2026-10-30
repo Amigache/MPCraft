@@ -2264,6 +2264,96 @@ async fn dronecan_restart_node(
         .await
 }
 
+/// Opens a serial port in SLCAN mode, which is the other way to a CAN bus.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when the rate is not one the protocol numbers, when
+/// the port cannot be opened, or when the adapter cannot be written.
+#[tauri::command]
+async fn dronecan_slcan_open(
+    state: State<'_, AppState>,
+    port: String,
+    rate: u32,
+) -> CommandResult<mpcraft_app::slcan::SlcanStatus> {
+    state.slcan_open(&port, rate).await
+}
+
+/// Closes the adapter, when one is open.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn dronecan_slcan_close(state: State<'_, AppState>) -> CommandResult<()> {
+    state.slcan_close().await;
+
+    Ok(())
+}
+
+/// The adapter that is open, when one is.
+///
+/// # Errors
+///
+/// Never fails.
+#[tauri::command]
+async fn dronecan_slcan_status(
+    state: State<'_, AppState>,
+) -> CommandResult<Option<mpcraft_app::slcan::SlcanStatus>> {
+    Ok(state.slcan_status().await)
+}
+
+/// Lists a node's parameters through the adapter.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when no adapter is open, or when the node does not
+/// answer.
+#[tauri::command]
+async fn dronecan_slcan_parameters(
+    state: State<'_, AppState>,
+    node: u8,
+) -> CommandResult<Vec<mpcraft_app::dronecan::NodeParameter>> {
+    state.slcan_parameters(node).await
+}
+
+/// Writes one parameter through the adapter, and reads back what the node stored.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when no adapter is open, or when the node refuses it.
+#[tauri::command]
+async fn dronecan_slcan_write_parameter(
+    state: State<'_, AppState>,
+    node: u8,
+    name: String,
+    value: String,
+) -> CommandResult<mpcraft_app::dronecan::NodeParameter> {
+    state.slcan_write_parameter(node, &name, &value).await
+}
+
+/// Asks a node to keep what it holds, through the adapter.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when no adapter is open, or when the node does not
+/// answer.
+#[tauri::command]
+async fn dronecan_slcan_save_parameters(state: State<'_, AppState>, node: u8) -> CommandResult<()> {
+    state.slcan_save_parameters(node).await
+}
+
+/// Restarts a node, through the adapter.
+///
+/// # Errors
+///
+/// Returns a `CommandError` with a stable code when no adapter is open, or when the node does not
+/// answer.
+#[tauri::command]
+async fn dronecan_slcan_restart_node(state: State<'_, AppState>, node: u8) -> CommandResult<()> {
+    state.slcan_restart_node(node).await
+}
+
 /// Starts the relay that turns a camera stream into an MJPEG picture.
 ///
 /// # Errors
@@ -4938,6 +5028,13 @@ fn main() {
             dronecan_write_parameter,
             dronecan_save_parameters,
             dronecan_restart_node,
+            dronecan_slcan_open,
+            dronecan_slcan_close,
+            dronecan_slcan_status,
+            dronecan_slcan_parameters,
+            dronecan_slcan_write_parameter,
+            dronecan_slcan_save_parameters,
+            dronecan_slcan_restart_node,
             video_streams,
             video_stream_start,
             video_stream_stop,

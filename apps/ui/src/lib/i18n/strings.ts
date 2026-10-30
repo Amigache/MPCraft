@@ -1595,6 +1595,18 @@ const bundles: Record<Locale, Record<string, string>> = {
     "The node was asked to keep what it holds.":
       "Se pidió al nodo que conserve lo que tiene.",
     "The node was asked to restart.": "Se pidió al nodo que se reinicie.",
+    // The adapter, the other way to a CAN bus.
+    "A CAN adapter on a serial port is the other way to the bus: no vehicle has to forward it. Open the port, then read a node by its number.":
+      "Un adaptador CAN en un puerto serie es la otra forma de llegar al bus: ningún vehículo tiene que reenviarlo. Abra el puerto y lea un nodo por su número.",
+    "The port the adapter is on": "El puerto en el que está el adaptador",
+    "The rate of the bus": "La velocidad del bus",
+    "Open the adapter": "Abrir el adaptador",
+    "Close the adapter": "Cerrar el adaptador",
+    "The node to read": "El nodo que leer",
+    "Read its parameters": "Leer sus parámetros",
+    "The adapter on {port} is open at {rate} bits per second.":
+      "El adaptador de {port} está abierto a {rate} bits por segundo.",
+    "The adapter is closed.": "El adaptador está cerrado.",
     "The stream": "El canal",
   },
 };
