@@ -530,14 +530,14 @@ export function FlightMap() {
         },
       });
       // The map is left where a test can reach it, in a development build only. What the map draws
-    // is a WebGL canvas, so the only way to read it from a script is to ask the map: the zoom it
-    // is at, and the features each source holds.
-    if (import.meta.env.DEV) {
-      (window as unknown as { __mpcraftMap?: maplibregl.Map }).__mpcraftMap =
-        instance;
-    }
+      // is a WebGL canvas, so the only way to read it from a script is to ask the map: the zoom it
+      // is at, and the features each source holds.
+      if (import.meta.env.DEV) {
+        (window as unknown as { __mpcraftMap?: maplibregl.Map }).__mpcraftMap =
+          instance;
+      }
 
-    instance.addSource(COURSE_SOURCE, {
+      instance.addSource(COURSE_SOURCE, {
         type: "geojson",
         data: {
           type: "Feature",
@@ -1667,6 +1667,10 @@ export function FlightMap() {
 
     const coordinates = coordinatesOf(positioned(shown.items, commands));
     if (coordinates.length === 0) {
+      // An empty plan has nothing to frame, and the editor is marked as framed all the same: the
+      // first point the operator adds would otherwise be framed on, and the map would jump under
+      // the hand that is drawing it.
+      fitted.current = { editor: editorOpen, count: shown.items.length, plan };
       return;
     }
 
