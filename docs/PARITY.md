@@ -5,6 +5,8 @@ Feature-by-feature comparison with Mission Planner. Every upstream feature must 
 
 **Legend:** ✅ Done · 🔜 Planned (phase) · ⬜ Dropped · 🟡 Partial · 🔽 Partial, the work is under way
 
+What each row that is not closed still needs, and how to prove it when that thing is at hand, is in [docs/OPEN.md](OPEN.md).
+
 Reference: `ardupilot/MissionPlanner` at commit `82dd96d` (reviewed from `_ref_missionplanner/` on 2026-10-29;
 the earlier analysis was taken from a clone that cited `1f4a2e0`, a hash the published repository does not have).
 
