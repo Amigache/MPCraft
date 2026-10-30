@@ -406,330 +406,321 @@ The flash of a board can also be **erased**, from the same sheet: the board is a
 what it is and its memory is left clean, which is what the operator wants when the
 board does not start.
 
-La placa en su modo de recuperacion se alcanza por el protocolo DFU, y la capa que la
-alcanza es la del dispositivo: un rasgo que envia, recibe, pide una cadena y se describe,
-sin tipos del sistema operativo, porque lo que devuelve es el descriptor funcional y las
-cadenas que la interfaz ofrece — y el vinculo que llega a un bus real vive en
-`crates/mpcraft-winusb`, alcanzado desde la aplicacion detras de `hardware-tests`,
-porque una capa por debajo de la aplicacion no puede saber que WinUSB existe y porque
-`mpcraft-app` declara `forbid(unsafe_code)` mientras que las llamadas del sistema son
-funciones unsafe, lo que le da al vinculo su propio crate. El descriptor que una lectura
-publicada escribe para un STM32 es `09 21 0B FF 00 00 08 1A 01`, y ese es el literal con
-el que el area compara lo que la placa ponga en el cable cuando haya una interfaz que
-abrir; el numero que ese cuerpo guarda (`0x011a`) y el que la misma herramienta da para la
-familia (`0x0413`) son los que STM32CubeProgrammer dice de esta placa, asi que el acuerdo
-entre los dos caminos es un hecho y no una suposicion. Lo que se dijo antes sobre esa
-comparacion — que esperaba a que la placa publicara una ruta — se corrige aqui: la ruta
-existe, y no bajo la clase que el elemento dice sino bajo la interfaz estandar de WinUSB
-(`{dee824ef-729b-4a0e-9c14-b7117d33a817}`), que es justamente la que el lector publicado de
-Mission Planner (`ExtLibs/Comms/CommsWinUSB.cs`) busca junto con la clase. Con esa fila el
-area lee los nueve bytes que la placa pone en el cable y los compara con el literal de la
-lectura publicada, y el numero `0x011a` y el par de clase `0xfe`/`1` coinciden con los que
-STM32CubeProgrammer da para la misma placa.
+The board in its recovery mode is reached through the DFU protocol, and the layer that reaches it is
+the device's: a trait that sends, receives, asks for a string and describes itself, with no operating
+system types in it, because what it hands back is the functional descriptor and the strings the
+interface offers — and the binding that reaches a real bus lives in `crates/mpcraft-winusb`, reached
+from the application behind `hardware-tests`, because a layer below the application cannot know that
+WinUSB exists and because `mpcraft-app` declares `forbid(unsafe_code)` while the system calls are
+unsafe functions, which is what gives the binding a crate of its own. The descriptor a published
+reader writes for an STM32 is `09 21 0B FF 00 00 08 1A 01`, and that is the literal the area compares
+with what the board puts on the cable once there is an interface to open; the number that body carries
+(`0x011a`) and the one the same tool gives for the family (`0x0413`) are the ones STM32CubeProgrammer
+says about this board, so the agreement between the two paths is a fact and not a guess. What was said
+before about that comparison — that it waited for the board to publish a path — is corrected here: the
+path exists, and not under the class the element names but under the standard WinUSB interface
+(`{dee824ef-729b-4a0e-9c14-b7117d33a817}`), which is exactly the one Mission Planner's published reader
+(`ExtLibs/Comms/CommsWinUSB.cs`) looks for beside the class. With that row the area reads the nine
+bytes the board puts on the cable and compares them with the published literal, and the number `0x011a`
+and the class pair `0xfe`/`1` agree with the ones STM32CubeProgrammer gives for the same board.
 
-Los numeros guardados vienen de una segunda implementacion del formato
-(`scripts/check-dfu-crc.js`), escrita desde la formula publicada y no desde la lectura que
-se comprueba: `bcebc9b4` para el cuerpo del fixture y `a02b6bff` para los mismos bytes
-leidos con la regla que el espectro describe. Los dos se conservan, porque el desacuerdo
-es un hecho sobre las dos lecturas y no algo que la mano pueda cerrar; lo que este
-proyecto lleva es la primera, que es la que cuatro implementaciones escritas por caminos
-distintos escriben igual — la tabla reflejada de `crc32_table` en `src/dfu_file.c` de
-dfu-util, `tools/pydfu.py`, `dfuse-pack.py` de betaflight y el `dfu.py` de tinyusb para el
-fomu —, acumulando desde `0xFFFFFFFF` sin inversion final, mientras que la redaccion del
-espectro, con un polinomio no reflejado y inversion al final, da otro numero para los
-mismos bytes. El numero se trabaja sobre todo lo que esta delante del campo del CRC, lo
-cual incluye los once bytes del prefijo, y las cinco muestras se comparan con las dos
-tablas, que es lo que hace que una fila escrita como si las dos lecturas coincidieran sea
-un hallazgo.
+The numbers kept here come from a second implementation of the format (`scripts/check-dfu-crc.js`),
+written from the published formula rather than from the reading it checks: `bcebc9b4` for the body of
+the fixture and `a02b6bff` for the same bytes read with the rule the specification describes. Both are
+kept, because the disagreement is a fact about the two readings and not something a hand can close;
+what this project carries is the first, which is the one four implementations written along different
+roads write the same — the reflected table of `crc32_table` in dfu-util's `src/dfu_file.c`,
+`tools/pydfu.py`, betaflight's `dfuse-pack.py` and tinyusb's `dfu.py` for the fomu — accumulating from
+`0xFFFFFFFF` with no final inversion, while the wording of the specification, with a polynomial that is
+not reflected and a final inversion, gives another number for the same bytes. The number is worked over
+everything in front of the CRC field, which includes the eleven bytes of the prefix, and the five
+samples are compared with both tables, which is what makes a row written as if the two readings agreed
+a finding.
 
-La cadena de memoria se lee como la lee dfu-util: el numero hasta el primer caracter que
-no es digito, y la multiplicacion solo cuando la letra de unidad esta escrita. Lo que se
-habia dicho antes sobre las dos formas publicadas de la misma cadena — que su lectura da
-los mismos sectores para 1024K — era incorrecto y se corrige aqui: no lo da.
-`04*016Kg,01*064Kg,07*128Kg` hace los doce sectores que la geometria que el propio
-escritor de ArduPilot declara para esta familia (f405, 1024K) produce, 4 de 16K, 1 de 64K
-y 7 de 128K; `000016*1024,0001*64*1024,0007*128*1024`, leida con esa regla, reparte en 24
-tramos que suman 17 344 bytes. El desacuerdo se registra y no se cierra: la lectura de
-fwupd (`plugins/dfu/fu-dfu-target.c`) rechaza esos tokens porque pide una letra de unidad
-y un tamano entre 1 y 999, la expresion de pydfu no los lee porque pide unidad y permiso
-los dos, y aqui el token se lee y la letra que ninguno de los dos diccionarios da se
-conserva como dato, con el sector sin permiso, porque "no dicho" no es un permiso. El
-diccionario de permisos es el de las siete letras que dfu-util y fwupd escriben igual —
-`a` lee, `b` borra, `c` lee y borra, `d` escribe, `e` lee y escribe, `f` borra y escribe,
-`g` hace los tres — y las siete se comparan letra por letra contra las dos tablas
-publicadas, que es lo que permite afirmar el significado sin escribirlo dos veces. Un
-sector que no dice permiso no se borra, y esa negativa cae antes de que nada viaje por el
-cable, que es lo que el lector publicado hace con `find_segment` y `DFUSE_ERASABLE`.
+The memory string is read the way dfu-util reads it: the number up to the first character that is not a
+digit, and the multiplication only when the unit letter is written. What was said before about the two
+published forms of the same string — that reading them gives the same sectors for 1024K — was wrong and
+is corrected here: it does not. `04*016Kg,01*064Kg,07*128Kg` makes the twelve sectors the geometry
+ArduPilot's own writer declares for this family (f405, 1024K) produces, 4 of 16K, 1 of 64K and 7 of
+128K; `000016*1024,0001*64*1024,0007*128*1024`, read with that rule, is divided into 24 pieces that add
+up to 17 344 bytes. The disagreement is recorded and not closed: fwupd's reading
+(`plugins/dfu/fu-dfu-target.c`) refuses those tokens because it asks for a unit letter and a size
+between 1 and 999, pydfu's expression does not read them because it asks for a unit and a permission
+both, and here the token is read and the letter neither dictionary gives is kept as data, with the
+sector carrying no permission, because "not said" is not a permission. The dictionary of permissions is
+the one of the seven letters dfu-util and fwupd write the same — `a` reads, `b` erases, `c` reads and
+erases, `d` writes, `e` reads and writes, `f` erases and writes, `g` does all three — and the seven are
+compared letter by letter against the two published tables, which is what lets the meaning be asserted
+without writing it twice. A sector that says no permission is not erased, and that refusal falls before
+anything travels on the cable, which is what the published reader does with `find_segment` and
+`DFUSE_ERASABLE`.
 
-La orden de borrar todo es otro desacuerdo entre lecturas: dfu-util escribe el numero con
-longitud 1 para el borrado del dispositivo entero — su propio comentario dice "Mass erase
-command when length = 1" — y pydfu manda `"\x41"` solo, mientras que la lectura publicada
-de ArduPilot entiende solo la forma de cinco bytes y contesta la otra como una orden que
-no se entiende. Este codigo pone el byte solo en el cable, y el test afirma las dos
-mitades: el numero que escribe y lo que la otra lectura habria contestado con los mismos
-bytes. Lo que se afirma del estado es lo que el peer publicado implementa: la marca de
-ocupado se pone en cada peticion — no una sola vez por peer —, el primer GETSTATUS
-responde ocupado con el milimetro que esa lectura escribe y el segundo responde libre, y
-la transicion de MANIFEST_SYNC a MANIFEST ocurre al contestar y no al recibir.
+The order to erase everything is another disagreement between readings: dfu-util writes the number with
+a length of one for the erase of the whole device — its own comment says "Mass erase command when
+length = 1" — and pydfu sends `"\x41"` alone, while ArduPilot's published reading understands only the
+five-byte form and answers the other as an order it does not understand. This code puts the single byte
+on the cable, and the test asserts both halves: the number it writes and what the other reading would
+have answered with the same bytes. What is asserted about the state is what the published peer
+implements: the busy flag is set on every request — not once per peer — the first `GETSTATUS` answers
+busy with the millisecond that reading writes and the second answers free, and the move from
+`MANIFEST_SYNC` to `MANIFEST` happens on answering rather than on receiving.
 
-Lo que se lee sin placa son las reglas, y las llamadas estan separadas de ellas: el crate
-lleva el rasgo del dispositivo contestado con las llamadas del sistema detras de
-`cfg(windows)`, y lo que se afirma sin bus es como se lee la pareja (`0483:df11`, escrita
-por el entorno como el bus la escribe, porque una placa en su cargador no es una
-especificacion de conexion), como se clasifica una negativa al abrir, como se lee el
-enumerador a partir de una ruta de instancia, y el nombre del servicio detras de la clave
-de clase que hace que una interfaz sea nuestra: `SPDRP_DRIVER` dice la clave y
-`SPDRP_SERVICE` dice el servicio detras de ella, que son dos cosas distintas y una clave
-no puede ser nunca el nombre con el que la regla compara — en esta placa la clave dice
-`{88bae032-5a81-49f0-bc3d-a4ff138216d6}\0011` y el servicio dice `WinUSB`, asi que la
-regla lee el segundo. El cuarto codigo es `device_not_ours`: la placa esta y no se puede
-abrir, que es otra cosa que `device_unreachable`, y las dos se leen por caminos distintos
-— la segunda cae cuando nada presente responde, la primera
-cuando el servicio no es el nuestro, cuando el asa no se puede tomar, o cuando la instancia
-esta y no publica ninguna interfaz que se pueda leer. Un paro y otra
-negativa se parecen por este camino, asi que el vinculo dice que la interfaz rechazo la
-peticion y dice que no puede decir cual de las dos fue; el numero con que el sistema
-contesto no tiene donde viajar dentro de ese codigo, y es lo que el area viva escribe
-cuando una placa contesta, con el diccionario nombrado junto al numero porque el diccionario
-lo decide la llamada y no el numero: 13 es `ERROR_INVALID_DATA` cuando lo contesto
-`SetupDiGetClassDevsW` — que es lo que pasa cuando se le da la ruta de la instancia donde
-la llama pide el enumerador — y es `CR_NO_SUCH_DEVNODE` cuando lo contesto
-`CM_Locate_DevNodeW`, y esas son dos hechos sobre la misma placa que un verde anterior
-confundio. Un elemento se alcanza por su id con `SetupDiOpenDeviceInfoW`, que es otra lectura
-que enumerar un conjunto armado a partir de una ruta de instancia, y el numero que cada llamada
-contesta se atribuye a esa llamada dentro del codigo que lo lleva. El numero de la interfaz y el
-indice de la cadena de memoria se leen de la interfaz, que es lo que pydfu hace por
-`intf.iInterface` y no por un numero que el lector elige. Y la regla que decide que una interfaz
-es de esta clase es otra lectura que la del vinculo: pydfu pide el par 0xFE y 1, aqui se decide
-por el nombre del servicio, y las dos se comparan contra la misma placa en lugar de tratarse como
-una; una tercera lectura es lo que la declaracion de la instancia dice antes de que nada se abra,
-donde el par aparece como texto (`USB\Class_FE&SubClass_01&Prot_02`) y se lee con una regla que
-rechaza una cadena que no lo dice en lugar de inventarlo.
+What is read without a board is the rules, and the calls are kept apart from them: the crate carries
+the device trait answered with the system calls behind `cfg(windows)`, and what is asserted without a
+bus is how the pair is read (`0483:df11`, written by the environment the way the bus writes it, because
+a board in its charger is not a connection specification), how a refusal to open is classified, how the
+enumerator is read from an instance path, and the name of the service behind the class key that makes
+an interface ours: `SPDRP_DRIVER` names the key and `SPDRP_SERVICE` names the service behind it, which
+are two different things and a key can never be the name the rule compares with — on this board the key
+says `{88bae032-5a81-49f0-bc3d-a4ff138216d6}\0011` and the service says `WinUSB`, so the rule reads the
+second. The fourth code is `device_not_ours`: the board is there and cannot be opened, which is another
+thing than `device_unreachable`, and the two are read along different roads — the second falls when
+nothing present answers, the first when the service is not ours, when the handle cannot be taken, or
+when the instance is there and publishes no interface that can be read. A stall and a refusal look alike
+along this road, so the binding says that the interface refused the request and says it cannot say which
+of the two it was; the number the system answered with has nowhere to travel inside that code, and it is
+what the live area writes when a board answers, with the dictionary named beside the number because the
+call decides the dictionary and not the number: 13 is `ERROR_INVALID_DATA` when `SetupDiGetClassDevsW`
+answered it — which is what happens when it is given the instance path where the call asks for the
+enumerator — and is `CR_NO_SUCH_DEVNODE` when `CM_Locate_DevNodeW` answered it, and those are two facts
+about the same board that an earlier green confused. An element is reached by its id with
+`SetupDiOpenDeviceInfoW`, which is another reading than enumerating a set built from an instance path,
+and the number each call answers is attributed to that call inside the code that carries it. The number
+of the interface and the index of the memory string are read from the interface, which is what pydfu
+does through `intf.iInterface` and not through a number the reader chooses. And the rule that decides
+that an interface is of this class is another reading than the binding's: pydfu asks for the pair 0xFE
+and 1, here it is decided by the name of the service, and the two are compared against the same board
+rather than treated as one; a third reading is what the instance declaration says before anything is
+opened, where the pair appears as text (`USB\Class_FE&SubClass_01&Prot_02`) and is read with a rule that
+refuses a string that does not say it instead of inventing it.
 
-Lo que se dijo antes sobre dos clases se corrige aqui: no son dos nombres. El que pydfu usa para
-su filtro es el mismo que el INF de clase que Windows publica para esta familia de dispositivos
-(`c_usbdevice.inf`, leido en esta maquina) escribe como su `ClassGUID`, asi que en esta maquina hay
-un solo nombre, y el acuerdo entre el filtro y el instalador es un hecho sobre dos implementaciones
-que no se hicieron la una desde la otra. Lo que decide que exista una fila para una instancia no es
-ese nombre: es el valor que la instalacion escribe sobre la clave del dispositivo,
-`DeviceInterfaceGUIDs`. El paquete publicado para esta placa nombra el guid que escribiria
-(`{01105872-BF45-43BE-8B67-3C0F2B8CF0D9}`) y tiene una rama cuyo propio comentario dice que el
-camino generico lo salta, y esa era la rama que esta maquina tenia: la clave no llevaba el valor, y la
-lectura por `reg query` lo decia igual que la lectura del crate, que lo lee sin elevacion. Hoy la clave
-si lo lleva, porque el operador lo escribio elevando, y las dos lecturas contestan lo mismo para la misma
-clave; lo que falta ya no es el valor, y eso se dice aparte de lo que falta antes: una fila existe donde
-una interfaz fue registrada, y escribir el valor no registra nada por si mismo. Leer esa
-clave no pide privilegios; escribirla si, y por eso la puerta nombra esa escritura como lo que el
-operador pone, junto con BOOT sostenido al encender: el crate lee y no escribe. Y las dos lecturas de la
-herramienta contestan como se leyo hoy, cada una por su propio hecho: `pnputil /add-driver dfu-winusb.inf
-/install` rechazo el paquete porque un INF de otro fabricante no lleva informacion de firma digital, que es una
-regla de la herramienta sobre los paquetes de terceros y no sobre el privilegio de esta ejecucion. Un segundo intento
-sobre el mismo archivo, elevando, contesto lo mismo, asi que el rechazo se atribuye a esa regla y no a si la marca de
-firma de prueba estaba puesta: esta ejecucion no puede verla, porque `bcdedit` rechazo abrir el almacen de configuracion
-de arranque con acceso denegado al privilegio con el que corre, y lo que la herramienta conteste despues de poner la
-marca y reiniciar se registra como hecho de la herramienta. Asi que por
-este camino el archivo nombra la intencion, y lo que puede cerrar la fila sin un certificado es escribir el valor
-mismo con elevacion, o firmar el paquete, o aceptar la firma de prueba, que son tres cosas que decide el operador
-y ninguna depende de este archivo; y `pnputil /restart-device` contesto correctamente sin pedir elevacion, que es
-otra cosa que la escritura del valor: volver a enumerar una instancia no la pidio aqui, asi que cada llamada se
-nombra con su propio hecho y no con una regla sobre el proceso. Lo que la clave contesta hoy es el valor escrito,
-y las dos listas siguen dando cero filas, asi que el area sigue leyendo `device_not_ours`; lo que hace falta para
-pasar de ahi ya no es el valor sino que exista una fila — una interfaz registrada por una instalacion, que es lo que
-el valor decide bajo que nombre contesta y no lo que hace que la fila exista — y el descriptor, el indice de la
-cadena, los doce sectores y cual forma de la orden de borrado entiende este build siguen pendientes de que haya una
-fila que abrir.
+What was said before about two classes is corrected here: they are not two names. The one pydfu uses for
+its filter is the same one the class INF Windows publishes for this family of devices
+(`c_usbdevice.inf`, read on this machine) writes as its `ClassGUID`, so on this machine there is a
+single name, and the agreement between the filter and the installer is a fact about two implementations
+that were not built one from the other. What decides that a row exists for an instance is not that name:
+it is the value the installation writes on the device key, `DeviceInterfaceGUIDs`. The published
+package for this board names the guid it would write (`{01105872-BF45-43BE-8B67-3C0F2B8CF0D9}`) and has
+a branch whose own comment says the generic path skips it, and that was the branch this machine had: the
+key did not carry the value, and reading it through `reg query` said the same as the crate's reading,
+which reads it without elevation. Today the key does carry it, because the operator wrote it elevated,
+and the two readings answer the same for the same key; what is missing is no longer the value, and that
+is said apart from what was missing before: a row exists where an interface was registered, and writing
+the value registers nothing by itself. Reading that key asks for no privilege; writing it does, which is
+why the gate names that write as what the operator supplies, together with BOOT held at power-on: the
+crate reads and does not write. And the two readings of the tool answer as they were read today, each by
+its own fact: `pnputil /add-driver dfu-winusb.inf /install` refused the package because an INF from
+another vendor carries no digital signature information, which is a rule of the tool about third-party
+packages and not about the privilege of this run. A second attempt on the same file, elevated, answered
+the same, so the refusal is attributed to that rule and not to whether the test-signing mark was on:
+this run cannot see it, because `bcdedit` refused to open the boot configuration store with access denied
+at the privilege it runs with, and what the tool answers after the mark is set and the machine restarted
+is recorded as a fact of the tool. So along this road the file names the intention, and what can close
+the row without a certificate is writing the value itself with elevation, or signing the package, or
+accepting the test signature, which are three things the operator decides and none depends on this file;
+and `pnputil /restart-device` answered correctly without asking for elevation, which is another thing
+than writing the value: enumerating an instance again did not ask for it here, so each call is named
+with its own fact and not with a rule about the process. What the key answers today is the value
+written, and the two lists still give zero rows, so the area still reads `device_not_ours`; what is
+needed to get past that is no longer the value but that a row exists — an interface registered by an
+installation, which is what the value decides the name of and not what makes the row exist — and the
+descriptor, the index of the string, the twelve sectors and which form of the erase order this build
+understands are still waiting for a row to open.
 
-Y el valor se lee de dos maneras, que en el primer estado dieron cosas distintas, y por eso se conservan aparte: la
-lectura que para en el terminador dio una palabra, y la que parte por los terminadores dio una entrada con una coma
-dentro, porque la primera escritura puso los dos nombres dentro de una sola comilla en lugar de un nombre por entrada. La
-regla de forma rechaza esa entrada, que es lo que el area afirma en ese estado; para cerrar la fila hace falta el valor
-con una forma que la regla pueda leer, o una instalacion que registre la interfaz, y la forma que escribe entradas
-separadas es un nombre por entrada, como PowerShell lo da con `Set-ItemProperty ... -Value @("nombre","nombre")` elevando. El numero que la llamada contesto por el tipo es otro hecho, y es el que la puerta compara: `RegQueryValueExW`
-contesto 7, que es lo que la tabla publicada de tipos de valor da para una lista de nombres, mientras el archivo que
-el operador ejecuta escribe `0x10000`, que es como un INF escribe esa misma idea en su linea de `AddReg`; las dos son
-dos formas de decirlo, no el mismo numero, y la puerta las conserva como dos lecturas con su propia fuente.
+And the value is read two ways, which in the first state gave different things, and that is why they are
+kept apart: the reading that stops at the terminator gave one word, and the one that splits on the
+terminators gave one entry with a comma inside, because the first write put both names inside a single
+quote rather than one name per entry. The rule of shape refuses that entry, which is what the area
+asserts in that state; to close the row the value is needed with a shape the rule can read, or an
+installation that registers the interface, and the shape that writes separate entries is one name per
+entry, as PowerShell gives it with `Set-ItemProperty ... -Value @("name","name")` elevated. The number
+the call answered for the type is another fact, and it is the one the gate compares: `RegQueryValueExW`
+answered 7, which is what the published table of value types gives for a list of names, while the file
+the operator runs writes `0x10000`, which is how an INF writes that same idea on its `AddReg` line; the
+two are two ways of saying it, not the same number, and the gate keeps them as two readings with their
+own source.
 
-Y lo que la herramienta contesto cuando esa escritura se intento en esta maquina es un hecho sobre la herramienta, no
-sobre la regla: `reg add ... /d "nombre","nombre"` paso la cadena entera como dato, asi que la clave quedo con una sola
-palabra con la coma dentro. Una segunda lectura del mismo valor — la que lo lee como lista de nombres, que es lo que
-hace el lector de .NET por `GetValue` y `Get-Item`, y que no pide elevacion — dio tipo de lista y una entrada, con la
-coma dentro, que es lo mismo que dio la lectura del crate para la misma clave, asi que los dos caminos coinciden y no se
-cerraron por mano. Despues se escribio un solo nombre por entrada, que es la forma que la regla lee, y la clave
-contesto una entrada con ese nombre; lo que no llego fue el par: abria con la llave de inicio y no la cerraba, porque
-el comando que se ejecuto perdio la llave de cierre al pegarse. Con el par completo y un nombre por entrada la lectura
-que parte por los terminadores dio dos entradas, y la que para en el primer terminador dio la primera — la misma forma
-que la regla lee, leida ahora por las tres reglas como nombres; lo que no cambia es el conteo de filas, porque dos
-reinicios de la instancia contestaron correctamente sin pedir
-elevacion y las dos listas siguen dando cero filas, lo que dice que el valor no registra una interfaz: registra una
-instalacion. Los numeros que terminaron la lectura hoy son los que la puerta compara con su fuente: `RegOpenKeyExW`
-contesto 0 para la clave, `RegQueryValueExW` contesto 0 para el valor y 7 para el tipo, y `open` sigue diciendo
-`device_not_ours` antes de que nada viaje por el cable.
+And what the tool answered when that write was attempted on this machine is a fact about the tool, not
+about the rule: `reg add ... /d "name","name"` passed the whole string as data, so the key was left with
+a single word with the comma inside. A second reading of the same value — the one that reads it as a
+list of names, which is what the .NET reader does through `GetValue` and `Get-Item`, and which asks for
+no elevation — gave a list type and one entry, with the comma inside, which is the same as the crate's
+reading gave for the same key, so the two roads agree and were not closed by hand. Then one name per
+entry was written, which is the shape the rule reads, and the key answered one entry with that name;
+what did not arrive was the brace pair: it opened with the opening brace and did not close it, because
+the command that was run lost the closing brace when it was pasted. With the pair complete and one name
+per entry the reading that splits on the terminators gave two entries, and the one that stops at the
+first terminator gave the first — the same shape the rule reads, read now by the three rules as names;
+what does not change is the count of rows, because two restarts of the instance answered correctly
+without asking for elevation and the two lists still give zero rows, which says that the value does not
+register an interface: it registers an installation. The numbers that ended the reading today are the
+ones the gate compares with its source: `RegOpenKeyExW` answered 0 for the key, `RegQueryValueExW`
+answered 0 for the value and 7 for the type, and `open` still says `device_not_ours` before anything
+travels on the cable.
 
-Y hay una tercera lectura sobre esa cadena, que no es la regla de la forma escrita otra vez: el par de llaves que la
-forma de texto puede llevar, leido como hecho propio — los dos lados o ninguno. `StringFromCLSID` escribe el nombre
-con el par, y estas APIs lo imprimen sin el, mientras el lector publicado que lo interpreta (`CLSIDFromString`) acepta
-las dos formas. Por eso el par se lee antes que las cinco partes, y un nombre que abre el par sin cerrarlo se rechaza
-en lugar de inventarse: eso es lo que esta maquina contesto en el segundo estado, porque la escritura corregida dejo
-una entrada que abre el par y no lo cierra — la llave de cierre no llego a la clave — asi que la regla la rechazo y
-las dos listas siguieron dando cero filas. Con la escritura completa, que pone el par en los dos lados y un nombre por
-entrada, las entradas se leen como nombres y el conteo de filas no cambia, que es la diferencia entre una lectura que
-rechaza un texto y una que registra una interfaz. Antes de la correccion la misma clave contestaba una palabra con una
-coma dentro, que es la
-otra mitad: dos nombres en las letras y una entrada en los bytes. El area afirma las dos mitades por separado, y la
-puerta nombra su caso conocido-malo para el par: una copia que recorta la llave de apertura sin buscar la de cierre
-convierte un texto incompleto en una clase. Lo que la puerta no hace con esto lo dice su informe: lee esas tres formas
-como texto, asi que no ejecuta el modulo ni muestra lo que la maquina guardo.
+And there is a third reading of that string, which is not the rule of the shape written again: the brace
+pair the text form may carry, read as a fact of its own — both sides or neither. `StringFromCLSID`
+writes the name with the pair, and these APIs print it without, while the published reader that
+interprets it (`CLSIDFromString`) accepts both forms. That is why the pair is read before the five
+parts, and a name that opens the pair without closing it is refused rather than invented: that is what
+this machine answered in the second state, because the corrected write left an entry that opens the pair
+and does not close it — the closing brace did not reach the key — so the rule refused it and the two
+lists went on giving zero rows. With the complete write, which puts the pair on both sides and one name
+per entry, the entries are read as names and the count of rows does not change, which is the difference
+between a reading that refuses a text and one that registers an interface. Before the correction the
+same key answered one word with a comma inside, which is the other half: two names in the letters and
+one entry in the bytes. The area asserts the two halves apart, and the gate names its known-bad case for
+the pair: a copy that trims the opening brace without looking for the closing one turns an incomplete
+text into a class. What the gate does not do with this is said in its report: it reads those three forms
+as text, so it does not run the module and does not show what the machine kept.
 
-Hay un hecho mas sobre ese valor, y es el que decide lo que este programa puede alcanzar: la fila
-contesta bajo el nombre que el valor escribe, que no tiene por que ser el nombre que el elemento dice
-que su clase es, porque el vinculo lee la lista de interfaces a traves de ese ultimo (`read_element`
-usa `info.ClassGuid`). Un valor que nombra otra cadena pone una fila en la placa y deja a este programa
-contestando `device_not_ours`, porque para este vinculo la fila contesta bajo el nombre que el valor escribe
-y no bajo el par. Y el par se lee de lo que la interfaz dice sobre sí misma cuando hay una fila que abrir: lo
-que decide que la fila exista es el valor, y pydfu enumera por el nombre con el que su propia lectura busca, que
-es el guid que WinUSB usa como muestra — una tercera lectura, no la misma regla escrita dos veces —, asi que escribir
-un solo nombre sirve al camino de este programa y no dice nada sobre el otro. Lo que el area lee son las dos lecturas,
-conservadas como dos hechos: la que para en el terminador da el primer nombre, y la que parte por los terminadores da
-las entradas; en el primer estado la primera dio una palabra con la coma dentro y la segunda dio esa misma palabra como
-una sola entrada, que la regla de forma rechazo; en el segundo la clave contesto una sola entrada con un nombre que abre
-el par sin cerrarlo, que la regla del par rechaza; y hoy da dos entradas, cada una con su terminador propio y el par en
-los dos lados, que las tres reglas leen como nombres — y las dos lecturas coinciden solo en la primera, porque la que
-para en el terminador no ve la segunda, que es justamente la diferencia entre una palabra y una lista. Dos negativas
-que no se cerraron por mano, y un tercer estado que no dice nada sobre las filas. Por eso la puerta lee
-el valor como la linea lo escribe, con su par, y no a traves de un lector que lo recorta: una linea que pierde la llave
-de cierre escribe un texto que no es un nombre en ninguna de las dos lecturas, y ese es el caso conocido-malo que la
-puerta muestra disparandose sobre una copia de su propio archivo. Por eso
-el area compara las filas a traves del valor y no a traves de un nombre escrito aqui,
-y dice si los dos nombres coinciden como un dato. Por eso el archivo que el operador ejecuta elevando escribe
-`{88bae032-5a81-49f0-bc3d-a4ff138216d6}` (`scripts/dfu-winusb.inf`), escrito desde la forma que el INF
-publicado de Windows para esta familia lleva en esta maquina (`winusb.inf`, leido aqui: la misma clase y
-el mismo servicio) mas el valor, que es lo unico que este proyecto lee y no puede escribir. Los tres
-nombres siguen siendo hechos separados y no una tabla: el que pydfu filtra, que es el mismo que el
-instalador de clase escribe para esta familia; el que WinUSB usa como muestra; y el que el paquete
-publicado para esta placa nombra. Esta ejecucion contesta `False` para ser administrador, asi que esa
-escritura sigue nombrandose como lo que el operador pone.
+There is one more fact about that value, and it is the one that decides what this program can reach: the
+row answers under the name the value writes, which does not have to be the name the element says its
+class is, because the binding reads the list of interfaces through the latter (`read_element` uses
+`info.ClassGuid`). A value that names another string puts a row on the board and leaves this program
+answering `device_not_ours`, because for this binding the row answers under the name the value writes
+and not under the pair. And the pair is read from what the interface says about itself when there is a
+row to open: what decides that the row exists is the value, and pydfu enumerates by the name its own
+reading looks for, which is the guid WinUSB uses as a sample — a third reading, not the same rule
+written twice — so writing a single name serves this program's path and says nothing about the other.
+What the area reads is the two readings, kept as two facts: the one that stops at the terminator gives
+the first name, and the one that splits on the terminators gives the entries; in the first state the
+first gave one word with the comma inside and the second gave that same word as a single entry, which
+the rule of shape refused; in the second the key answered a single entry with a name that opens the pair
+without closing it, which the rule of the pair refuses; and today it gives two entries, each with its own
+terminator and the pair on both sides, which the three rules read as names — and the two readings agree
+only on the first, because the one that stops at the terminator does not see the second, which is
+exactly the difference between one word and a list. Two refusals that were not closed by hand, and a
+third state that says nothing about the rows. That is why the gate reads the value as the line writes
+it, with its pair, and not through a reader that trims it: a line that loses the closing brace writes a
+text that is not a name in either reading, and that is the known-bad case the gate shows firing on a
+copy of its own file. That is why the area compares the rows through the value and not through a name
+written here, and says whether the two names agree as a datum. That is why the file the operator runs
+elevated writes `{88bae032-5a81-49f0-bc3d-a4ff138216d6}` (`scripts/dfu-winusb.inf`), written from the
+form the published Windows INF for this family carries on this machine (`winusb.inf`, read here: the
+same class and the same service) plus the value, which is the one thing this project reads and cannot
+write. The three names remain separate facts and not a table: the one pydfu filters by, which is the
+same the class installer writes for this family; the one WinUSB uses as a sample; and the one the
+published package for this board names. This run answers `False` to being an administrator, so that
+write is still named as what the operator supplies.
 
-El area viva (`crates/mpcraft-app/tests/dfu_live.rs`, detras de `hardware-tests` y `windows`)
-afirma cada mitad por sus propios hechos y no por un resultado esperado: el registro conserva
-cinco filas para `USB\VID_0483&PID_DF11` y hoy una de ellas contesta como estando — la que la
-placa pone ahora en el cable, `USB\VID_0483&PID_DF11\3357316C3536` — mientras las otras cuatro
-responden `CR_NO_SUCH_DEVNODE` (13), porque recordar no es estar: `CM_Get_Device_ID_ListW` da las
-filas que el registro tiene y la presencia se decide con `CM_Locate_DevNodeW`, que es lo que
-separa las dos lecturas y lo que el area afirma fila por fila. Una segunda lectura del mismo
-registro, la propiedad que Windows expone por WMI, da las mismas cinco filas, asi que el conteo no
-depende del camino por el que se lee, y esa lectura dice `Status OK` para la fila que hoy esta, con
-el nombre que el elemento lleva: `STM32  BOOTLOADER`. Lo que el elemento contesta por su id es lo
-que el area compara, y alli la clave de clase `{88bae032-5a81-49f0-bc3d-a4ff138216d6}\0011` y el
-servicio `WinUSB` son dos nombres del mismo hecho: la regla lee el segundo, y el nombre que el
-elemento dice que su clase es es el que el instalador de clase escribe, que es el mismo nombre con
-el que pydfu filtra. La declaracion del elemento lleva el par 0xFE y 1 como texto, que es la
-tercera lectura y coincide con el par que el filtro publicado pide aunque por otro camino. El area
-lee tambien el valor que la instalacion dejo en la clave del dispositivo y afirma la regla que lo
-une con la fila, no un resultado esperado, en tres estados: si no hay valor, las dos lecturas de la lista tienen que
-dar cero filas; si lo hay y se lee como la forma, la fila se lee a traves del nombre que ese valor escribe y no a
-traves de un nombre elegido aqui; y si el valor esta pero no se lee como la forma, lo que se afirma es la negativa del
-lector. La clave contesto los tres estados en este orden: primero una palabra con una coma dentro, porque la primera
-escritura puso dos nombres dentro de una sola comilla, que la regla de forma rechazo; luego una sola entrada que abria
-el par sin cerrarlo; y hoy dos entradas, cada una con su terminador propio y el par en los dos lados, que las tres
-reglas leen como nombres, y el area dice como dato cual de las dos coincide con el nombre que el elemento dice que su
-clase es y cual nombra el guid que WinUSB usa como muestra — dos hechos, no el mismo. Lo que no cambio en ninguno de
-los tres estados es el conteo bajo esos dos nombres: las dos listas dieron cero, que es lo que `reg query` sigue
-diciendo para la misma clave, y eso es lo que dice que escribir el valor no registra una interfaz bajo el nombre que
-el valor escribe. Lo que este cambio encontro es la tercera lectura que el conteo escondia: la instalacion habia
-registrado la interfaz bajo `{dee824ef-...}`, la que el lector publicado busca, y por eso una lista que preguntaba
-solo por la clase y por el nombre de muestra daba cero filas para una placa que estaba y contestaba. Lo que el conteo
-de entradas puede decir se conserva con los numeros que lo terminaron: `RegOpenKeyExW` contesto 0 para la clave y
-`RegQueryValueExW` contesto 0 para el valor y 7 para el tipo, los dos por el diccionario Win32 que este vinculo nombra
-para esas llamadas y no por el de Config Manager; el numero 7 es lo que la tabla publicada da para una lista de nombres
-mientras el archivo del operador escribe `0x10000`, asi que las dos formas se conservan como dos lecturas con su
-fuente. Y una fila existe donde una interfaz fue registrada, no donde un valor fue escrito, asi que el area imprime
-los conteos como respuestas y afirma la regla en lugar de afirmar un resultado.
+The live area (`crates/mpcraft-app/tests/dfu_live.rs`, behind `hardware-tests` and `windows`) asserts
+each half by its own facts and not by an expected result: the registry keeps five rows for
+`USB\VID_0483&PID_DF11` and today one of them answers as being there — the one the board puts on the
+cable now, `USB\VID_0483&PID_DF11\3357316C3536` — while the other four answer `CR_NO_SUCH_DEVNODE` (13),
+because remembering is not being: `CM_Get_Device_ID_ListW` gives the rows the registry has and presence
+is decided with `CM_Locate_DevNodeW`, which is what separates the two readings and what the area asserts
+row by row. A second reading of the same registry, the property Windows exposes through WMI, gives the
+same five rows, so the count does not depend on the road it is read by, and that reading says
+`Status OK` for the row that is there today, with the name the element carries: `STM32  BOOTLOADER`.
+What the element answers by its id is what the area compares, and there the class key
+`{88bae032-5a81-49f0-bc3d-a4ff138216d6}\0011` and the service `WinUSB` are two names of the same fact:
+the rule reads the second, and the name the element says its class is is the one the class installer
+writes, which is the same name pydfu filters by. The element's declaration carries the pair 0xFE and 1
+as text, which is the third reading and agrees with the pair the published filter asks for although
+along another road. The area also reads the value the installation left on the device key and asserts
+the rule that joins it to the row, not an expected result, in three states: if there is no value, both
+readings of the list have to give zero rows; if there is one and it is read as the shape, the row is
+read through the name that value writes and not through a name chosen here; and if the value is there
+but is not read as the shape, what is asserted is the reader's refusal. The key answered the three
+states in this order: first one word with a comma inside, because the first write put two names inside a
+single quote, which the rule of shape refused; then a single entry that opened the pair without closing
+it; and today two entries, each with its own terminator and the pair on both sides, which the three
+rules read as names, and the area says as a datum which of the two agrees with the name the element says
+its class is and which names the guid WinUSB uses as a sample — two facts, not the same. What did not
+change in any of the three states is the count under those two names: both lists gave zero, which is
+what `reg query` still says for the same key, and that is what says that writing the value does not
+register an interface under the name the value writes. What this change found is the third reading the
+count was hiding: the installation had registered the interface under `{dee824ef-...}`, the one the
+published reader looks for, which is why a list that asked only by the class and by the sample name gave
+zero rows for a board that was there and answering. What the count of entries can say is kept with the
+numbers that ended it: `RegOpenKeyExW` answered 0 for the key and `RegQueryValueExW` answered 0 for the
+value and 7 for the type, both through the Win32 dictionary this binding names for those calls and not
+through the Config Manager one; the number 7 is what the published table gives for a list of names while
+the operator's file writes `0x10000`, so the two forms are kept as two readings with their own source.
+And a row exists where an interface was registered, not where a value was written, so the area prints
+the counts as answers and asserts the rule instead of asserting a result.
 
-Lo que se lee hoy por este vinculo, con la placa en su modo de recuperacion, es lo que el
-area viva afirma como hecho de la placa y no como resultado esperado: la instancia esta y su
-servicio es el nuestro; la instalacion registro una fila bajo la interfaz estandar de WinUSB
-(`{dee824ef-...}`) y otra bajo la del paquete publicado (`{01105872-...}`), mientras la clase
-que el elemento dice y el nombre que WinUSB usa como muestra dan cero; el vinculo abre la
-primera fila que `WinUsb_Initialize` acepta, que es la estandar; los nueve bytes del
-descriptor funcional (`09 21 0B FF 00 00 08 1A 01`) son los del literal publicado, y el area
-los compara con el; el par que las opciones de la interfaz dicen es `0xfe`/`1`, y el numero
-de version `0x011a` es el que STM32CubeProgrammer da para esta placa; la cadena de la
-interfaz es `@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg`, que hace los doce
-sectores y el megabyte entero que el escritor de ArduPilot declara para esta familia; y el
-estado, despues de la orden de abortar, es `dfuIDLE` con estado `OK`.
+What is read today through this binding, with the board in its recovery mode, is what the live area
+asserts as a fact of the board and not as an expected result: the instance is there and its service is
+ours; the installation registered one row under the standard WinUSB interface (`{dee824ef-...}`) and
+another under the published package's (`{01105872-...}`), while the class the element names and the name
+WinUSB uses as a sample give zero; the binding opens the first row `WinUsb_Initialize` accepts, which is
+the standard one; the nine bytes of the functional descriptor (`09 21 0B FF 00 00 08 1A 01`) are the
+ones of the published literal, and the area compares them with it; the pair the interface's options say
+is `0xfe`/`1`, and the version number `0x011a` is the one STM32CubeProgrammer gives for this board; the
+interface's string is `@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg`, which makes the twelve
+sectors and the whole megabyte ArduPilot's writer declares for this family; and the state, after the
+abort order, is `dfuIDLE` with state `OK`.
 
-Esa lectura tiene tres hechos que se conservan porque no son el mismo: la peticion directa
-del descriptor (`GET_DESCRIPTOR`, valor `0x2100`) es rechazada por esta placa, asi que los
-nueve bytes se leen del descriptor de configuracion, que es donde el lector publicado los
-busca; la cadena se pide con el idioma que la propia cadena cero declara, porque pedirla con
-un numero elegido aqui seria una suposicion; y la peticion de estado que sigue a una lectura
-deja la placa en `dfuUPLOAD-IDLE`, que no es el estado desde el que se escribe, asi que el
-area aborta antes de afirmar `dfuIDLE`. Un descriptor de cadena se lee desde el byte dos, sin
-un idioma delante: la regla anterior saltaba dos bytes como si toda cadena llevara uno, y eso
-borraba el primer caracter — el `@` de esta misma cadena —, que es el defecto que este cambio
-corrige y que el peer escrito desde la lectura publicada tambien llevaba.
+That reading has three facts that are kept because they are not the same: the direct request for the
+descriptor (`GET_DESCRIPTOR`, value `0x2100`) is refused by this board, so the nine bytes are read from
+the configuration descriptor, which is where the published reader looks for them; the string is asked for
+with the language string zero itself declares, because asking for it with a number chosen here would be a
+guess; and the state request that follows a reading leaves the board in `dfuUPLOAD-IDLE`, which is not the
+state it is written from, so the area aborts before asserting `dfuIDLE`. A string descriptor is read from
+byte two, with no language in front of it: the earlier rule skipped two bytes as if every string carried
+one, and that erased the first character — the `@` of this very string —, which is the defect this change
+corrects and which the peer written from the published reading also carried.
 
-La mitad que borra y escribe corrio contra esta placa y es lo que cierra la fila: el area toma el
-documento que el manifiesto publica para la placa — `Plane/stable-4.7.1/MatekF405/arduplane.apj`,
-923 452 bytes —, encuentra el lugar donde la placa lo tenia leyendo su propia flash, que es
-`0x08010000` y no el comienzo del mapa, porque el bootloader vive al principio; borra los ocho
-sectores que toca, escribe 451 bloques de 2048 bytes y contesta el cierre. La placa salio del
-bootloader, enumero como `ArduPilot (COM39)` (`1209:5741`, servicio `usbser`) y puso un latido en
-el cable cuyo CRC cuadra con el que la regla del protocolo da para esos bytes, que es el mismo
-hecho leido por los dos caminos. Lo que se corrige de lo dicho antes es que la imagen no era
-`fmuv3` — su build de Plane pesa 1 535 384 bytes, mas que el megabyte que esta placa tiene — sino
-la de `MatekF405`, que es la que la placa tenia: el vector que se leyo en `0x08010000` antes de
-borrar coincide con el del documento, y el `board_version` que la placa decia cuando corria
-(`9 << 16`) es el numero de la familia de la placa, no el `board_id` del documento.
+The half that erases and writes ran against this board and is what closes the row: the area takes the
+document the manifest publishes for the board — `Plane/stable-4.7.1/MatekF405/arduplane.apj`, 923 452
+bytes —, finds the place the board had it by reading its own flash, which is `0x08010000` and not the
+beginning of the map, because the bootloader lives at the start; erases the eight sectors it touches,
+writes 451 blocks of 2048 bytes and answers the close. The board left the bootloader, enumerated as
+`ArduPilot (COM39)` (`1209:5741`, service `usbser`) and put a heartbeat on the cable whose CRC squares
+with the one the protocol's rule gives for those bytes, which is the same fact read along both roads.
+What is corrected from what was said before is that the image was not `fmuv3` — its Plane build weighs
+1 535 384 bytes, more than the megabyte this board has — but the `MatekF405` one, which is the one the
+board had: the vector read at `0x08010000` before erasing agrees with the document's, and the
+`board_version` the board said while it ran (`9 << 16`) is the number of the board's family, not the
+document's `board_id`.
 
-Lo que sigue sin afirmarse se dice en lugar de suponerse: poner la placa en su modo de
-recuperacion no lo hace esta area, porque se alcanza sosteniendo BOOT al encender, y la orden que
-la sostiene desde la aplicacion entra en el bootloader de ArduPilot, que no enumera como
-`0483:df11`; la puerta lo nombra como lo que el operador pone. La orden de borrar todo se compara
-con la placa solo cuando `MPCRAFT_DFU_ALLOW_ERASE` esta, y el area imprime que no se pidio. Un
-solo proceso tiene el dispositivo a la vez, por eso el area corre sola y las comparaciones con
-STM32CubeProgrammer van de una en una. La pareja la nombra el entorno (`MPCRAFT_DFU_TARGET`) y la
-imagen la nombra `MPCRAFT_DFU_IMAGE`; el lugar lo nombra `MPCRAFT_DFU_ADDRESS` cuando la placa no
-es esta, y sin el se usa el que esta placa mostro.
+What is still not asserted is said rather than assumed: putting the board in its recovery mode is not
+done by this area, because it is reached by holding BOOT at power-on, and the order that holds it there
+from the application enters ArduPilot's bootloader, which does not enumerate as `0483:df11`; the gate
+names it as what the operator supplies. The order to erase everything is compared with the board only
+when `MPCRAFT_DFU_ALLOW_ERASE` is set, and the area prints that it was not asked for. A single process
+holds the device at a time, which is why the area runs alone and the comparisons with STM32CubeProgrammer
+go one at a time. The environment names the pair (`MPCRAFT_DFU_TARGET`) and `MPCRAFT_DFU_IMAGE` names the
+image; `MPCRAFT_DFU_ADDRESS` names the place when the board is not this one, and without it the one this
+board showed is used.
 
-La fila de la puerta para ese area nombra su sustituto — el peer escrito desde la lectura
-publicada en `crates/mpcraft-app/tests/dfu.rs`, que contesta las peticiones sin ser una
-placa que las decida — y el control lo lee con un transcripto donde la mitad de las pruebas
-del vinculo paso y el area de la placa fallo, con las dos mitades leidas como sus propios
-informes, que es lo que hace que un verde del vinculo no valga por un area que no alcanzo
-ninguna placa.
+The gate's row for that area names its stand-in — the peer written from the published reading in
+`crates/mpcraft-app/tests/dfu.rs`, which answers the requests without being a board that decides them —
+and the control reads it with a transcript where the binding's half of the tests passed and the board's
+area failed, the two halves read as their own reports, which is what makes a green of the binding not
+stand for an area that reached no board.
 
-Lo que el peer no puede afirmar se dice en lugar de suponerse: detras de `tests/dfu.rs` no
-hay un bus, asi que lo que ese archivo prueba es la forma — el descriptor, la cadena, la
-maquina de estados, la regla del bloque y las negativas antes de enviar — respondida por
-un peer escrito desde la lectura publicada, no que una placa real conteste esas peticiones;
-esa mitad vive detras de `hardware-tests`, donde la placa decide cual de las dos formas de
-la orden de borrado entiende. La puerta (`scripts/check-dfu-crc.js`) nombra su caso
-conocido-malo (`scripts/check-dfu-crc-controls.js`: un literal que no coincide con su
-propia tabla, una pareja escrita como si las dos lecturas coincidieran, un escritor cuyo
-tamano del objetivo va sin su prefijo, un valor nombrado como si el nombre que la puerta lee a
-traves del elemento fuera el mismo hecho —que es el estado que este cambio encontro—, una
-declaracion de clase que nombra otro string, un archivo que declara clase y no escribe nada, un valor escrito
-como una palabra cuando el registro guarda una lista de nombres, las dos formas de decir ese tipo escritas como
-el mismo numero cuando son dos lecturas con fuentes distintas, la lectura que reparte los tramos por otra marca que
-los terminadores, y la lectura que dice la palabra sin pararse en su primer terminador, una copia que recorta la llave
-de apertura sin buscar la de cierre —que leeria una clase donde el valor no dijo una—, una linea del archivo del
-operador que abre el par sin cerrarlo, el par del filtro escrito
-como si decidiera las dos reglas cuando aqui se decide por el servicio, y un limite que nombra los numeros y el
-escritor pero no el archivo que lee como texto)
-y lo que no alcanza: lee los literales como texto, no ejecuta el modulo, y la comparacion entre
-la regla del codigo y estas tablas es lo que el test del propio modulo lleva; y lee el archivo del
-operador como texto, asi que no muestra que una instalacion elevada escriba el valor ni que la fila
-conteste despues de escribirlo. Y la copia de la forma que el area viva lleva no la lee
-esa puerta, que lee los literales de `tests/dfu.rs`: lo que el area compara es lo que la
-placa pone en el cable contra lo que la lectura publicada escribe, y eso se sabe solo
-cuando una placa contesta. La regla que reparte los tramos se afirma aparte, en
-`crates/mpcraft-winusb/tests/values.rs`, contra bytes escritos antes de llamarla: en el primer estado dio una
-entrada con una coma dentro, que la regla de forma rechaza, mientras la misma lectura con un nombre por entrada da dos;
-y en ese mismo archivo el par de llaves se afirma contra tres nombres escritos antes de llamarlo — el par puesto, el
-par ausente, y el par abierto sin cerrar — que es lo que la puerta lee como texto sin ejecutar el modulo. El desacuerdo
-entre las dos formas de decir el tipo se conserva como un hecho en ese archivo. Por eso la fila esta cerrada: la
-placa contesto la lectura, se borro, se escribio y volvio a hablar como vehiculo.
+What the peer cannot assert is said rather than assumed: behind `tests/dfu.rs` there is no bus, so what
+that file proves is the shape — the descriptor, the string, the state machine, the rule of the block and
+the refusals before sending — answered by a peer written from the published reading, not that a real
+board answers those requests; that half lives behind `hardware-tests`, where the board decides which of
+the two forms of the erase order it understands. The gate (`scripts/check-dfu-crc.js`) names its
+known-bad case (`scripts/check-dfu-crc-controls.js`: a literal that does not match its own table, a pair
+written as if the two readings agreed, a writer whose target size goes without its prefix, a value named
+as if the name the gate reads through the element were the same fact — which is the state this change
+found —, a class declaration that names another string, a file that declares a class and writes nothing,
+a value written as one word when the registry keeps a list of names, the two ways of saying that type
+written as the same number when they are two readings with different sources, the reading that divides
+the pieces by another mark than the terminators, and the reading that says the word without stopping at
+its first terminator, a copy that trims the opening brace without looking for the closing one — which
+would read a class where the value did not say one —, a line of the operator's file that opens the pair
+without closing it, the filter's pair written as if it decided both rules when here it is decided by the
+service, and a limit that names the numbers and the writer but not the file it reads as text) and what
+it does not reach: it reads the literals as text, does not run the module, and the comparison between the
+rule in the code and these tables is what the module's own test carries; and it reads the operator's file
+as text, so it does not show that an elevated installation writes the value or that the row answers after
+it is written. And the copy of the shape the live area carries is not read by that gate, which reads the
+literals of `tests/dfu.rs`: what the area compares is what the board puts on the cable against what the
+published reading writes, and that is known only when a board answers. The rule that divides the pieces
+is asserted apart, in `crates/mpcraft-winusb/tests/values.rs`, against bytes written before it is called:
+in the first state it gave one entry with a comma inside, which the rule of shape refuses, while the same
+reading with one name per entry gives two; and in that same file the brace pair is asserted against three
+names written before it is called — the pair present, the pair absent, and the pair opened without
+closing — which is what the gate reads as text without running the module. The disagreement between the
+two ways of saying the type is kept as a fact in that file. That is why the row is closed: the board
+answered the reading, was erased, written and spoke as a vehicle again.
 
 The **files of the vehicle** are read from the File menu: the vehicle holds a filesystem
 of its own, and the file transfer protocol is how a program reaches it. The folders are
@@ -952,110 +943,104 @@ adapter, which this machine does not have; nor is it wired to a command or the s
 path is therefore carried as a client and a codec, not as a screen. The sheet is
 measured at 1920x1080 and at 1024x640 in Spanish.
 
-La **placa Bluetooth** se alcanza por el camino que no pide un runtime: un canal serie de
-Bluetooth es una puerto COM, y los bytes los mueve el mismo código que los mueve para
-cualquier otra puerto, porque la pertenencia no cambia lo que viaja. Lo que decide qué fila
-pertenece a Bluetooth son tres hechos, cada uno con una fuente publicada que no es este
-archivo: `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM` es lo que un lector lee para listar puertos —
-el `SerialPort` de Microsoft lo abre (`System/sys/system/IO/ports/SerialPort.cs`) —, así que una
-fila es siempre el nombre del dispositivo y el puerto que contesta; la pertenencia viene del
-**prefijo** que el servicio RFCOMM escribe en ese mapa y del servicio que la instalación ligó a
-la instancia (`BTHMODEM`, como las listas publicadas lo escriben), y no de la clase, porque una
-fila serie no dice la clase Bluetooth: dice la clase Ports
-(`{4d36e978-e325-11ce-bfc1-08002be10318}`), y una fila de manos libres dice la clase audio
-(`{4d36e97d-e325-11ce-bfc1-08002be10318}`) con otro servicio detrás (`BthHFEnum`), así que una
-regla que decidiera por la clase no diría nada sobre los puertos que le preguntaron; y el
-perfil que lleva la corriente es `00001101-…` (zephyr lo nombra en su propia ayuda de SPP),
-mientras las filas de esta máquina contestan perfiles de audio, AVRCP y manos libres, que no
-llevan corriente. SuperCollider muestra por qué el prefijo completo es la regla: su parser casa
-cualquier nombre de puerto, así que un par virtual nombrado `com0comBluetooth0` sería leído como
-fila de Bluetooth por una comparación más floja, y aquí se rechaza. Un grupo de ceros no nombra
-nada: es lo que una instalación deja donde nada se escribió, no un valor que la máquina decidió,
-y esta máquina muestra las dos mitades de una misma fila a la vez — `LOCALMFG&0000` junto a doce
-ceros para la fila que da COM41 —, así que la lectura rechaza en lugar de inventar una dirección,
-con su propio código (`bluetooth_no_device_named`), que dice algo distinto de
-`bluetooth_row_not_the_shape`: una cosa es una fila que la máquina presenta sin dispositivo
-detrás y otra es un texto que el lector no puede leer; y las dos negativas caen antes de que nada
-viaje por el cable, que es lo que el peer scriptado muestra, porque nada viajó antes de la
-lectura.
+The **Bluetooth board** is reached by the path that needs no runtime: a Bluetooth serial channel is a
+COM port, and the bytes are moved by the same code that moves them for any other port, because
+belonging to Bluetooth does not change what travels. What decides which row belongs to Bluetooth is
+three facts, each with a published source that is not this file: `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`
+is what a reader reads to list ports — Microsoft's `SerialPort` opens it
+(`System/sys/system/IO/ports/SerialPort.cs`) — so a row is always the device name and the port that
+answers; the belonging comes from the **prefix** the RFCOMM service writes in that map and from the
+service the installation bound to the instance (`BTHMODEM`, as the published lists write it), and not
+from the class, because a serial row does not say the Bluetooth class: it says the Ports class
+(`{4d36e978-e325-11ce-bfc1-08002be10318}`), and a hands-free row says the audio class
+(`{4d36e97d-e325-11ce-bfc1-08002be10318}`) with another service behind it (`BthHFEnum`), so a rule
+that decided by class would say nothing about the ports it was asked about; and the profile that
+carries current is `00001101-…` (zephyr names it in its own SPP help), while this machine's rows
+answer audio, AVRCP and hands-free profiles, which carry none. SuperCollider shows why the whole
+prefix is the rule: its parser matches any port name, so a virtual pair named `com0comBluetooth0`
+would be read as a Bluetooth row by a looser comparison, and it is refused here. A group of zeros names
+nothing: it is what an installation leaves where nothing was written, not a value the machine decided,
+and this machine shows both halves of one row at once — `LOCALMFG&0000` beside twelve zeros for the row
+that gives COM41 — so the reading refuses rather than inventing an address, with its own code
+(`bluetooth_no_device_named`), which says something different from `bluetooth_row_not_the_shape`: one
+thing is a row the machine presents with no device behind it and the other is a text the reader cannot
+read; and both refusals fall before anything travels on the cable, which is what the scripted peer
+shows, because nothing travelled before the reading.
 
-El área viva (`crates/mpcraft-app/tests/bluetooth_live.rs`, detrás de `hardware-tests` y
-`windows`) lee lo que la máquina contesta hoy, y cada estado se sostiene como dato en lugar de
-afirmar un resultado esperado: el mapa contestó siete filas y dos llevan el prefijo del servicio
-(`\Device\BthModem0` = COM40 para el módulo Matek, `\Device\BthModem1` = COM41), con los números
-atribuidos a la llamada que los contestó a través del diccionario de esa llamada —
-`RegOpenKeyExW` dio 0 para la clave y `RegEnumValueW` dio 259 (no hay más elementos) al final del
-bucle, los dos por el diccionario Win32, que es el que este vínculo nombra para esas llamadas y
-no para las `CM_*` —, así que un conteo no vale solo: lo que terminó la lista se conserva con él y
-un paro por el propio límite (512) se dice como hueco. Para la instancia que el entorno nombra
-(`MPCRAFT_BT_ROW`) la máquina escribe `ClassGUID` `{4d36e978-e325-11ce-bfc1-08002be10318}` y
-`Service` `BTHMODEM`, que es el nombre que las listas publicadas escriben, y el nombre de clase
-que `tdibth.inf` lee en esta máquina es el mismo que Microsoft usa como
-`System.Devices.Aep.ProtocolId` en su propio ejemplo de enumeración: dos implementaciones que no
-se hicieron la una desde la otra, así que el acuerdo entre los dos caminos es un hecho y no una
-regla escrita dos veces. Bajo ese nombre la instancia publica cero filas, que es lo que se espera
-cuando la instalación no escribió el valor que decide que una fila exista, y aquí se lee sin
-elevación porque leer una clave de dispositivo no la pide; escribir esa clave sí la pide, y por eso
-la puerta nombra esa escritura como lo que el operador pone.
+The live area (`crates/mpcraft-app/tests/bluetooth_live.rs`, behind `hardware-tests` and `windows`)
+reads what the machine answers today, and each state is held as data rather than as an expected
+result: the map answered seven rows and two carry the service prefix (`\Device\BthModem0` = COM40 for
+the Matek module, `\Device\BthModem1` = COM41), with the numbers attributed to the call that answered
+them through that call's dictionary — `RegOpenKeyExW` gave 0 for the key and `RegEnumValueW` gave 259
+(no more items) at the end of the loop, both through the Win32 dictionary, which is the one this
+binding names for those calls and not for the `CM_*` ones — so a count does not stand alone: what ended
+the list is kept with it, and a stop at the bound itself (512) is said as a gap. For the instance the
+environment names (`MPCRAFT_BT_ROW`) the machine writes `ClassGUID`
+`{4d36e978-e325-11ce-bfc1-08002be10318}` and `Service` `BTHMODEM`, which is the name the published
+lists write, and the class name `tdibth.inf` reads on this machine is the same one Microsoft uses as
+`System.Devices.Aep.ProtocolId` in its own enumeration example: two implementations that were not
+built one from the other, so the agreement between the two paths is a fact and not a rule written
+twice. Under that name the instance publishes zero rows, which is what is expected when the
+installation did not write the value that decides that a row exists, and here it is read without
+elevation because reading a device key does not ask for it; writing that key does, which is why the
+gate names that write as what the operator supplies.
 
-Lo que no se puede afirmar aquí se dice en lugar de suponerse: ningún periférico emparejado en
-esta máquina anuncia el servicio Nordic UART `6e400001-b5a3-f393-e0a9-e50e24dcca9e`, así que el
-filtro de enumeración de upstream no encuentra nada para `Makeblock_LE001b1062c13c` (contesta
-cuatro servicios y ninguno es ese), y la mitad GATT se lleva ahora en Windows a través de
-`btleplug`, que usa la pila del sistema sin meter un motor de lenguaje en el proceso: el servicio
-Nordic UART (`6e400001`) y el `FFE1` del HM-10 se descubren, se escribe en su característica y se
-leen sus notificaciones, y el escaneo lista los dispositivos con nombre o con uno de los perfiles.
-La validación se hizo con nRF Connect haciendo de periférico: el escaneo vio el servicio NUS, la
-conexión abrió, la escritura `MPCraft BLE` llegó a la característica RX y una notificación `hola`
-volvió por la TX. Eso prueba las dos direcciones del camino, pero es un periférico de prueba y no
-un vehículo: lo que falta para cerrar la fila es la telemetría real por BLE y el camino en Linux y
-macOS, donde el transporte dice que no se lleva. La regla del nombre que upstream construye
-(`BLE_<identificador>_<dirección sin separadores>`) se conserva como dato: por una puerto COM la
-máquina nombra el puerto, y esa regla solo dice lo que un lector con el camino GATT habría escrito
-para el mismo periférico. Dos diferencias se conservan como diferencias:
-upstream lleva una velocidad en su clase BLE donde su propio camino no tiene velocidad ninguna, y
-su `toggleDTR()` está vacío porque esa clase no tiene línea; aquí una puerto COM sí la tiene, así
-que `dtr` y `nodtr` significan lo que dicen, con el valor de la casa todavía bajo, y la velocidad
-se conserva para el esquema `ble` como el número que se da al driver, que el medio no usa, mientras
-`baud=auto` se rechaza (`SpecError::UnknownOption`) porque una búsqueda de velocidades es una
-opción que promete lo que el medio no puede contestar. Lo que el peer scriptado puede responder es
-lo que se afirma en `crates/mpcraft-app/tests/bluetooth_peer.rs`: `Ok(0)` al final del stream en
-lugar de un error, la escritura que casa tres bytes a la vez y repite hasta completar el buffer, y
-la lectura de la fila que sobrevive a un reconnect, porque la fila es lo que se le dijo al operador
-sobre el puerto y un reintento no puede convertirla en otro hecho. Lo que no puede mostrar es lo
-que una máquina escribe sobre sí misma, por eso la fila sigue parcial, y la puerta nombra ese
-sustituto; el control lo lee con un transcripto donde la mitad scriptada pasó y el área que lee la
-máquina falló, con las dos mitades leídas como sus propios informes, que es lo que hace que un
-verde del peer no valga por un área que no leyó ninguna fila. Y nada se abre en COM40: esa puerto
-pertenece a un módulo que puede estar usándola.
+What cannot be asserted here is said rather than assumed: no peripheral paired on this machine
+announces the Nordic UART service `6e400001-b5a3-f393-e0a9-e50e24dcca9e`, so upstream's enumeration
+filter finds nothing for `Makeblock_LE001b1062c13c` (it answers four services and none is that one),
+and the GATT half is carried on Windows now through `btleplug`, which uses the system stack without
+putting a language runtime in the process: the Nordic UART service (`6e400001`) and the HM-10's `FFE1`
+are discovered, written to and read from, and the scan lists the devices with a name or with one of
+the profiles. The validation was done with nRF Connect acting as the peripheral: the scan saw the NUS
+service, the connection opened, the write `MPCraft BLE` reached the RX characteristic and a `hola`
+notification came back through TX. That proves both directions of the path, but it is a test
+peripheral and not a vehicle: what is missing to close the row is real telemetry over BLE and the path
+on Linux and macOS, where the transport says it is not carried. The rule for the name upstream builds
+(`BLE_<identifier>_<address without separators>`) is kept as data: over a COM port the machine names
+the port, and that rule only says what a reader with the GATT path would have written for the same
+peripheral. Two differences are kept as differences: upstream carries a rate in its BLE class where its
+own path has no rate at all, and its `toggleDTR()` is empty because that class has no line; here a COM
+port does have one, so `dtr` and `nodtr` mean what they say, with the house value still low, and the
+rate is kept for the `ble` scheme as the number given to the driver, which the medium does not use,
+while `baud=auto` is refused (`SpecError::UnknownOption`) because searching for rates is an option
+that promises what the medium cannot answer. What the scripted peer can answer is what
+`crates/mpcraft-app/tests/bluetooth_peer.rs` asserts: `Ok(0)` at the end of the stream instead of an
+error, the write that matches three bytes at a time and repeats until the buffer is complete, and the
+reading of the row that survives a reconnect, because the row is what the operator was told about the
+port and a retry cannot turn it into another fact. What it cannot show is what a machine writes about
+itself, which is why the row stays partial, and the gate names that stand-in; the control reads it with
+a transcript where the scripted half passed and the area that reads the machine failed, the two halves
+read as their own reports, which is what makes a green of the peer not stand for an area that read no
+row. And nothing is opened on COM40: that port belongs to a module that may be using it.
 
-El mapa lista puertos, así que una periferica que solo habla GATT no tiene fila: esta máquina la escribe
-bajo `BTHLE\Dev_001b1062c13c` — tres instancias de servicio, ninguna es el perfil serie — y no bajo el
-enumerador del que salen las filas RFCOMM, por eso la regla rechaza esa ruta en lugar de inventar el
-enumerador, y ninguna de las siete filas nombra esa dirección, porque una fila del mapa nunca lleva una
-dirección: lleva el nombre del dispositivo y el puerto, y la mitad del dispositivo solo puede venir de la
-ruta de la instancia. Lo que sí puede cerrar la fila es lo que la máquina escribiría para un dispositivo que
-ofrece el perfil Serial Port: el soporte está aquí (`mdmbtmdm.inf`, servicio `BTHMODEM`) y los perfiles que
-las filas contestan son `1101`, `110B`, `110E` y `111E`, pero solo `1101` lleva corriente, y ese es un perfil
-clásico, así que nRF Connect no puede escribir esa fila — es una herramienta GATT — mientras una app de
-terminal serie sobre el teléfono sí podría, porque eso es lo que hace que Android publique el perfil por SDP.
-Con esa fila escrita el área lee lo mismo que lee hoy, pero por una instancia que la máquina escribió para un
-dispositivo que decidió emparejar, y los números siguen atribuidos a la llamada que los contestó; lo que
-falta entonces es abrir la puerto, que es lo que el operador dice, porque esa puerto pertenece a un
-dispositivo que puede estar usándola, y sin abrir nada los bytes cruzarían por un peer escrito para responder
-en lugar de por un canal.
+The map lists ports, so a peripheral that speaks only GATT has no row: this machine writes it under
+`BTHLE\Dev_001b1062c13c` — three service instances, none of them the serial profile — and not under
+the enumerator the RFCOMM rows come from, which is why the rule refuses that path instead of inventing
+the enumerator, and none of the seven rows names that address, because a row of the map never carries
+an address: it carries the device name and the port, and the device half can only come from the
+instance path. What could close the row is what the machine would write for a device that offers the
+Serial Port profile: the support is here (`mdmbtmdm.inf`, service `BTHMODEM`) and the profiles the
+rows answer are `1101`, `110B`, `110E` and `111E`, but only `1101` carries current, and that is a
+classic profile, so nRF Connect cannot write that row — it is a GATT tool — while a serial terminal
+app on the phone could, because that is what makes Android publish the profile over SDP. With that row
+written the area reads the same as today, but through an instance the machine wrote for a device it
+decided to pair, and the numbers stay attributed to the call that answered them; what is missing then
+is opening the port, which is what the operator says, because that port belongs to a device that may
+be using it, and without opening anything the bytes would cross through a peer written to answer
+instead of through a channel.
 
-La lectura que nombra los servicios de un periférico emparejado vive dentro del subkey `Properties` de su
-instancia, y ese subkey contesta 5 por el diccionario Win32 de `RegOpenKeyExW` — el mismo 5 que el camino de
-abrir llama `HANDLE_HELD`, porque el diccionario pertenece a la llamada y no al número — mientras las claves de
-la instancia se leen sin elevación: la ruta que la máquina escribe para
-`BTHLE\Dev_001b1062c13c\b&548bea1&0&001b1062c13c` dice la clase Bluetooth (`{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}`)
-con el servicio `BthLEEnum`, que no es el de una fila serie, así que esta instancia no es un canal por el que
-viajan bytes aunque diga el nombre de Bluetooth. Las dos rutas son dos lecturas y se mantienen aparte: la carpeta
-que la clave del dispositivo llama por su nombre contesta 2 (no hay nada ahí), que es otra cosa que la negativa,
-y por eso cada número se nombra junto a la llamada que lo contestó. Lo que cerraría la fila es una lectura
-elevada de esa clave, o el permiso del operador para abrir la puerto de un dispositivo que ofrece el perfil
-serie, y ninguna de las dos depende de este archivo.
+The reading that names the services of a paired peripheral lives inside the `Properties` subkey of its
+instance, and that subkey answers 5 through the Win32 dictionary of `RegOpenKeyExW` — the same 5 the
+opening path calls `HANDLE_HELD`, because the dictionary belongs to the call and not to the number —
+while the instance keys are read without elevation: the path the machine writes for
+`BTHLE\Dev_001b1062c13c\b&548bea1&0&001b1062c13c` says the Bluetooth class
+(`{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}`) with the service `BthLEEnum`, which is not the one of a
+serial row, so this instance is not a channel bytes travel through even though it says the name of
+Bluetooth. The two paths are two readings and are kept apart: the folder the device key calls by its
+name answers 2 (there is nothing there), which is another thing than the refusal, and that is why each
+number is named beside the call that answered it. What would close the row is an elevated reading of
+that key, or the operator's permission to open the port of a device that offers the serial profile, and
+neither depends on this file.
 
 The **joystick** is a sheet too, opened from the Flight menu: the browser knows where
 every axis of the stick is, the operator says which axis drives which channel of the
