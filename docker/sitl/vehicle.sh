@@ -46,9 +46,14 @@ esac
 
 # The parameters of the frame, and the identity this instance reports, in one file: the binary
 # reads a single defaults file, and the system id is a parameter like any other.
+#
+# Both names are written because ArduPilot renamed the parameter: `SYSID_THISMAV` is what the
+# metadata still carries and `MAV_SYSID` is what the build reports, and a vehicle that is given the
+# name it does not know keeps the id it had — which is 1, the same one as the next container.
 parameters=/tmp/vehicle.parm
 cat "/ardupilot/Tools/autotest/default_params/$defaults" > "$parameters"
 printf 'SYSID_THISMAV %s\n' "$SYSID" >> "$parameters"
+printf 'MAV_SYSID %s\n' "$SYSID" >> "$parameters"
 
 echo "SITL $VEHICLE, system id $SYSID, home $VEHICLE_HOME"
 

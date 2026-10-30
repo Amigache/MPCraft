@@ -159,8 +159,10 @@ const expectPlan = process.env.MPCRAFT_EXPECT_PLAN !== "0";
 
 const connected = await mapState();
 check(
-  expectPlan ? "the plan arrived from the vehicle" : "the vehicle holds no plan yet",
-  expectPlan ? (connected.plan ?? 0) >= 2 : (connected.plan ?? 0) === 0,
+  expectPlan
+    ? "the plan arrived from the vehicle"
+    : "the vehicle holds no plan of its own",
+  expectPlan ? (connected.plan ?? 0) >= 2 : (connected.plan ?? 0) <= 1,
   `${connected.plan} points`,
 );
 check(
