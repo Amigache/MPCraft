@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>MPCraft — mark and lockups</title>
+    <style>
+      :root {
+        --ink: #0d1117;
+        --paper: #e6edf3;
+        --accent: #00c896;
+        --line: #26303c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #ffffff;
+        color: #0d1117;
+        padding: 40px 48px 56px;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 650;
+        margin: 0 0 4px;
+        letter-spacing: -0.01em;
+      }
+      p.sub {
+        margin: 0 0 32px;
+        font-size: 13px;
+        color: #5b6b7d;
+      }
+      h2 {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        margin: 0 0 16px;
+        opacity: 0.55;
+      }
+      .surface {
+        border-radius: 20px;
+        padding: 36px 40px;
+        margin-bottom: 28px;
+      }
+      .dark {
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .light {
+        background: #f4f7fa;
+        border: 1px solid #e2e9f1;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 34px 44px;
+        align-items: center;
+      }
+      .cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 120px;
+      }
+      .cell img {
+        max-width: 100%;
+      }
+      .width-420 img {
+        width: 420px;
+      }
+      .width-200 img {
+        width: 200px;
+      }
+      .label {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-top: 14px;
+        opacity: 0.5;
+        text-align: center;
+      }
+      .sizes {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 40px;
+      }
+      .sizes img.s128 {
+        width: 128px;
+      }
+      .sizes img.s64 {
+        width: 64px;
+      }
+      .sizes img.s32 {
+        width: 32px;
+      }
+      .sizes img.s16 {
+        width: 16px;
+      }
+      .tile {
+        width: 148px;
+        height: 148px;
+        border-radius: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+      }
+      .tile.dark {
+        background: #161b22;
+      }
+      .tile.light {
+        background: #ffffff;
+        border: 1px solid #e2e9f1;
+      }
+      .tile img {
+        width: 92px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>MPCraft — the orbit</h1>
+    <p class="sub">
+      Space Grotesk Bold, outlined. The mark is the ring and the aircraft inside it; the two-colour
+      version puts the ring in the accent the window already uses.
+    </p>
+
+    <h2>On the window</h2>
+    <div class="surface dark">
+      <div class="grid">
+        <div>
+          <div class="cell width-420"><img src="lockup-horizontal-accent-reversed.svg" alt="" /></div>
+          <div class="label">Horizontal · accent + paper</div>
+        </div>
+        <div>
+          <div class="cell width-200"><img src="lockup-stacked-accent-reversed.svg" alt="" /></div>
+          <div class="label">Stacked · MPC</div>
+        </div>
+        <div>
+          <div class="cell width-420"><img src="lockup-horizontal-paper.svg" alt="" /></div>
+          <div class="label">Horizontal · one colour</div>
+        </div>
+        <div>
+          <div class="cell width-200"><img src="lockup-stacked-paper.svg" alt="" /></div>
+          <div class="label">Stacked · one colour</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>On paper</h2>
+    <div class="surface light">
+      <div class="grid">
+        <div>
+          <div class="cell width-420"><img src="lockup-horizontal-accent.svg" alt="" /></div>
+          <div class="label">Horizontal · accent + ink</div>
+        </div>
+        <div>
+          <div class="cell width-200"><img src="lockup-stacked-accent.svg" alt="" /></div>
+          <div class="label">Stacked · MPC</div>
+        </div>
+        <div>
+          <div class="cell width-420"><img src="lockup-horizontal-inverse.svg" alt="" /></div>
+          <div class="label">Horizontal · ink + accent</div>
+        </div>
+        <div>
+          <div class="cell width-200"><img src="lockup-stacked-inverse.svg" alt="" /></div>
+          <div class="label">Stacked · MPC, ink + accent</div>
+        </div>
+        <div>
+          <div class="cell width-420"><img src="lockup-horizontal-ink.svg" alt="" /></div>
+          <div class="label">Horizontal · one colour</div>
+        </div>
+        <div>
+          <div class="cell width-200"><img src="lockup-stacked-ink.svg" alt="" /></div>
+          <div class="label">Stacked · one colour</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>The mark alone</h2>
+    <div class="surface light">
+      <div class="grid">
+        <div>
+          <div class="cell">
+            <div class="sizes">
+              <img class="s128" src="symbol-accent.svg" alt="" />
+              <img class="s64" src="symbol-accent.svg" alt="" />
+              <img class="s32" src="symbol-accent.svg" alt="" />
+              <img class="s16" src="symbol-accent.svg" alt="" />
+            </div>
+          </div>
+          <div class="label">128 · 64 · 32 · 16 px</div>
+        </div>
+        <div>
+          <div class="cell">
+            <div class="sizes">
+              <div class="tile dark"><img src="symbol-accent-reversed.svg" alt="" /></div>
+              <div class="tile light"><img src="symbol-accent.svg" alt="" /></div>
+            </div>
+          </div>
+          <div class="label">App icon, on both surfaces</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
