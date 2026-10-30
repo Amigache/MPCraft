@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
+     role="img" aria-labelledby="title">
+  <title id="title">MPCraft — concept C, the monogram</title>
+  <path fill="#111111" fill-rule="evenodd"
+        d="M40 48 H72 L104 124 L136 48 H168 V208 H136 V116 L104 180 L72 116 V208 H40 Z
+           M168 48 A48 48 0 0 1 168 144 Z
+           M168 72 L200 96 L168 120 Z" />
+</svg>
