@@ -30,6 +30,9 @@ are kept beside it in `concepts/` because they are what the choice was made agai
 The accent is the one the window already uses (`--colour-accent`), so the mark and the interface
 speak the same colour rather than two greens that are almost the same.
 
+The mode the project uses is **`accent-reversed`** on the window and **`accent`** on paper: the ring
+in the interface's accent, the aircraft in the ink of the surface it sits on.
+
 ## Building it
 
 The wordmark is set in **Space Grotesk**, released under the SIL Open Font License 1.1, which
