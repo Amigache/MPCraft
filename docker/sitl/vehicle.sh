@@ -55,6 +55,12 @@ cat "/ardupilot/Tools/autotest/default_params/$defaults" > "$parameters"
 printf 'SYSID_THISMAV %s\n' "$SYSID" >> "$parameters"
 printf 'MAV_SYSID %s\n' "$SYSID" >> "$parameters"
 
+# ArduPilot disarms itself ten seconds after arming when it believes it has landed, which on a
+# simulator with no radio and no airframe is every time: a board that arms and then goes back to
+# disarmed by itself reads as a station that cannot arm it. A bench session is not a flight, and
+# the vehicle stays armed until it is told otherwise.
+printf 'DISARM_DELAY 0\n' >> "$parameters"
+
 echo "SITL $VEHICLE, system id $SYSID, home $VEHICLE_HOME"
 
 exec "/ardupilot/build/sitl/bin/$binary" \
