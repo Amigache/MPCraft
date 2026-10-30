@@ -11,6 +11,10 @@ import styles from "./StatusBar.module.css";
  * What the vehicle last said, what it is doing, and how the link is holding up. The
  * numbers are written straight into the bar, so a tick does not re-render it.
  *
+ * The message the vehicle sent is on the left, where the eye starts reading; the readings are on
+ * the right, in a row of their own, so that a long message cannot push them about and a number is
+ * always in the same place.
+ *
  * The names are said through the bundles, and the counts are written the way the language the
  * window is read in writes them, because the separator of the thousands is not the same in both.
  */
@@ -33,38 +37,40 @@ export function StatusBar() {
         {error ? `${error.code}: ${error.message}` : (last?.text ?? "")}
       </span>
 
-      <span className={styles.cell}>
-        <span className={styles.label}>{t("Mode")}</span>
-        <LiveValue select={(telemetry) => telemetry.mode} />
-      </span>
-
-      <span className={styles.cell}>
-        <span className={styles.label}>{t("Armed")}</span>
-        <LiveValue
-          select={(telemetry) => telemetry.armed}
-          format={(value) => (value ? t("yes") : t("no"))}
-        />
-      </span>
-
-      <span className={styles.cell}>
-        <span className={styles.label}>{t("To home")}</span>
-        <LiveValue
-          select={(telemetry) => telemetry.distanceToHome ?? null}
-          format={(value) => formatDistance(value as number)}
-        />
-      </span>
-
-      <span className={styles.cell}>
-        <span className={styles.label}>{t("Received")}</span>
-        <span className={styles.value}>
-          {loss.received.toLocaleString(tag)}
+      <div className={styles.measurements}>
+        <span className={styles.cell}>
+          <span className={styles.label}>{t("Mode")}</span>
+          <LiveValue select={(telemetry) => telemetry.mode} />
         </span>
-      </span>
 
-      <span className={styles.cell}>
-        <span className={styles.label}>{t("Lost")}</span>
-        <span className={styles.value}>{loss.lost.toLocaleString(tag)}</span>
-      </span>
+        <span className={styles.cell}>
+          <span className={styles.label}>{t("Armed")}</span>
+          <LiveValue
+            select={(telemetry) => telemetry.armed}
+            format={(value) => (value ? t("yes") : t("no"))}
+          />
+        </span>
+
+        <span className={styles.cell}>
+          <span className={styles.label}>{t("To home")}</span>
+          <LiveValue
+            select={(telemetry) => telemetry.distanceToHome ?? null}
+            format={(value) => formatDistance(value as number)}
+          />
+        </span>
+
+        <span className={styles.cell}>
+          <span className={styles.label}>{t("Received")}</span>
+          <span className={styles.value}>
+            {loss.received.toLocaleString(tag)}
+          </span>
+        </span>
+
+        <span className={styles.cell}>
+          <span className={styles.label}>{t("Lost")}</span>
+          <span className={styles.value}>{loss.lost.toLocaleString(tag)}</span>
+        </span>
+      </div>
     </footer>
   );
 }

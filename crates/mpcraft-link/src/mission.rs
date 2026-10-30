@@ -229,6 +229,14 @@ impl std::fmt::Display for PartialUpdateError {
 impl std::error::Error for PartialUpdateError {}
 
 /// The mission operations of a session.
+/// How long the capabilities are waited for before a plan is read.
+///
+/// It is shorter than the timeout of the plan itself: the answer is one message, and a vehicle that
+/// will not give it is not a vehicle worth making the operator wait for. A plan read without it is
+/// a plan in the float form, which travels — the wait is spent on getting the precise one, not on
+/// the plan.
+const CAPABILITIES_WAIT: Duration = Duration::from_secs(2);
+
 impl Session {
     /// Whether this vehicle wants the integer form of the mission items.
     #[must_use]
@@ -239,6 +247,27 @@ impl Session {
             .is_some_and(|capabilities| {
                 capabilities.contains(MavProtocolCapability::MAV_PROTOCOL_CAPABILITY_MISSION_INT)
             })
+    }
+
+    /// Asks the vehicle what it can do, when that is not known yet.
+    ///
+    /// The items of a plan travel in one of two encodings, and which one is a capability the
+    /// vehicle declares. A station that reads a plan before asking uses the float form, which loses
+    /// the last decimal of a place — ArduPilot says as much on the wire, "got MISSION_REQUEST;
+    /// use MISSION_REQUEST_INT", when it is asked for a plan the way an older station asks for it.
+    ///
+    /// A vehicle that refuses the ask or stays silent is not an error here: the float form still
+    /// carries the plan, and a plan that travelled is worth more than a plan that did not.
+    async fn ask_capabilities_if_unknown(&self, vehicle: VehicleId, timeout: Duration) {
+        if self.state().capabilities.is_some() {
+            return;
+        }
+
+        let wait = timeout.min(CAPABILITIES_WAIT);
+
+        if let Err(error) = self.request_capabilities(vehicle, wait).await {
+            tracing::debug!("the capabilities were not read before the plan: {error}");
+        }
     }
 
     /// Downloads a plan from the vehicle.
@@ -257,6 +286,10 @@ impl Session {
         mission_type: MissionType,
         timeout: Duration,
     ) -> Result<Plan, LinkError> {
+        // What the vehicle can do decides the encoding of every item, so it is asked for before the
+        // first one is asked for.
+        self.ask_capabilities_if_unknown(vehicle, timeout).await;
+
         // The collector is registered before the request is sent. The count has to name
         // the plan that was asked for: a vehicle that answers with the count of another
         // plan would send the wrong items.
@@ -321,6 +354,10 @@ impl Session {
         if plan.is_empty() {
             return Err(LinkError::Rejected(MissionError::Empty.to_string()));
         }
+
+        // The same question as the download, for the same reason: an item sent in the encoding the
+        // vehicle did not ask for is a place rounded on the way up.
+        self.ask_capabilities_if_unknown(vehicle, timeout).await;
 
         let use_int = self.uses_mission_int();
 

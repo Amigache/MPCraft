@@ -26,7 +26,17 @@
 .baud {
   font-size: var(--font-2xs);
   height: 24px;
-  width: 76px;
+  /* Wide enough for 3 000 000, which is one of the rates a station offers. */
+  width: 94px;
+}
+
+/* The button that reads the ports again, beside the list it belongs to. */
+.refresh {
+  font-size: 13px;
+  height: 24px;
+  line-height: 1;
+  padding: 0;
+  width: 26px;
 }
 
 .host {

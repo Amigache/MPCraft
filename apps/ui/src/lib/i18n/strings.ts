@@ -1287,6 +1287,18 @@ const bundles: Record<Locale, Record<string, string>> = {
     "Fetch the tiles": "Pedir las fichas",
     "Click the map to add a waypoint":
       "Pulsa el mapa para añadir un punto del plan",
+    "the vehicle answered {result} to {command}. The link was closed: the board is in its bootloader now.":
+      "el vehículo contestó {result} a {command}. El enlace se cerró: la placa está ya en su bootloader.",
+    "The map menu": "El menú del mapa",
+    "Send the vehicle here": "Mandar el vehículo aquí",
+    "Add a waypoint here": "Añadir un punto del plan aquí",
+    "Add a waypoint between the two": "Añadir un punto del plan entre los dos",
+    "Move the home here": "Mover el origen aquí",
+    "Centre the map here": "Centrar el mapa aquí",
+    "Copy the coordinates": "Copiar las coordenadas",
+    "The coordinates were copied.": "Las coordenadas se copiaron.",
+    "The coordinates could not be copied.":
+      "Las coordenadas no se pudieron copiar.",
     "The map could not be drawn: {failure}":
       "El mapa no se pudo dibujar: {failure}",
     "The sources of tiles could not be read.":
@@ -1600,6 +1612,7 @@ const bundles: Record<Locale, Record<string, string>> = {
       "Un adaptador CAN en un puerto serie es la otra forma de llegar al bus: ningún vehículo tiene que reenviarlo. Abra el puerto y lea un nodo por su número.",
     "The port the adapter is on": "El puerto en el que está el adaptador",
     "The rate of the bus": "La velocidad del bus",
+    "Look for the serial ports again": "Buscar los puertos serie otra vez",
     "Open the adapter": "Abrir el adaptador",
     "Close the adapter": "Cerrar el adaptador",
     "The node to read": "El nodo que leer",

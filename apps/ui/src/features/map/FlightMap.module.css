@@ -12,21 +12,106 @@
 
 /* The vehicle: a wedge that points where the vehicle is going. */
 
+/* The vehicle.
+ *
+ * The element is an empty box on the coordinate: the drawing inside it is the shape of the
+ * family the vehicle belongs to, centred on that box, and it turns with the heading because the
+ * marker turns. One arrow for every board was the reason a rover and a quadcopter looked alike. */
 .vehicle {
   background: transparent;
+  color: var(--colour-accent);
   height: 0;
   width: 0;
 }
 
-.vehicle::before {
-  border-bottom: 9px solid var(--colour-accent);
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  content: "";
-  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
-  left: -7px;
+/* The `+` between two items of the plan.
+ *
+ * Mission Planner puts one on every leg, and pressing it adds a waypoint there. It is a control
+ * rather than a mark: a circle with a border, which grows under the pointer because it is small
+ * enough to sit on a line. */
+.insert {
+  align-items: center;
+  background: rgba(13, 17, 23, 0.85);
+  border: 1px solid var(--colour-accent);
+  border-radius: 50%;
+  color: var(--colour-accent);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  transition: transform 120ms ease;
+  width: 18px;
+}
+
+.insert:hover,
+.insert:focus-visible {
+  background: var(--colour-accent);
+  color: var(--colour-accent-ink);
+  outline: none;
+  transform: scale(1.25);
+}
+
+/* The menu of the map.
+ *
+ * It is the station's own menu, drawn where the right button was pressed: a short list that
+ * says what can be done with a place, with the coordinates at its head so the operator knows
+ * which place that is before choosing. */
+.menu {
+  background: var(--colour-surface-raised);
+  border: 1px solid var(--colour-border-strong);
+  border-radius: 9px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
   position: absolute;
-  top: -9px;
+  width: 224px;
+  z-index: 6;
+}
+
+.menuWhere {
+  border-bottom: 1px solid var(--colour-border);
+  color: var(--colour-text-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 4px;
+  padding: 6px 9px 8px;
+}
+
+.menuItem {
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--colour-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.menuItem:hover {
+  background: var(--colour-hover);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--colour-accent);
+  outline-offset: -2px;
+}
+
+.vehicle svg {
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+  height: 30px;
+  left: -15px;
+  overflow: visible;
+  position: absolute;
+  top: -15px;
+  width: 30px;
 }
 
 /* An aircraft of the traffic that the vehicle has heard.

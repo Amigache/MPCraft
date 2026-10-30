@@ -167,7 +167,10 @@ export function PlanEditor() {
   // in an encoding the vehicle did not advertise, and a place comes back rounded to what single precision
   // can carry. What the editor uses afterwards is the state the answer filled, not this call.
   const status = useLinkStore((state) => state.status);
-  const linked = status === "connected";
+  const vehicles = useLinkStore((state) => state.vehicles.length);
+  // The capabilities are the vehicle's, not the port's: an open link with no vehicle on it has
+  // nobody to ask, and the refusal would be shown as a fault of the window.
+  const linked = status === "connected" && vehicles > 0;
   const report = useActivityStore((state) => state.report);
 
   useEffect(() => {

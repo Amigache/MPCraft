@@ -669,7 +669,9 @@ export function MenuBar() {
           hint: "",
         },
         {
-          id: "view-sep",
+          // The second separator of this menu, and a key of its own: two entries with one key is
+          // a list React cannot tell apart, and it says so in the console of every run.
+          id: "view-panels-sep",
           label: "",
           onSelect: undefined,
           disabled: false,

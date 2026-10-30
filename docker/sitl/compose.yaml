@@ -1,0 +1,76 @@
+# ArduPilot SITL, for one vehicle or for several at once.
+#
+# Each `sitl-*` service is one vehicle running ArduPilot's own simulator, not a stand-in: the binary
+# is the one ArduPilot publishes, with its flight code, its arming checks and its mission logic.
+#
+# The vehicles are joined by a MAVLink router into a single link, which is what a station with
+# several boards on one socket looks like: the station connects once, and every vehicle on the wire
+# is one it can talk to. Without the router each vehicle would need its own link, and the window
+# speaks to one at a time.
+#
+#   docker compose -f docker/sitl/compose.yaml up -d
+#   docker compose -f docker/sitl/compose.yaml logs -f sitl-1
+#   docker compose -f docker/sitl/compose.yaml down
+#
+# The station connects to `udp:127.0.0.1:14550`. The vehicle of `sitl-1` can also be reached alone
+# on `tcp:127.0.0.1:5760`, which is useful for reading one vehicle without the router in between.
+
+name: mpcraft-sitl
+
+services:
+  sitl-1:
+    build: .
+    image: mpcraft/sitl:4.7.2
+    environment:
+      VEHICLE: copter
+      SYSID: "1"
+      # A few hundred metres apart, so that three vehicles are three places on the map rather
+      # than one place reported three times.
+      VEHICLE_HOME: "-35.363261,149.165230,584,353"
+    volumes:
+      - ./vehicle.sh:/sitl/vehicle.sh:ro
+    ports:
+      - "5760:5760/tcp"
+    restart: unless-stopped
+
+  sitl-2:
+    image: mpcraft/sitl:4.7.2
+    environment:
+      VEHICLE: copter
+      SYSID: "2"
+      VEHICLE_HOME: "-35.362100,149.166800,584,353"
+    volumes:
+      - ./vehicle.sh:/sitl/vehicle.sh:ro
+    ports:
+      - "5761:5760/tcp"
+    restart: unless-stopped
+
+  sitl-3:
+    image: mpcraft/sitl:4.7.2
+    environment:
+      VEHICLE: copter
+      SYSID: "3"
+      VEHICLE_HOME: "-35.364500,149.163700,584,353"
+    volumes:
+      - ./vehicle.sh:/sitl/vehicle.sh:ro
+    ports:
+      - "5762:5760/tcp"
+    restart: unless-stopped
+
+  # The router is what makes one link out of several vehicles. It speaks to each SITL as a TCP
+  # client and offers one UDP server to the station; every frame is forwarded to every other
+  # endpoint, and a command addressed to one system id is ignored by the vehicles it is not for.
+  router:
+    image: bluenviron/mavp2p:latest
+    command:
+      - udps:0.0.0.0:14550
+      - tcpc:sitl-1:5760
+      - tcpc:sitl-2:5760
+      - tcpc:sitl-3:5760
+    ports:
+      - "14550:14550/udp"
+    depends_on:
+      - sitl-1
+      - sitl-2
+      - sitl-3
+    restart: unless-stopped

@@ -277,3 +277,51 @@ async fn a_corrupt_frame_does_not_stop_the_session() {
 
     assert!(got, "the good frame after the corrupt one was not decoded");
 }
+
+/// Builds a frame from a named board rather than from the vehicle on component one.
+fn frame_from(message: MavMessage, system_id: u8, sequence: u8) -> Vec<u8> {
+    let header = MavHeader {
+        system_id,
+        component_id: 1,
+        sequence,
+    };
+    encode_v2(&message, header)
+}
+
+#[tokio::test]
+async fn a_station_on_the_link_is_not_counted_as_a_vehicle() {
+    // A router, a second station or a proxy announces itself as a ground station. It carries no
+    // vehicle state, and counting it said the link had one more board than it did — which is what
+    // a station saw when the simulated vehicles were joined by a router.
+    let mut stream = Vec::new();
+    stream.extend(frame_from(
+        MavMessage::HEARTBEAT(HEARTBEAT_DATA {
+            mavtype: MavType::MAV_TYPE_GCS,
+            ..Default::default()
+        }),
+        250,
+        0,
+    ));
+    stream.extend(frame_from(heartbeat(0), 1, 1));
+
+    let path = temp_stream("station-on-the-link", &stream);
+    let spec = ConnectionSpec::parse(&format!("file:{}", path.display())).unwrap();
+    let session = Session::connect(&spec, SessionOptions::default())
+        .await
+        .unwrap();
+
+    let seen = wait_for(&session, Duration::from_secs(5), |state| {
+        !state.vehicles.is_empty()
+    })
+    .await;
+
+    assert!(seen, "the vehicle was never heard");
+
+    let state = session.state();
+    assert_eq!(
+        state.vehicles.len(),
+        1,
+        "the station was counted as a vehicle"
+    );
+    assert_eq!(state.vehicles[0].id.system_id, 1);
+}

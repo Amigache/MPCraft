@@ -15,7 +15,8 @@ use std::time::Duration;
 
 use mpcraft_link::{Session, SessionOptions, VehicleId};
 use mpcraft_mavlink::dialect::messages::{
-    COMMAND_ACK_DATA, MISSION_ACK_DATA, MISSION_COUNT_DATA, MISSION_REQUEST_DATA,
+    AUTOPILOT_VERSION_DATA, COMMAND_ACK_DATA, MISSION_ACK_DATA, MISSION_COUNT_DATA,
+    MISSION_REQUEST_DATA,
 };
 use mpcraft_mavlink::frame::{encode_v2, FrameParser, MavHeader};
 use mpcraft_mavlink::{MavCmd, MavMessage, MavMissionResult, MavMissionType, MavResult, Message};
@@ -171,7 +172,9 @@ impl Vehicle {
                 .await;
             }
 
-            // The vehicle acknowledges the commands it is given.
+            // The vehicle acknowledges the commands it is given, and answers the one that asks what
+            // it is capable of: a plan is read in the encoding the report names, so a station asks
+            // for it before the first item.
             MavMessage::COMMAND_LONG(command) => {
                 self.send(
                     peer,
@@ -182,6 +185,16 @@ impl Vehicle {
                     }),
                 )
                 .await;
+
+                if command.command == MavCmd::MAV_CMD_REQUEST_MESSAGE
+                    && command.param1 == mpcraft_link::commands::AUTOPILOT_VERSION_ID as f32
+                {
+                    self.send(
+                        peer,
+                        MavMessage::AUTOPILOT_VERSION(AUTOPILOT_VERSION_DATA::default()),
+                    )
+                    .await;
+                }
             }
 
             _ => {}
@@ -264,8 +277,14 @@ async fn the_mission_type_travels_with_the_request_for_the_list() {
 
     assert!(wait_for_messages(&received, 1).await);
 
+    // The list is not the first thing the vehicle hears: the station asks what it is capable of
+    // first, because that answer decides the encoding of the items. What this test is about is
+    // the plan type on the request, wherever in the exchange it sits.
     let log = received.lock().unwrap();
-    let Some(MavMessage::MISSION_REQUEST_LIST(request)) = log.first() else {
+    let Some(MavMessage::MISSION_REQUEST_LIST(request)) = log
+        .iter()
+        .find(|message| matches!(message, MavMessage::MISSION_REQUEST_LIST(_)))
+    else {
         panic!("the vehicle did not receive a request for the list");
     };
 
@@ -334,8 +353,13 @@ async fn the_mission_type_travels_with_the_announcement_of_an_upload() {
 
     assert!(wait_for_messages(&received, 1).await);
 
+    // As above: the ask about the capabilities comes before the plan, and what is asserted here is
+    // the type the announcement carries.
     let log = received.lock().unwrap();
-    let Some(MavMessage::MISSION_COUNT(count)) = log.first() else {
+    let Some(MavMessage::MISSION_COUNT(count)) = log
+        .iter()
+        .find(|message| matches!(message, MavMessage::MISSION_COUNT(_)))
+    else {
         panic!("the vehicle did not receive the announcement");
     };
 

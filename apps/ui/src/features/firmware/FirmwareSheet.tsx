@@ -12,6 +12,7 @@ import {
   normaliseError,
   rebootIntoBootloader,
   signFirmware,
+  useConnection,
 } from "../../lib/ipc/bridge";
 import type {
   BoardInfo,
@@ -58,6 +59,10 @@ function showSize(bytes: number): string {
 }
 
 export function FirmwareSheet() {
+  // The link is dropped here rather than waited on: a board that has gone into its bootloader
+  // answers the loader's protocol, not the MAVLink of a flight, and the station has no reason to
+  // hold a port that carries neither.
+  const { disconnect } = useConnection();
   const open = useUiStore((state) => state.firmwareOpen);
   const hide = useUiStore((state) => state.hideFirmware);
 
@@ -300,11 +305,20 @@ export function FirmwareSheet() {
       // the device goes away at the moment of the restart, and the port then carries the protocol of the
       // loader rather than the MAVLink of a flight.
       const answer = await rebootIntoBootloader();
+
+      // The board is in its bootloader from here: it has stopped speaking MAVLink, and the port
+      // says nothing. The station lets go of the link at once, so the bar does not go on saying
+      // it is connected to a vehicle that is no longer on the wire.
+      await disconnect();
+
       setNotice(
-        t("the vehicle answered {result} to {command}", {
-          result: answer.result,
-          command: answer.command,
-        }),
+        t(
+          "the vehicle answered {result} to {command}. The link was closed: the board is in its bootloader now.",
+          {
+            result: answer.result,
+            command: answer.command,
+          },
+        ),
       );
     } catch (cause) {
       setError(normaliseError(cause).message);

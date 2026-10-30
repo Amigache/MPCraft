@@ -1,5 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import {
+  AUTO_BAUD,
+  BAUD_RATES,
+  DEFAULT_BAUD,
+} from "../../features/connection/serialTarget";
 import { listSerialPorts, useConnection } from "../../lib/ipc/bridge";
 import type { SerialPort } from "../../lib/ipc/types";
 import { useLocaleStore } from "../../lib/i18n/localeStore";
@@ -28,9 +33,6 @@ const METHODS: readonly { id: Method; label: string }[] = [
   { id: "tcp", label: "TCP" },
 ];
 
-/** The baud rate that is used when nothing else is said. */
-const DEFAULT_BAUD = 57600;
-
 /** Where the bar remembers what was last chosen. */
 const STORAGE_KEY = "mpcraft.connection";
 
@@ -38,7 +40,8 @@ const STORAGE_KEY = "mpcraft.connection";
 interface Remembered {
   readonly method: Method;
   readonly port: string;
-  readonly baud: number;
+  /** The rate, or {@link AUTO_BAUD} when the station is left to find it. */
+  readonly baud: number | typeof AUTO_BAUD;
   readonly host: string;
 }
 
@@ -65,7 +68,8 @@ function remembered(): Remembered {
         : fallback.method,
       port: typeof parsed.port === "string" ? parsed.port : fallback.port,
       baud:
-        typeof parsed.baud === "number" && parsed.baud > 0
+        parsed.baud === AUTO_BAUD ||
+        (typeof parsed.baud === "number" && parsed.baud > 0)
           ? parsed.baud
           : fallback.baud,
       host: typeof parsed.host === "string" ? parsed.host : fallback.host,
@@ -82,33 +86,41 @@ export function ConnectionBar() {
   const [busy, setBusy] = useState(false);
   const t = useLocaleStore((state) => state.t);
 
-  // The serial ports of the machine are read once: they do not change while the
-  // application is open, and reading them opens the ports of the system.
+  /**
+   * Reads the serial ports of the machine, and keeps reading them.
+   *
+   * A board is usually plugged in with the window already open, and a list read once kept saying
+   * the machine had no ports while the one just connected was sitting there. It is a registry
+   * read — nothing is opened — so it is done every two seconds, and the button beside the list
+   * reads it again at once for an operator who does not want to wait.
+   */
+  const readPorts = useCallback(async () => {
+    try {
+      const found = await listSerialPorts();
+
+      setPorts(found);
+      setState((before) => ({
+        ...before,
+        // A port that is already chosen is left chosen: the list changing under the operator's
+        // hand is not a reason to move the link somewhere else.
+        port: before.port === "" ? (found[0]?.device ?? "") : before.port,
+      }));
+    } catch {
+      setPorts([]);
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
+    void readPorts();
 
-    void listSerialPorts()
-      .then((found) => {
-        if (cancelled) {
-          return;
-        }
-
-        setPorts(found);
-        setState((before) => ({
-          ...before,
-          port: before.port === "" ? (found[0]?.device ?? "") : before.port,
-        }));
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPorts([]);
-        }
-      });
+    const timer = window.setInterval(() => {
+      void readPorts();
+    }, 2000);
 
     return () => {
-      cancelled = true;
+      window.clearInterval(timer);
     };
-  }, []);
+  }, [readPorts]);
 
   // What is chosen is kept between two runs.
   useEffect(() => {
@@ -120,7 +132,14 @@ export function ConnectionBar() {
   const target = (() => {
     switch (state.method) {
       case "serial":
-        return state.port === "" ? "" : `serial:${state.port}:${state.baud}`;
+        if (state.port === "") {
+          return "";
+        }
+        // The rate is part of the target, and a station that is left to find it says so in the
+        // option the parser reads — the number in front is only where the search starts.
+        return state.baud === AUTO_BAUD
+          ? `serial:${state.port}:${DEFAULT_BAUD}|baud=auto`
+          : `serial:${state.port}:${state.baud}`;
       case "udp":
         return `udp:${state.host}`;
       case "tcp":
@@ -185,20 +204,41 @@ export function ConnectionBar() {
             ))}
           </select>
 
-          <input
-            className={`input ${styles.baud}`}
-            type="number"
-            min={1}
+          <button
+            type="button"
+            className={`button ${styles.refresh}`}
+            title={t("Look for the serial ports again")}
+            aria-label={t("Look for the serial ports again")}
+            disabled={linked}
+            onClick={() => {
+              void readPorts();
+            }}
+          >
+            ⟳
+          </button>
+
+          <select
+            className={`select ${styles.baud}`}
             value={state.baud}
             aria-label={t("The speed of the port")}
             disabled={linked}
             onChange={(event) => {
               setState((before) => ({
                 ...before,
-                baud: Number(event.target.value) || DEFAULT_BAUD,
+                baud:
+                  event.target.value === AUTO_BAUD
+                    ? AUTO_BAUD
+                    : Number(event.target.value),
               }));
             }}
-          />
+          >
+            <option value={AUTO_BAUD}>{t("Automatic")}</option>
+            {BAUD_RATES.map((rate) => (
+              <option key={rate} value={rate}>
+                {rate}
+              </option>
+            ))}
+          </select>
         </>
       ) : (
         <input

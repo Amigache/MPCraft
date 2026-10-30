@@ -15,10 +15,13 @@ use std::time::Duration;
 use mpcraft_link::{Session, SessionOptions, VehicleId};
 #[allow(deprecated)]
 use mpcraft_mavlink::dialect::messages::{
-    MISSION_ACK_DATA, MISSION_COUNT_DATA, MISSION_REQUEST_DATA, MISSION_REQUEST_INT_DATA,
+    AUTOPILOT_VERSION_DATA, COMMAND_ACK_DATA, MISSION_ACK_DATA, MISSION_COUNT_DATA,
+    MISSION_REQUEST_DATA, MISSION_REQUEST_INT_DATA,
 };
 use mpcraft_mavlink::frame::{encode_v2, FrameParser, MavHeader};
-use mpcraft_mavlink::{MavCmd, MavFrame, MavMessage, MavMissionResult, Message};
+use mpcraft_mavlink::{
+    MavCmd, MavFrame, MavMessage, MavMissionResult, MavProtocolCapability, MavResult, Message,
+};
 use mpcraft_mission::{MissionItem, MissionType};
 
 /// The plan the vehicle was sent.
@@ -58,15 +61,28 @@ struct Vehicle {
     uploaded: Uploaded,
     /// How many items the ground station announced.
     expected: u16,
+    /// What the station asked for, in the order it asked: `version`, `list`, `float`, `int`.
+    asked: Arc<Mutex<Vec<&'static str>>>,
 }
 
 impl Vehicle {
     async fn start(plan: Vec<MissionItem>, use_int: bool) -> (SocketAddr, Uploaded) {
+        let (address, uploaded, _) = Self::start_logged(plan, use_int).await;
+        (address, uploaded)
+    }
+
+    /// Starts a vehicle that also remembers what it was asked, and in which order.
+    async fn start_logged(
+        plan: Vec<MissionItem>,
+        use_int: bool,
+    ) -> (SocketAddr, Uploaded, Arc<Mutex<Vec<&'static str>>>) {
         let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let address = socket.local_addr().unwrap();
 
         let uploaded: Uploaded = Arc::new(Mutex::new(Vec::new()));
         let log = Arc::clone(&uploaded);
+        let asked: Arc<Mutex<Vec<&'static str>>> = Arc::new(Mutex::new(Vec::new()));
+        let record = Arc::clone(&asked);
 
         let mut vehicle = Self {
             socket,
@@ -75,13 +91,21 @@ impl Vehicle {
             use_int,
             uploaded: log,
             expected: 0,
+            asked: record,
         };
 
         tokio::spawn(async move {
             vehicle.run().await;
         });
 
-        (address, uploaded)
+        (address, uploaded, asked)
+    }
+
+    /// Remembers what the station asked for.
+    fn note(&self, what: &'static str) {
+        if let Ok(mut asked) = self.asked.lock() {
+            asked.push(what);
+        }
     }
 
     async fn run(&mut self) {
@@ -116,8 +140,41 @@ impl Vehicle {
 
     async fn answer(&mut self, request: &MavMessage, peer: SocketAddr) {
         match request {
+            // The station asks what the vehicle can do, which is what decides the encoding of the
+            // items: a vehicle that can carry the integer form says so here.
+            MavMessage::COMMAND_LONG(command)
+                if command.command == MavCmd::MAV_CMD_REQUEST_MESSAGE
+                    && command.param1 == mpcraft_link::commands::AUTOPILOT_VERSION_ID as f32 =>
+            {
+                self.note("version");
+
+                self.send(
+                    peer,
+                    MavMessage::COMMAND_ACK(COMMAND_ACK_DATA {
+                        command: MavCmd::MAV_CMD_REQUEST_MESSAGE,
+                        result: MavResult::MAV_RESULT_ACCEPTED,
+                        ..Default::default()
+                    }),
+                )
+                .await;
+
+                self.send(
+                    peer,
+                    MavMessage::AUTOPILOT_VERSION(AUTOPILOT_VERSION_DATA {
+                        capabilities: if self.use_int {
+                            MavProtocolCapability::MAV_PROTOCOL_CAPABILITY_MISSION_INT
+                        } else {
+                            MavProtocolCapability::empty()
+                        },
+                        ..Default::default()
+                    }),
+                )
+                .await;
+            }
+
             // The vehicle reports how many items it has.
             MavMessage::MISSION_REQUEST_LIST(_) => {
+                self.note("list");
                 let count = self.plan.len() as u16;
                 self.send(
                     peer,
@@ -133,9 +190,11 @@ impl Vehicle {
 
             // The vehicle asks for one item.
             MavMessage::MISSION_REQUEST(request) => {
+                self.note("float");
                 self.send_item(peer, request.seq).await;
             }
             MavMessage::MISSION_REQUEST_INT(request) => {
+                self.note("int");
                 self.send_item(peer, request.seq).await;
             }
 
@@ -467,4 +526,37 @@ async fn the_capability_decides_the_encoding() {
     // The capability arrives in AUTOPILOT_VERSION, which this vehicle does not send, so the
     // session must fall back to the float form.
     assert!(!session.uses_mission_int());
+}
+
+#[tokio::test]
+async fn the_vehicle_is_asked_what_it_can_do_before_the_plan_is() {
+    // The items travel in one of two encodings, and which one is the vehicle's to declare. A
+    // station that asks for the plan first reads it in the float form, which rounds the last
+    // decimal of a place: ArduPilot says so on the wire when it happens. The ask comes first
+    // here, and the vehicle that can carry the integer form gets it.
+    let items = sample_plan();
+    let (address, _, asked) = Vehicle::start_logged(items.clone(), true).await;
+    let session = session_to(address).await;
+
+    let plan = session
+        .download_mission(
+            VehicleId::new(1, 1),
+            MissionType::Mission,
+            Duration::from_secs(10),
+        )
+        .await
+        .expect("the plan should download");
+
+    let order = asked.lock().map(|asked| asked.clone()).unwrap_or_default();
+
+    assert_eq!(
+        order.first().copied(),
+        Some("version"),
+        "the plan was asked for before the capabilities: {order:?}"
+    );
+    assert!(
+        order.contains(&"int"),
+        "the items were not asked for in the integer form: {order:?}"
+    );
+    assert_eq!(plan.len(), items.len());
 }

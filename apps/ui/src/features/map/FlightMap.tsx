@@ -3,7 +3,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useLocaleStore } from "../../lib/i18n/localeStore";
-import { normaliseError, prefetchTiles } from "../../lib/ipc/bridge";
+import {
+  normaliseError,
+  prefetchTiles,
+  setHomePosition,
+} from "../../lib/ipc/bridge";
 import { liveTelemetry } from "../../lib/link/liveTelemetry";
 import type {
   GeoPoint,
@@ -13,7 +17,7 @@ import type {
   PlanItem,
   Telemetry,
 } from "../../lib/ipc/types";
-import { useLinkStore } from "../../lib/link/linkStore";
+import { chosenVehicle, useLinkStore } from "../../lib/link/linkStore";
 import { useCommandStore } from "../../lib/plan/commandStore";
 import { carriesPosition, commandOf } from "../../lib/plan/planItems";
 import {
@@ -27,6 +31,11 @@ import {
   onPlanScreen,
   usePlanEditorStore,
 } from "../../lib/plan/planEditorStore";
+import {
+  courseLine,
+  insertionPoints,
+  loiterCircles,
+} from "../../lib/plan/overlays";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -41,6 +50,7 @@ import {
   styleOf,
 } from "./providers";
 import { registerTileProtocol } from "./tiles";
+import { vehicleIcon } from "./vehicleIcons";
 import styles from "./FlightMap.module.css";
 
 /**
@@ -65,11 +75,20 @@ import styles from "./FlightMap.module.css";
 /** The identifier of the source of the track. */
 const TRACK_SOURCE = "track";
 
+/** The identifier of the source of the line that shows where the vehicle is pointing. */
+const COURSE_SOURCE = "course";
+
+/** The identifier of the source of the line that runs to the item being flown to. */
+const TARGET_SOURCE = "target";
+
 /** The identifier of the source of the plan. */
 const PLAN_SOURCE = "plan";
 
 /** The identifier of the source of the items of the plan. */
 const ITEMS_SOURCE = "plan-items";
+
+/** The identifier of the source of the circles the items of a plan fly around. */
+const PLAN_CIRCLES_SOURCE = "plan-circles";
 
 /** The identifier of the source of the polygon of a fence. */
 const FENCE_SOURCE = "fence";
@@ -108,8 +127,7 @@ function usable(
     return false;
   }
   return (
-    Number.isFinite(position.lat) &&
-    Number.isFinite(position.lng) &&
+    isPlace(position.lat, position.lng) &&
     position.lat >= -90 &&
     position.lat <= 90 &&
     position.lng >= -180 &&
@@ -150,6 +168,23 @@ function setSourceData(
 }
 
 /**
+ * Whether a place is a place the map can draw.
+ *
+ * A vehicle without a fix reports zero for both coordinates, and so does a plan item that was
+ * never given one. The point `0°, 0°` is in the Gulf of Guinea, where no vehicle of this station
+ * is: a line drawn to it runs from wherever the plan is to the middle of the ocean, which is a
+ * line that means nothing. Mission Planner treats the same pair as "no position", and so does
+ * this.
+ */
+function isPlace(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    (Math.abs(lat) > 1e-9 || Math.abs(lng) > 1e-9)
+  );
+}
+
+/**
  * The items of a plan that carry a place.
  *
  * A command that does not fly to a place — a delay, a change of speed — has zeroes in
@@ -161,7 +196,7 @@ function positioned(
   commands: readonly MavCommand[],
 ): PlanItem[] {
   return items.filter((item) => {
-    if (!Number.isFinite(item.x) || !Number.isFinite(item.y)) {
+    if (!isPlace(item.x, item.y)) {
       return false;
     }
     if (commands.length === 0) {
@@ -175,8 +210,36 @@ function positioned(
 /** The coordinates of the items of a plan that carry a position. */
 function coordinatesOf(items: readonly PlanItem[]): [number, number][] {
   return items
-    .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
+    .filter((item) => isPlace(item.x, item.y))
     .map((item) => [item.y, item.x] as [number, number]);
+}
+
+/**
+ * The item of the plan the vehicle is flying to.
+ *
+ * The vehicle says which item it is on; the plan says where that item is. An item without a place
+ * is not a target — a delay is on the way, not somewhere — so the first item with a place is used
+ * when the one the vehicle names has none.
+ */
+function currentTarget(telemetry: Telemetry): PlanItem | null {
+  const mission = usePlanStore.getState().plans.mission;
+  if (mission === null) {
+    return null;
+  }
+
+  const items = mission.items.filter((item) => isPlace(item.x, item.y));
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  const seq = telemetry.mission?.seq ?? 0;
+
+  return (
+    items.find((item) => item.seq === seq) ??
+    items.find((item) => item.seq > 0) ??
+    null
+  );
 }
 
 /**
@@ -196,7 +259,11 @@ const MAX_MARKERS = 150;
  * elements in the document: the map would crawl. Only the items that are in the view are
  * given a marker, and the rest are drawn when the map comes to them.
  */
-function inView(bounds: maplibregl.LngLatBounds, item: PlanItem): boolean {
+function inView(
+  bounds: maplibregl.LngLatBounds,
+  lat: number,
+  lng: number,
+): boolean {
   const west = bounds.getWest();
   const east = bounds.getEast();
   const south = bounds.getSouth();
@@ -206,10 +273,10 @@ function inView(bounds: maplibregl.LngLatBounds, item: PlanItem): boolean {
   const marginY = (north - south) * 0.25;
 
   return (
-    item.y >= west - marginX &&
-    item.y <= east + marginX &&
-    item.x >= south - marginY &&
-    item.x <= north + marginY
+    lng >= west - marginX &&
+    lng <= east + marginX &&
+    lat >= south - marginY &&
+    lat <= north + marginY
   );
 }
 
@@ -224,6 +291,8 @@ export function FlightMap() {
   const last = useRef<[number, number] | null>(null);
   const lastHome = useRef<Telemetry["home"] | undefined>(undefined);
   const items = useRef(new Map<number, ItemMarker>());
+  /** The `+` between two items, by the item the new one goes after. */
+  const inserts = useRef(new Map<number, maplibregl.Marker>());
 
   /** The markers of the traffic of the air, by the address of the aircraft. */
   const traffic = useRef(new Map<string, maplibregl.Marker>());
@@ -236,6 +305,16 @@ export function FlightMap() {
   } | null>(null);
 
   const [failure, setFailure] = useState<string | null>(null);
+
+  /** The menu of the map, so a press inside it is told apart from a press elsewhere. */
+  const menuElement = useRef<HTMLDivElement | null>(null);
+  /** The menu of the map: where the right button was pressed, and what is under it. */
+  const [menu, setMenu] = useState<{
+    readonly x: number;
+    readonly y: number;
+    readonly lng: number;
+    readonly lat: number;
+  } | null>(null);
 
   const t = useLocaleStore((state) => state.t);
   /**
@@ -321,6 +400,9 @@ export function FlightMap() {
   const kind = usePlanStore((state) => state.kind);
   const plan = usePlanStore((state) => state.plans[kind]);
   const vehicles = useLinkStore((state) => state.vehicles);
+  const linkStatus = useLinkStore((state) => state.status);
+  /** The family of the vehicle the station speaks to, as the link reported it. */
+  const vehicleKind = chosenVehicle(vehicles)?.kind ?? null;
 
   const editorOpen = useUiStore((state) => state.screen === "plan");
   const draft = usePlanEditorStore((state) => state.draft);
@@ -414,6 +496,14 @@ export function FlightMap() {
 
     const vehicle = document.createElement("div");
     vehicle.className = styles.vehicle ?? "";
+    // A link that is not open has no vehicle to draw. The marker is placed at the centre of the
+    // map before anything is known, and a mark sitting there would say a vehicle is there.
+    vehicle.hidden = true;
+    // What the board is drawn as: the family the link reported, or the delta it falls back on
+    // before a heartbeat has said what the board is.
+    vehicle.innerHTML = vehicleIcon(
+      chosenVehicle(useLinkStore.getState().vehicles)?.kind ?? null,
+    );
     // The marker is a graphic, not a control: the map library would otherwise make it
     // a button, and a button that cannot be pressed is a lie to a screen reader.
     vehicle.setAttribute("role", "presentation");
@@ -432,6 +522,30 @@ export function FlightMap() {
     const install = () => {
       loaded.current = true;
       instance.addSource(TRACK_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [] },
+        },
+      });
+      // The map is left where a test can reach it, in a development build only. What the map draws
+      // is a WebGL canvas, so the only way to read it from a script is to ask the map: the zoom it
+      // is at, and the features each source holds.
+      if (import.meta.env.DEV) {
+        (window as unknown as { __mpcraftMap?: maplibregl.Map }).__mpcraftMap =
+          instance;
+      }
+
+      instance.addSource(COURSE_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [] },
+        },
+      });
+      instance.addSource(TARGET_SOURCE, {
         type: "geojson",
         data: {
           type: "Feature",
@@ -459,17 +573,18 @@ export function FlightMap() {
           geometry: { type: "Polygon", coordinates: [] },
         },
       });
+      instance.addSource(PLAN_CIRCLES_SOURCE, {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
       instance.addSource(CIRCLES_SOURCE, {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
       instance.addSource(HOME_SOURCE, {
         type: "geojson",
-        data: {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "Point", coordinates: [0, 0] },
-        },
+        data: { type: "FeatureCollection", features: [] },
       });
 
       // The traffic of the air: what the vehicle has heard.
@@ -527,6 +642,49 @@ export function FlightMap() {
         },
       });
 
+      // The two lines Mission Planner draws from the vehicle: the heading it is pointing at, in
+      // the colour of a heading, and the line that runs to the item it is flying to. They are
+      // drawn under the plan, because they are readings of the vehicle and the plan is the plan.
+      instance.addLayer({
+        id: "course-line",
+        type: "line",
+        source: COURSE_SOURCE,
+        layout: { "line-cap": "round" },
+        paint: {
+          "line-color": "#f85149",
+          "line-width": 2,
+          "line-opacity": 0.8,
+        },
+      });
+
+      instance.addLayer({
+        id: "target-line",
+        type: "line",
+        source: TARGET_SOURCE,
+        layout: { "line-cap": "round" },
+        paint: {
+          "line-color": "#d29922",
+          "line-width": 1.5,
+          "line-opacity": 0.9,
+        },
+      });
+
+      // The line of the plan is drawn twice: a dark halo under a light dashed stroke. The
+      // dashes are what an operator reads as "planned, not flown" — the track is the solid
+      // line — and the halo is what keeps both of them legible over a pale map and a satellite
+      // one, which no single colour does.
+      instance.addLayer({
+        id: "plan-halo",
+        type: "line",
+        source: PLAN_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#0d1117",
+          "line-width": 4.5,
+          "line-opacity": 0.45,
+        },
+      });
+
       instance.addLayer({
         id: "plan-line",
         type: "line",
@@ -534,9 +692,24 @@ export function FlightMap() {
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": "#e6edf3",
+          "line-width": 2,
+          "line-opacity": 0.95,
+          "line-dasharray": [3, 2],
+        },
+      });
+
+      // The circles the loiter items are flown around: the radius of the turn, which is a
+      // number in the grid and a shape on the map.
+      instance.addLayer({
+        id: "plan-circles",
+        type: "line",
+        source: PLAN_CIRCLES_SOURCE,
+        layout: { "line-join": "round" },
+        paint: {
+          "line-color": "#00c896",
           "line-width": 1.5,
-          "line-opacity": 0.65,
-          "line-dasharray": [2, 2],
+          "line-opacity": 0.85,
+          "line-dasharray": [3, 2],
         },
       });
 
@@ -732,6 +905,19 @@ export function FlightMap() {
       editor.addAt(event.lngLat.lat, event.lngLat.lng);
     });
 
+    // The right button opens the menu of the map at the place it was pressed. The menu is the
+    // station's: what an operator reaches for without leaving the map — send the vehicle there,
+    // add an item of the plan, move the home, centre the map, take the coordinates away.
+    instance.on("contextmenu", (event) => {
+      event.preventDefault();
+      setMenu({
+        x: event.point.x,
+        y: event.point.y,
+        lng: event.lngLat.lng,
+        lat: event.lngLat.lat,
+      });
+    });
+
     const observer = new ResizeObserver(() => {
       instance.resize();
     });
@@ -742,6 +928,7 @@ export function FlightMap() {
     // it has to take off.
     const markers = items.current;
     const places = poiMarkers.current;
+    const between = inserts.current;
 
     return () => {
       observer.disconnect();
@@ -751,6 +938,10 @@ export function FlightMap() {
         entry.marker.remove();
       }
       markers.clear();
+      for (const middle of between.values()) {
+        middle.remove();
+      }
+      between.clear();
       for (const place of places.values()) {
         place.remove();
       }
@@ -954,6 +1145,63 @@ export function FlightMap() {
     });
   }, [mapProvider, sources]);
 
+  // The menu of the map closes on anything that is not the menu: a click elsewhere, or Escape.
+  // It is closed before the action is read rather than after, so an action that opens a sheet
+  // does not leave the menu behind it.
+  useEffect(() => {
+    if (menu === null) {
+      return;
+    }
+
+    const close = (event: PointerEvent) => {
+      // A press inside the menu is the operator choosing something: closing on it would take
+      // the button away before the click it belongs to arrives.
+      if (
+        event.target instanceof Node &&
+        menuElement.current?.contains(event.target)
+      ) {
+        return;
+      }
+      setMenu(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenu(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", escape);
+
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [menu]);
+
+  // A vehicle that is not on the link is not drawn. The mark says where the vehicle is, and the
+  // last place it was is not where it is: a station with no link has nothing to point at.
+  useEffect(() => {
+    const element = marker.current?.getElement();
+    if (
+      element &&
+      linkStatus !== "connected" &&
+      linkStatus !== "reconnecting"
+    ) {
+      element.hidden = true;
+    }
+  }, [linkStatus]);
+
+  // The mark of the vehicle, by the family it belongs to. The element is kept and only its
+  // drawing is replaced, so a board that says what it is a moment after it is heard changes from
+  // the delta to its own shape without the marker being taken off the map.
+  useEffect(() => {
+    const element = marker.current?.getElement();
+    if (element) {
+      element.innerHTML = vehicleIcon(vehicleKind);
+    }
+  }, [vehicleKind]);
+
   // The position, the heading and the track, written into the map directly.
   useEffect(() => {
     const draw = (telemetry: Telemetry) => {
@@ -964,30 +1212,97 @@ export function FlightMap() {
         return;
       }
 
-      // The place the vehicle started from, when it has reported one.
+      // The place the vehicle started from, when it has reported one. A home that was never set
+      // is reported as zero, and a mark at `0°, 0°` is a home in the Gulf of Guinea that no
+      // vehicle has.
       const home = telemetry.home;
+      const homePlace = home !== null && isPlace(home.lat, home.lng);
       if (loaded.current && home !== lastHome.current) {
         lastHome.current = home;
         setSourceData(instance, HOME_SOURCE, {
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "Point",
-            coordinates: home ? [home.lng, home.lat] : [0, 0],
-          },
+          type: "FeatureCollection",
+          features: homePlace
+            ? [
+                {
+                  type: "Feature",
+                  properties: {},
+                  geometry: {
+                    type: "Point",
+                    coordinates: [home.lng, home.lat],
+                  },
+                },
+              ]
+            : [],
         });
       }
 
-      if (!usable(position)) {
+      // A vehicle is drawn where it says it is, and a vehicle that has no fix says it is nowhere.
+      // The home it reports is the other place it is known to be: an operator watches the board
+      // it will come back to, so the mark sits there rather than nowhere.
+      const place = usable(position)
+        ? { lat: position.lat, lng: position.lng }
+        : homePlace
+          ? { lat: home.lat, lng: home.lng }
+          : null;
+
+      const element = marker.current?.getElement();
+
+      if (place === null) {
+        if (element) {
+          element.hidden = true;
+        }
+        for (const id of [COURSE_SOURCE, TARGET_SOURCE]) {
+          setSourceData(instance, id, {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [] },
+          });
+        }
         return;
       }
 
-      const point: [number, number] = [position.lng, position.lat];
+      const point: [number, number] = [place.lng, place.lat];
       marker.current?.setLngLat(point);
 
-      const heading = telemetry.attitude?.yaw;
-      if (typeof heading === "number") {
-        marker.current?.setRotation(heading);
+      if (element) {
+        element.hidden = false;
+      }
+
+      // The line of the heading: the direction the nose points, not the direction the vehicle is
+      // travelling — with a wind from the side the two are not the same, and the operator wants
+      // to see both. It is short, and the same length whatever the speed.
+      const heading = telemetry.attitude?.yaw ?? 0;
+      marker.current?.setRotation(heading);
+
+      const course = instance.getSource(COURSE_SOURCE);
+      if (course) {
+        const line = courseLine(place.lat, place.lng, heading, 150);
+        setSourceData(instance, COURSE_SOURCE, {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [line.start, line.end] },
+        });
+      }
+
+      // The line to the item the plan is flying to: the leg being flown now, which is what the
+      // vehicle is being steered to rather than where it happens to point.
+      const target = currentTarget(telemetry);
+      const targetSource = instance.getSource(TARGET_SOURCE);
+      if (targetSource) {
+        setSourceData(instance, TARGET_SOURCE, {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates:
+              target === null
+                ? []
+                : [
+                    [place.lng, place.lat],
+                    [target.y, target.x],
+                  ],
+          },
+        });
       }
 
       const previous = last.current;
@@ -1064,6 +1379,25 @@ export function FlightMap() {
       });
     }
 
+    // The circles the loiter items are flown around, which are in a mission and not in a fence.
+    const planCircles = instance.getSource(PLAN_CIRCLES_SOURCE);
+    if (planCircles) {
+      setSourceData(instance, PLAN_CIRCLES_SOURCE, {
+        type: "FeatureCollection",
+        features:
+          shown.kind === "mission"
+            ? loiterCircles(shown.items, commands).map((circle) => ({
+                type: "Feature",
+                properties: { seq: circle.seq },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [circleRing({ ...circle, included: true })],
+                },
+              }))
+            : [],
+      });
+    }
+
     // The polygon of the fence, and the circles that are in it or out of it.
     const ring = shown.kind === "fence" ? ringOf(shown.items) : null;
 
@@ -1117,6 +1451,10 @@ export function FlightMap() {
         entry.marker.remove();
       }
       items.current.clear();
+      for (const marker of inserts.current.values()) {
+        marker.remove();
+      }
+      inserts.current.clear();
       return;
     }
 
@@ -1130,7 +1468,7 @@ export function FlightMap() {
       if (drawn >= MAX_MARKERS) {
         break;
       }
-      if (!inView(bounds, item)) {
+      if (!inView(bounds, item.x, item.y)) {
         continue;
       }
 
@@ -1205,11 +1543,75 @@ export function FlightMap() {
       }
     }
 
+    // The `+` between two items, the way Mission Planner puts one on every leg: a press adds a
+    // waypoint at the middle of that leg without moving anything else. They are buttons of
+    // their own rather than marks of the map, because they are pressed rather than read.
+    const seenInserts = new Set<number>();
+    let insertsDrawn = 0;
+
+    for (const place of insertionPoints(places)) {
+      if (insertsDrawn >= MAX_MARKERS) {
+        break;
+      }
+      if (!inView(bounds, place.lat, place.lng)) {
+        continue;
+      }
+
+      seenInserts.add(place.after);
+      insertsDrawn += 1;
+
+      let marker = inserts.current.get(place.after);
+      if (marker === undefined) {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = styles.insert ?? "";
+        element.textContent = "+";
+        element.title = t("Add a waypoint between the two");
+        element.setAttribute("aria-label", t("Add a waypoint between the two"));
+
+        element.addEventListener("click", (event) => {
+          event.stopPropagation();
+
+          // The place is read from the plan as it stands, not from the closure: the leg may
+          // have been dragged since this button was made.
+          const editor = usePlanEditorStore.getState();
+          const at = insertionPoints(
+            positioned(editor.draft, useCommandStore.getState().commands),
+          ).find((entry) => entry.after === place.after);
+
+          if (at === undefined) {
+            return;
+          }
+
+          editor.select(at.after);
+          editor.addAt(at.lat, at.lng);
+        });
+
+        const created = new maplibregl.Marker({
+          element,
+          anchor: "center",
+        });
+        created.setLngLat([place.lng, place.lat]);
+        created.addTo(instance);
+        inserts.current.set(place.after, created);
+        marker = created;
+      }
+
+      marker.setLngLat([place.lng, place.lat]);
+    }
+
+    for (const [after, marker] of inserts.current) {
+      if (!seenInserts.has(after)) {
+        marker.remove();
+        inserts.current.delete(after);
+      }
+    }
+
     // The operator is told when the map is not showing every item of the plan.
     usePlanEditorStore.getState().setMarked(drawn, places.length);
     // The plan on the screen is the plan being edited only while the editor is the screen that is
     // open, so the guard is part of what this callback reads.
-  }, [editorOpen]);
+  }, [editorOpen, t]);
 
   // The markers are drawn when the plan changes.
   useEffect(() => {
@@ -1265,17 +1667,25 @@ export function FlightMap() {
 
     const coordinates = coordinatesOf(positioned(shown.items, commands));
     if (coordinates.length === 0) {
+      // An empty plan has nothing to frame, and the editor is marked as framed all the same: the
+      // first point the operator adds would otherwise be framed on, and the map would jump under
+      // the hand that is drawing it.
+      fitted.current = { editor: editorOpen, count: shown.items.length, plan };
       return;
     }
 
+    // While the plan is being edited the map is where the operator put it: adding a point or
+    // dragging one is not a reason to move the view, and a map that re-framed itself on every
+    // press would zoom in and out under the hand that is drawing. The editor frames the plan
+    // once, when it opens.
     const last = fitted.current;
-    if (
-      last !== null &&
-      last.editor === editorOpen &&
-      last.count === shown.items.length &&
-      (editorOpen || last.plan === plan)
-    ) {
-      return;
+    if (last !== null && last.editor === editorOpen) {
+      if (editorOpen) {
+        return;
+      }
+      if (last.count === shown.items.length && last.plan === plan) {
+        return;
+      }
     }
 
     fitted.current = {
@@ -1290,6 +1700,22 @@ export function FlightMap() {
     );
     instance.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 600 });
   }, [commands, editorOpen, plan, ready, shown]);
+
+  // The menu stays inside the map: a right click near the right or the bottom edge would
+  // otherwise open a menu that is half outside the window.
+  const menuPlacement =
+    menu === null
+      ? null
+      : {
+          left: Math.max(
+            8,
+            Math.min(menu.x, (container.current?.clientWidth ?? 0) - 232),
+          ),
+          top: Math.max(
+            8,
+            Math.min(menu.y, (container.current?.clientHeight ?? 0) - 248),
+          ),
+        };
 
   return (
     <div className={styles.map}>
@@ -1369,6 +1795,106 @@ export function FlightMap() {
           {showControls ? t("Hide controls") : t("Show controls")}
         </button>
       </div>
+
+      {menu !== null && menuPlacement !== null ? (
+        <div
+          className={styles.menu}
+          style={{ left: menuPlacement.left, top: menuPlacement.top }}
+          role="menu"
+          aria-label={t("The map menu")}
+          ref={menuElement}
+        >
+          <p className={styles.menuWhere}>
+            {menu.lat.toFixed(5)}, {menu.lng.toFixed(5)}
+          </p>
+
+          {vehicles.length > 0 ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              onClick={() => {
+                const altitude = liveTelemetry.value.position?.alt ?? 0;
+                void flyTo(menu.lat, menu.lng, altitude);
+                setMenu(null);
+              }}
+            >
+              {t("Send the vehicle here")}
+            </button>
+          ) : null}
+
+          {editorOpen ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              onClick={() => {
+                usePlanEditorStore.getState().addAt(menu.lat, menu.lng);
+                setMenu(null);
+              }}
+            >
+              {t("Add a waypoint here")}
+            </button>
+          ) : null}
+
+          {vehicles.length > 0 ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              onClick={() => {
+                const altitude = liveTelemetry.value.position?.alt ?? 0;
+                void setHomePosition({
+                  lat: menu.lat,
+                  lng: menu.lng,
+                  alt: altitude,
+                });
+                setMenu(null);
+              }}
+            >
+              {t("Move the home here")}
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.menuItem}
+            onClick={() => {
+              const instance = map.current;
+              if (instance) {
+                instance.easeTo({
+                  center: [menu.lng, menu.lat],
+                  duration: 400,
+                });
+              }
+              setMenu(null);
+            }}
+          >
+            {t("Centre the map here")}
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.menuItem}
+            onClick={() => {
+              const text = `${menu.lat.toFixed(6)}, ${menu.lng.toFixed(6)}`;
+              void navigator.clipboard
+                ?.writeText(text)
+                .then(() => {
+                  setNotice(t("The coordinates were copied."));
+                })
+                .catch(() => {
+                  setNotice(t("The coordinates could not be copied."));
+                });
+              setMenu(null);
+            }}
+          >
+            {t("Copy the coordinates")}
+          </button>
+        </div>
+      ) : null}
 
       <div className={styles.messages}>
         {saving ? (
@@ -1451,14 +1977,16 @@ export function FlightMap() {
       </div>
 
       <p className={styles.caption}>
-        {vehicles.length > 0
-          ? t(
-              vehicles.length === 1
-                ? "{count} vehicle on the link"
-                : "{count} vehicles on the link",
-              { count: vehicles.length },
-            )
-          : t("No vehicle on the link")}
+        {linkStatus === "connected" || linkStatus === "reconnecting"
+          ? vehicles.length > 0
+            ? t(
+                vehicles.length === 1
+                  ? "{count} vehicle on the link"
+                  : "{count} vehicles on the link",
+                { count: vehicles.length },
+              )
+            : t("No vehicle on the link")
+          : null}
       </p>
     </div>
   );

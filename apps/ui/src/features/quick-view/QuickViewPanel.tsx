@@ -191,7 +191,12 @@ export function QuickViewPanel() {
   // for nothing — and shows what the vehicle answered, because an operator has to know which of
   // the tiles will stay empty. What the tiles draw afterwards is what the event carries.
   const status = useLinkStore((state) => state.status);
-  const open = status === "connected";
+  const vehicles = useLinkStore((state) => state.vehicles.length);
+
+  // The link is open as soon as the port is; the vehicle is on it only once it has spoken. Asking
+  // before that is asking nobody, and the answer — `no_vehicle` — would be shown as a fault of the
+  // window rather than as the vehicle that has not arrived yet.
+  const open = status === "connected" && vehicles > 0;
 
   useEffect(() => {
     if (!open) {

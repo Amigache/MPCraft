@@ -33,4 +33,17 @@ export default tseslint.config(
     plugins: { "react-hooks": reactHooks },
     rules: { "react-hooks/exhaustive-deps": "error" },
   },
+  {
+    // The scripts under scripts/ are run by node and, where they drive a window, evaluate code in
+    // the page: both sets of globals are theirs, and neither is a name the interface declares.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        document: "readonly",
+        process: "readonly",
+        window: "readonly",
+      },
+    },
+  },
 );
