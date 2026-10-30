@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MavCommand, PlanItem } from "../ipc/types";
-import { insertionPoints, loiterCircles } from "./overlays";
+import { courseLine, insertionPoints, loiterCircles } from "./overlays";
 
 function command(value: number, name: string, roles: string[]): MavCommand {
   return {
@@ -80,6 +80,24 @@ describe("the circles of a plan", () => {
     expect(
       loiterCircles([item(0, -35.2, 149.2, [0, 80, 0, 0])], [waypoint]),
     ).toEqual([]);
+  });
+});
+
+describe("the line of the course", () => {
+  it("runs north when the bearing is north", () => {
+    const line = courseLine(-35, 149, 0, 100);
+
+    expect(line.end[0]).toBeCloseTo(149, 9);
+    // A hundred metres of latitude is about nine ten-thousandths of a degree.
+    expect(line.end[1] - line.start[1]).toBeCloseTo(0.000899, 5);
+  });
+
+  it("covers more degrees of longitude towards the pole", () => {
+    const equator = courseLine(0, 0, 90, 100);
+    const south = courseLine(-60, 0, 90, 100);
+
+    expect(Math.abs(equator.end[0])).toBeLessThan(Math.abs(south.end[0]));
+    expect(Math.abs(south.end[0])).toBeCloseTo(2 * Math.abs(equator.end[0]), 1);
   });
 });
 

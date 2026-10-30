@@ -62,6 +62,44 @@ export function loiterCircles(
   return circles;
 }
 
+/** The earth, in metres, as the geodesy crate counts it. */
+const EARTH_RADIUS = 6_371_008.8;
+
+/** A place and the one a line from it reaches. */
+export interface CourseLine {
+  readonly start: readonly [number, number];
+  readonly end: readonly [number, number];
+}
+
+/**
+ * The line that shows where the vehicle is going.
+ *
+ * It runs from the vehicle along the course it is making good — the direction it is actually
+ * travelling, which is not the direction its nose points when the wind is pushing it sideways —
+ * for a few seconds of flight, so its length says the speed as well as the direction. A vehicle
+ * that is standing still has no course, and the line follows its heading instead, short, because
+ * "which way it is facing" is still worth seeing before it moves.
+ */
+export function courseLine(
+  lat: number,
+  lng: number,
+  bearing: number,
+  metres: number,
+): CourseLine {
+  const radians = (bearing * Math.PI) / 180;
+  const north = Math.cos(radians) * metres;
+  const east = Math.sin(radians) * metres;
+  const perDegree = Math.PI / 180;
+
+  return {
+    start: [lng, lat],
+    end: [
+      lng + east / perDegree / (EARTH_RADIUS * Math.cos((lat * Math.PI) / 180)),
+      lat + north / perDegree / EARTH_RADIUS,
+    ],
+  };
+}
+
 /** A place between two items where one can be added. */
 export interface InsertionPoint {
   /** The item the new one goes after. */

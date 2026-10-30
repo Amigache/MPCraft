@@ -31,7 +31,11 @@ import {
   onPlanScreen,
   usePlanEditorStore,
 } from "../../lib/plan/planEditorStore";
-import { insertionPoints, loiterCircles } from "../../lib/plan/overlays";
+import {
+  courseLine,
+  insertionPoints,
+  loiterCircles,
+} from "../../lib/plan/overlays";
 import { usePlanStore } from "../../lib/plan/planStore";
 import { splinePath } from "../../lib/plan/spline";
 import { useUiStore } from "../../lib/ui/uiStore";
@@ -70,6 +74,9 @@ import styles from "./FlightMap.module.css";
 
 /** The identifier of the source of the track. */
 const TRACK_SOURCE = "track";
+
+/** The identifier of the source of the line that shows where the vehicle is going. */
+const COURSE_SOURCE = "course";
 
 /** The identifier of the source of the plan. */
 const PLAN_SOURCE = "plan";
@@ -471,6 +478,14 @@ export function FlightMap() {
           geometry: { type: "LineString", coordinates: [] },
         },
       });
+      instance.addSource(COURSE_SOURCE, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [] },
+        },
+      });
       instance.addSource(PLAN_SOURCE, {
         type: "geojson",
         data: {
@@ -561,6 +576,20 @@ export function FlightMap() {
           "line-color": "#00c896",
           "line-width": 2,
           "line-opacity": 0.8,
+        },
+      });
+
+      // Where the vehicle is going: a short line along the course it is making good. It is
+      // drawn under the plan, because it is a reading of the vehicle and the plan is the plan.
+      instance.addLayer({
+        id: "course-line",
+        type: "line",
+        source: COURSE_SOURCE,
+        layout: { "line-cap": "round" },
+        paint: {
+          "line-color": "#00c896",
+          "line-width": 2,
+          "line-opacity": 0.7,
         },
       });
 
@@ -1118,6 +1147,32 @@ export function FlightMap() {
       const heading = telemetry.attitude?.yaw;
       if (typeof heading === "number") {
         marker.current?.setRotation(heading);
+      }
+
+      // The line of the course. A vehicle that is moving is drawn along the direction it is
+      // making good, which is not the way its nose points when the wind pushes it sideways; a
+      // vehicle that is standing still keeps its heading, with a short line, because which way
+      // it is facing is worth seeing before it moves.
+      const speed = telemetry.velocity?.groundSpeed ?? 0;
+      const moving = Number.isFinite(speed) && speed > 0.5;
+      const bearing = moving
+        ? (Math.atan2(
+            telemetry.velocity?.east ?? 0,
+            telemetry.velocity?.north ?? 0,
+          ) *
+            180) /
+          Math.PI
+        : (heading ?? 0);
+      const metres = moving ? Math.min(2_000, Math.max(60, speed * 6)) : 60;
+
+      const course = instance.getSource(COURSE_SOURCE);
+      if (course) {
+        const line = courseLine(position.lat, position.lng, bearing, metres);
+        setSourceData(instance, COURSE_SOURCE, {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [line.start, line.end] },
+        });
       }
 
       const previous = last.current;
