@@ -153,6 +153,14 @@
   font-weight: 600;
 }
 
+/* The pair the board reports, beside the family it belongs to: three copters on one link are three
+   rows that would otherwise say the same word. */
+.boardId {
+  color: var(--colour-text-faint);
+  font-size: var(--font-2xs);
+  margin-left: var(--space-2);
+}
+
 .boardMark {
   color: var(--colour-text-faint);
   flex: 1 1 auto;
