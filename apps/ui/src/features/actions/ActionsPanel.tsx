@@ -13,6 +13,7 @@ import {
   moveHome,
   rebootVehicle,
   sendCatalogueCommand,
+  takeOff,
 } from "../../lib/flight/flightActions";
 import { useLiveValue } from "../../lib/link/liveTelemetry";
 import type { PlanKind } from "../../lib/ipc/types";
@@ -98,6 +99,8 @@ export function ActionsPanel() {
   const t = useLocaleStore((state) => state.t);
 
   const [mode, setModeChoice] = useState<number | "">("");
+  /** The height the takeoff asks for, in metres above home. */
+  const [takeoffHeight, setTakeoffHeight] = useState(20);
   const [item, setItem] = useState<number | "">("");
 
   // The command of the catalogue and its seven slots. The values are kept as they were typed, so that
@@ -205,6 +208,35 @@ export function ActionsPanel() {
             confirmLabel={t("Confirm disarm")}
             variant="danger"
             onConfirm={() => void disarmVehicle()}
+          />
+        </div>
+
+        {/* The height is what the takeoff asks the vehicle for, and the vehicle flies it in GUIDED:
+            the command was here before the control, which is a thing an operator cannot use. */}
+        <div className={styles.row}>
+          <label className={styles.field}>
+            <span className={styles.label}>{t("Height to take off to")}</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              step={1}
+              value={takeoffHeight}
+              aria-label={t("The height to take off to")}
+              onChange={(event) => {
+                const metres = Number(event.target.value);
+                if (Number.isFinite(metres) && metres > 0) {
+                  setTakeoffHeight(metres);
+                }
+              }}
+            />
+          </label>
+
+          <ConfirmButton
+            label={t("Take off")}
+            confirmLabel={t("Confirm takeoff")}
+            variant="primary"
+            onConfirm={() => void takeOff(takeoffHeight)}
           />
         </div>
 

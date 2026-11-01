@@ -83,6 +83,14 @@ class LiveTelemetry {
 /** The live telemetry of the primary vehicle. */
 export const liveTelemetry = new LiveTelemetry();
 
+// The snapshot is left where a test can read it, in a development build only: what the map and the
+// dials draw is a canvas and a set of numbers written straight into the document, so the only way
+// to say what the vehicle reported from a script is to ask the holder the window reads it from.
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __mpcraftLive?: LiveTelemetry }).__mpcraftLive =
+    liveTelemetry;
+}
+
 /**
  * Reads a value of the live telemetry, re-rendering the component when it changes.
  *

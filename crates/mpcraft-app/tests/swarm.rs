@@ -316,8 +316,11 @@ async fn the_loop_tells_each_member_what_the_hand_computed() {
     assert!((f64::from(target.lon_int) - LEADER_LNG * 1e7).abs() < 2.0);
     assert_eq!(target.alt, 105.0);
     assert_eq!((target.vx, target.vy, target.vz), (8.0, 0.0, 0.0));
-    // The frame as the number upstream sends it, not as its modern synonym.
-    assert_eq!(target.coordinate_frame as u32, 6);
+    // The absolute frame (5), because the altitude the decision carries is the height over the sea
+    // read from the leader's own position. Upstream sends the relative frame (6) with a relative
+    // height, and a station that sends the sea height in that frame asks the vehicle to climb to
+    // its altitude over the sea measured from the ground.
+    assert_eq!(target.coordinate_frame as u32, 5);
     assert_eq!(target.type_mask.bits(), 3520);
 
     // And vehicle 4, inside the band: its slot, and no command for its heading.

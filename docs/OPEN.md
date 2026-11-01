@@ -96,16 +96,24 @@ hertz over each vehicle's own state, the settings kept between runs and the shee
 Stop. Proved over a real socket with four scripted vehicles: what reaches the wire is what the hand
 computes.
 
-**What is missing.** A fleet. These builds of the simulator refuse a device string for UDP and
-`--slave` puts extra airframes on JSON control ports rather than on the link, so one wire cannot see two
-vehicles; and the application opens one link. Closing it needs either real vehicles or a multi-link
-feature that does not exist yet.
+A fleet is now assembled on this machine: `docker/sitl` runs three ArduPilot vehicles built from the
+published source and a MAVLink router joins them into one link, and `apps/ui/scripts/formation-live.mjs`
+drives the window against it — speaking to one vehicle, arming it, putting it in GUIDED, taking it off
+from the actions tab, writing its place and starting the loop. The member was observed flying to its
+place: 20.1 m high where the place asks for 20, 36.5 m from the leader where it asks for 25, after
+eighteen seconds. Two faults were found and fixed on that road: the takeoff carried its height in the
+first slot instead of the seventh, and the position target carried a height over the sea in the frame
+whose height is measured from home.
+
+**What is missing.** An airframe. The member flies ArduPilot's own control loop, but the leader stands on
+the ground at its home and the whole fleet is simulated: wind, a real GPS and a second vehicle deciding
+for itself are what a bench cannot give.
 
 **Where.** `crates/mpcraft-vehicle/src/formation.rs` (pure decision), `crates/mpcraft-app/src/swarm.rs`
-(dispatch, settings), `apps/ui/src/features/swarm/SwarmSheet.tsx`.
+(dispatch, settings), `apps/ui/src/features/formation/FormationSheet.tsx`, `docker/sitl/`,
+`apps/ui/scripts/formation-live.mjs`.
 
-**To prove a closure.** Two or more vehicles on links the station can reach at once, told to fly into
-their slots.
+**To prove a closure.** Two or more real vehicles in the air, told to fly into their slots.
 
 ---
 

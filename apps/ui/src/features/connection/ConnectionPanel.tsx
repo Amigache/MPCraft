@@ -520,13 +520,21 @@ export function ConnectionPanel() {
                   type="button"
                   className={styles.boardName}
                   aria-pressed={vehicle.chosen}
-                  title={t("Speak to {name}", { name: vehicle.name })}
+                  title={t("Speak to {name}", {
+                    name: `${vehicle.name} (${vehicle.systemId}:${vehicle.componentId})`,
+                  })}
                   disabled={busy || !speaking}
                   onClick={() => {
                     void choose(vehicle);
                   }}
                 >
                   {vehicle.name}
+                  {/* The family is not enough to tell three boards apart: a link with three
+                      copters has three rows that all say the same thing, and the pair is what
+                      the rest of the window names them by. */}
+                  <span className={styles.boardId}>
+                    {vehicle.systemId}:{vehicle.componentId}
+                  </span>
                 </button>
                 {vehicle.chosen ? (
                   <span className={styles.boardMark}>
