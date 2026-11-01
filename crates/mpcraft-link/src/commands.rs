@@ -278,7 +278,12 @@ pub fn swarm_position_target_message(
             | PositionTargetTypemask::POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE,
         target_system: vehicle.system_id,
         target_component: vehicle.component_id,
-        coordinate_frame: MavFrame::MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+        // The altitude the decision carries is the height over the sea: the slot is placed on the
+        // leader's position, and that position is what the vehicle reported. The frame is the one
+        // whose altitude means that, because the other one - the relative frame upstream sends -
+        // reads the same number as metres above home, and a vehicle told to fly at 584 in that
+        // frame climbs for the sky. The run against the simulated fleet is what found it.
+        coordinate_frame: MavFrame::MAV_FRAME_GLOBAL_INT,
     })
 }
 
@@ -350,10 +355,14 @@ impl Session {
         altitude: f32,
         timeout: Duration,
     ) -> Result<(), LinkError> {
+        // The altitude is the seventh slot: `MAV_CMD_NAV_TAKEOFF` reads the minimum pitch in the
+        // first and the height in the last, and a vehicle told to take off to the height in the
+        // first slot is being told to take off to zero metres - which ArduPilot answers with
+        // `MAV_RESULT_FAILED` and the run against the simulator found.
         self.command_long(
             vehicle,
             MavCmd::MAV_CMD_NAV_TAKEOFF,
-            [altitude, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, altitude],
             timeout,
         )
         .await
@@ -1411,9 +1420,11 @@ mod tests {
         assert_eq!(target.alt, 105.0);
         assert_eq!((target.vx, target.vy, target.vz), (8.0, 0.0, 0.0));
         assert_eq!(target.type_mask.bits(), 3520);
-        // The frame as the number upstream sends it, 6, rather than as its modern synonym,
-        // which carries a different byte.
-        assert_eq!(target.coordinate_frame as u32, 6);
+        // The absolute frame, 5, because the altitude carried here is the height over the sea that
+        // the decision worked out from the leader's reported position. Upstream sends the relative
+        // frame (6) with a relative height, and a station that mixes the two sends a vehicle to
+        // climb to its altitude over the sea measured from the ground.
+        assert_eq!(target.coordinate_frame as u32, 5);
         assert_eq!((target.target_system, target.target_component), (3, 1));
     }
 
@@ -1508,5 +1519,28 @@ mod tests {
         };
 
         assert!(error.to_string().contains("DENIED"));
+    }
+
+    #[test]
+    fn the_takeoff_altitude_travels_in_the_seventh_slot() {
+        // `MAV_CMD_NAV_TAKEOFF` reads the height in its last slot. A station that puts it in the
+        // first is asking the vehicle to take off to zero metres, which ArduPilot answers with
+        // `MAV_RESULT_FAILED` — and the run against the simulated fleet is what found it.
+        let payload = encode_command_long(
+            2,
+            1,
+            MavCmd::MAV_CMD_NAV_TAKEOFF as u32,
+            0,
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0],
+        );
+
+        // The payload is the seven parameters, four bytes each, and the command number comes after
+        // them, so the seventh slot is the seventh group of four bytes.
+        let seventh = 6 * 4;
+
+        assert_eq!(
+            f32::from_le_bytes(payload[seventh..seventh + 4].try_into().unwrap()),
+            20.0
+        );
     }
 }

@@ -218,6 +218,44 @@ check(
   `mode ${before.mode}`,
 );
 
+// A formation is flown by vehicles that are already in the air: ArduPilot does not take a copter
+// off the ground because a position target arrived, so the height is asked for first.
+const height = page.getByLabel(
+  /altura a la que despega|height to take off to/i,
+);
+if ((await height.count()) > 0) {
+  await height.fill(String(UP + 5));
+}
+
+await page
+  .getByRole("button", { name: /^(Despegar|Take off)$/ })
+  .first()
+  .click();
+await page.waitForTimeout(300);
+await page
+  .getByRole("button", { name: /Confirmar/i })
+  .first()
+  .click();
+
+let airborne = null;
+for (let waited = 0; waited < 60; waited += 3) {
+  await page.waitForTimeout(3000);
+  const now = await telemetry();
+
+  if (now.position !== null && now.position.alt - before.position.alt > 10) {
+    airborne = now.position.alt - before.position.alt;
+    break;
+  }
+}
+
+check(
+  "the member takes off when it is told to",
+  airborne !== null,
+  airborne === null
+    ? "it never left the ground"
+    : `climbed ${airborne.toFixed(1)} m`,
+);
+
 // The formation sheet: who leads, where the member sits, and the loop started.
 await closeSheets();
 await page.locator('[role="menubar"] [data-menu="setup"]').click();
@@ -266,11 +304,14 @@ check(
   notice.split("\n").slice(-2).join(" "),
 );
 
-// What the vehicle does about it: it climbs to the height of its place and moves across to it.
-const start = before.position ?? (await telemetry()).position;
+// What the vehicle does about it: the place is measured from the leader, so the member that started
+// two hundred metres away must end up beside it, at the height the place asks for. The leader's
+// home is the one the compose file gives it.
+const leader = { lat: -35.363261, lng: 149.16523, alt: 584 };
 let reached = null;
+let last = null;
 
-for (let waited = 0; waited < 120; waited += 3) {
+for (let waited = 0; waited < 150; waited += 3) {
   await page.waitForTimeout(3000);
   const now = await telemetry();
 
@@ -278,31 +319,23 @@ for (let waited = 0; waited < 120; waited += 3) {
     continue;
   }
 
-  const climbed = now.position.alt - start.alt;
-  const moved = metres(start, now.position);
+  const apart = metres(leader, now.position);
+  const high = now.position.alt - leader.alt;
+  last = { apart, high };
 
-  if (Math.abs(climbed - UP) < 6 && Math.abs(moved - ACROSS) < 10) {
-    reached = { climbed, moved, waited };
+  if (Math.abs(apart - ACROSS) < 12 && Math.abs(high - UP) < 8) {
+    reached = { apart, high, waited };
     break;
   }
 }
 
-if (reached === null) {
-  const end = await telemetry();
-  check(
-    "the member flies to its place",
-    false,
-    end.position === null
-      ? "the vehicle never reported a position"
-      : `climbed ${(end.position.alt - start.alt).toFixed(1)} m of ${UP}, moved ${metres(start, end.position).toFixed(1)} m of ${ACROSS}`,
-  );
-} else {
-  check(
-    "the member flies to its place",
-    true,
-    `climbed ${reached.climbed.toFixed(1)} m, moved ${reached.moved.toFixed(1)} m, after ${reached.waited + 3}s`,
-  );
-}
+check(
+  "the member flies to its place",
+  reached !== null,
+  reached === null
+    ? `it ended ${last === null ? "nowhere" : `${last.apart.toFixed(1)} m from the leader at ${last.high.toFixed(1)} m`}, and the place is ${ACROSS} m away at ${UP} m`
+    : `${reached.apart.toFixed(1)} m from the leader, ${reached.high.toFixed(1)} m high, after ${reached.waited + 3}s`,
+);
 
 // Stopping the loop is part of the feature: nothing more is sent to the fleet.
 await sheet.getByRole("button", { name: /^(Parar|Stop)$/ }).click();

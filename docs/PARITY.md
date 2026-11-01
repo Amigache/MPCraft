@@ -1667,12 +1667,19 @@ the number upstream sends (6) rather than as its modern synonym, and a mask buil
 dialect has: 64 + 128 + 256 + 1024 + 2048 = 3520, which is not the number upstream's
 `ushort.MaxValue` arithmetic leaves behind — four of the bits it sets have no names today, and
 ArduPilot ignores them. One `COMMAND_LONG` goes out, for that vehicle alone; nothing for the vehicle
-inside the band, and nothing for the leader. What the loop cannot prove without a live fleet is that
-the vehicles fly into their slots, so the row stays partial — and a fleet cannot be assembled on this machine,
-which is said rather than assumed: these builds of the simulator refuse a device string for UDP, and `--slave`
-puts the extra airframes on JSON control ports (`9012`, `9022`, `9032`) rather than on the link, so one wire
-cannot see two vehicles. The scripted peer stands in for the dispatch, which covers the arithmetic and not the
-flying.
+inside the band, and nothing for the leader. What the loop could not prove was that the vehicles fly
+into their slots, because a fleet could not be assembled on this machine. It can now: `docker/sitl`
+runs three ArduPilot vehicles from the published source and a MAVLink router joins them into one
+link, and `apps/ui/scripts/formation-live.mjs` puts the whole way through the window — it speaks to
+one of them, arms it, puts it in GUIDED, takes it off from the actions tab, writes its place in the
+sheet and starts the loop. The member was observed flying to its place: 20.1 m high with a place that
+asks for 20, and 36.5 m from the leader with a place that asks for 25, after eighteen seconds. Two
+faults were found on that road and are fixed: the takeoff command carried its height in the first
+slot instead of the seventh, so a vehicle was told to take off to zero metres and answered
+`MAV_RESULT_FAILED`; and the position target carried a height over the sea in the frame whose height
+is measured from home, so the first flight of the member climbed for the sky. The row stays partial
+for what a simulator cannot settle: a real airframe, with its wind and its GPS, and the leader flying
+rather than standing on the ground.
 
 The **places** an operator wrote and the **decision** to run them are kept in the settings file, and
 they are kept apart: a fleet is set up once and flown many times, and writing slots for a fleet is not

@@ -61,6 +61,22 @@ printf 'MAV_SYSID %s\n' "$SYSID" >> "$parameters"
 # the vehicle stays armed until it is told otherwise.
 printf 'DISARM_DELAY 0\n' >> "$parameters"
 
+# What Mission Planner writes in the identity of each of its simulated vehicles
+# (`Documents/Mission Planner/sitl/+N/identity.parm`), which is the setup that arms and takes off
+# here: terrain off, because a simulator has no terrain server to answer and a vehicle that waits
+# for the ground it is standing on will not leave it; the scheduler and the simulator at the rates
+# the station expects; and the two ports speaking MAVLink 2.
+cat >> "$parameters" <<'IDENTITY'
+SIM_TERRAIN 0
+TERRAIN_ENABLE 0
+SCHED_LOOP_RATE 50
+SIM_RATE_HZ 400
+SIM_DRIFT_SPEED 0
+SIM_DRIFT_TIME 0
+SERIAL0_PROTOCOL 2
+SERIAL1_PROTOCOL 2
+IDENTITY
+
 echo "SITL $VEHICLE, system id $SYSID, home $VEHICLE_HOME"
 
 exec "/ardupilot/build/sitl/bin/$binary" \

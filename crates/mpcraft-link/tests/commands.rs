@@ -326,7 +326,11 @@ async fn the_takeoff_command_carries_the_altitude() {
     };
 
     assert_eq!(command.command, MavCmd::MAV_CMD_NAV_TAKEOFF);
-    assert_eq!(command.param1, 25.0, "the altitude was not carried");
+    // The height is the seventh slot of `MAV_CMD_NAV_TAKEOFF`. A station that puts it in the first
+    // is telling the vehicle to take off to zero metres, which ArduPilot refuses with
+    // `MAV_RESULT_FAILED` — the run against the simulated fleet is what found it.
+    assert_eq!(command.param1, 0.0, "the first slot is not the height");
+    assert_eq!(command.param7, 25.0, "the altitude was not carried");
 }
 
 #[tokio::test]
