@@ -42,7 +42,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -66,7 +66,7 @@ jobs:
       # beside the compiled binary, so every job that compiles that crate needs the file on the
       # disk — a clippy run that finds it missing is a build that failed, not a lint that passed.
       - name: Cache the ffmpeg sidecar
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/desktop/binaries
           key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/fetch-ffmpeg.js') }}
@@ -95,9 +95,9 @@ jobs:
         working-directory: apps/ui
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -136,7 +136,7 @@ jobs:
     # MPCRAFT_SITL_LIVE=1, one connection per run.
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -157,7 +157,7 @@ jobs:
       # The desktop crate names the `ffmpeg` sidecar in its bundle, and its build script copies the file
       # beside the compiled binary: a workspace that compiles it without the file is a build that fails.
       - name: Cache the ffmpeg sidecar
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/desktop/binaries
           key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/fetch-ffmpeg.js') }}
@@ -216,7 +216,7 @@ jobs:
         working-directory: apps/ui
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -224,7 +224,7 @@ jobs:
       - name: Cache the Cargo registry and build directory
         uses: Swatinem/rust-cache@v2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -250,7 +250,7 @@ jobs:
       # three static builds, and the cache keeps a runner from downloading it again for a change
       # that did not touch the script naming it.
       - name: Cache the ffmpeg sidecar
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ../desktop/binaries
           key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/fetch-ffmpeg.js') }}
@@ -292,7 +292,7 @@ jobs:
       # A build that wrote no installer has not packaged anything, so an empty upload is a failure
       # rather than a job that passed with nothing in it.
       - name: Keep the installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mpcraft-${{ matrix.os }}
           path: target/release/bundle/**
@@ -302,7 +302,7 @@ jobs:
       # signatures. Each of the three jobs adds its own, and the first one creates the release.
       - name: Publish the installers and their signatures
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: MPCraft ${{ github.ref_name }}
@@ -334,7 +334,7 @@ jobs:
 
       - name: Keep this platform of the update manifest
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: updater-${{ runner.os }}
           path: latest-*.json
@@ -352,9 +352,9 @@ jobs:
     # fragment and this job puts them together. The document is what the application reads to learn
     # that a newer version exists, and it is attached to the same release the installers are on.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: updater-*
           path: fragments
